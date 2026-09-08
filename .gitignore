@@ -1,0 +1,12 @@
+# Local agent configuration
+.agents/
+.codex/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# OS temporary files
+.DS_Store
+Thumbs.db
