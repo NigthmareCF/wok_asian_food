@@ -6,6 +6,49 @@
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+credentials.json
+google-services.json
+GoogleService-Info.plist
+
+# Dependencies and package manager caches
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+
+# Next.js and web builds
+.next/
+out/
+dist/
+build/
+.vercel/
+
+# Expo and React Native local artifacts
+.expo/
+.expo-shared/
+web-build/
+
+# Tooling, tests, logs and temporary files
+.turbo/
+.cache/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # OS temporary files
 .DS_Store
