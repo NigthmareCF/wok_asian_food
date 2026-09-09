@@ -7,6 +7,7 @@ WOK Asian Food es un sistema para restaurante. La fase activa implementa el fron
 - Codigo, carpetas, tipos y nombres tecnicos en ingles.
 - Textos visibles para usuarios en espanol.
 - Para cambios Web, leer tambien `apps/web/AGENTS.md`.
+- Para trabajo de un canal, leer `docs/frontend/channels/README.md` y la guía específica de Cliente, Operativo o Administrativo.
 - Usar datos temporales claramente identificados; no integrar APIs ni credenciales sin una tarea aprobada.
 - No incorporar secretos, `.env`, claves, certificados ni archivos locales al repositorio.
 - Mantener la interfaz responsive para telefono, tablet y escritorio.
@@ -20,3 +21,4 @@ WOK Asian Food es un sistema para restaurante. La fase activa implementa el fron
 ## Git
 
 Trabajar en una rama de tarea, abrir PR hacia `development` y no hacer commits directos en `production` o `development`.
+Los asistentes de IA no deben hacer commit, push o merge sin autorización explícita de la persona responsable.
