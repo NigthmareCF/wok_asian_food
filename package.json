@@ -1,0 +1,20 @@
+{
+  "name": "wok-asian-food",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @wok/web",
+    "build:web": "npm run build --workspace @wok/web",
+    "lint": "npm run lint --workspace @wok/web",
+    "typecheck": "npm run typecheck --workspace @wok/web",
+    "test": "npm run test --workspace @wok/web",
+    "format": "prettier --write apps/web AGENTS.md BRANCH_CONTEXT.md README.md docs/frontend docs/project package.json",
+    "format:check": "prettier --check apps/web AGENTS.md BRANCH_CONTEXT.md README.md docs/frontend docs/project package.json"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}
