@@ -1,0 +1,5 @@
+node_modules/
+.next/
+apps/*/.next/
+coverage/
+package-lock.json
