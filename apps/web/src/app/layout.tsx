@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppProviders } from "@/providers/app-providers";
 import "./globals.css";
+import "./orders.css";
 
 export const metadata: Metadata = {
   title: { default: "WOK Asian Food", template: "%s | WOK Asian Food" },
