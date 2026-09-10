@@ -23,6 +23,7 @@ Backend, base de datos, autenticacion real, pagos reales, integraciones externas
 ## Lectura previa
 
 - `AGENTS.md` y `apps/web/AGENTS.md`.
+- `docs/frontend/TEAM_GUIDE.md`.
 - `docs/frontend/channels/README.md`.
 - Guía del canal asignado.
 - Flujo de Git en `docs/git/BRANCHING.md`.

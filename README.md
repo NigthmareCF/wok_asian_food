@@ -28,7 +28,9 @@ npm run build:web
 ```
 
 - [Arquitectura frontend](docs/frontend/ARCHITECTURE.md)
+- [Guia del equipo frontend](docs/frontend/TEAM_GUIDE.md)
 - [Reparto frontend](docs/frontend/WORKSTREAMS.md)
+- [Registro de avances](docs/progress/README.md)
 - [Flujo Git](docs/git/BRANCHING.md)
 - [Catalogo de ramas](docs/git/BRANCH_CATALOG.md)
 - [Contribuciones](CONTRIBUTING.md)

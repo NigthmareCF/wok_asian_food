@@ -14,6 +14,8 @@ Rutas objetivo: menu, detalle de platillo, carrito, checkout, seguimiento, reser
 
 Guía ejecutable: [Canal Cliente](channels/CLIENT.md).
 
+Registro de avances: [Cliente](../progress/CLIENT.md).
+
 ## Operativo
 
 Responsables: Antony y Tomy.
@@ -22,6 +24,8 @@ Rutas objetivo: dashboard, mesas, pedidos, cocina, reservas, mensajeria, deliver
 
 Guía ejecutable: [Canal Operativo](channels/OPERATIONAL.md).
 
+Registro de avances: [Operativo](../progress/OPERATIONAL.md).
+
 ## Administrativo
 
 Responsables: Edgar y Beto.
@@ -29,6 +33,8 @@ Responsables: Edgar y Beto.
 Rutas objetivo: dashboard, usuarios, roles, personal, menu, recetas, proveedores, compras, reportes, configuracion, IA, vision y auditoria.
 
 Guía ejecutable: [Canal Administrativo](channels/ADMIN.md).
+
+Registro de avances: [Administrativo](../progress/ADMIN.md).
 
 ## Criterio de entrega
 

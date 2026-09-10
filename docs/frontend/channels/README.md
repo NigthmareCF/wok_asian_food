@@ -2,6 +2,8 @@
 
 Estas guías convierten el catálogo funcional en trabajo ejecutable. Definen qué vistas pertenecen a cada canal, dónde debe vivir el código, qué acciones mínimas requiere cada pantalla y cómo se valida antes de abrir un pull request.
 
+Para incorporación general, comenzar por la [Guía del equipo frontend](../TEAM_GUIDE.md). Los resultados relevantes se registran en [`docs/progress`](../../progress/README.md).
+
 - [Cliente](CLIENT.md)
 - [Operativo](OPERATIONAL.md)
 - [Administrativo](ADMIN.md)
