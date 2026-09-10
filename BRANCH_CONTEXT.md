@@ -1,22 +1,14 @@
-# Contexto de branch
+# Contexto de trabajo
 
-```yaml
-context_version: 1
-branch: feature/frontend-foundation
-base_branch: development
-collaborator: pending
-agent: Codex
-last_updated_at: 2026-09-09
-status: IN_PROGRESS
-```
+Este archivo conserva límites estables para las ramas frontend. La rama activa y su base deben comprobarse con Git antes de editar; no se mantiene aquí un nombre de rama que pueda quedar obsoleto después de un merge.
 
 ## Proposito
 
-Crear una base reproducible para el frontend web que permita trabajo paralelo de Cliente, Operativo y Administrativo.
+Permitir trabajo paralelo y revisable en el frontend web para Cliente, Operativo y Administrativo.
 
 ## Alcance permitido
 
-Workspace, aplicacion Web, rutas iniciales, sistema visual, componentes compartidos, mocks, permisos visuales, contratos de transporte/realtime y pruebas de fundacion.
+Aplicación Web, rutas, sistema visual, componentes compartidos, mocks, permisos visuales, contratos de transporte/realtime y documentación por canal.
 
 ## Fuera de alcance
 
@@ -28,6 +20,14 @@ Backend, base de datos, autenticacion real, pagos reales, integraciones externas
 - Logo, fotografias y tipografia oficial estan pendientes.
 - Los permisos y contratos backend son conceptos de frontend, no autorizacion real.
 
+## Lectura previa
+
+- `AGENTS.md` y `apps/web/AGENTS.md`.
+- `docs/frontend/TEAM_GUIDE.md`.
+- `docs/frontend/channels/README.md`.
+- Guía del canal asignado.
+- Flujo de Git en `docs/git/BRANCHING.md`.
+
 ## Tests necesarios
 
-Lint, TypeScript, pruebas unitarias y build de produccion de Web.
+Lint, TypeScript, pruebas unitarias y build de producción de Web. Los asistentes de IA no hacen commit, push ni merge sin autorización explícita.

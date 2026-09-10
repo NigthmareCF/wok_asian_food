@@ -1,9 +1,9 @@
 # Estado actual
 
 - Fecha: 2026-09-09.
-- Fase: Frontend Foundation.
-- Branch: `feature/frontend-foundation`.
+- Fase: preparación del trabajo paralelo frontend.
+- Rama de integración: `development`; guías en revisión desde `docs/frontend-channel-guides`.
 - Scrum Master: coordinador semanal; nombre pendiente de registrar.
-- Areas activas: workspace Web, rutas base, UI compartida, mocks y contratos.
+- Áreas activas: definición de vistas por canal, onboarding del equipo y registros de avance.
 - Bloqueos: decision sobre repositorios, assets oficiales y politicas backend.
-- Siguiente hito: validar la fundacion, integrarla en `development` y abrir trabajo paralelo por contexto.
+- Siguiente hito: aprobar las guías, actualizar ramas de canal desde `development` y abrir trabajo paralelo por contexto.
