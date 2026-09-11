@@ -53,6 +53,8 @@ export type OrderItem = {
   notes?: string;
   fulfillment?: OrderFulfillment;
   readyAt?: string;
+  accountId?: string;
+  accountName?: string;
 };
 
 export type OrderAccount = {
@@ -66,6 +68,7 @@ export type OrderRecord = {
   source: string;
   accountId?: string;
   accountName?: string;
+  accounts?: OrderAccount[];
   status: OrderStatus;
   createdAt: string;
   elapsed: string;

@@ -115,6 +115,8 @@ export function TableDetailView({
             modifiers: [],
             fulfillment: undefined,
             readyAt: undefined,
+            accountId: undefined,
+            accountName: undefined,
           } satisfies OrderItem,
         }))
       : [];
@@ -372,23 +374,43 @@ export function TableDetailView({
                   {pendingOrders.length || (table.orderId ? 1 : 0)} comanda(s)
                 </p>
               </div>
-              <button
-                className="button button--primary button--compact"
-                onClick={() => setShowAccountCreator(true)}
-                type="button"
-              >
-                <Plus aria-hidden="true" size={17} /> Abrir cuenta
-              </button>
+              <div className="table-account-heading-actions">
+                {openAccounts.length > 0 ? (
+                  <Link
+                    className="button button--primary button--compact"
+                    href={`/operation/orders/new?table=${table.number}`}
+                  >
+                    <ReceiptText aria-hidden="true" size={16} /> Tomar pedido
+                    completo
+                  </Link>
+                ) : null}
+                <button
+                  className="button button--secondary button--compact"
+                  onClick={() => setShowAccountCreator(true)}
+                  type="button"
+                >
+                  <Plus aria-hidden="true" size={17} /> Abrir cuenta
+                </button>
+              </div>
             </div>
 
             {openAccounts.length > 0 ? (
               <div className="table-open-accounts">
                 {openAccounts.map((account) => {
                   const accountOrders = pendingOrders.filter(
-                    (order) => order.accountId === account.id,
+                    (order) =>
+                      order.accountId === account.id ||
+                      order.items.some((item) => item.accountId === account.id),
                   );
-                  const accountTotal = accountOrders.reduce(
-                    (total, order) => total + getOrderTotal(order.items),
+                  const accountItems = accountOrders.flatMap((order) =>
+                    order.items.filter(
+                      (item) =>
+                        item.accountId === account.id ||
+                        (!item.accountId && order.accountId === account.id),
+                    ),
+                  );
+                  const accountTotal = accountItems.reduce(
+                    (total, item) => total + item.unitPrice * item.quantity,
                     0,
                   );
                   return (
@@ -398,8 +420,8 @@ export function TableDetailView({
                         <span>
                           <strong>{account.name}</strong>
                           <small>
-                            {accountOrders.length
-                              ? `${accountOrders.length} comanda(s)`
+                            {accountItems.length
+                              ? `${accountItems.reduce((sum, item) => sum + item.quantity, 0)} producto(s) en ${accountOrders.length} pedido(s)`
                               : "Lista para agregar productos"}
                           </small>
                         </span>
@@ -442,6 +464,9 @@ export function TableDetailView({
                       <small>
                         {[
                           line.orderId ? `#${line.orderId}` : null,
+                          line.item.accountName
+                            ? `Cuenta de ${line.item.accountName}`
+                            : null,
                           ...line.item.modifiers,
                           line.item.notes,
                         ]

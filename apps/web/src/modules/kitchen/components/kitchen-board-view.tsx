@@ -206,6 +206,9 @@ export function KitchenBoardView() {
                               <strong>{item.quantity}×</strong>
                               <div>
                                 <span>{item.name}</span>
+                                {item.accountName ? (
+                                  <small>Cuenta de {item.accountName}</small>
+                                ) : null}
                                 {item.modifiers.length || item.notes ? (
                                   <small>
                                     {[...item.modifiers, item.notes]

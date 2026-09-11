@@ -88,6 +88,9 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   const [additionalFulfillment, setAdditionalFulfillment] =
     useState<OrderFulfillment>("dine-in");
   const [additionalReadyAt, setAdditionalReadyAt] = useState("");
+  const [additionalAccountId, setAdditionalAccountId] = useState(
+    order?.accounts?.[0]?.id ?? order?.accountId ?? "",
+  );
 
   if (!order) {
     return (
@@ -104,6 +107,11 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   }
 
   const status = statusMeta[order.status];
+  const additionalAccount =
+    order.accounts?.find((account) => account.id === additionalAccountId) ??
+    (order.accountId && order.accountName
+      ? { id: order.accountId, name: order.accountName }
+      : undefined);
   const StatusIcon = status.icon;
   const isClosed = order.status === "cancelled";
   const canEdit = order.status !== "ready" && !isClosed;
@@ -205,6 +213,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           JSON.stringify(item.modifiers) === JSON.stringify(modifiers) &&
           item.notes === notes &&
           (item.fulfillment ?? "dine-in") === additionalFulfillment &&
+          item.accountId === additionalAccount?.id &&
           item.readyAt ===
             (additionalFulfillment === "takeaway"
               ? additionalReadyAt || undefined
@@ -235,6 +244,8 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           modifiers,
           notes,
           fulfillment: additionalFulfillment,
+          accountId: additionalAccount?.id,
+          accountName: additionalAccount?.name,
           readyAt:
             additionalFulfillment === "takeaway"
               ? additionalReadyAt || undefined
@@ -277,7 +288,11 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           <h1>Pedido #{order.id}</h1>
           <p>
             {order.source}
-            {order.accountName ? ` · Cuenta de ${order.accountName}` : ""}
+            {order.accounts && order.accounts.length > 1
+              ? ` · ${order.accounts.length} cuentas`
+              : order.accountName
+                ? ` · Cuenta de ${order.accountName}`
+                : ""}
           </p>
         </div>
         <span
@@ -379,6 +394,11 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
                 </span>
                 <div>
                   <strong>{item.name}</strong>
+                  {item.accountName ? (
+                    <small className="order-detail-item__account">
+                      Cuenta de {item.accountName}
+                    </small>
+                  ) : null}
                   {item.modifiers.length > 0 ? (
                     <span>{item.modifiers.join(" · ")}</span>
                   ) : null}
@@ -552,6 +572,23 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
                   Configura el nuevo producto antes de añadirlo a la cuenta.
                 </p>
                 <div className="product-dialog__groups">
+                  {order.accounts && order.accounts.length > 1 ? (
+                    <label className="order-field">
+                      <span>Cuenta</span>
+                      <select
+                        onChange={(event) =>
+                          setAdditionalAccountId(event.target.value)
+                        }
+                        value={additionalAccountId}
+                      >
+                        {order.accounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
                   <fieldset>
                     <legend>Entrega</legend>
                     <div className="order-fulfillment-options">

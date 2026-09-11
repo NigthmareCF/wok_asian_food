@@ -17,6 +17,7 @@ type CreateOrderInput = {
   items: OrderItem[];
   accountId?: string;
   accountName?: string;
+  accounts?: OrderAccount[];
 };
 
 type OrderSessionContextValue = {
@@ -73,6 +74,7 @@ export function OrderSessionProvider({
           source: input.source,
           accountId: input.accountId,
           accountName: input.accountName,
+          accounts: input.accounts,
           status: "sent",
           createdAt: now,
           elapsed: "Ahora",
