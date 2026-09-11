@@ -1,15 +1,10 @@
-import { OperationalPlaceholder } from "@/modules/operation";
+import { ProductionListView } from "@/modules/production";
+import { ProductionSessionProvider } from "@/modules/production";
 
 export default function ProductionPage() {
   return (
-    <OperationalPlaceholder
-      description="Registra producción, rendimiento y disponibilidad de preparaciones."
-      nextSteps={[
-        "Producciones activas",
-        "Rendimiento y correcciones",
-        "Sugerencias simuladas",
-      ]}
-      title="Producción"
-    />
+    <ProductionSessionProvider>
+      <ProductionListView />
+    </ProductionSessionProvider>
   );
 }

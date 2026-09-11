@@ -12,9 +12,11 @@ export type NavigationIcon =
   | "menu"
   | "messages"
   | "orders"
+  | "payments"
   | "people"
   | "production"
   | "settings"
+  | "status"
   | "tables";
 export type NavigationItem = {
   label: string;
@@ -88,6 +90,12 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       requiredPermission: "cash.read",
     },
     {
+      label: "Pagos",
+      route: "/operation/payments",
+      icon: "payments",
+      requiredPermission: "payments.read",
+    },
+    {
       label: "Inventario",
       route: "/operation/inventory",
       icon: "inventory",
@@ -98,6 +106,12 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       route: "/operation/production",
       icon: "production",
       requiredPermission: "production.read",
+    },
+    {
+      label: "Estado del servicio",
+      route: "/operation/status",
+      icon: "status",
+      requiredPermission: "status.read",
     },
   ],
   admin: [

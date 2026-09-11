@@ -28,6 +28,48 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Pruebas: lint, TypeScript, 28 pruebas unitarias y build del frontend web
 - Decisiones: Cocina controla los estados de preparación y listo; Pedidos únicamente envía la comanda inicial o sus actualizaciones; cada actualización conserva un lote diferencial en memoria
 - Pendiente: persistencia, permisos reales, aceptación o rechazo individual de cambios, impresión y sincronización realtime
+
+## 2026-09-11 — Inventario, Producción y Estado del servicio
+
+- Rama: `feature/operational-inventory-production`
+- Responsable: Tomy
+- Vistas: O-15 `/operation/inventory` (listado y detalle); O-16 `/operation/production` (listado, detalle de batch y revisión de sugerencias) y `/operation/production/suggestion/[suggestionId]`; O-17 Disponibilidad integrada en inventario/producción; O-18 `/operation/status` (estado del servicio)
+- Completado:
+  - **Inventario**: listado con búsqueda, filtros por estado (disponible, bajo, crítico, reservado, caducado) y categoría, resumen con contadores y filas navegables; detalle con estado, resumen de stock disponible/reservado, barra de nivel con referencia al mínimo, lotes con vencimiento (próximos a vencer y vencidos), registro de entradas (cantidad, vencimiento, proveedor, costo, código de lote) y ajustes de stock (positivos o negativos con motivo).
+  - **Producción**: listado con filtros por estado y categoría, resumen por estado, sugerencias pendientes con prioridad y enlace a revisión; detalle de batch con trazabilidad, resumen, reposo, completado con cantidad real y rendimiento calculado, descarte con motivo obligatorio y resumen del lote; sugerencias con aceptar/rechazar y estado visible.
+  - **Estado del servicio**: selector de estado (normal, alta demanda, solo recoger, suspendidos) con motivo obligatorio y confirmación, estado actual destacado, historial de cambios y trazabilidad local.
+- Archivos principales:
+  - `apps/web/src/modules/inventory` (provider, listado, detalle)
+  - `apps/web/src/modules/production` (provider, listado, detalle de batch, sugerencias)
+  - `apps/web/src/modules/service-status` (provider, vista)
+  - `apps/web/src/data/fixtures/inventory.ts`, `production.ts`
+  - `apps/web/src/app/(private)/(operational)/operation/inventory`, `production`, `status`
+  - `apps/web/src/app/operational-views.css` (estilos nuevos de inventario, producción y estado del servicio)
+- Pruebas: lint, TypeScript, 32 pruebas unitarias conjuntas y build aprobados; rutas de detalle dinámicas (`inventory/[itemId]`, `production/[batchId]`, `production/suggestion/[suggestionId]`) compiladas; responsive por breakpoints 960/720/440px según los patrones existentes.
+- Decisiones: datos simulados en memoria que se reinician al recargar; fechas de caducidad se comparan contra una referencia fija para mantener renders deterministas; O-17 no tiene página propia y se resuelve con disponible, reservado, mínimo y rendimiento; el enlace "Nueva entrada" del listado aún apunta a `/operation/inventory/new` (pendiente de decidir como ruta o eliminar).
+- Pendiente: persistencia real, permisos backend, sincronización con pedidos/cocina, impresión, alertas por mínimos y caducidad, y decisión sobre el registro de entradas desde el listado.
+- PR: Pendiente
+
+## 2026-09-10 — Delivery, Pagos, Precuenta y Caja (Bloque 1 Tomy)
+
+- Rama: `feature/operational-delivery-payments`
+- Responsable: Tomy
+- Asistencia: Codex
+- Vistas: O-11 `/operation/delivery` (listado y detalle); O-12 `/operation/payments` (listado, detalle y precuenta); O-13 Precuenta integrada en `/operation/payments/[recordId]/prebill`; O-14 `/operation/cash`
+- Completado:
+  - **Delivery**: listado con filtros por estado (esperando, asignado, en camino, entregado, reprogramado, cancelado), búsqueda, resumen de pendientes de pago; detalle con asignación de repartidor, avance de estado (recogido, entregado), reprogramación, cancelación, trazabilidad y datos de conductor/vehículo.
+  - **Pagos**: listado con filtros por estado (pendiente, parcial, pagado, diferencia), búsqueda, resumen de montos pendientes; detalle con registro de pagos por método (efectivo, tarjeta, transferencia, online), aplicación de propinas y descuentos, historial de cobros y trazabilidad.
+  - **Precuenta**: vista dedicada con desglose de productos, subtotal, propina sugerida (checkbox), descuentos, total, desglose por método de pago y confirmación de impresión.
+  - **Caja**: resumen de turno (fondo inicial, ingresos, gastos, retiros, depósitos, esperado vs contado, diferencia); registro de movimientos por tipo (ingreso, gasto, retiro, depósito) con categorías; cierre de caja con conteo físico, diferencia calculada y observaciones; confirmaciones visibles para acciones financieras.
+- Archivos principales:
+  - `apps/web/src/modules/delivery` (provider, listado, detalle, fixtures)
+  - `apps/web/src/modules/payments` (provider, listado, detalle, precuenta, fixtures)
+  - `apps/web/src/modules/cash` (provider, vista, fixtures)
+  - `apps/web/src/data/fixtures/delivery.ts`, `payments.ts`, `cash.ts`
+  - `apps/web/src/app/(private)/(operational)/operation/delivery`, `payments`, `cash`
+- Pruebas: lint, TypeScript, 32 pruebas unitarias conjuntas y build aprobados; revisión visual en escritorio (1440px) y móvil (390px); sin desbordamiento horizontal; estados vacío, carga y error cubiertos.
+- Decisiones: datos y permisos simulados en memoria; repartidores y movimientos de caja se reinician al recargar; precuenta no es documento fiscal; pagos y delivery integrados con pedidos existentes mediante IDs compartidos.
+- Pendiente: persistencia real, permisos backend, sincronización con cocina/inventario, impresión real, notificaciones push a repartidor, conciliación bancaria.
 - PR: Pendiente
 
 ## 2026-09-10 — Creación y gestión de pedidos
