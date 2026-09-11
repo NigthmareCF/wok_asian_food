@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { OrderSessionProvider } from "@/modules/orders";
 import {
   TableSessionProvider,
   useTableSession,
@@ -31,7 +32,9 @@ describe("JoinedTableDetailView", () => {
     const user = userEvent.setup();
     render(
       <TableSessionProvider>
-        <JoinedTableHarness />
+        <OrderSessionProvider>
+          <JoinedTableHarness />
+        </OrderSessionProvider>
       </TableSessionProvider>,
     );
 
@@ -50,8 +53,12 @@ describe("JoinedTableDetailView", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Reserva recibida; mesas abiertas por Antony.",
     );
+    await user.click(screen.getByRole("button", { name: "Abrir cuenta" }));
+    await user.type(screen.getByLabelText("Nombre de la cuenta"), "Pepito");
+    await user.click(screen.getByRole("button", { name: "Guardar cuenta" }));
+
     expect(
-      screen.getByRole("link", { name: "Agregar cuenta" }),
+      screen.getByRole("link", { name: "Tomar pedido completo" }),
     ).toHaveAttribute("href", "/operation/orders/new?tables=2,3");
     expect(
       screen.getByRole("button", { name: "Separar mesas" }),

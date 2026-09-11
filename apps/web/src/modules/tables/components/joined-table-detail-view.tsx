@@ -19,6 +19,7 @@ import {
   currentOperationalUser,
   operationalReservationsToday,
 } from "@/data/fixtures/operation";
+import { useOrderSession } from "@/modules/orders";
 import {
   formatTableNumbers,
   useTableSession,
@@ -28,10 +29,13 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
   const router = useRouter();
   const { tables, joinedGroups, separateTables, updateJoinedGroup } =
     useTableSession();
+  const { createTableAccount, tableAccounts } = useOrderSession();
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showReservationPicker, setShowReservationPicker] = useState(false);
   const [selectedReservationId, setSelectedReservationId] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [showAccountCreator, setShowAccountCreator] = useState(false);
+  const [newAccountName, setNewAccountName] = useState("");
   const group = joinedGroups.find((item) => item.id === groupId);
 
   if (!group) {
@@ -76,6 +80,8 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
   const selectedReservation = operationalReservationsToday.find(
     (reservation) => reservation.id === selectedReservationId,
   );
+  const groupSource = `Mesas ${group.numbers.join(" y ")} unidas`;
+  const openAccounts = tableAccounts[groupSource] ?? [];
 
   const openGroup = () => {
     updateJoinedGroup(group.id, (current) => ({
@@ -111,6 +117,14 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
   const confirmSeparation = () => {
     const result = separateTables(group.id);
     if (result.ok) router.replace("/operation/tables");
+  };
+
+  const createAccount = () => {
+    if (!newAccountName.trim()) return;
+    const account = createTableAccount(groupSource, newAccountName);
+    setShowAccountCreator(false);
+    setNewAccountName("");
+    setFeedback(`Cuenta de ${account.name} abierta para estas mesas.`);
   };
 
   return (
@@ -230,18 +244,52 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
                 {group.guests} personas · responsable {group.responsible}
               </p>
             </div>
-            <Link
-              className="button button--primary button--compact"
-              href={`/operation/orders/new?tables=${group.numbers.join(",")}`}
-            >
-              <Plus aria-hidden="true" size={17} /> Agregar cuenta
-            </Link>
+            <div className="table-account-heading-actions">
+              {openAccounts.length > 0 ? (
+                <Link
+                  className="button button--primary button--compact"
+                  href={`/operation/orders/new?tables=${group.numbers.join(",")}`}
+                >
+                  <ReceiptText aria-hidden="true" size={16} /> Tomar pedido
+                  completo
+                </Link>
+              ) : null}
+              <button
+                className="button button--secondary button--compact"
+                onClick={() => setShowAccountCreator(true)}
+                type="button"
+              >
+                <Plus aria-hidden="true" size={17} /> Abrir cuenta
+              </button>
+            </div>
           </div>
-          <div className="ops-empty-state table-order-empty">
-            <ReceiptText aria-hidden="true" size={24} />
-            <strong>Aún no hay productos</strong>
-            <span>Agrega productos para iniciar la cuenta de estas mesas.</span>
-          </div>
+          {openAccounts.length > 0 ? (
+            <div className="table-open-accounts">
+              {openAccounts.map((account) => (
+                <article key={account.id}>
+                  <div>
+                    <UsersRound aria-hidden="true" size={17} />
+                    <span>
+                      <strong>{account.name}</strong>
+                      <small>Lista para agregar productos</small>
+                    </span>
+                  </div>
+                  <Link
+                    className="button button--secondary button--compact"
+                    href={`/operation/orders/new?tables=${group.numbers.join(",")}&account=${encodeURIComponent(account.id)}&accountName=${encodeURIComponent(account.name)}`}
+                  >
+                    <Plus aria-hidden="true" size={15} /> Agregar productos
+                  </Link>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="ops-empty-state table-order-empty">
+              <ReceiptText aria-hidden="true" size={24} />
+              <strong>Abre la primera cuenta</strong>
+              <span>Después podrás reunirlas en un solo pedido.</span>
+            </div>
+          )}
         </section>
       )}
 
@@ -371,6 +419,60 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
                 type="button"
               >
                 Asignar reservación
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showAccountCreator ? (
+        <div className="confirm-dialog__backdrop" role="presentation">
+          <section
+            aria-labelledby="create-joined-account-title"
+            aria-modal="true"
+            className="confirm-dialog"
+            role="dialog"
+          >
+            <button
+              aria-label="Cerrar nueva cuenta"
+              className="icon-button confirm-dialog__close"
+              onClick={() => setShowAccountCreator(false)}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <span className="confirm-dialog__icon">
+              <UsersRound aria-hidden="true" size={22} />
+            </span>
+            <h2 id="create-joined-account-title">Abrir cuenta</h2>
+            <p>Identifica a la persona dentro de la atención conjunta.</p>
+            <label className="order-field create-account-field">
+              <span>Nombre de la cuenta</span>
+              <input
+                autoFocus
+                onChange={(event) => setNewAccountName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") createAccount();
+                }}
+                placeholder="Ej. Pepito"
+                value={newAccountName}
+              />
+            </label>
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                onClick={() => setShowAccountCreator(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="button button--primary"
+                disabled={!newAccountName.trim()}
+                onClick={createAccount}
+                type="button"
+              >
+                Guardar cuenta
               </button>
             </div>
           </section>
