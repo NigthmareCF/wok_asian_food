@@ -4,6 +4,19 @@ Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-10 — Ajustes de revisión del PR #4
+
+- Rama: `feature/frontend-operational`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: O-01 `/operation`; O-02 `/operation/tables`; O-03 `/operation/tables/[tableId]`
+- Completado: unión de dos o más mesas libres y conectadas; apertura con asignación automática al usuario activo; selección de reservaciones del día desde mesas libres individuales o unidas; apertura y acceso a cuenta conjunta para uniones; trazabilidad del estado manual fuera de servicio; bloque de atención desplegable con severidad visual; acciones avanzadas de cuenta identificadas como mockups sujetos a revisión
+- Archivos principales: `apps/web/src/modules/operation`, `apps/web/src/modules/tables`, `apps/web/src/data/fixtures/operation.ts` y `apps/web/src/app/globals.css`
+- Pruebas: lint, TypeScript, 19 pruebas unitarias y build del frontend web aprobados
+- Decisiones: el usuario que abre una mesa queda asignado automáticamente; cada contacto entre mesas resta dos lugares; las reservaciones, uniones y estados continúan simulados en memoria hasta disponer de backend
+- Pendiente: persistencia, permisos y sincronización real con reservaciones; atender en `feature/orders` las observaciones sobre cuentas, edición de pedidos y envío incremental a cocina
+- PR: `https://github.com/NigthmareCF/wok_asian_food/pull/4`
+
 ## 2026-09-10 — Gestión operativa de mesas
 
 - Rama: `feature/frontend-operational`

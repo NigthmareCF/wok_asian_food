@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   ArrowLeft,
+  CalendarPlus,
   CalendarClock,
   CircleAlert,
   CircleCheck,
@@ -20,6 +21,11 @@ import type {
   OperationalTable,
   TableOrderItem,
 } from "@/data/fixtures/operation";
+import {
+  currentOperationalUser,
+  operationalReservationsToday,
+} from "@/data/fixtures/operation";
+import { useTableSession } from "@/modules/tables/table-session-provider";
 
 type TableAction = "charge" | "split" | "transfer" | "release";
 
@@ -69,11 +75,12 @@ export function TableDetailView({
   initialTable: OperationalTable;
   items: TableOrderItem[];
 }) {
-  const [table, setTable] = useState(initialTable);
-  const [responsible, setResponsible] = useState(
-    initialTable.responsible ?? "Sin asignar",
-  );
+  const { tables, updateTable } = useTableSession();
+  const table =
+    tables.find((item) => item.id === initialTable.id) ?? initialTable;
   const [activeAction, setActiveAction] = useState<TableAction | null>(null);
+  const [showReservationPicker, setShowReservationPicker] = useState(false);
+  const [selectedReservationId, setSelectedReservationId] = useState("");
   const [feedback, setFeedback] = useState("");
 
   const canRelease = table.balance === 0 && table.status === "occupied";
@@ -82,31 +89,51 @@ export function TableDetailView({
   const isServicePending =
     table.status === "preparing" || table.status === "out-of-service";
 
-  const assignResponsible = () => {
-    setTable((current) => ({ ...current, responsible }));
-    setFeedback(`Mesa asignada a ${responsible}.`);
-  };
+  const selectedReservation = operationalReservationsToday.find(
+    (reservation) => reservation.id === selectedReservationId,
+  );
 
   const openTable = () => {
-    setTable((current) => ({
+    updateTable(table.id, (current) => ({
       ...current,
       status: "occupied",
       guests: current.nextReservation?.people ?? 2,
-      responsible: responsible === "Sin asignar" ? "Sofia M." : responsible,
+      responsible: currentOperationalUser,
       openedAt: "Ahora",
       elapsed: "0 min",
+      nextReservation:
+        current.status === "reserved" ? undefined : current.nextReservation,
     }));
-    setResponsible((current) =>
-      current === "Sin asignar" ? "Sofia M." : current,
-    );
     setFeedback(
-      isReserved ? "Reserva recibida y mesa abierta." : "Mesa abierta.",
+      isReserved
+        ? `Reserva recibida; mesa abierta por ${currentOperationalUser}.`
+        : `Mesa abierta y asignada a ${currentOperationalUser}.`,
     );
+  };
+
+  const assignReservation = () => {
+    if (!selectedReservation || selectedReservation.people > table.capacity)
+      return;
+
+    updateTable(table.id, (current) => ({
+      ...current,
+      status: "reserved",
+      nextReservation: {
+        time: selectedReservation.time,
+        guest: selectedReservation.guest,
+        people: selectedReservation.people,
+      },
+    }));
+    setFeedback(
+      `Reserva de ${selectedReservation.guest} asignada a la mesa ${table.number}.`,
+    );
+    setShowReservationPicker(false);
+    setSelectedReservationId("");
   };
 
   const markAvailable = () => {
     if (table.status === "preparing") {
-      setTable((current) => ({ ...current, status: "free" }));
+      updateTable(table.id, (current) => ({ ...current, status: "free" }));
       setFeedback("Mesa marcada como libre.");
       return;
     }
@@ -118,10 +145,10 @@ export function TableDetailView({
     if (!activeAction) return;
 
     if (activeAction === "charge") {
-      setTable((current) => ({ ...current, balance: 0 }));
+      updateTable(table.id, (current) => ({ ...current, balance: 0 }));
       setFeedback("Cobro registrado. La mesa ya puede liberarse.");
     } else if (activeAction === "release") {
-      setTable((current) => ({
+      updateTable(table.id, (current) => ({
         ...current,
         status: "free",
         guests: 0,
@@ -129,6 +156,7 @@ export function TableDetailView({
         orderId: undefined,
         elapsed: undefined,
         openedAt: undefined,
+        responsible: undefined,
       }));
       setFeedback("Mesa liberada correctamente.");
     } else if (activeAction === "split") {
@@ -217,17 +245,28 @@ export function TableDetailView({
             <p>
               {isReserved
                 ? "Confirma la llegada para iniciar la atención."
-                : "Asigna un responsable al abrir la mesa."}
+                : `Al abrirla quedará asignada automáticamente a ${currentOperationalUser}.`}
             </p>
           </div>
-          <button
-            className="button button--primary"
-            onClick={openTable}
-            type="button"
-          >
-            <Plus aria-hidden="true" size={18} />
-            {isReserved ? "Recibir reserva" : "Abrir mesa"}
-          </button>
+          <div className="table-available-state__actions">
+            {isAvailable ? (
+              <button
+                className="button button--secondary"
+                onClick={() => setShowReservationPicker(true)}
+                type="button"
+              >
+                <CalendarPlus aria-hidden="true" size={18} /> Asignar reserva
+              </button>
+            ) : null}
+            <button
+              className="button button--primary"
+              onClick={openTable}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={18} />
+              {isReserved ? "Recibir reserva" : "Abrir mesa"}
+            </button>
+          </div>
         </section>
       ) : isServicePending ? (
         <section className="table-available-state">
@@ -240,8 +279,17 @@ export function TableDetailView({
             <p>
               {table.status === "preparing"
                 ? "Confirma la limpieza antes de recibir nuevos clientes."
-                : "Debe revisarse antes de volver a habilitarla."}
+                : "Este estado fue establecido manualmente y requiere personal autorizado para habilitarla."}
             </p>
+            {table.manualStatus ? (
+              <div className="table-status-audit">
+                <strong>
+                  {table.manualStatus.channel} · {table.manualStatus.setBy} ·{" "}
+                  {table.manualStatus.time}
+                </strong>
+                <span>{table.manualStatus.reason}</span>
+              </div>
+            ) : null}
           </div>
           <button
             className="button button--secondary"
@@ -301,30 +349,17 @@ export function TableDetailView({
               <div className="ops-section-heading ops-section-heading--compact">
                 <div>
                   <h2>Responsable</h2>
-                  <p>Asignación simulada</p>
+                  <p>Usuario que abrió la mesa</p>
                 </div>
                 <UserRound aria-hidden="true" size={19} />
               </div>
-              <label className="table-assignment">
-                <span>Mesero asignado</span>
-                <select
-                  onChange={(event) => setResponsible(event.target.value)}
-                  value={responsible}
-                >
-                  <option>Sin asignar</option>
-                  <option>Sofia M.</option>
-                  <option>Marco R.</option>
-                  <option>Luis A.</option>
-                </select>
-              </label>
-              <button
-                className="button button--secondary button--compact button--full"
-                disabled={responsible === "Sin asignar"}
-                onClick={assignResponsible}
-                type="button"
-              >
-                Guardar responsable
-              </button>
+              <div className="table-owner">
+                <UserRound aria-hidden="true" size={18} />
+                <div>
+                  <strong>{table.responsible ?? "Sin asignar"}</strong>
+                  <span>Asignación automática de apertura</span>
+                </div>
+              </div>
             </section>
 
             <section
@@ -334,7 +369,7 @@ export function TableDetailView({
               <div className="ops-section-heading ops-section-heading--compact">
                 <div>
                   <h2 id="actions-title">Acciones de cuenta</h2>
-                  <p>Requieren confirmación</p>
+                  <p>Mockups sujetos a revisión</p>
                 </div>
               </div>
               <button onClick={() => setActiveAction("split")} type="button">
@@ -377,9 +412,82 @@ export function TableDetailView({
       )}
 
       <p className="mock-disclaimer">
-        Datos y permisos simulados; cobros y cambios requieren validación del
-        backend.
+        Datos y permisos simulados. Dividir, precuenta, cobro y traslado son
+        referencias de flujo pendientes de sus vistas definitivas.
       </p>
+
+      {showReservationPicker ? (
+        <div className="confirm-dialog__backdrop" role="presentation">
+          <section
+            aria-labelledby="reservation-picker-title"
+            aria-modal="true"
+            className="confirm-dialog reservation-picker"
+            role="dialog"
+          >
+            <button
+              aria-label="Cerrar reservaciones"
+              className="icon-button confirm-dialog__close"
+              onClick={() => setShowReservationPicker(false)}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <span className="confirm-dialog__icon">
+              <CalendarPlus aria-hidden="true" size={22} />
+            </span>
+            <h2 id="reservation-picker-title">Reservaciones de hoy</h2>
+            <p>
+              Selecciona una reservación compatible con la capacidad de esta
+              mesa.
+            </p>
+            <div className="reservation-picker__list">
+              {operationalReservationsToday.map((reservation) => {
+                const compatible = reservation.people <= table.capacity;
+                return (
+                  <label
+                    className={compatible ? "" : "is-disabled"}
+                    key={reservation.id}
+                  >
+                    <input
+                      checked={selectedReservationId === reservation.id}
+                      disabled={!compatible}
+                      name="reservation"
+                      onChange={() => setSelectedReservationId(reservation.id)}
+                      type="radio"
+                    />
+                    <span>{reservation.time}</span>
+                    <div>
+                      <strong>{reservation.guest}</strong>
+                      <small>
+                        {reservation.people} personas
+                        {reservation.note ? ` · ${reservation.note}` : ""}
+                      </small>
+                    </div>
+                    {!compatible ? <small>Supera capacidad</small> : null}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                onClick={() => setShowReservationPicker(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="button button--primary"
+                disabled={!selectedReservation}
+                onClick={assignReservation}
+                type="button"
+              >
+                Asignar a mesa {table.number}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {activeAction ? (
         <div className="confirm-dialog__backdrop" role="presentation">

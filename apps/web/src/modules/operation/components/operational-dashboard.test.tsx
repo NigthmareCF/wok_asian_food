@@ -32,4 +32,23 @@ describe("OperationalDashboard", () => {
       "/operation/kitchen",
     );
   });
+
+  it("expands the attention list on demand", async () => {
+    const user = userEvent.setup();
+    render(<OperationalDashboard />);
+
+    expect(screen.getByText("Salmón en nivel crítico")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Pedido #D-088 retrasado"),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Desplegar alertas de atención" }),
+    );
+
+    expect(screen.getByText("Pedido #D-088 retrasado")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Contraer alertas de atención" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
 });

@@ -6,6 +6,8 @@ import {
   AlarmClockOff,
   ArrowRight,
   ChefHat,
+  ChevronDown,
+  CircleAlert,
   CircleCheck,
   CircleDot,
   ReceiptText,
@@ -33,6 +35,7 @@ type OrderFilter = "all" | OperationalOrder["status"];
 
 export function OperationalDashboard() {
   const [orderFilter, setOrderFilter] = useState<OrderFilter>("all");
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
 
   const filteredOrders = useMemo(
     () =>
@@ -219,19 +222,42 @@ export function OperationalDashboard() {
           </div>
         </section>
 
-        <aside className="ops-work-panel" aria-labelledby="alerts-title">
+        <aside
+          className="ops-work-panel ops-attention"
+          aria-labelledby="alerts-title"
+        >
           <div className="ops-section-heading ops-section-heading--compact">
             <div>
               <h2 id="alerts-title">Atención</h2>
-              <p>Solo lo que requiere actuar</p>
+              <p>{operationalAlerts.length} alertas requieren actuar</p>
             </div>
+            <button
+              aria-expanded={alertsExpanded}
+              aria-label={
+                alertsExpanded
+                  ? "Contraer alertas de atención"
+                  : "Desplegar alertas de atención"
+              }
+              className="ops-attention__toggle"
+              onClick={() => setAlertsExpanded((current) => !current)}
+              title={alertsExpanded ? "Contraer alertas" : "Mostrar alertas"}
+              type="button"
+            >
+              <CircleAlert aria-hidden="true" size={19} />
+              <span>{operationalAlerts.length}</span>
+              <ChevronDown aria-hidden="true" size={17} />
+            </button>
           </div>
           <div className="ops-alert-list">
-            {operationalAlerts.map((alert) => (
+            {(alertsExpanded
+              ? operationalAlerts
+              : operationalAlerts.slice(0, 1)
+            ).map((alert) => (
               <article
                 className={`ops-alert ops-alert--${alert.tone}`}
                 key={alert.id}
               >
+                <CircleAlert aria-hidden="true" size={18} />
                 <div>
                   <strong>{alert.title}</strong>
                   <p>{alert.detail}</p>
