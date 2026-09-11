@@ -2,7 +2,20 @@ import type { Permission } from "@/shared/lib/permissions";
 
 export type NavigationContext = "client" | "operational" | "admin";
 export type NavigationIcon =
-  "dashboard" | "menu" | "orders" | "people" | "settings" | "location";
+  | "calendar"
+  | "cash"
+  | "dashboard"
+  | "delivery"
+  | "inventory"
+  | "kitchen"
+  | "location"
+  | "menu"
+  | "messages"
+  | "orders"
+  | "people"
+  | "production"
+  | "settings"
+  | "tables";
 export type NavigationItem = {
   label: string;
   route: string;
@@ -35,23 +48,56 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
     {
       label: "Mesas",
       route: "/operation/tables",
-      icon: "people",
+      icon: "tables",
       requiredPermission: "tables.read",
-      featureFlag: false,
     },
     {
       label: "Pedidos",
       route: "/operation/orders",
       icon: "orders",
       requiredPermission: "orders.read",
-      featureFlag: false,
     },
     {
       label: "Cocina",
       route: "/operation/kitchen",
-      icon: "menu",
+      icon: "kitchen",
       requiredPermission: "kitchen.read",
-      featureFlag: false,
+    },
+    {
+      label: "Reservas",
+      route: "/operation/reservations",
+      icon: "calendar",
+      requiredPermission: "reservations.read",
+    },
+    {
+      label: "Mensajes",
+      route: "/operation/messages",
+      icon: "messages",
+      requiredPermission: "messages.read",
+    },
+    {
+      label: "Delivery",
+      route: "/operation/delivery",
+      icon: "delivery",
+      requiredPermission: "delivery.read",
+    },
+    {
+      label: "Caja",
+      route: "/operation/cash",
+      icon: "cash",
+      requiredPermission: "cash.read",
+    },
+    {
+      label: "Inventario",
+      route: "/operation/inventory",
+      icon: "inventory",
+      requiredPermission: "inventory.read",
+    },
+    {
+      label: "Produccion",
+      route: "/operation/production",
+      icon: "production",
+      requiredPermission: "production.read",
     },
   ],
   admin: [

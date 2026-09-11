@@ -1,4 +1,5 @@
-import { PortalOverview } from "@/shared/components/portal-overview";
+import { OperationalDashboard } from "@/modules/operation";
+
 export default function OperationalPage() {
-  return <PortalOverview context="operational" />;
+  return <OperationalDashboard />;
 }
