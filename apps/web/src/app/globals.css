@@ -1679,6 +1679,13 @@ a {
   color: var(--text-subtle);
   font-size: 0.6875rem;
 }
+.table-order-row .table-order-row__takeaway {
+  align-items: center;
+  color: #f7d98f;
+  display: inline-flex;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+}
 .table-order-row > span {
   color: var(--text-secondary);
   font-size: 0.8125rem;
@@ -1699,6 +1706,69 @@ a {
 }
 .table-account-total strong {
   font-size: 1.15rem;
+}
+.table-open-accounts {
+  display: grid;
+  margin-bottom: 1rem;
+}
+.table-open-accounts article {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 4.5rem;
+  padding: 0.65rem 0;
+}
+.table-open-accounts article > div {
+  align-items: center;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.table-open-accounts article > div > svg {
+  color: #ff9b7d;
+}
+.table-open-accounts article > div > span {
+  display: grid;
+}
+.table-open-accounts article strong {
+  font-size: 0.8125rem;
+}
+.table-open-accounts article small {
+  color: var(--text-subtle);
+  font-size: 0.6875rem;
+}
+.table-account-onboarding {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 5rem;
+}
+.table-account-onboarding > svg {
+  color: #ff9b7d;
+}
+.table-account-onboarding > div {
+  display: grid;
+}
+.table-account-onboarding strong,
+.table-account-subheading strong {
+  font-size: 0.8125rem;
+}
+.table-account-onboarding span,
+.table-account-subheading span {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+}
+.table-account-subheading {
+  align-items: end;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding-top: 0.75rem;
 }
 .table-detail__side {
   display: grid;
@@ -1746,6 +1816,10 @@ a {
 }
 .table-actions button:hover {
   color: var(--text);
+}
+.table-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 .table-actions button svg {
   color: #ff9b7d;
@@ -1892,6 +1966,9 @@ a {
 }
 .reservation-picker {
   max-width: 34rem;
+}
+.create-account-field {
+  margin-top: 1rem;
 }
 .reservation-picker__list {
   border-bottom: 1px solid var(--border);
@@ -2256,6 +2333,13 @@ a {
   }
   .reservation-picker__list label > small:last-child {
     grid-column: 3;
+  }
+  .table-open-accounts article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .table-open-accounts article > .button {
+    grid-column: 1 / -1;
+    justify-content: center;
   }
   .joined-detail__expired {
     align-items: start;
