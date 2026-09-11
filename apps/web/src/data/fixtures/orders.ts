@@ -4,6 +4,24 @@ export type OrderStatus =
   "new" | "sent" | "preparing" | "ready" | "delayed" | "cancelled";
 
 export type ProductAvailability = "available" | "low" | "unavailable";
+export type KitchenStation = "Wok" | "Sushi" | "Fría";
+export type OrderFulfillment = "dine-in" | "takeaway";
+
+export type KitchenChangeItem = {
+  itemId: string;
+  name: string;
+  action: "added" | "updated" | "removed";
+  quantity: number;
+  previousQuantity?: number;
+  fulfillment?: OrderFulfillment;
+  readyAt?: string;
+};
+
+export type KitchenChange = {
+  id: string;
+  sentAt: string;
+  items: KitchenChangeItem[];
+};
 
 export type ProductModifierGroup = {
   id: string;
@@ -20,6 +38,7 @@ export type OrderProduct = {
   price: number;
   eta: number;
   availability: ProductAvailability;
+  station: KitchenStation;
   remaining?: number;
   modifierGroups?: ProductModifierGroup[];
 };
@@ -32,12 +51,21 @@ export type OrderItem = {
   unitPrice: number;
   modifiers: string[];
   notes?: string;
+  fulfillment?: OrderFulfillment;
+  readyAt?: string;
+};
+
+export type OrderAccount = {
+  id: string;
+  name: string;
 };
 
 export type OrderRecord = {
   id: string;
   channel: OrderChannel;
   source: string;
+  accountId?: string;
+  accountName?: string;
   status: OrderStatus;
   createdAt: string;
   elapsed: string;
@@ -45,6 +73,8 @@ export type OrderRecord = {
   responsible: string;
   items: OrderItem[];
   kitchenUpdates: number;
+  kitchenChanges: KitchenChange[];
+  paymentStatus?: "pending" | "paid";
 };
 
 export const orderProducts: OrderProduct[] = [
@@ -56,6 +86,7 @@ export const orderProducts: OrderProduct[] = [
     price: 68,
     eta: 8,
     availability: "available",
+    station: "Wok",
   },
   {
     id: "edamame",
@@ -65,6 +96,7 @@ export const orderProducts: OrderProduct[] = [
     price: 48,
     eta: 5,
     availability: "available",
+    station: "Fría",
   },
   {
     id: "wok-teriyaki",
@@ -74,6 +106,7 @@ export const orderProducts: OrderProduct[] = [
     price: 112,
     eta: 14,
     availability: "available",
+    station: "Wok",
     modifierGroups: [
       {
         id: "protein",
@@ -105,6 +138,7 @@ export const orderProducts: OrderProduct[] = [
     price: 126,
     eta: 16,
     availability: "low",
+    station: "Wok",
     remaining: 5,
     modifierGroups: [
       {
@@ -127,6 +161,7 @@ export const orderProducts: OrderProduct[] = [
     price: 122,
     eta: 18,
     availability: "available",
+    station: "Wok",
   },
   {
     id: "salmon-bowl",
@@ -136,6 +171,7 @@ export const orderProducts: OrderProduct[] = [
     price: 148,
     eta: 12,
     availability: "low",
+    station: "Fría",
     remaining: 3,
   },
   {
@@ -146,6 +182,7 @@ export const orderProducts: OrderProduct[] = [
     price: 96,
     eta: 13,
     availability: "available",
+    station: "Sushi",
   },
   {
     id: "salmon-roll",
@@ -155,6 +192,7 @@ export const orderProducts: OrderProduct[] = [
     price: 104,
     eta: 12,
     availability: "unavailable",
+    station: "Sushi",
   },
   {
     id: "lemonade",
@@ -164,6 +202,7 @@ export const orderProducts: OrderProduct[] = [
     price: 42,
     eta: 4,
     availability: "available",
+    station: "Fría",
   },
   {
     id: "green-tea",
@@ -173,6 +212,7 @@ export const orderProducts: OrderProduct[] = [
     price: 38,
     eta: 3,
     availability: "available",
+    station: "Fría",
   },
 ];
 
@@ -187,6 +227,7 @@ export const initialOrders: OrderRecord[] = [
     eta: "9 min",
     responsible: "Sofía M.",
     kitchenUpdates: 1,
+    kitchenChanges: [],
     items: [
       {
         id: "A-104-1",
@@ -224,6 +265,7 @@ export const initialOrders: OrderRecord[] = [
     eta: "7 min tarde",
     responsible: "Carlos R.",
     kitchenUpdates: 0,
+    kitchenChanges: [],
     items: [
       {
         id: "D-088-1",
@@ -253,6 +295,7 @@ export const initialOrders: OrderRecord[] = [
     eta: "Listo",
     responsible: "Luis A.",
     kitchenUpdates: 0,
+    kitchenChanges: [],
     items: [
       {
         id: "A-106-1",
@@ -282,6 +325,7 @@ export const initialOrders: OrderRecord[] = [
     eta: "16 min",
     responsible: "Sin asignar",
     kitchenUpdates: 0,
+    kitchenChanges: [],
     items: [
       {
         id: "R-041-1",
@@ -311,6 +355,7 @@ export const initialOrders: OrderRecord[] = [
     eta: "14 min",
     responsible: "Sofía M.",
     kitchenUpdates: 0,
+    kitchenChanges: [],
     items: [
       {
         id: "A-107-1",

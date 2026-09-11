@@ -3,6 +3,8 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import {
   initialOrders,
+  type KitchenChangeItem,
+  type OrderAccount,
   type OrderChannel,
   type OrderItem,
   type OrderRecord,
@@ -13,13 +15,20 @@ type CreateOrderInput = {
   channel: OrderChannel;
   source: string;
   items: OrderItem[];
+  accountId?: string;
+  accountName?: string;
 };
 
 type OrderSessionContextValue = {
   orders: OrderRecord[];
+  tableAccounts: Record<string, OrderAccount[]>;
   createOrder: (input: CreateOrderInput) => string;
   updateOrderItems: (orderId: string, items: OrderItem[]) => boolean;
   updateOrderStatus: (orderId: string, status: OrderStatus) => boolean;
+  updateOrderEta: (orderId: string, eta: string) => boolean;
+  markOrdersPaid: (orderIds: string[]) => void;
+  createTableAccount: (source: string, name: string) => OrderAccount;
+  clearTableAccounts: (source: string) => void;
 };
 
 const OrderSessionContext = createContext<OrderSessionContextValue | null>(
@@ -32,10 +41,14 @@ export function OrderSessionProvider({
   children: React.ReactNode;
 }) {
   const [orders, setOrders] = useState<OrderRecord[]>(initialOrders);
+  const [tableAccounts, setTableAccounts] = useState<
+    Record<string, OrderAccount[]>
+  >({});
 
   const value = useMemo<OrderSessionContextValue>(
     () => ({
       orders,
+      tableAccounts,
       createOrder(input) {
         const prefix =
           input.channel === "delivery"
@@ -58,6 +71,8 @@ export function OrderSessionProvider({
           id,
           channel: input.channel,
           source: input.source,
+          accountId: input.accountId,
+          accountName: input.accountName,
           status: "sent",
           createdAt: now,
           elapsed: "Ahora",
@@ -65,19 +80,80 @@ export function OrderSessionProvider({
           responsible: "Antony",
           items: input.items,
           kitchenUpdates: 0,
+          kitchenChanges: [],
+          paymentStatus: "pending",
         };
         setOrders((current) => [order, ...current]);
         return id;
       },
       updateOrderItems(orderId, items) {
-        if (!orders.some((order) => order.id === orderId)) return false;
+        const currentOrder = orders.find((order) => order.id === orderId);
+        if (!currentOrder) return false;
+        const previousById = new Map(
+          currentOrder.items.map((item) => [item.id, item]),
+        );
+        const changes: KitchenChangeItem[] = [];
+        items.forEach((item) => {
+          const previous = previousById.get(item.id);
+          if (!previous) {
+            changes.push({
+              itemId: item.id,
+              name: item.name,
+              action: "added",
+              quantity: item.quantity,
+              fulfillment: item.fulfillment,
+              readyAt: item.readyAt,
+            });
+            return;
+          }
+          previousById.delete(item.id);
+          if (JSON.stringify(previous) === JSON.stringify(item)) return;
+          changes.push({
+            itemId: item.id,
+            name: item.name,
+            action: "updated",
+            quantity: item.quantity,
+            previousQuantity: previous.quantity,
+            fulfillment: item.fulfillment,
+            readyAt: item.readyAt,
+          });
+        });
+        previousById.forEach((item) => {
+          changes.push({
+            itemId: item.id,
+            name: item.name,
+            action: "removed",
+            quantity: 0,
+            previousQuantity: item.quantity,
+          });
+        });
+        if (changes.length === 0) return false;
+
+        const notifyKitchen = currentOrder.status !== "new";
+        const sentAt = new Date().toLocaleTimeString("es-GT", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
         setOrders((current) =>
           current.map((order) =>
             order.id === orderId
               ? {
                   ...order,
                   items,
-                  kitchenUpdates: order.kitchenUpdates + 1,
+                  kitchenUpdates:
+                    order.kitchenUpdates + (notifyKitchen ? 1 : 0),
+                  kitchenChanges: notifyKitchen
+                    ? [
+                        ...order.kitchenChanges,
+                        {
+                          id: `${order.id}-update-${order.kitchenUpdates + 1}`,
+                          sentAt,
+                          items: changes,
+                        },
+                      ]
+                    : order.kitchenChanges,
+                  paymentStatus: "pending",
                 }
               : order,
           ),
@@ -93,8 +169,45 @@ export function OrderSessionProvider({
         );
         return true;
       },
+      updateOrderEta(orderId, eta) {
+        if (!orders.some((order) => order.id === orderId)) return false;
+        setOrders((current) =>
+          current.map((order) =>
+            order.id === orderId ? { ...order, eta } : order,
+          ),
+        );
+        return true;
+      },
+      markOrdersPaid(orderIds) {
+        const selectedIds = new Set(orderIds);
+        setOrders((current) =>
+          current.map((order) =>
+            selectedIds.has(order.id)
+              ? { ...order, paymentStatus: "paid" }
+              : order,
+          ),
+        );
+      },
+      createTableAccount(source, name) {
+        const account = {
+          id: `account-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: name.trim(),
+        };
+        setTableAccounts((current) => ({
+          ...current,
+          [source]: [...(current[source] ?? []), account],
+        }));
+        return account;
+      },
+      clearTableAccounts(source) {
+        setTableAccounts((current) => {
+          const next = { ...current };
+          delete next[source];
+          return next;
+        });
+      },
     }),
-    [orders],
+    [orders, tableAccounts],
   );
 
   return (
