@@ -14,12 +14,12 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-import {
-  operationalTables,
-  type OperationalTable,
-  type OperationalTableStatus,
+import type {
+  OperationalTable,
+  OperationalTableStatus,
 } from "@/data/fixtures/operation";
 import {
+  formatTableNumbers,
   useTableSession,
   type JoinedTableGroup,
 } from "@/modules/tables/table-session-provider";
@@ -55,7 +55,8 @@ const filters: { value: TableFilter; label: string }[] = [
 ];
 
 export function TableFloorSessionView() {
-  const { joinedGroups, joinTables, separateTables } = useTableSession();
+  const { tables, joinedGroups, joinTables, separateTables } =
+    useTableSession();
   const [filter, setFilter] = useState<TableFilter>("all");
   const [zone, setZone] = useState<ZoneFilter>("all");
   const [joinMode, setJoinMode] = useState(false);
@@ -74,7 +75,7 @@ export function TableFloorSessionView() {
 
   const floorItems = useMemo(() => {
     const renderedGroups = new Set<string>();
-    return operationalTables.reduce<FloorItem[]>((items, table) => {
+    return tables.reduce<FloorItem[]>((items, table) => {
       const group = joinedGroupByTable.get(table.id);
       if (group) {
         if (
@@ -97,22 +98,25 @@ export function TableFloorSessionView() {
       }
       return items;
     }, []);
-  }, [filter, joinedGroupByTable, zone]);
+  }, [filter, joinedGroupByTable, tables, zone]);
 
-  const firstSelectedTable = operationalTables.find(
-    (table) => table.id === selectedTables[0],
+  const selectedTableRecords = tables.filter((table) =>
+    selectedTables.includes(table.id),
   );
 
   const getDisabledReason = (table: OperationalTable) => {
     if (selectedTables.includes(table.id)) return "";
     if (table.status !== "free") return "Solo se pueden unir mesas libres";
-    if (selectedTables.length >= 2) return "Solo se pueden unir dos mesas";
-    if (!firstSelectedTable) return "";
-    if (table.zone !== firstSelectedTable.zone) {
+    if (selectedTableRecords.length === 0) return "";
+    if (table.zone !== selectedTableRecords[0].zone) {
       return "Debe estar en la misma zona";
     }
-    if (!firstSelectedTable.adjacentTableIds?.includes(table.id)) {
-      return "Debe ser una mesa adyacente";
+    if (
+      !selectedTableRecords.some((selectedTable) =>
+        selectedTable.adjacentTableIds?.includes(table.id),
+      )
+    ) {
+      return "Debe conectar con una mesa seleccionada";
     }
     return "";
   };
@@ -122,7 +126,7 @@ export function TableFloorSessionView() {
       ? "Selecciona una mesa libre"
       : selectedTables.length === 1
         ? "Ahora selecciona una mesa libre adyacente"
-        : "Las mesas están listas para unirse";
+        : "Puedes confirmar o agregar más mesas conectadas";
 
   const toggleJoinMode = () => {
     setJoinMode((current) => !current);
@@ -190,10 +194,8 @@ export function TableFloorSessionView() {
           {filters.map((item) => {
             const count =
               item.value === "all"
-                ? operationalTables.length
-                : operationalTables.filter(
-                    (table) => table.status === item.value,
-                  ).length;
+                ? tables.length
+                : tables.filter((table) => table.status === item.value).length;
             return (
               <button
                 aria-pressed={filter === item.value}
@@ -223,11 +225,11 @@ export function TableFloorSessionView() {
         <div className="table-join-bar" role="status">
           <div>
             <strong>{joinInstruction}</strong>
-            <span>{selectedTables.length} de 2 seleccionadas</span>
+            <span>{selectedTables.length} seleccionadas · mínimo 2 mesas</span>
           </div>
           <button
             className="button button--primary button--compact"
-            disabled={selectedTables.length !== 2}
+            disabled={selectedTables.length < 2}
             onClick={confirmJoin}
             type="button"
           >
@@ -240,10 +242,19 @@ export function TableFloorSessionView() {
         {floorItems.map((item) => {
           if (item.kind === "group") {
             const { group } = item;
+            const groupStatus =
+              group.status === "occupied"
+                ? { label: "Ocupada", tone: "danger" }
+                : group.status === "reserved"
+                  ? { label: "Reservada", tone: "warning" }
+                  : { label: "Unidas", tone: "joined" };
             return (
-              <article className="table-card table-card--joined" key={group.id}>
+              <article
+                className={`table-card table-card--joined table-card--joined-${Math.min(group.tableIds.length, 4)}`}
+                key={group.id}
+              >
                 <Link
-                  aria-label={`Ver detalle de mesas ${group.numbers.join(" y ")}`}
+                  aria-label={`Ver detalle de mesas ${formatTableNumbers(group.numbers)}`}
                   className="table-card__joined-link"
                   href={`/operation/tables/${group.id}`}
                 >
@@ -252,15 +263,28 @@ export function TableFloorSessionView() {
                       <span>Mesas</span>
                       <strong>{group.numbers.join(" + ")}</strong>
                     </div>
-                    <span className="table-state table-state--joined">
-                      <Link2 aria-hidden="true" size={16} /> Unidas
+                    <span
+                      className={`table-state table-state--${groupStatus.tone}`}
+                    >
+                      <Link2 aria-hidden="true" size={16} />
+                      {groupStatus.label}
                     </span>
                   </div>
                   <div className="table-card__body">
-                    <span>Capacidad combinada</span>
-                    <strong>{group.capacity} personas</strong>
+                    <span>
+                      {group.status === "occupied"
+                        ? `${group.guests} personas`
+                        : "Capacidad combinada"}
+                    </span>
+                    <strong>
+                      {group.responsible ?? `${group.capacity} personas`}
+                    </strong>
                     <small>
-                      Se restan 2 lugares por las caras que quedan unidas.
+                      {group.reservation
+                        ? `${group.reservation.time} · ${group.reservation.guest}`
+                        : group.status === "occupied"
+                          ? "Cuenta conjunta activa"
+                          : "Disponible para reserva o apertura"}
                     </small>
                   </div>
                   <span className="table-card__open table-card__joined-open">
@@ -270,9 +294,15 @@ export function TableFloorSessionView() {
                 <div className="table-card__footer">
                   <span>{group.zone}</span>
                   <button
-                    aria-label={`Separar mesas ${group.numbers.join(" y ")}`}
+                    aria-label={`Separar mesas ${formatTableNumbers(group.numbers)}`}
                     className="table-card__separate"
+                    disabled={group.status !== "free"}
                     onClick={() => setPendingSeparation(group)}
+                    title={
+                      group.status === "free"
+                        ? undefined
+                        : "Finaliza la reservación o atención antes de separar"
+                    }
                     type="button"
                   >
                     <Unlink aria-hidden="true" size={15} /> Separar
@@ -307,9 +337,11 @@ export function TableFloorSessionView() {
                 </span>
                 <strong>
                   {table.responsible ??
-                    (table.status === "out-of-service"
-                      ? "Revisión pendiente"
-                      : "Sin asignar")}
+                    (table.manualStatus
+                      ? `Manual · ${table.manualStatus.setBy}`
+                      : table.status === "out-of-service"
+                        ? "Revisión pendiente"
+                        : "Sin asignar")}
                 </strong>
                 {table.nextReservation ? (
                   <small>
@@ -409,11 +441,11 @@ export function TableFloorSessionView() {
               <Unlink aria-hidden="true" size={22} />
             </span>
             <h2 id="separate-dialog-title">
-              Separar mesas {pendingSeparation.numbers.join(" y ")}
+              Separar mesas {formatTableNumbers(pendingSeparation.numbers)}
             </h2>
             <p>
-              Ambas mesas recuperarán su capacidad, posición y estado libre
-              original.
+              Las {pendingSeparation.tableIds.length} mesas recuperarán su
+              capacidad, posición y estado libre original.
             </p>
             <div className="confirm-dialog__actions">
               <button

@@ -3,16 +3,26 @@
 import { createContext, useContext, useMemo, useState } from "react";
 import {
   operationalTables,
+  type OperationalReservation,
   type OperationalTable,
 } from "@/data/fixtures/operation";
 
 export type JoinedTableGroup = {
   id: string;
-  tableIds: [string, string];
-  numbers: [number, number];
+  tableIds: string[];
+  numbers: number[];
   zone: OperationalTable["zone"];
   capacity: number;
+  status: "free" | "reserved" | "occupied";
+  guests: number;
+  responsible?: string;
+  reservation?: OperationalReservation;
 };
+
+export const formatTableNumbers = (numbers: number[]) =>
+  new Intl.ListFormat("es", { style: "long", type: "conjunction" }).format(
+    numbers.map(String),
+  );
 
 type TableSessionResult = {
   ok: boolean;
@@ -20,9 +30,18 @@ type TableSessionResult = {
 };
 
 type TableSessionContextValue = {
+  tables: OperationalTable[];
   joinedGroups: JoinedTableGroup[];
   joinTables: (tableIds: string[]) => TableSessionResult;
   separateTables: (groupId: string) => TableSessionResult;
+  updateTable: (
+    tableId: string,
+    updater: (table: OperationalTable) => OperationalTable,
+  ) => void;
+  updateJoinedGroup: (
+    groupId: string,
+    updater: (group: JoinedTableGroup) => JoinedTableGroup,
+  ) => void;
 };
 
 const TableSessionContext = createContext<TableSessionContextValue | null>(
@@ -35,42 +54,67 @@ export function TableSessionProvider({
   children: React.ReactNode;
 }) {
   const [joinedGroups, setJoinedGroups] = useState<JoinedTableGroup[]>([]);
+  const [tableOverrides, setTableOverrides] = useState<
+    Record<string, OperationalTable>
+  >({});
+  const tables = useMemo(
+    () => operationalTables.map((table) => tableOverrides[table.id] ?? table),
+    [tableOverrides],
+  );
 
   const value = useMemo<TableSessionContextValue>(
     () => ({
+      tables,
       joinedGroups,
       joinTables(tableIds) {
         const uniqueIds = [...new Set(tableIds)];
-        if (uniqueIds.length !== 2) {
-          return { ok: false, message: "Selecciona exactamente dos mesas." };
+        if (uniqueIds.length < 2) {
+          return { ok: false, message: "Selecciona al menos dos mesas." };
         }
 
-        const tables = uniqueIds
-          .map((id) => operationalTables.find((table) => table.id === id))
+        const selectedTables = uniqueIds
+          .map((id) => tables.find((table) => table.id === id))
           .filter((table): table is OperationalTable => Boolean(table))
           .sort((a, b) => a.number - b.number);
 
-        if (tables.length !== 2) {
+        if (selectedTables.length !== uniqueIds.length) {
           return {
             ok: false,
             message: "No se encontraron las mesas seleccionadas.",
           };
         }
 
-        const [firstTable, secondTable] = tables;
-        if (tables.some((table) => table.status !== "free")) {
+        const [firstTable] = selectedTables;
+        if (selectedTables.some((table) => table.status !== "free")) {
           return { ok: false, message: "Solo se pueden unir mesas libres." };
         }
-        if (firstTable.zone !== secondTable.zone) {
+        if (selectedTables.some((table) => table.zone !== firstTable.zone)) {
           return {
             ok: false,
             message: "Las mesas deben estar en la misma zona.",
           };
         }
-        if (!firstTable.adjacentTableIds?.includes(secondTable.id)) {
+        const selectedIds = new Set(uniqueIds);
+        const connectedIds = new Set<string>([firstTable.id]);
+        const pendingIds = [firstTable.id];
+
+        while (pendingIds.length > 0) {
+          const currentId = pendingIds.shift();
+          const currentTable = selectedTables.find(
+            (table) => table.id === currentId,
+          );
+          currentTable?.adjacentTableIds?.forEach((adjacentId) => {
+            if (selectedIds.has(adjacentId) && !connectedIds.has(adjacentId)) {
+              connectedIds.add(adjacentId);
+              pendingIds.push(adjacentId);
+            }
+          });
+        }
+
+        if (connectedIds.size !== selectedTables.length) {
           return {
             ok: false,
-            message: "Las mesas seleccionadas no son adyacentes.",
+            message: "Todas las mesas deben formar un grupo conectado.",
           };
         }
         if (
@@ -82,17 +126,21 @@ export function TableSessionProvider({
         }
 
         const group: JoinedTableGroup = {
-          id: `joined-${firstTable.id}-${secondTable.id}`,
-          tableIds: [firstTable.id, secondTable.id],
-          numbers: [firstTable.number, secondTable.number],
+          id: `joined-${selectedTables.map((table) => table.id).join("-")}`,
+          tableIds: selectedTables.map((table) => table.id),
+          numbers: selectedTables.map((table) => table.number),
           zone: firstTable.zone,
-          capacity: firstTable.capacity + secondTable.capacity - 2,
+          capacity:
+            selectedTables.reduce((total, table) => total + table.capacity, 0) -
+            (selectedTables.length - 1) * 2,
+          status: "free",
+          guests: 0,
         };
         setJoinedGroups((current) => [...current, group]);
 
         return {
           ok: true,
-          message: `Mesas ${group.numbers.join(" y ")} unidas. Capacidad combinada: ${group.capacity} personas.`,
+          message: `Mesas ${formatTableNumbers(group.numbers)} unidas. Capacidad combinada: ${group.capacity} personas.`,
         };
       },
       separateTables(groupId) {
@@ -100,17 +148,40 @@ export function TableSessionProvider({
         if (!group) {
           return { ok: false, message: "La unión ya no está disponible." };
         }
+        if (group.status !== "free") {
+          return {
+            ok: false,
+            message:
+              "No se puede separar una unión con reservación o atención activa.",
+          };
+        }
 
         setJoinedGroups((current) =>
           current.filter((item) => item.id !== groupId),
         );
         return {
           ok: true,
-          message: `Mesas ${group.numbers.join(" y ")} separadas y restauradas.`,
+          message: `Mesas ${formatTableNumbers(group.numbers)} separadas y restauradas.`,
         };
       },
+      updateTable(tableId, updater) {
+        setTableOverrides((current) => {
+          const table =
+            current[tableId] ??
+            operationalTables.find((item) => item.id === tableId);
+          if (!table) return current;
+          return { ...current, [tableId]: updater(table) };
+        });
+      },
+      updateJoinedGroup(groupId, updater) {
+        setJoinedGroups((current) =>
+          current.map((group) =>
+            group.id === groupId ? updater(group) : group,
+          ),
+        );
+      },
     }),
-    [joinedGroups],
+    [joinedGroups, tables],
   );
 
   return (

@@ -23,12 +23,28 @@ export type OperationalTable = {
   balance: number;
   orderId?: string;
   adjacentTableIds?: string[];
+  manualStatus?: {
+    setBy: string;
+    channel: "Operativo" | "Administrativo";
+    time: string;
+    reason: string;
+  };
   nextReservation?: {
     time: string;
     guest: string;
     people: number;
   };
 };
+
+export type OperationalReservation = {
+  id: string;
+  time: string;
+  guest: string;
+  people: number;
+  note?: string;
+};
+
+export const currentOperationalUser = "Antony";
 
 export type TableOrderItem = {
   id: string;
@@ -80,13 +96,9 @@ export const operationalTables: OperationalTable[] = [
     number: 4,
     zone: "Salon",
     capacity: 4,
-    status: "occupied",
-    guests: 7,
-    responsible: "Luis A.",
-    openedAt: "12:18",
-    elapsed: "58 min",
-    balance: 612,
-    orderId: "A-104",
+    status: "free",
+    guests: 0,
+    balance: 0,
     adjacentTableIds: ["table-3", "table-5"],
   },
   {
@@ -178,6 +190,12 @@ export const operationalTables: OperationalTable[] = [
     guests: 0,
     balance: 0,
     adjacentTableIds: ["table-10", "table-12"],
+    manualStatus: {
+      setBy: "Marco R.",
+      channel: "Operativo",
+      time: "12:42",
+      reason: "Base inestable; requiere revisión de mantenimiento.",
+    },
   },
   {
     id: "table-12",
@@ -193,16 +211,34 @@ export const operationalTables: OperationalTable[] = [
   },
 ];
 
+export const operationalReservationsToday: OperationalReservation[] = [
+  {
+    id: "reservation-201",
+    time: "14:15",
+    guest: "Valeria Gómez",
+    people: 2,
+    note: "Cumpleaños",
+  },
+  {
+    id: "reservation-202",
+    time: "14:45",
+    guest: "Hugo Castillo",
+    people: 4,
+  },
+  {
+    id: "reservation-203",
+    time: "15:30",
+    guest: "Paola Méndez",
+    people: 6,
+    note: "Solicita espacio para silla de bebé",
+  },
+];
+
 export const tableOrderItems: Record<string, TableOrderItem[]> = {
   "table-1": [
     { id: "item-1", name: "Ramen miso", quantity: 1, unitPrice: 118 },
     { id: "item-2", name: "Gyozas de cerdo", quantity: 1, unitPrice: 72 },
     { id: "item-3", name: "Te frio", quantity: 2, unitPrice: 48 },
-  ],
-  "table-4": [
-    { id: "item-4", name: "Wok teriyaki", quantity: 3, unitPrice: 112 },
-    { id: "item-5", name: "Roll tempura", quantity: 2, unitPrice: 96 },
-    { id: "item-6", name: "Limonada", quantity: 2, unitPrice: 42 },
   ],
   "table-5": [
     { id: "item-4", name: "Wok teriyaki", quantity: 3, unitPrice: 112 },
@@ -224,9 +260,9 @@ export const tableOrderItems: Record<string, TableOrderItem[]> = {
 
 export const operationalTableSummary = {
   total: 12,
-  occupied: 8,
+  occupied: 7,
   reserved: 2,
-  free: 2,
+  free: 3,
 };
 
 export const operationalOrderSummary = {

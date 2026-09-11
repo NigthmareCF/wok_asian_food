@@ -18,10 +18,11 @@ describe("TableFloorView", () => {
     const user = userEvent.setup();
     renderFloor();
 
-    await user.click(screen.getByRole("button", { name: "Libres 2" }));
+    await user.click(screen.getByRole("button", { name: "Libres 3" }));
 
     expect(screen.getByRole("link", { name: /Mesa 2/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Mesa 3/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Mesa 4/ })).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /Mesa 1/ }),
     ).not.toBeInTheDocument();
@@ -73,7 +74,7 @@ describe("TableFloorView", () => {
     );
 
     expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Ambas mesas recuperarán su capacidad, posición y estado libre original.",
+      "Las 2 mesas recuperarán su capacidad, posición y estado libre original.",
     );
     await user.click(
       screen.getByRole("button", { name: "Confirmar separación" }),
@@ -84,6 +85,34 @@ describe("TableFloorView", () => {
     );
     expect(screen.getByRole("link", { name: /Mesa 2/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Mesa 3/ })).toBeInTheDocument();
+  });
+
+  it("joins three or more connected free tables", async () => {
+    const user = userEvent.setup();
+    renderFloor();
+    await user.click(screen.getByRole("button", { name: "Unir mesas" }));
+    await user.click(
+      screen.getByRole("button", { name: "Seleccionar mesa 2" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Seleccionar mesa 3" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Seleccionar mesa 4" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar unión" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Mesas 2, 3 y 4 unidas. Capacidad combinada: 8 personas.",
+    );
+    expect(
+      screen.getByRole("link", {
+        name: "Ver detalle de mesas 2, 3 y 4",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/operation/tables/joined-table-2-table-3-table-4",
+    );
   });
 
   it("explains why an occupied table cannot be joined", async () => {

@@ -5,19 +5,33 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   ArrowLeft,
+  CalendarPlus,
   CalendarClock,
+  CircleCheck,
   Link2,
+  Plus,
+  ReceiptText,
   Unlink,
   UsersRound,
   X,
 } from "lucide-react";
-import { operationalTables } from "@/data/fixtures/operation";
-import { useTableSession } from "@/modules/tables/table-session-provider";
+import {
+  currentOperationalUser,
+  operationalReservationsToday,
+} from "@/data/fixtures/operation";
+import {
+  formatTableNumbers,
+  useTableSession,
+} from "@/modules/tables/table-session-provider";
 
 export function JoinedTableDetailView({ groupId }: { groupId: string }) {
   const router = useRouter();
-  const { joinedGroups, separateTables } = useTableSession();
+  const { tables, joinedGroups, separateTables, updateJoinedGroup } =
+    useTableSession();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showReservationPicker, setShowReservationPicker] = useState(false);
+  const [selectedReservationId, setSelectedReservationId] = useState("");
+  const [feedback, setFeedback] = useState("");
   const group = joinedGroups.find((item) => item.id === groupId);
 
   if (!group) {
@@ -51,12 +65,48 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
   }
 
   const memberTables = group.tableIds
-    .map((tableId) => operationalTables.find((table) => table.id === tableId))
+    .map((tableId) => tables.find((table) => table.id === tableId))
     .filter((table) => Boolean(table));
-  const nextReservation = memberTables
+  const memberReservation = memberTables
     .map((table) => table?.nextReservation)
     .filter((reservation) => Boolean(reservation))
     .sort((a, b) => (a?.time ?? "").localeCompare(b?.time ?? ""))[0];
+  const nextReservation = group.reservation ?? memberReservation;
+  const capacityDeduction = (group.tableIds.length - 1) * 2;
+  const selectedReservation = operationalReservationsToday.find(
+    (reservation) => reservation.id === selectedReservationId,
+  );
+
+  const openGroup = () => {
+    updateJoinedGroup(group.id, (current) => ({
+      ...current,
+      status: "occupied",
+      guests: current.reservation?.people ?? 2,
+      responsible: currentOperationalUser,
+      reservation: undefined,
+    }));
+    setFeedback(
+      group.status === "reserved"
+        ? `Reserva recibida; mesas abiertas por ${currentOperationalUser}.`
+        : `Mesas abiertas y asignadas a ${currentOperationalUser}.`,
+    );
+  };
+
+  const assignReservation = () => {
+    if (!selectedReservation || selectedReservation.people > group.capacity)
+      return;
+
+    updateJoinedGroup(group.id, (current) => ({
+      ...current,
+      status: "reserved",
+      reservation: selectedReservation,
+    }));
+    setFeedback(
+      `Reserva de ${selectedReservation.guest} asignada a las mesas ${formatTableNumbers(group.numbers)}.`,
+    );
+    setShowReservationPicker(false);
+    setSelectedReservationId("");
+  };
 
   const confirmSeparation = () => {
     const result = separateTables(group.id);
@@ -74,15 +124,38 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
           <h1>Mesas {group.numbers.join(" + ")}</h1>
           <p>Configuración combinada disponible durante esta sesión.</p>
         </div>
-        <span className="table-detail__state table-detail__state--joined">
-          Unidas
+        <span
+          className={`table-detail__state table-detail__state--${group.status}`}
+        >
+          {group.status === "occupied"
+            ? "Ocupada"
+            : group.status === "reserved"
+              ? "Reservada"
+              : "Libre"}
         </span>
       </header>
+
+      {feedback ? (
+        <div className="ops-inline-feedback" role="status">
+          <CircleCheck aria-hidden="true" size={18} />
+          <span>{feedback}</span>
+        </div>
+      ) : null}
 
       <section className="table-detail__summary" aria-label="Resumen de unión">
         <div>
           <span>Estado</span>
-          <strong className="text-success">Disponible</strong>
+          <strong
+            className={
+              group.status === "occupied" ? "text-danger" : "text-success"
+            }
+          >
+            {group.status === "occupied"
+              ? "Ocupada"
+              : group.status === "reserved"
+                ? "Reservada"
+                : "Disponible"}
+          </strong>
         </div>
         <div>
           <span>Capacidad</span>
@@ -90,7 +163,7 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
         </div>
         <div>
           <span>Mesas</span>
-          <strong>{group.numbers.join(" y ")}</strong>
+          <strong>{formatTableNumbers(group.numbers)}</strong>
         </div>
         <div>
           <span>Zona</span>
@@ -114,6 +187,64 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
         </section>
       ) : null}
 
+      {group.status === "free" || group.status === "reserved" ? (
+        <section className="table-available-state">
+          <div>
+            <h2>
+              {group.status === "reserved"
+                ? "Reserva lista para recibir"
+                : "Mesas disponibles"}
+            </h2>
+            <p>
+              {group.status === "reserved"
+                ? "Confirma la llegada para abrir la atención conjunta."
+                : `Al abrirlas quedarán asignadas automáticamente a ${currentOperationalUser}.`}
+            </p>
+          </div>
+          <div className="table-available-state__actions">
+            {group.status === "free" ? (
+              <button
+                className="button button--secondary"
+                onClick={() => setShowReservationPicker(true)}
+                type="button"
+              >
+                <CalendarPlus aria-hidden="true" size={18} /> Asignar reserva
+              </button>
+            ) : null}
+            <button
+              className="button button--primary"
+              onClick={openGroup}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={18} />
+              {group.status === "reserved" ? "Recibir reserva" : "Abrir mesas"}
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="ops-work-panel joined-detail__account">
+          <div className="ops-section-heading ops-section-heading--compact">
+            <div>
+              <h2>Cuenta conjunta</h2>
+              <p>
+                {group.guests} personas · responsable {group.responsible}
+              </p>
+            </div>
+            <Link
+              className="button button--primary button--compact"
+              href={`/operation/orders/new?tables=${group.numbers.join(",")}`}
+            >
+              <Plus aria-hidden="true" size={17} /> Agregar cuenta
+            </Link>
+          </div>
+          <div className="ops-empty-state table-order-empty">
+            <ReceiptText aria-hidden="true" size={24} />
+            <strong>Aún no hay productos</strong>
+            <span>Agrega productos para iniciar la cuenta de estas mesas.</span>
+          </div>
+        </section>
+      )}
+
       <div className="joined-detail__grid">
         <section className="ops-work-panel" aria-labelledby="composition-title">
           <div className="ops-section-heading ops-section-heading--compact">
@@ -134,7 +265,7 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
             )}
             <div className="joined-detail__row joined-detail__row--deduction">
               <span>Caras en contacto</span>
-              <strong>− 2 lugares</strong>
+              <strong>− {capacityDeduction} lugares</strong>
             </div>
             <div className="joined-detail__row joined-detail__row--total">
               <span>Capacidad combinada</span>
@@ -156,17 +287,95 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
           </p>
           <button
             className="button button--secondary button--full"
+            disabled={group.status !== "free"}
             onClick={() => setShowConfirmation(true)}
             type="button"
           >
             <Unlink aria-hidden="true" size={17} /> Separar mesas
           </button>
+          {group.status !== "free" ? (
+            <small>
+              Finaliza la reservación o atención antes de separar las mesas.
+            </small>
+          ) : null}
         </aside>
       </div>
 
       <p className="mock-disclaimer">
         Esta configuración vive en memoria y se reinicia al recargar.
       </p>
+
+      {showReservationPicker ? (
+        <div className="confirm-dialog__backdrop" role="presentation">
+          <section
+            aria-labelledby="joined-reservation-picker-title"
+            aria-modal="true"
+            className="confirm-dialog reservation-picker"
+            role="dialog"
+          >
+            <button
+              aria-label="Cerrar reservaciones"
+              className="icon-button confirm-dialog__close"
+              onClick={() => setShowReservationPicker(false)}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <span className="confirm-dialog__icon">
+              <CalendarPlus aria-hidden="true" size={22} />
+            </span>
+            <h2 id="joined-reservation-picker-title">Reservaciones de hoy</h2>
+            <p>
+              Selecciona una reservación compatible con la capacidad conjunta.
+            </p>
+            <div className="reservation-picker__list">
+              {operationalReservationsToday.map((reservation) => {
+                const compatible = reservation.people <= group.capacity;
+                return (
+                  <label
+                    className={compatible ? "" : "is-disabled"}
+                    key={reservation.id}
+                  >
+                    <input
+                      checked={selectedReservationId === reservation.id}
+                      disabled={!compatible}
+                      name="joined-reservation"
+                      onChange={() => setSelectedReservationId(reservation.id)}
+                      type="radio"
+                    />
+                    <span>{reservation.time}</span>
+                    <div>
+                      <strong>{reservation.guest}</strong>
+                      <small>
+                        {reservation.people} personas
+                        {reservation.note ? ` · ${reservation.note}` : ""}
+                      </small>
+                    </div>
+                    {!compatible ? <small>Supera capacidad</small> : null}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                onClick={() => setShowReservationPicker(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="button button--primary"
+                disabled={!selectedReservation}
+                onClick={assignReservation}
+                type="button"
+              >
+                Asignar reservación
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {showConfirmation ? (
         <div className="confirm-dialog__backdrop" role="presentation">
@@ -188,9 +397,12 @@ export function JoinedTableDetailView({ groupId }: { groupId: string }) {
               <Unlink aria-hidden="true" size={22} />
             </span>
             <h2 id="joined-separate-title">
-              Separar mesas {group.numbers.join(" y ")}
+              Separar mesas {formatTableNumbers(group.numbers)}
             </h2>
-            <p>Ambas mesas recuperarán su estado libre y capacidad original.</p>
+            <p>
+              Las {group.tableIds.length} mesas recuperarán su estado libre y
+              capacidad original.
+            </p>
             <div className="confirm-dialog__actions">
               <button
                 className="button button--secondary"
