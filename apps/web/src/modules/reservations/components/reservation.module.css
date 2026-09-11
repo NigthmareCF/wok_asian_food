@@ -1,0 +1,257 @@
+.reservation {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto;
+  max-width: 42rem;
+  padding-bottom: 1rem;
+}
+
+.header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.header h1 {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  margin: 0.2rem 0 0;
+}
+
+.kicker,
+.field > span,
+.group h2,
+.group legend {
+  color: #cbd8ee;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.kicker {
+  color: var(--primary);
+}
+.simulationNotice {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+  margin: 0;
+}
+.form {
+  display: grid;
+  gap: 1rem;
+}
+.group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  min-width: 0;
+  padding: 1.1rem;
+}
+.group h2,
+.group legend {
+  margin: 0;
+  padding: 0;
+}
+.dateTimeGrid,
+.choiceGrid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: 1fr;
+}
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+.control {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  min-height: 3rem;
+  padding: 0.7rem;
+  width: 100%;
+}
+textarea.control {
+  min-height: 6.25rem;
+  resize: vertical;
+}
+.control:focus {
+  border-color: var(--focus);
+  outline: 0;
+}
+.peopleControl {
+  align-items: center;
+  background: var(--surface-elevated);
+  border-radius: var(--radius-md);
+  display: grid;
+  grid-template-columns: 3rem 1fr 3rem;
+  min-height: 3.2rem;
+  padding: 0.1rem;
+}
+.peopleControl button,
+.choiceGrid button {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 2.75rem;
+}
+.peopleControl button {
+  background: var(--surface);
+  color: var(--text);
+  height: 2.75rem;
+  width: 2.75rem;
+}
+.peopleControl button:last-child {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+  justify-self: end;
+}
+.peopleControl button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.peopleControl output {
+  font-size: 1.7rem;
+  font-weight: 800;
+  text-align: center;
+}
+.choiceGrid button {
+  background: var(--surface-elevated);
+  color: #cbd8ee;
+  padding: 0.6rem;
+}
+.choiceGrid button.selected,
+.choiceGrid button:hover {
+  border-color: var(--focus);
+  color: var(--text);
+}
+.optionalHeading {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+.optionalHeading span,
+.help {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+}
+.help,
+.error,
+.requiredPreorder {
+  margin: 0;
+}
+.error {
+  color: #ffaaaa;
+  font-size: 0.75rem;
+}
+.requiredPreorder {
+  color: #f7d98f;
+  font-size: 0.75rem;
+}
+.lateNotice {
+  display: grid;
+  gap: 0.7rem;
+}
+.lateNoticeIcon {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-sizing: content-box;
+  color: var(--warning);
+  justify-self: center;
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+}
+.lateNoticeContent {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem;
+}
+.warningBlock,
+.conditionBlock {
+  border-left: 3px solid var(--warning);
+  display: grid;
+  gap: 0.3rem;
+  padding-left: 0.85rem;
+}
+.conditionBlock {
+  border-left-color: var(--info);
+  border-top: 1px solid var(--border);
+  padding-top: 0.9rem;
+}
+.warningBlock h2,
+.conditionBlock h2 {
+  font-size: 0.875rem;
+  margin: 0;
+}
+.warningBlock h2 strong {
+  color: var(--warning);
+}
+.warningBlock p,
+.conditionBlock p {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 0;
+}
+.conditionBlock strong {
+  color: #79b5ff;
+}
+.pendingCard {
+  background: rgb(53 132 228 / 12%);
+  border: 1px solid rgb(53 132 228 / 45%);
+  border-radius: var(--radius-lg);
+  color: #b9d7ff;
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+.pendingCard > svg {
+  color: var(--info);
+}
+.pendingCard h2 {
+  color: var(--text);
+  font-size: 1rem;
+  margin: 0;
+}
+.pendingCard p {
+  margin: 0.35rem 0 0;
+}
+
+@media (min-width: 600px) {
+  .reservation {
+    gap: 1.25rem;
+    padding-top: 0.5rem;
+  }
+  .dateTimeGrid,
+  .choiceGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .group {
+    padding: 1.25rem;
+  }
+}
+@media (min-width: 1024px) {
+  .reservation {
+    max-width: 46rem;
+  }
+  .form {
+    gap: 1.25rem;
+  }
+  .lateNotice {
+    margin-inline: auto;
+    max-width: 34rem;
+    width: 100%;
+  }
+}
