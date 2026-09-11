@@ -10,6 +10,7 @@ import {
   ChefHat,
   Clock3,
   Minus,
+  Package,
   Pencil,
   Plus,
   Send,
@@ -18,7 +19,10 @@ import {
 } from "lucide-react";
 import {
   getOrderTotal,
+  orderProducts,
   type OrderItem,
+  type OrderFulfillment,
+  type OrderProduct,
   type OrderStatus,
 } from "@/data/fixtures/orders";
 import { useOrderSession } from "../order-session-provider";
@@ -74,6 +78,16 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   const [confirmingCancellation, setConfirmingCancellation] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [additionalProduct, setAdditionalProduct] =
+    useState<OrderProduct | null>(null);
+  const [additionalModifiers, setAdditionalModifiers] = useState<
+    Record<string, string>
+  >({});
+  const [additionalNotes, setAdditionalNotes] = useState("");
+  const [additionalFulfillment, setAdditionalFulfillment] =
+    useState<OrderFulfillment>("dine-in");
+  const [additionalReadyAt, setAdditionalReadyAt] = useState("");
 
   if (!order) {
     return (
@@ -97,6 +111,19 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   const total = getOrderTotal(displayedItems);
   const originalTotal = getOrderTotal(order.items);
   const hasChanges = JSON.stringify(draftItems) !== JSON.stringify(order.items);
+  const originalItemIds = new Set(order.items.map((item) => item.id));
+  const changedLineCount =
+    draftItems.filter((item) => {
+      const original = order.items.find((entry) => entry.id === item.id);
+      return !original || JSON.stringify(original) !== JSON.stringify(item);
+    }).length +
+    order.items.filter(
+      (item) => !draftItems.some((entry) => entry.id === item.id),
+    ).length;
+  const additionalModifiersReady =
+    additionalProduct?.modifierGroups
+      ?.filter((group) => group.required)
+      .every((group) => Boolean(additionalModifiers[group.id])) ?? true;
 
   const changeQuantity = (itemId: string, amount: number) => {
     setDraftItems((current) =>
@@ -132,6 +159,101 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
     setEditing(true);
   };
 
+  const openProductPicker = (fulfillment: OrderFulfillment = "dine-in") => {
+    if (!editing) {
+      setDraftItems(order.items);
+      setEditing(true);
+    }
+    setAdditionalProduct(null);
+    setAdditionalModifiers({});
+    setAdditionalNotes("");
+    setAdditionalFulfillment(fulfillment);
+    setAdditionalReadyAt("");
+    setShowProductPicker(true);
+  };
+
+  const configureAdditionalProduct = (product: OrderProduct) => {
+    if (product.availability === "unavailable") return;
+    setAdditionalProduct(product);
+    setAdditionalModifiers({});
+    setAdditionalNotes("");
+    setAdditionalReadyAt("");
+  };
+
+  const addAdditionalProduct = () => {
+    if (!additionalProduct || !additionalModifiersReady) return;
+    const modifierOptions = (additionalProduct.modifierGroups ?? []).flatMap(
+      (group) => group.options,
+    );
+    const selectedOptions = Object.values(additionalModifiers)
+      .map((optionId) =>
+        modifierOptions.find((option) => option.id === optionId),
+      )
+      .filter((option): option is NonNullable<typeof option> =>
+        Boolean(option),
+      );
+    const modifiers = selectedOptions.map((option) => option.label);
+    const unitPrice =
+      additionalProduct.price +
+      selectedOptions.reduce((sum, option) => sum + option.price, 0);
+    const notes = additionalNotes.trim() || undefined;
+
+    setDraftItems((current) => {
+      const existing = current.find(
+        (item) =>
+          item.productId === additionalProduct.id &&
+          JSON.stringify(item.modifiers) === JSON.stringify(modifiers) &&
+          item.notes === notes &&
+          (item.fulfillment ?? "dine-in") === additionalFulfillment &&
+          item.readyAt ===
+            (additionalFulfillment === "takeaway"
+              ? additionalReadyAt || undefined
+              : undefined),
+      );
+      if (existing) {
+        return current.map((item) =>
+          item.id === existing.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
+        );
+      }
+
+      let sequence = current.length + 1;
+      while (
+        current.some((item) => item.id === `${order.id}-extra-${sequence}`)
+      ) {
+        sequence += 1;
+      }
+      return [
+        ...current,
+        {
+          id: `${order.id}-extra-${sequence}`,
+          productId: additionalProduct.id,
+          name: additionalProduct.name,
+          quantity: 1,
+          unitPrice,
+          modifiers,
+          notes,
+          fulfillment: additionalFulfillment,
+          readyAt:
+            additionalFulfillment === "takeaway"
+              ? additionalReadyAt || undefined
+              : undefined,
+        },
+      ];
+    });
+    setAdditionalProduct(null);
+    setAdditionalModifiers({});
+    setAdditionalNotes("");
+    setAdditionalReadyAt("");
+    setShowProductPicker(false);
+    setFeedback(
+      `${additionalProduct.name} agregado${
+        additionalFulfillment === "takeaway" ? " para llevar" : ""
+      } a la actualización pendiente.`,
+    );
+  };
+
   const cancelOrder = () => {
     if (!cancellationReason) return;
     updateOrderStatus(order.id, "cancelled");
@@ -140,13 +262,8 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   };
 
   const advanceOrder = () => {
-    const nextStatus: OrderStatus = order.status === "new" ? "sent" : "ready";
-    updateOrderStatus(order.id, nextStatus);
-    setFeedback(
-      nextStatus === "sent"
-        ? "Comanda enviada a cocina."
-        : "Pedido marcado como listo.",
-    );
+    updateOrderStatus(order.id, "sent");
+    setFeedback("Comanda enviada a cocina.");
   };
 
   return (
@@ -158,7 +275,10 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           </Link>
           <span className="ops-kicker">Detalle de comanda</span>
           <h1>Pedido #{order.id}</h1>
-          <p>{order.source}</p>
+          <p>
+            {order.source}
+            {order.accountName ? ` · Cuenta de ${order.accountName}` : ""}
+          </p>
         </div>
         <span
           className={`order-status order-status--${status.tone} order-status--large`}
@@ -222,14 +342,32 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
                   : "Comanda registrada"}
               </p>
             </div>
-            {canEdit && !editing ? (
-              <button
-                className="button button--secondary button--compact"
-                onClick={startEditing}
-                type="button"
-              >
-                <Pencil aria-hidden="true" size={16} /> Editar
-              </button>
+            {canEdit ? (
+              <div className="order-detail__heading-actions">
+                {!editing ? (
+                  <button
+                    className="button button--secondary button--compact"
+                    onClick={startEditing}
+                    type="button"
+                  >
+                    <Pencil aria-hidden="true" size={16} /> Editar
+                  </button>
+                ) : null}
+                <button
+                  className="button button--primary button--compact"
+                  onClick={() => openProductPicker("dine-in")}
+                  type="button"
+                >
+                  <Plus aria-hidden="true" size={16} /> Agregar producto
+                </button>
+                <button
+                  className="button button--secondary button--compact"
+                  onClick={() => openProductPicker("takeaway")}
+                  type="button"
+                >
+                  <Package aria-hidden="true" size={16} /> Para llevar
+                </button>
+              </div>
             ) : null}
           </div>
 
@@ -245,6 +383,17 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
                     <span>{item.modifiers.join(" · ")}</span>
                   ) : null}
                   {item.notes ? <small>Nota: {item.notes}</small> : null}
+                  {item.fulfillment === "takeaway" ? (
+                    <small className="order-detail-item__takeaway">
+                      <Package aria-hidden="true" size={13} /> Para llevar
+                      {item.readyAt ? ` · ${item.readyAt}` : ""}
+                    </small>
+                  ) : null}
+                  {editing && !originalItemIds.has(item.id) ? (
+                    <small className="order-detail-item__pending">
+                      Nuevo para cocina
+                    </small>
+                  ) : null}
                 </div>
                 {editing ? (
                   <div className="quantity-control">
@@ -330,22 +479,13 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
             <span>Acciones</span>
             <h2 id="order-actions-title">Gestionar pedido</h2>
           </div>
-          {!isClosed && order.status !== "ready" ? (
+          {order.status === "new" ? (
             <button
               className="button button--primary button--full"
               onClick={advanceOrder}
               type="button"
             >
-              {order.status === "new" ? (
-                <>
-                  <Send aria-hidden="true" size={18} /> Enviar a cocina
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 aria-hidden="true" size={18} /> Marcar como
-                  listo
-                </>
-              )}
+              <Send aria-hidden="true" size={18} /> Enviar a cocina
             </button>
           ) : null}
           {!isClosed ? (
@@ -368,6 +508,16 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
                 {order.kitchenUpdates} actualización(es) registrada(s)
               </span>
             ) : null}
+            {order.kitchenChanges.at(-1)?.items.map((item) => (
+              <span key={`trace-${item.itemId}`}>
+                {item.action === "added"
+                  ? "Agregado"
+                  : item.action === "removed"
+                    ? "Retirado"
+                    : "Modificado"}
+                : {item.name}
+              </span>
+            ))}
           </div>
         </aside>
       </div>
@@ -376,6 +526,155 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
         Las acciones cambian únicamente el estado local hasta integrar backend y
         permisos.
       </p>
+
+      {showProductPicker ? (
+        <div className="confirm-dialog__backdrop" role="presentation">
+          <section
+            aria-labelledby="additional-product-title"
+            aria-modal="true"
+            className="confirm-dialog order-product-picker"
+            role="dialog"
+          >
+            <button
+              aria-label="Cerrar productos"
+              className="icon-button confirm-dialog__close"
+              onClick={() => setShowProductPicker(false)}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <h2 id="additional-product-title">
+              {additionalProduct ? additionalProduct.name : "Agregar productos"}
+            </h2>
+            {additionalProduct ? (
+              <>
+                <p>
+                  Configura el nuevo producto antes de añadirlo a la cuenta.
+                </p>
+                <div className="product-dialog__groups">
+                  <fieldset>
+                    <legend>Entrega</legend>
+                    <div className="order-fulfillment-options">
+                      <button
+                        aria-pressed={additionalFulfillment === "dine-in"}
+                        onClick={() => {
+                          setAdditionalFulfillment("dine-in");
+                          setAdditionalReadyAt("");
+                        }}
+                        type="button"
+                      >
+                        Consumir en mesa
+                      </button>
+                      <button
+                        aria-pressed={additionalFulfillment === "takeaway"}
+                        onClick={() => setAdditionalFulfillment("takeaway")}
+                        type="button"
+                      >
+                        <Package aria-hidden="true" size={15} /> Para llevar
+                      </button>
+                    </div>
+                  </fieldset>
+                  {additionalFulfillment === "takeaway" ? (
+                    <label className="order-field">
+                      <span>Hora para retirar (opcional)</span>
+                      <input
+                        aria-label="Hora para retirar"
+                        onChange={(event) =>
+                          setAdditionalReadyAt(event.target.value)
+                        }
+                        type="time"
+                        value={additionalReadyAt}
+                      />
+                    </label>
+                  ) : null}
+                  {(additionalProduct.modifierGroups ?? []).map((group) => (
+                    <fieldset key={group.id}>
+                      <legend>
+                        {group.label}{" "}
+                        {group.required ? <span>Obligatorio</span> : null}
+                      </legend>
+                      <div className="modifier-options">
+                        {group.options.map((option) => (
+                          <label key={option.id}>
+                            <input
+                              checked={
+                                additionalModifiers[group.id] === option.id
+                              }
+                              name={`additional-${group.id}`}
+                              onChange={() =>
+                                setAdditionalModifiers((current) => ({
+                                  ...current,
+                                  [group.id]: option.id,
+                                }))
+                              }
+                              type="radio"
+                            />
+                            <span>{option.label}</span>
+                            {option.price > 0 ? (
+                              <small>+ Q {option.price.toFixed(2)}</small>
+                            ) : null}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ))}
+                  <label className="order-field">
+                    <span>
+                      {additionalFulfillment === "takeaway"
+                        ? "Indicaciones para llevar (opcional)"
+                        : "Nota para cocina (opcional)"}
+                    </span>
+                    <textarea
+                      onChange={(event) =>
+                        setAdditionalNotes(event.target.value)
+                      }
+                      placeholder="Ej. sin cebollín"
+                      rows={2}
+                      value={additionalNotes}
+                    />
+                  </label>
+                </div>
+                <div className="confirm-dialog__actions">
+                  <button
+                    className="button button--secondary"
+                    onClick={() => setAdditionalProduct(null)}
+                    type="button"
+                  >
+                    Volver
+                  </button>
+                  <button
+                    className="button button--primary"
+                    disabled={!additionalModifiersReady}
+                    onClick={addAdditionalProduct}
+                    type="button"
+                  >
+                    <Plus aria-hidden="true" size={17} /> Agregar a la cuenta
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="order-product-picker__grid">
+                {orderProducts.map((product) => (
+                  <button
+                    disabled={product.availability === "unavailable"}
+                    key={product.id}
+                    onClick={() => configureAdditionalProduct(product)}
+                    type="button"
+                  >
+                    <span>{product.category}</span>
+                    <strong>{product.name}</strong>
+                    <small>
+                      {product.availability === "unavailable"
+                        ? "Agotado"
+                        : `Q ${product.price.toFixed(2)} · ${product.eta} min`}
+                    </small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
 
       {confirmingChanges ? (
         <div className="confirm-dialog__backdrop" role="presentation">
@@ -404,7 +703,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
             <p>
               {order.status === "new"
                 ? "Los cambios quedarán listos antes de enviar el pedido."
-                : "Cocina recibirá una actualización separada para conservar la trazabilidad."}
+                : `Cocina recibirá únicamente ${changedLineCount} cambio(s), sin duplicar la comanda anterior.`}
             </p>
             <div className="confirm-dialog__actions">
               <button

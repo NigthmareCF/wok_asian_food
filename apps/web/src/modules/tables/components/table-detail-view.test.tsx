@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { operationalTables, tableOrderItems } from "@/data/fixtures/operation";
+import { OrderSessionProvider, useOrderSession } from "@/modules/orders";
 import { TableSessionProvider } from "../table-session-provider";
 import { TableDetailView } from "./table-detail-view";
 import { TableFloorView } from "./table-floor-view";
@@ -13,10 +14,12 @@ describe("TableDetailView", () => {
   const renderDetail = (table: (typeof operationalTables)[number]) =>
     render(
       <TableSessionProvider>
-        <TableDetailView
-          initialTable={table}
-          items={tableOrderItems[table.id] ?? []}
-        />
+        <OrderSessionProvider>
+          <TableDetailView
+            initialTable={table}
+            items={tableOrderItems[table.id] ?? []}
+          />
+        </OrderSessionProvider>
       </TableSessionProvider>,
     );
 
@@ -91,14 +94,16 @@ describe("TableDetailView", () => {
       const [showDetail, setShowDetail] = useState(true);
       return (
         <TableSessionProvider>
-          <button onClick={() => setShowDetail(false)} type="button">
-            Mostrar mapa
-          </button>
-          {showDetail ? (
-            <TableDetailView initialTable={tableForNavigation} items={[]} />
-          ) : (
-            <TableFloorView />
-          )}
+          <OrderSessionProvider>
+            <button onClick={() => setShowDetail(false)} type="button">
+              Mostrar mapa
+            </button>
+            {showDetail ? (
+              <TableDetailView initialTable={tableForNavigation} items={[]} />
+            ) : (
+              <TableFloorView />
+            )}
+          </OrderSessionProvider>
         </TableSessionProvider>
       );
     }
@@ -127,5 +132,95 @@ describe("TableDetailView", () => {
     expect(
       screen.getByText(/estado fue establecido manualmente/i),
     ).toBeInTheDocument();
+  });
+
+  it("shows orders and their total when returning to an open table", async () => {
+    const user = userEvent.setup();
+    const table = operationalTables.find((item) => item.id === "table-4");
+
+    expect(table).toBeDefined();
+    if (!table) return;
+
+    function CreateOrderForTable() {
+      const { createOrder } = useOrderSession();
+      return (
+        <button
+          onClick={() =>
+            createOrder({
+              channel: "table",
+              source: "Mesa 4",
+              items: [
+                {
+                  id: "test-item",
+                  productId: "gyoza",
+                  name: "Gyozas de cerdo",
+                  quantity: 2,
+                  unitPrice: 68,
+                  modifiers: [],
+                },
+              ],
+            })
+          }
+          type="button"
+        >
+          Crear pedido de prueba
+        </button>
+      );
+    }
+
+    render(
+      <TableSessionProvider>
+        <OrderSessionProvider>
+          <CreateOrderForTable />
+          <TableDetailView initialTable={table} items={[]} />
+        </OrderSessionProvider>
+      </TableSessionProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Abrir mesa" }));
+    await user.click(
+      screen.getByRole("button", { name: "Crear pedido de prueba" }),
+    );
+
+    expect(screen.getByText("Gyozas de cerdo")).toBeInTheDocument();
+    expect(screen.getAllByText(/136\.00/).length).toBeGreaterThan(0);
+  });
+
+  it("opens named accounts before adding their orders", async () => {
+    const user = userEvent.setup();
+    const table = operationalTables.find((item) => item.id === "table-5");
+
+    expect(table).toBeDefined();
+    if (!table) return;
+    renderDetail(table);
+
+    await user.click(screen.getByRole("button", { name: "Abrir cuenta" }));
+    let dialog = screen.getByRole("dialog");
+    await user.type(
+      within(dialog).getByLabelText("Nombre de la cuenta"),
+      "Pepito",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Abrir cuenta" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Abrir cuenta" }));
+    dialog = screen.getByRole("dialog");
+    await user.type(
+      within(dialog).getByLabelText("Nombre de la cuenta"),
+      "María",
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Abrir cuenta" }),
+    );
+
+    expect(screen.getByText("Pepito")).toBeInTheDocument();
+    expect(screen.getByText("María")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link", { name: "Agregar productos" }),
+    ).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: /Dividir cuenta/ }),
+    ).toBeDisabled();
   });
 });

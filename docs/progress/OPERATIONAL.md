@@ -4,6 +4,32 @@ Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-11 — Cuenta de mesa, división y productos para llevar
+
+- Rama: `feature/operational-kitchen`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: O-03 `/operation/tables/[tableId]`; O-04 `/operation/orders/new`; O-05 `/operation/orders/[orderId]`; O-06 `/operation/kitchen`
+- Completado: vinculación de las comandas con su mesa de origen; resumen de productos, comandas y saldo pendiente al volver a la mesa; apertura de varias cuentas con nombre antes de pedir; asociación de cada comanda con su cuenta; incorporación de productos para llevar tanto en una comanda nueva como en una actualización, con hora opcional e indicaciones; identificación de estos productos en Pedido, Mesa y Cocina
+- Archivos principales: `apps/web/src/modules/tables`, `apps/web/src/modules/orders`, `apps/web/src/modules/kitchen`, `apps/web/src/data/fixtures/orders.ts`, `apps/web/src/app/globals.css` y `apps/web/src/app/orders.css`
+- Pruebas: lint, TypeScript, 32 pruebas unitarias y build del frontend web aprobados; revisión visual en escritorio y 390 px
+- Decisiones: las cuentas se abren desde la mesa antes de registrar productos y Pagos O-12 realizará el cobro por cuenta; dividir una cuenta existente queda para una etapa posterior; los cambios viven en memoria durante la navegación y se reinician al recargar
+- Pendiente: división posterior de una cuenta ya creada; persistencia y permisos en backend; cobrar cada cuenta desde O-12; calcular ETA según carga operativa, permitir ajuste manual y notificar el nuevo tiempo al portal del cliente mediante realtime
+- PR: Pendiente
+
+## 2026-09-10 — Actualizaciones de comanda y tablero de Cocina
+
+- Rama: `feature/operational-kitchen`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: O-05 `/operation/orders/[orderId]`; O-06 `/operation/kitchen`
+- Completado: conservación automática de la mesa de origen al crear una comanda; incorporación de productos a pedidos existentes con modificadores y notas; cálculo y envío de cambios incrementales sin duplicar la comanda; trazabilidad de productos agregados, modificados o retirados; KDS responsive por estado y estación; aceptación de comandas, cambio de ETA, marcado como listo, acceso al detalle y simulación de reconexión
+- Archivos principales: `apps/web/src/modules/orders`, `apps/web/src/modules/kitchen`, `apps/web/src/data/fixtures/orders.ts`, `apps/web/src/app/orders.css` y la ruta de Cocina
+- Pruebas: lint, TypeScript, 28 pruebas unitarias y build del frontend web
+- Decisiones: Cocina controla los estados de preparación y listo; Pedidos únicamente envía la comanda inicial o sus actualizaciones; cada actualización conserva un lote diferencial en memoria
+- Pendiente: persistencia, permisos reales, aceptación o rechazo individual de cambios, impresión y sincronización realtime
+- PR: Pendiente
+
 ## 2026-09-10 — Creación y gestión de pedidos
 
 - Rama: `feature/orders`
