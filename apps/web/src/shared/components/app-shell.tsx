@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   Activity,
   Bike,
   CalendarDays,
   ChefHat,
+  CircleAlert,
   CircleDollarSign,
   CreditCard,
   Factory,
@@ -15,6 +17,8 @@ import {
   MapPin,
   MessagesSquare,
   PackageSearch,
+  PanelLeftClose,
+  PanelLeftOpen,
   ReceiptText,
   Settings,
   UtensilsCrossed,
@@ -41,6 +45,7 @@ const icons: Record<NavigationIcon, typeof LayoutDashboard> = {
   payments: CreditCard,
   people: UsersRound,
   production: Factory,
+  requests: CircleAlert,
   settings: Settings,
   status: Activity,
   tables: LayoutGrid,
@@ -72,6 +77,7 @@ export function AppShell({
   context: NavigationContext;
 }) {
   const pathname = usePathname();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const contextRoot = {
     admin: "/admin",
     client: "/client",
@@ -85,11 +91,30 @@ export function AppShell({
   );
 
   return (
-    <div className={`app-shell app-shell--${context}`}>
+    <div
+      className={`app-shell app-shell--${context} ${sidebarCollapsed ? "app-shell--sidebar-collapsed" : ""}`}
+    >
       <aside className="sidebar">
-        <Link className="brand" href="/">
-          <span>WOK</span> ASIAN FOOD
-        </Link>
+        <div className="sidebar__header">
+          <Link className="brand" href="/">
+            <span className="brand__mark">WOK</span>
+            <span className="brand__name"> ASIAN FOOD</span>
+          </Link>
+          <button
+            aria-expanded={!sidebarCollapsed}
+            aria-label={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+            className="sidebar__toggle"
+            onClick={() => setSidebarCollapsed((current) => !current)}
+            title={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+            type="button"
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen aria-hidden="true" size={18} />
+            ) : (
+              <PanelLeftClose aria-hidden="true" size={18} />
+            )}
+          </button>
+        </div>
         <nav className="navigation" aria-label={`Navegacion ${context}`}>
           {visibleItems.map((item) => {
             const Icon = icons[item.icon];
@@ -102,6 +127,7 @@ export function AppShell({
                 aria-current={active ? "page" : undefined}
                 href={item.route}
                 key={item.route}
+                title={sidebarCollapsed ? item.label : undefined}
               >
                 <Icon aria-hidden="true" size={19} />
                 <span>{item.label}</span>

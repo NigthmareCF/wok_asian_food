@@ -2,7 +2,10 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TableSessionProvider, useTableSession } from "@/modules/tables";
-import { OrderSessionProvider } from "../order-session-provider";
+import {
+  OrderSessionProvider,
+  useOrderSession,
+} from "../order-session-provider";
 import { NewOrderView } from "./new-order-view";
 import { OrderDetailView } from "./order-detail-view";
 import { OrderListView } from "./order-list-view";
@@ -26,6 +29,30 @@ function JoinTablesForTest() {
     <button onClick={() => joinTables(["table-2", "table-3"])} type="button">
       Unir mesas de prueba
     </button>
+  );
+}
+
+function MultiAccountOrderHarness() {
+  const { createTableAccount, orders } = useOrderSession();
+  const latestOrder = orders[0];
+
+  return (
+    <>
+      <button
+        onClick={() => {
+          createTableAccount("Mesa 4", "Pepito");
+          createTableAccount("Mesa 4", "María");
+        }}
+        type="button"
+      >
+        Crear cuentas de prueba
+      </button>
+      <output aria-label="Resumen del pedido creado">
+        {(latestOrder.accounts ?? []).map((account) => account.name).join(", ")}
+        {latestOrder.accounts ? ` · ${latestOrder.items.length} productos` : ""}
+      </output>
+      <NewOrderView initialTableNumber="4" />
+    </>
   );
 }
 
@@ -90,6 +117,41 @@ describe("Order views", () => {
     await user.click(within(dialog).getByRole("button", { name: "Agregar" }));
 
     expect(screen.getByText(/Para llevar · 21:20/)).toBeInTheDocument();
+  });
+
+  it("combines several table accounts into one complete order", async () => {
+    const user = userEvent.setup();
+    renderWithOrders(<MultiAccountOrderHarness />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Crear cuentas de prueba" }),
+    );
+    expect(screen.getByLabelText("Cuenta")).toHaveDisplayValue("Pepito");
+
+    await user.click(
+      screen.getByRole("button", { name: "Agregar Gyozas de cerdo" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Agregar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Guardar cuenta y continuar" }),
+    );
+    expect(screen.getByLabelText("Cuenta")).toHaveDisplayValue("María");
+
+    await user.click(
+      screen.getByRole("button", { name: "Agregar Edamame picante" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Agregar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Revisar pedido completo" }),
+    );
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "distribuidos en 2 cuenta(s)",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar envío" }));
+    expect(
+      screen.getByLabelText("Resumen del pedido creado"),
+    ).toHaveTextContent("Pepito, María · 2 productos");
   });
 
   it("offers a joined table as a single order destination", async () => {

@@ -4,6 +4,32 @@ Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-11 — Navegación adaptable y pedidos con varias cuentas
+
+- Rama: `feature/operational-kitchen`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: shell operativo; O-03 mesas individuales y unidas; O-04 `/operation/orders/new`; O-05 detalle de pedido; O-06 `/operation/kitchen`; O-10 `/operation/online-requests`
+- Completado: menú lateral contraíble con accesos identificables y ocultamiento opcional de la barra móvil; tablero de Cocina en una columna desde tablet estrecha; estados de solicitudes acompañados por iconos; apertura de cuentas en mesas individuales o unidas; toma consecutiva por cuenta y envío de una sola comanda con todos los productos de la mesa, conservando la cuenta de cada producto
+- Archivos principales: `apps/web/src/shared/components/app-shell.tsx`, `apps/web/src/modules/kitchen`, `apps/web/src/modules/messaging`, `apps/web/src/modules/orders`, `apps/web/src/modules/tables`, `apps/web/src/data/fixtures/orders.ts`, `apps/web/src/app/globals.css` y `apps/web/src/app/orders.css`
+- Pruebas: lint, TypeScript y 39 pruebas unitarias aprobados; menú contraído, tablero, solicitudes y constructor multicuenta revisados en navegador sin desbordamiento horizontal en escritorio
+- Decisiones: guardar una cuenta conserva sus productos localmente y mueve la captura a la siguiente; Cocina recibe una sola comanda por mesa; cada producto mantiene su cuenta para resumen, edición y cobro posterior
+- Pendiente: persistencia y transacciones en backend; autorización; cobro independiente por cuenta; validación visual en dispositivos físicos adicionales
+- PR: Pendiente
+
+## 2026-09-11 — Reservaciones, mensajes y solicitudes en línea
+
+- Rama: `feature/operational-kitchen`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: O-07 `/operation/reservations`; O-08 `/operation/reservations/new` y `/operation/reservations/[reservationId]`; O-09 `/operation/messages`; O-10 `/operation/online-requests`
+- Completado: agenda por día, semana y mes con búsqueda y estados; alta, edición, asignación sugerida de mesa, detección de conflicto y confirmación humana; bandeja de mensajes por estado con toma, respuesta, transferencia y contexto; revisión manual de solicitudes remotas con revalidación obligatoria, aceptación como reservación, espera y rechazo con motivo
+- Archivos principales: `apps/web/src/modules/reservations`, `apps/web/src/modules/messaging`, `apps/web/src/data/fixtures/reservations.ts`, `apps/web/src/data/fixtures/messaging.ts`, rutas operativas y navegación
+- Pruebas: lint, TypeScript, 37 pruebas unitarias y build del frontend web aprobados; rutas y composición visual revisadas en navegador sin desbordamiento horizontal en escritorio
+- Decisiones: la atención presencial mantiene prioridad; ninguna solicitud remota se convierte automáticamente; horarios posteriores a las 21:15 requieren preorden; las acciones y datos permanecen simulados en memoria
+- Pendiente: persistencia, permisos, disponibilidad y conflictos calculados por backend; integración real de canales, entrega de mensajes, auditoría y sincronización en tiempo real
+- PR: Pendiente
+
 ## 2026-09-11 — Cuenta de mesa, división y productos para llevar
 
 - Rama: `feature/operational-kitchen`
@@ -45,7 +71,7 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
   - `apps/web/src/data/fixtures/inventory.ts`, `production.ts`
   - `apps/web/src/app/(private)/(operational)/operation/inventory`, `production`, `status`
   - `apps/web/src/app/operational-views.css` (estilos nuevos de inventario, producción y estado del servicio)
-- Pruebas: lint, TypeScript, 32 pruebas unitarias conjuntas y build aprobados; rutas de detalle dinámicas (`inventory/[itemId]`, `production/[batchId]`, `production/suggestion/[suggestionId]`) compiladas; responsive por breakpoints 960/720/440px según los patrones existentes.
+- Pruebas: lint, TypeScript, 39 pruebas unitarias conjuntas y build aprobados; rutas de detalle dinámicas (`inventory/[itemId]`, `production/[batchId]`, `production/suggestion/[suggestionId]`) compiladas; responsive por breakpoints 960/720/440px según los patrones existentes.
 - Decisiones: datos simulados en memoria que se reinician al recargar; fechas de caducidad se comparan contra una referencia fija para mantener renders deterministas; O-17 no tiene página propia y se resuelve con disponible, reservado, mínimo y rendimiento; el enlace "Nueva entrada" del listado aún apunta a `/operation/inventory/new` (pendiente de decidir como ruta o eliminar).
 - Pendiente: persistencia real, permisos backend, sincronización con pedidos/cocina, impresión, alertas por mínimos y caducidad, y decisión sobre el registro de entradas desde el listado.
 - PR: Pendiente
@@ -67,7 +93,7 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
   - `apps/web/src/modules/cash` (provider, vista, fixtures)
   - `apps/web/src/data/fixtures/delivery.ts`, `payments.ts`, `cash.ts`
   - `apps/web/src/app/(private)/(operational)/operation/delivery`, `payments`, `cash`
-- Pruebas: lint, TypeScript, 32 pruebas unitarias conjuntas y build aprobados; revisión visual en escritorio (1440px) y móvil (390px); sin desbordamiento horizontal; estados vacío, carga y error cubiertos.
+- Pruebas: lint, TypeScript, 39 pruebas unitarias conjuntas y build aprobados; revisión visual en escritorio (1440px) y móvil (390px); sin desbordamiento horizontal; estados vacío, carga y error cubiertos.
 - Decisiones: datos y permisos simulados en memoria; repartidores y movimientos de caja se reinician al recargar; precuenta no es documento fiscal; pagos y delivery integrados con pedidos existentes mediante IDs compartidos.
 - Pendiente: persistencia real, permisos backend, sincronización con cocina/inventario, impresión real, notificaciones push a repartidor, conciliación bancaria.
 - PR: Pendiente

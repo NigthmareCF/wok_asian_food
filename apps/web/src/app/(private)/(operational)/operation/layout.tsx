@@ -7,6 +7,8 @@ import { CashSessionProvider } from "@/modules/cash";
 import { InventorySessionProvider } from "@/modules/inventory";
 import { ProductionSessionProvider } from "@/modules/production";
 import { ServiceStatusProvider } from "@/modules/service-status";
+import { ReservationSessionProvider } from "@/modules/reservations";
+import { MessagingSessionProvider } from "@/modules/messaging";
 
 export default function OperationalLayout({
   children,
@@ -20,7 +22,11 @@ export default function OperationalLayout({
               <CashSessionProvider>
                 <InventorySessionProvider>
                   <ProductionSessionProvider>
-                    <ServiceStatusProvider>{children}</ServiceStatusProvider>
+                    <ServiceStatusProvider>
+                      <ReservationSessionProvider>
+                        <MessagingSessionProvider>{children}</MessagingSessionProvider>
+                      </ReservationSessionProvider>
+                    </ServiceStatusProvider>
                   </ProductionSessionProvider>
                 </InventorySessionProvider>
               </CashSessionProvider>

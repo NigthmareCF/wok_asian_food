@@ -278,6 +278,41 @@
   gap: 0.65rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.order-account-progress {
+  display: flex;
+  gap: 0.4rem;
+  grid-column: 1 / -1;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+}
+.order-account-progress button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.1rem 0.35rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+.order-account-progress button[aria-pressed="true"] {
+  background: var(--surface-elevated);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.order-account-progress button svg {
+  color: var(--success);
+  grid-row: 1 / 3;
+}
+.order-account-progress button small {
+  color: var(--text-subtle);
+  font-size: 0.625rem;
+}
 .order-account-required {
   align-items: center;
   background: rgb(235 177 52 / 8%);
@@ -492,6 +527,25 @@
   display: inline-flex;
   gap: 0.25rem;
   margin-top: 0.15rem;
+}
+.cart-item__heading .cart-item__account,
+.order-detail-item__account {
+  color: #9cc8ff;
+  font-weight: 750;
+}
+.order-cart__account-feedback {
+  align-items: flex-start;
+  background: rgb(46 160 90 / 8%);
+  border-left: 3px solid var(--success);
+  color: #82d7a0;
+  display: flex;
+  font-size: 0.6875rem;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.55rem;
+}
+.order-cart__account-feedback svg {
+  flex: 0 0 auto;
 }
 .icon-button--quiet {
   background: transparent;
