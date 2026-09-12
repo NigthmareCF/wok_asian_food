@@ -17,7 +17,8 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Decisiones: se explicita en C-01 que no se crean cuentas ni se envían datos, correos o SMS; recordar sesión no persiste. Los textos legales indican publicación pendiente. Agregar al carrito no reserva stock; ninguna espera confirma un pedido ni representa aceptación del restaurante. No se añadieron precios ni promociones durante esta revisión.
 - Pendientes: formato global preexistente; objetivos táctiles de C-01; observación y ETA adicional de C-04 no implementados; integración backend y C-07+ fuera de esta entrega; revisión transversal de shell/tokens/navegación. `development` tiene cuatro commits posteriores al punto de partida; verificar conflictos antes de integrar, sin sobrescribirlos.
 - Referencia C-04/C-06: [Figma Cliente 4-6](https://www.figma.com/design/CdxvIftlgsjx1gGfUl33pz/MAKUPS-CLIENTE-4-6?node-id=1-3). Contraste visual pendiente por la falta de acceso registrada en C-04. Logo oficial, fotografías y tipografía oficial siguen pendientes de validación/definición.
-- PR: pendiente de publicación; mantener como borrador mientras existan las verificaciones y revisiones pendientes.
+- Publicación: commit `4761111` (`feat: implementa flujo principal del canal cliente`) publicado en `origin/feature/frontend-client`.
+- PR: [#12](https://github.com/NigthmareCF/wok_asian_food/pull/12), borrador hacia `development`. GitHub informa conflictos de integración (`mergeable: false`); quedan pendientes de resolución y revisión. Sin merge.
 
 ## 2026-09-11 — C-06: solicitud pendiente y servicio degradado
 
