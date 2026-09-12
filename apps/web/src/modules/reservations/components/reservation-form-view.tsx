@@ -35,9 +35,11 @@ function isLateReservation(time: string) {
   );
 }
 
-export function ReservationFormView() {
+export function ReservationFormView({ initialTime }: { initialTime?: string }) {
   const [date, setDate] = useState(clientReservationFixture.defaultDate);
-  const [time, setTime] = useState(clientReservationFixture.defaultTime);
+  const [time, setTime] = useState(
+    initialTime ?? clientReservationFixture.defaultTime,
+  );
   const [people, setPeople] = useState(clientReservationFixture.defaultPeople);
   const [includesPreorder, setIncludesPreorder] = useState<boolean | null>(
     null,

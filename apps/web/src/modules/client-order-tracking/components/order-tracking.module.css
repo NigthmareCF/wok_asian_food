@@ -29,6 +29,52 @@
   font-size: 0.78rem;
   font-weight: 800;
 }
+.demoControls {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+.demoControls h2 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+.demoControls p {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  margin: 0.2rem 0 0;
+}
+.demoLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+.demoLink {
+  align-items: center;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  display: inline-flex;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+}
+.demoLink:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.demoLinkCurrent,
+.demoLinkCurrent:hover {
+  background: rgb(232 89 48 / 20%);
+  border-color: var(--primary);
+  color: #ffb29b;
+}
 .card,
 .eta,
 .delay,
@@ -199,7 +245,8 @@
   }
   .card,
   .eta,
-  .delay {
+  .delay,
+  .demoControls {
     padding: 1.25rem;
   }
 }

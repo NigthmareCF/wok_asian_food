@@ -21,6 +21,17 @@ const renderReservations = (view: React.ReactNode) =>
   );
 
 describe("ReservationFormView", () => {
+  it("shows the late reservation notice for the C-08 demonstration time", () => {
+    render(<ReservationFormView initialTime="22:00" />);
+
+    expect(screen.getByLabelText("HORA")).toHaveValue("22:00");
+    expect(
+      screen.getByRole("heading", {
+        name: "La última hora disponible para ingreso es 21:15.",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("validates the preorder selection before continuing", async () => {
     const user = userEvent.setup();
     render(<ReservationFormView />);

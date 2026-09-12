@@ -17,6 +17,44 @@ describe("OrderTrackingView", () => {
     },
   );
 
+  it("renders the six demo state buttons with their routes and marks the current state", () => {
+    const order = clientOrderTrackingFixtures.find(
+      ({ id }) => id === "demo-preparing",
+    );
+    render(<OrderTrackingView order={order} />);
+
+    const expectedLinks = [
+      ["Pendiente", "/client/orders/demo-pending"],
+      ["Confirmado", "/client/orders/demo-confirmed"],
+      ["Preparando", "/client/orders/demo-preparing"],
+      ["Listo", "/client/orders/demo-ready"],
+      ["Retrasado", "/client/orders/demo-190"],
+      ["Entregado", "/client/orders/demo-delivered"],
+    ];
+
+    expect(
+      screen.getByRole("heading", { name: "Probar estados del pedido" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Controles de demostración. No actualizan un pedido real.",
+      ),
+    ).toBeInTheDocument();
+    expectedLinks.forEach(([label, href]) => {
+      expect(screen.getByRole("link", { name: label })).toHaveAttribute(
+        "href",
+        href,
+      );
+    });
+    expect(screen.getByRole("link", { name: "Preparando" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Pendiente" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
   it("shows delay data and separates external delivery from restaurant preparation", () => {
     const order = clientOrderTrackingFixtures.find(
       ({ id }) => id === "demo-190",

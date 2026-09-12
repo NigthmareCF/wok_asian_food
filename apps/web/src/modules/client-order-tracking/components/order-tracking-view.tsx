@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Check,
   Circle,
@@ -14,6 +15,15 @@ const restaurantStages = [
   ["confirmed", "Confirmado"],
   ["preparing", "En preparación"],
   ["ready", "Listo"],
+] as const;
+
+const demoOrderStates = [
+  { id: "demo-pending", label: "Pendiente" },
+  { id: "demo-confirmed", label: "Confirmado" },
+  { id: "demo-preparing", label: "Preparando" },
+  { id: "demo-ready", label: "Listo" },
+  { id: "demo-190", label: "Retrasado" },
+  { id: "demo-delivered", label: "Entregado" },
 ] as const;
 
 export function OrderTrackingView({
@@ -42,6 +52,34 @@ export function OrderTrackingView({
           {orderStatusLabels[order.status]}
         </span>
       </header>
+
+      <section
+        className={styles.demoControls}
+        aria-labelledby="demo-states-title"
+      >
+        <div>
+          <h2 id="demo-states-title">Probar estados del pedido</h2>
+          <p>Controles de demostración. No actualizan un pedido real.</p>
+        </div>
+        <nav
+          aria-label="Estados de demostración del pedido"
+          className={styles.demoLinks}
+        >
+          {demoOrderStates.map((demoState) => {
+            const isCurrent = demoState.id === order.id;
+            return (
+              <Link
+                aria-current={isCurrent ? "page" : undefined}
+                className={`${styles.demoLink} ${isCurrent ? styles.demoLinkCurrent : ""}`}
+                href={`/client/orders/${demoState.id}`}
+                key={demoState.id}
+              >
+                {demoState.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </section>
 
       <section className={styles.card} aria-labelledby="status-title">
         <h2 id="status-title">ESTADO DEL PEDIDO</h2>
