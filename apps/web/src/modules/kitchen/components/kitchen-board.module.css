@@ -8,6 +8,15 @@
   align-items: end;
 }
 
+.header > div:first-child {
+  display: grid;
+  justify-items: start;
+}
+
+.header :global(.text-action) {
+  margin-bottom: 0.65rem;
+}
+
 .connection {
   min-width: 12rem;
 }
@@ -318,12 +327,14 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .header {
     align-items: stretch;
+    flex-direction: column;
   }
 
   .connection {
+    min-width: 0;
     width: 100%;
   }
 
@@ -332,14 +343,16 @@
     flex-direction: column;
   }
 
-  .segmented {
-    margin-inline: -0.85rem;
-    padding-inline: 0.85rem;
-  }
-
   .board,
   .boardFocused {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .segmented {
+    margin-inline: -0.85rem;
+    padding-inline: 0.85rem;
   }
 
   .reconnecting {

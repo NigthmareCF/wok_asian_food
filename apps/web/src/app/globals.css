@@ -65,7 +65,7 @@ a {
   font-weight: 800;
   white-space: nowrap;
 }
-.brand span,
+.brand__mark,
 .eyebrow {
   color: var(--primary);
 }
@@ -279,6 +279,10 @@ a {
   display: grid;
   grid-template-columns: 16rem minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 180ms ease;
+}
+.app-shell--sidebar-collapsed {
+  grid-template-columns: 4.75rem minmax(0, 1fr);
 }
 .sidebar {
   align-self: start;
@@ -292,6 +296,49 @@ a {
   padding: 1.25rem;
   position: sticky;
   top: 0;
+}
+.sidebar__header {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.sidebar__toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  height: 2.75rem;
+  justify-content: center;
+  width: 2.75rem;
+}
+.sidebar__toggle:hover {
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+.app-shell--sidebar-collapsed .sidebar {
+  padding-inline: 0.65rem;
+}
+.app-shell--sidebar-collapsed .sidebar__header {
+  flex-direction: column;
+}
+.app-shell--sidebar-collapsed .brand__name,
+.app-shell--sidebar-collapsed .navigation a span,
+.app-shell--sidebar-collapsed .sidebar__context div {
+  display: none;
+}
+.app-shell--sidebar-collapsed .navigation a {
+  gap: 0;
+  justify-content: center;
+  padding-inline: 0;
+}
+.app-shell--sidebar-collapsed .sidebar__context {
+  justify-content: center;
+  padding-inline: 0;
 }
 .navigation {
   display: grid;
@@ -1711,6 +1758,13 @@ a {
   display: grid;
   margin-bottom: 1rem;
 }
+.table-account-heading-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
 .table-open-accounts article {
   align-items: center;
   border-top: 1px solid var(--border);
@@ -2102,6 +2156,22 @@ a {
     overflow: visible;
     padding: 1rem;
     position: static;
+  }
+  .sidebar__header,
+  .app-shell--sidebar-collapsed .sidebar__header {
+    flex-direction: row;
+  }
+  .app-shell--sidebar-collapsed .sidebar {
+    padding-inline: 1rem;
+  }
+  .app-shell--sidebar-collapsed .brand__name {
+    display: inline;
+  }
+  .app-shell--sidebar-collapsed {
+    padding-bottom: 0;
+  }
+  .app-shell--sidebar-collapsed .navigation {
+    display: none;
   }
   .sidebar .brand {
     display: block;

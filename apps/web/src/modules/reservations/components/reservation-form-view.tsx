@@ -2,7 +2,7 @@
 
 import { Clock3, Minus, Plus } from "lucide-react";
 import { useRef, useState } from "react";
-import { reservationFixture } from "@/data/fixtures/reservations";
+import { clientReservationFixture } from "@/data/fixtures/client-reservations";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { StatusBadge } from "@/shared/components/ui/status-badge";
@@ -25,7 +25,7 @@ function getTimeInMinutes(time: string) {
 function isLateReservation(time: string) {
   const selectedTime = getTimeInMinutes(time);
   const lastNormalTime = getTimeInMinutes(
-    reservationFixture.lastNormalEntryTime,
+    clientReservationFixture.lastNormalEntryTime,
   );
 
   return (
@@ -36,9 +36,9 @@ function isLateReservation(time: string) {
 }
 
 export function ReservationFormView() {
-  const [date, setDate] = useState(reservationFixture.defaultDate);
-  const [time, setTime] = useState(reservationFixture.defaultTime);
-  const [people, setPeople] = useState(reservationFixture.defaultPeople);
+  const [date, setDate] = useState(clientReservationFixture.defaultDate);
+  const [time, setTime] = useState(clientReservationFixture.defaultTime);
+  const [people, setPeople] = useState(clientReservationFixture.defaultPeople);
   const [includesPreorder, setIncludesPreorder] = useState<boolean | null>(
     null,
   );
@@ -57,7 +57,7 @@ export function ReservationFormView() {
   }
 
   function useLastNormalTime() {
-    setTime(reservationFixture.lastNormalEntryTime);
+    setTime(clientReservationFixture.lastNormalEntryTime);
     setIncludesPreorder(true);
     setIsLateNoticeDismissed(false);
     setErrors((current) => ({
@@ -101,8 +101,8 @@ export function ReservationFormView() {
           <h1 id="reservation-title">Crear reservación</h1>
         </div>
         <StatusBadge
-          label={reservationFixture.availability.label}
-          tone={reservationFixture.availability.tone}
+          label={clientReservationFixture.availability.label}
+          tone={clientReservationFixture.availability.tone}
         />
       </header>
 
