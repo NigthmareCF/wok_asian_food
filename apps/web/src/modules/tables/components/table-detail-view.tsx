@@ -10,6 +10,7 @@ import {
   CircleCheck,
   CreditCard,
   FileText,
+  Package,
   Plus,
   ReceiptText,
   Send,
@@ -25,9 +26,11 @@ import {
   currentOperationalUser,
   operationalReservationsToday,
 } from "@/data/fixtures/operation";
+import { getOrderTotal, type OrderItem } from "@/data/fixtures/orders";
+import { useOrderSession } from "@/modules/orders";
 import { useTableSession } from "@/modules/tables/table-session-provider";
 
-type TableAction = "charge" | "split" | "transfer" | "release";
+type TableAction = "charge" | "transfer" | "release";
 
 const actionContent: Record<
   TableAction,
@@ -37,11 +40,6 @@ const actionContent: Record<
     title: "Confirmar cobro",
     description: "Verifica el monto y el método de pago antes de continuar.",
     confirm: "Confirmar cobro",
-  },
-  split: {
-    title: "Dividir cuenta",
-    description: "Se crearán cuentas separadas para distribuir los productos.",
-    confirm: "Crear cuentas",
   },
   transfer: {
     title: "Trasladar mesa",
@@ -76,14 +74,66 @@ export function TableDetailView({
   items: TableOrderItem[];
 }) {
   const { tables, updateTable } = useTableSession();
+  const {
+    clearTableAccounts,
+    createTableAccount,
+    markOrdersPaid,
+    orders,
+    tableAccounts,
+  } = useOrderSession();
   const table =
     tables.find((item) => item.id === initialTable.id) ?? initialTable;
   const [activeAction, setActiveAction] = useState<TableAction | null>(null);
   const [showReservationPicker, setShowReservationPicker] = useState(false);
   const [selectedReservationId, setSelectedReservationId] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [showAccountCreator, setShowAccountCreator] = useState(false);
+  const [newAccountName, setNewAccountName] = useState("");
 
-  const canRelease = table.balance === 0 && table.status === "occupied";
+  const tableSource = `Mesa ${table.number}`;
+  const sourceOrders = orders.filter(
+    (order) => order.channel === "table" && order.source === tableSource,
+  );
+  const pendingOrders = sourceOrders.filter(
+    (order) => order.status !== "cancelled" && order.paymentStatus !== "paid",
+  );
+  const orderLines = pendingOrders.flatMap((order) =>
+    order.items.map((item) => ({
+      key: `${order.id}:${item.id}`,
+      orderId: order.id,
+      item,
+    })),
+  );
+  const fallbackLines =
+    sourceOrders.length === 0 && table.balance > 0
+      ? items.map((item) => ({
+          key: `fixture:${item.id}`,
+          orderId: table.orderId,
+          item: {
+            ...item,
+            productId: item.id,
+            modifiers: [],
+            fulfillment: undefined,
+            readyAt: undefined,
+            accountId: undefined,
+            accountName: undefined,
+          } satisfies OrderItem,
+        }))
+      : [];
+  const accountLines = orderLines.length > 0 ? orderLines : fallbackLines;
+  const pendingTotal =
+    orderLines.length > 0
+      ? pendingOrders.reduce(
+          (total, order) => total + getOrderTotal(order.items),
+          0,
+        )
+      : table.balance;
+  const productCount = accountLines.reduce(
+    (total, line) => total + line.item.quantity,
+    0,
+  );
+  const openAccounts = tableAccounts[tableSource] ?? [];
+  const canRelease = pendingTotal === 0 && table.status === "occupied";
   const isAvailable = table.status === "free";
   const isReserved = table.status === "reserved";
   const isServicePending =
@@ -141,13 +191,23 @@ export function TableDetailView({
     setFeedback("Revisión solicitada al responsable del salón.");
   };
 
+  const createAccount = () => {
+    if (!newAccountName.trim()) return;
+    const account = createTableAccount(tableSource, newAccountName);
+    setShowAccountCreator(false);
+    setNewAccountName("");
+    setFeedback(`Cuenta de ${account.name} abierta para esta mesa.`);
+  };
+
   const confirmAction = () => {
     if (!activeAction) return;
 
     if (activeAction === "charge") {
+      markOrdersPaid(pendingOrders.map((order) => order.id));
       updateTable(table.id, (current) => ({ ...current, balance: 0 }));
       setFeedback("Cobro registrado. La mesa ya puede liberarse.");
     } else if (activeAction === "release") {
+      clearTableAccounts(tableSource);
       updateTable(table.id, (current) => ({
         ...current,
         status: "free",
@@ -159,8 +219,6 @@ export function TableDetailView({
         responsible: undefined,
       }));
       setFeedback("Mesa liberada correctamente.");
-    } else if (activeAction === "split") {
-      setFeedback("Se prepararon dos cuentas para distribuir productos.");
     } else {
       setFeedback("Traslado preparado; falta confirmación del destino.");
     }
@@ -208,14 +266,18 @@ export function TableDetailView({
         </div>
         <div>
           <span>Pedido</span>
-          <strong>{table.orderId ? `#${table.orderId}` : "Sin pedido"}</strong>
+          <strong>
+            {pendingOrders.length > 0
+              ? pendingOrders.map((order) => `#${order.id}`).join(", ")
+              : table.orderId
+                ? `#${table.orderId}`
+                : "Sin pedido"}
+          </strong>
         </div>
         <div>
           <span>Saldo pendiente</span>
-          <strong
-            className={table.balance > 0 ? "text-danger" : "text-success"}
-          >
-            {money.format(table.balance)}
+          <strong className={pendingTotal > 0 ? "text-danger" : "text-success"}>
+            {money.format(pendingTotal)}
           </strong>
         </div>
       </section>
@@ -306,27 +368,121 @@ export function TableDetailView({
           <section className="ops-work-panel" aria-labelledby="account-title">
             <div className="ops-section-heading ops-section-heading--compact">
               <div>
-                <h2 id="account-title">Cuenta actual</h2>
-                <p>{items.length} productos registrados</p>
+                <h2 id="account-title">Cuentas de la mesa</h2>
+                <p>
+                  {openAccounts.length} cuenta(s) · {productCount} productos ·{" "}
+                  {pendingOrders.length || (table.orderId ? 1 : 0)} comanda(s)
+                </p>
               </div>
-              <Link
-                className="button button--primary button--compact"
-                href={`/operation/orders/new?table=${table.number}`}
-              >
-                <Plus aria-hidden="true" size={17} /> Agregar
-              </Link>
+              <div className="table-account-heading-actions">
+                {openAccounts.length > 0 ? (
+                  <Link
+                    className="button button--primary button--compact"
+                    href={`/operation/orders/new?table=${table.number}`}
+                  >
+                    <ReceiptText aria-hidden="true" size={16} /> Tomar pedido
+                    completo
+                  </Link>
+                ) : null}
+                <button
+                  className="button button--secondary button--compact"
+                  onClick={() => setShowAccountCreator(true)}
+                  type="button"
+                >
+                  <Plus aria-hidden="true" size={17} /> Abrir cuenta
+                </button>
+              </div>
+            </div>
+
+            {openAccounts.length > 0 ? (
+              <div className="table-open-accounts">
+                {openAccounts.map((account) => {
+                  const accountOrders = pendingOrders.filter(
+                    (order) =>
+                      order.accountId === account.id ||
+                      order.items.some((item) => item.accountId === account.id),
+                  );
+                  const accountItems = accountOrders.flatMap((order) =>
+                    order.items.filter(
+                      (item) =>
+                        item.accountId === account.id ||
+                        (!item.accountId && order.accountId === account.id),
+                    ),
+                  );
+                  const accountTotal = accountItems.reduce(
+                    (total, item) => total + item.unitPrice * item.quantity,
+                    0,
+                  );
+                  return (
+                    <article key={account.id}>
+                      <div>
+                        <UserRound aria-hidden="true" size={17} />
+                        <span>
+                          <strong>{account.name}</strong>
+                          <small>
+                            {accountItems.length
+                              ? `${accountItems.reduce((sum, item) => sum + item.quantity, 0)} producto(s) en ${accountOrders.length} pedido(s)`
+                              : "Lista para agregar productos"}
+                          </small>
+                        </span>
+                      </div>
+                      <strong>{money.format(accountTotal)}</strong>
+                      <Link
+                        className="button button--secondary button--compact"
+                        href={`/operation/orders/new?table=${table.number}&account=${encodeURIComponent(account.id)}&accountName=${encodeURIComponent(account.name)}`}
+                      >
+                        <Plus aria-hidden="true" size={15} /> Agregar productos
+                      </Link>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="table-account-onboarding">
+                <UserRound aria-hidden="true" size={21} />
+                <div>
+                  <strong>Abre la primera cuenta</strong>
+                  <span>
+                    Así cada comanda quedará asociada a la persona que la pidió.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="table-account-subheading">
+              <strong>Resumen pendiente</strong>
+              <span>Todos los productos de la atención</span>
             </div>
 
             <div className="table-order-list">
-              {items.length > 0 ? (
-                items.map((item) => (
-                  <article className="table-order-row" key={item.id}>
-                    <strong>{item.quantity}</strong>
+              {accountLines.length > 0 ? (
+                accountLines.map((line) => (
+                  <article className="table-order-row" key={line.key}>
+                    <strong>{line.item.quantity}</strong>
                     <div>
-                      <span>{item.name}</span>
-                      {item.notes ? <small>{item.notes}</small> : null}
+                      <span>{line.item.name}</span>
+                      <small>
+                        {[
+                          line.orderId ? `#${line.orderId}` : null,
+                          line.item.accountName
+                            ? `Cuenta de ${line.item.accountName}`
+                            : null,
+                          ...line.item.modifiers,
+                          line.item.notes,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </small>
+                      {line.item.fulfillment === "takeaway" ? (
+                        <small className="table-order-row__takeaway">
+                          <Package aria-hidden="true" size={12} /> Para llevar
+                          {line.item.readyAt ? ` · ${line.item.readyAt}` : ""}
+                        </small>
+                      ) : null}
                     </div>
-                    <span>{money.format(item.quantity * item.unitPrice)}</span>
+                    <span>
+                      {money.format(line.item.quantity * line.item.unitPrice)}
+                    </span>
                   </article>
                 ))
               ) : (
@@ -340,7 +496,7 @@ export function TableDetailView({
 
             <div className="table-account-total">
               <span>Total pendiente</span>
-              <strong>{money.format(table.balance)}</strong>
+              <strong>{money.format(pendingTotal)}</strong>
             </div>
           </section>
 
@@ -372,8 +528,13 @@ export function TableDetailView({
                   <p>Mockups sujetos a revisión</p>
                 </div>
               </div>
-              <button onClick={() => setActiveAction("split")} type="button">
-                <Split aria-hidden="true" size={18} /> Dividir cuenta
+              <button
+                disabled
+                title="Se implementará después del flujo de cuentas"
+                type="button"
+              >
+                <Split aria-hidden="true" size={18} /> Dividir cuenta ·
+                pendiente
               </button>
               <button
                 onClick={() => {
@@ -400,7 +561,7 @@ export function TableDetailView({
               >
                 Liberar mesa
               </button>
-              {table.balance > 0 ? (
+              {pendingTotal > 0 ? (
                 <p>
                   <CircleAlert aria-hidden="true" size={15} />
                   No se puede liberar mientras exista saldo pendiente.
@@ -412,8 +573,9 @@ export function TableDetailView({
       )}
 
       <p className="mock-disclaimer">
-        Datos y permisos simulados. Dividir, precuenta, cobro y traslado son
-        referencias de flujo pendientes de sus vistas definitivas.
+        Datos y permisos simulados. Las cuentas se conservan al navegar;
+        división posterior, cobro, precuenta y traslado se completarán en sus
+        módulos definitivos.
       </p>
 
       {showReservationPicker ? (
@@ -489,6 +651,62 @@ export function TableDetailView({
         </div>
       ) : null}
 
+      {showAccountCreator ? (
+        <div className="confirm-dialog__backdrop" role="presentation">
+          <section
+            aria-labelledby="create-account-title"
+            aria-modal="true"
+            className="confirm-dialog"
+            role="dialog"
+          >
+            <button
+              aria-label="Cerrar nueva cuenta"
+              className="icon-button confirm-dialog__close"
+              onClick={() => setShowAccountCreator(false)}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <span className="confirm-dialog__icon">
+              <UserRound aria-hidden="true" size={22} />
+            </span>
+            <h2 id="create-account-title">Abrir cuenta</h2>
+            <p>
+              Identifica a la persona para asociar sus comandas y productos.
+            </p>
+            <label className="order-field create-account-field">
+              <span>Nombre de la cuenta</span>
+              <input
+                autoFocus
+                onChange={(event) => setNewAccountName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") createAccount();
+                }}
+                placeholder="Ej. Pepito"
+                value={newAccountName}
+              />
+            </label>
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                onClick={() => setShowAccountCreator(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="button button--primary"
+                disabled={!newAccountName.trim()}
+                onClick={createAccount}
+                type="button"
+              >
+                Abrir cuenta
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {activeAction ? (
         <div className="confirm-dialog__backdrop" role="presentation">
           <section
@@ -514,7 +732,7 @@ export function TableDetailView({
             <p>{actionContent[activeAction].description}</p>
             {activeAction === "charge" ? (
               <strong className="confirm-dialog__amount">
-                {money.format(table.balance)}
+                {money.format(pendingTotal)}
               </strong>
             ) : null}
             <div className="confirm-dialog__actions">

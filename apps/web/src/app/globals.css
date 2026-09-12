@@ -65,7 +65,7 @@ a {
   font-weight: 800;
   white-space: nowrap;
 }
-.brand span,
+.brand > span:first-child,
 .eyebrow {
   color: var(--primary);
 }
@@ -687,6 +687,10 @@ a {
   display: grid;
   grid-template-columns: 16rem minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 180ms ease;
+}
+.app-shell--sidebar-collapsed {
+  grid-template-columns: 4.75rem minmax(0, 1fr);
 }
 .sidebar {
   align-self: start;
@@ -700,6 +704,49 @@ a {
   padding: 1.25rem;
   position: sticky;
   top: 0;
+}
+.sidebar__header {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.sidebar__toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  height: 2.75rem;
+  justify-content: center;
+  width: 2.75rem;
+}
+.sidebar__toggle:hover {
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+.app-shell--sidebar-collapsed .sidebar {
+  padding-inline: 0.65rem;
+}
+.app-shell--sidebar-collapsed .sidebar__header {
+  flex-direction: column;
+}
+.app-shell--sidebar-collapsed .brand__name,
+.app-shell--sidebar-collapsed .navigation a span,
+.app-shell--sidebar-collapsed .sidebar__context div {
+  display: none;
+}
+.app-shell--sidebar-collapsed .navigation a {
+  gap: 0;
+  justify-content: center;
+  padding-inline: 0;
+}
+.app-shell--sidebar-collapsed .sidebar__context {
+  justify-content: center;
+  padding-inline: 0;
 }
 .navigation {
   display: grid;
@@ -2202,6 +2249,13 @@ a {
   color: var(--text-subtle);
   font-size: 0.6875rem;
 }
+.table-order-row .table-order-row__takeaway {
+  align-items: center;
+  color: #f7d98f;
+  display: inline-flex;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+}
 .table-order-row > span {
   color: var(--text-secondary);
   font-size: 0.8125rem;
@@ -2222,6 +2276,76 @@ a {
 }
 .table-account-total strong {
   font-size: 1.15rem;
+}
+.table-open-accounts {
+  display: grid;
+  margin-bottom: 1rem;
+}
+.table-account-heading-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.table-open-accounts article {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 4.5rem;
+  padding: 0.65rem 0;
+}
+.table-open-accounts article > div {
+  align-items: center;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.table-open-accounts article > div > svg {
+  color: #ff9b7d;
+}
+.table-open-accounts article > div > span {
+  display: grid;
+}
+.table-open-accounts article strong {
+  font-size: 0.8125rem;
+}
+.table-open-accounts article small {
+  color: var(--text-subtle);
+  font-size: 0.6875rem;
+}
+.table-account-onboarding {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 5rem;
+}
+.table-account-onboarding > svg {
+  color: #ff9b7d;
+}
+.table-account-onboarding > div {
+  display: grid;
+}
+.table-account-onboarding strong,
+.table-account-subheading strong {
+  font-size: 0.8125rem;
+}
+.table-account-onboarding span,
+.table-account-subheading span {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+}
+.table-account-subheading {
+  align-items: end;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding-top: 0.75rem;
 }
 .table-detail__side {
   display: grid;
@@ -2269,6 +2393,10 @@ a {
 }
 .table-actions button:hover {
   color: var(--text);
+}
+.table-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 .table-actions button svg {
   color: #ff9b7d;
@@ -2416,6 +2544,9 @@ a {
 .reservation-picker {
   max-width: 34rem;
 }
+.create-account-field {
+  margin-top: 1rem;
+}
 .reservation-picker__list {
   border-bottom: 1px solid var(--border);
   display: grid;
@@ -2548,6 +2679,22 @@ a {
     overflow: visible;
     padding: 1rem;
     position: static;
+  }
+  .sidebar__header,
+  .app-shell--sidebar-collapsed .sidebar__header {
+    flex-direction: row;
+  }
+  .app-shell--sidebar-collapsed .sidebar {
+    padding-inline: 1rem;
+  }
+  .app-shell--sidebar-collapsed .brand__name {
+    display: inline;
+  }
+  .app-shell--sidebar-collapsed {
+    padding-bottom: 0;
+  }
+  .app-shell--sidebar-collapsed .navigation {
+    display: none;
   }
   .sidebar .brand {
     display: block;
@@ -2783,6 +2930,13 @@ a {
   .reservation-picker__list label > small:last-child {
     grid-column: 3;
   }
+  .table-open-accounts article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .table-open-accounts article > .button {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
   .joined-detail__expired {
     align-items: start;
     grid-template-columns: auto minmax(0, 1fr);
@@ -2820,6 +2974,16 @@ a {
   display: block;
   font-size: 0.625rem;
 }
+@media (min-width: 1024px) {
+  .app-shell--client.app-shell--sidebar-collapsed .navigation button span {
+    display: none;
+  }
+  .app-shell--client.app-shell--sidebar-collapsed .navigation button {
+    gap: 0;
+    justify-content: center;
+    padding-inline: 0;
+  }
+}
 .client-demo-dialog {
   background: var(--surface);
   color: var(--text);
@@ -2839,6 +3003,12 @@ a {
   color: var(--navigation);
 }
 @media (max-width: 1023px) {
+  .app-shell--client .sidebar__toggle {
+    display: none;
+  }
+  .app-shell--client.app-shell--sidebar-collapsed .navigation a span {
+    display: inline;
+  }
   .app-shell--client {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;

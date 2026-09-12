@@ -10,11 +10,13 @@ import {
   ChefHat,
   Clock3,
   Minus,
+  Package,
   Plus,
   Search,
   Send,
   ShoppingCart,
   Trash2,
+  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -22,6 +24,7 @@ import {
   orderProducts,
   type OrderChannel,
   type OrderItem,
+  type OrderFulfillment,
   type OrderProduct,
 } from "@/data/fixtures/orders";
 import { operationalTables } from "@/data/fixtures/operation";
@@ -37,14 +40,30 @@ const availabilityMeta = {
   unavailable: { label: "Agotado", tone: "danger" },
 } as const;
 
-export function NewOrderView() {
+export function NewOrderView({
+  initialAccountId,
+  initialAccountName,
+  initialJoinedTableNumbers,
+  initialTableNumber,
+}: {
+  initialAccountId?: string;
+  initialAccountName?: string;
+  initialJoinedTableNumbers?: string;
+  initialTableNumber?: string;
+}) {
   const router = useRouter();
-  const { createOrder } = useOrderSession();
-  const { joinedGroups } = useTableSession();
+  const { createOrder, tableAccounts } = useOrderSession();
+  const { joinedGroups, updateJoinedGroup, updateTable } = useTableSession();
   const [category, setCategory] = useState<Category>("Todos");
   const [query, setQuery] = useState("");
   const [channel, setChannel] = useState<OrderChannel>("table");
-  const [table, setTable] = useState("Mesa 1");
+  const [table, setTable] = useState(() =>
+    initialJoinedTableNumbers
+      ? `Mesas ${initialJoinedTableNumbers.split(",").join(" y ")} unidas`
+      : initialTableNumber
+        ? `Mesa ${initialTableNumber}`
+        : "Mesa 1",
+  );
   const [customer, setCustomer] = useState("");
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [openProduct, setOpenProduct] = useState<OrderProduct | null>(null);
@@ -52,6 +71,11 @@ export function NewOrderView() {
     Record<string, string>
   >({});
   const [notes, setNotes] = useState("");
+  const [fulfillment, setFulfillment] = useState<OrderFulfillment>("dine-in");
+  const [readyAt, setReadyAt] = useState("");
+  const [accountId, setAccountId] = useState(initialAccountId ?? "");
+  const [completedAccountIds, setCompletedAccountIds] = useState<string[]>([]);
+  const [accountFeedback, setAccountFeedback] = useState("");
   const [confirming, setConfirming] = useState(false);
 
   const visibleProducts = useMemo(() => {
@@ -88,11 +112,51 @@ export function NewOrderView() {
   const selectedTable = tableOptions.some((option) => option.label === table)
     ? table
     : (tableOptions[0]?.label ?? "");
+  const selectedTableOption = tableOptions.find(
+    (option) => option.label === selectedTable,
+  );
+  const accountsForTable = tableAccounts[selectedTable] ?? [];
+  const selectedAccountId = accountsForTable.some(
+    (account) => account.id === accountId,
+  )
+    ? accountId
+    : initialAccountId &&
+        initialAccountName &&
+        selectedTable === `Mesa ${initialTableNumber}`
+      ? initialAccountId
+      : (accountsForTable[0]?.id ?? "");
+  const selectedAccount =
+    accountsForTable.find((account) => account.id === selectedAccountId) ??
+    (selectedAccountId && initialAccountName
+      ? { id: selectedAccountId, name: initialAccountName }
+      : undefined);
+
+  const accountCandidates = [...accountsForTable];
+  if (
+    selectedAccount &&
+    !accountCandidates.some((account) => account.id === selectedAccount.id)
+  ) {
+    accountCandidates.push(selectedAccount);
+  }
+  const accountsInOrder = accountCandidates.filter((account) =>
+    cart.some((item) => item.accountId === account.id),
+  );
+  const selectedAccountItems = selectedAccount
+    ? cart.filter((item) => item.accountId === selectedAccount.id)
+    : [];
+  const nextAccount = accountsForTable.find(
+    (account) =>
+      account.id !== selectedAccount?.id &&
+      !completedAccountIds.includes(account.id),
+  );
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
   const total = getOrderTotal(cart);
   const source = channel === "table" ? selectedTable : customer.trim();
-  const canSend = cart.length > 0 && source.length > 0;
+  const canSend =
+    cart.length > 0 &&
+    source.length > 0 &&
+    (channel !== "table" || Boolean(selectedAccount));
 
   const addConfiguredProduct = () => {
     if (!openProduct) return;
@@ -112,7 +176,8 @@ export function NewOrderView() {
     const unitPrice =
       openProduct.price +
       selectedOptions.reduce((sum, option) => sum + option.price, 0);
-    const itemId = `${openProduct.id}-${selectedOptionIds.join("-") || "base"}-${notes.trim() || "plain"}`;
+    const itemAccountId = channel === "table" ? selectedAccount?.id : undefined;
+    const itemId = `${itemAccountId ?? channel}-${openProduct.id}-${selectedOptionIds.join("-") || "base"}-${notes.trim() || "plain"}-${fulfillment}-${readyAt || "now"}`;
 
     setCart((current) => {
       const existing = current.find((item) => item.id === itemId);
@@ -131,12 +196,19 @@ export function NewOrderView() {
           unitPrice,
           modifiers: modifierLabels,
           notes: notes.trim() || undefined,
+          fulfillment,
+          accountId: itemAccountId,
+          accountName: channel === "table" ? selectedAccount?.name : undefined,
+          readyAt:
+            fulfillment === "takeaway" ? readyAt || undefined : undefined,
         },
       ];
     });
     setOpenProduct(null);
     setSelectedModifiers({});
     setNotes("");
+    setFulfillment("dine-in");
+    setReadyAt("");
   };
 
   const chooseProduct = (product: OrderProduct) => {
@@ -144,6 +216,8 @@ export function NewOrderView() {
     setOpenProduct(product);
     setSelectedModifiers({});
     setNotes("");
+    setFulfillment("dine-in");
+    setReadyAt("");
   };
 
   const changeQuantity = (itemId: string, amount: number) => {
@@ -158,6 +232,27 @@ export function NewOrderView() {
     );
   };
 
+  const saveAccountAndContinue = () => {
+    if (!selectedAccount || selectedAccountItems.length === 0) return;
+    setCompletedAccountIds((current) =>
+      current.includes(selectedAccount.id)
+        ? current
+        : [...current, selectedAccount.id],
+    );
+
+    if (nextAccount) {
+      setAccountId(nextAccount.id);
+      setAccountFeedback(
+        `Cuenta de ${selectedAccount.name} guardada. Continúa con ${nextAccount.name}.`,
+      );
+      return;
+    }
+
+    setAccountFeedback(
+      `Cuenta de ${selectedAccount.name} lista. Ya puedes revisar el pedido completo.`,
+    );
+  };
+
   const confirmOrder = () => {
     if (!canSend) return;
     const formattedSource =
@@ -168,7 +263,24 @@ export function NewOrderView() {
       channel,
       source: formattedSource,
       items: cart,
+      accountId: channel === "table" ? selectedAccount?.id : undefined,
+      accountName: channel === "table" ? selectedAccount?.name : undefined,
+      accounts: channel === "table" ? accountsInOrder : undefined,
     });
+    if (channel === "table" && selectedTableOption) {
+      if (selectedTableOption.id.startsWith("joined-")) {
+        updateJoinedGroup(selectedTableOption.id, (group) => ({
+          ...group,
+          status: "occupied",
+        }));
+      } else {
+        updateTable(selectedTableOption.id, (current) => ({
+          ...current,
+          orderId,
+          balance: current.balance + total,
+        }));
+      }
+    }
     router.push(`/operation/orders/${orderId}`);
   };
 
@@ -181,8 +293,19 @@ export function NewOrderView() {
     <div className="orders-page order-builder">
       <header className="ops-page-header orders-page__header">
         <div>
-          <Link className="text-action" href="/operation/orders">
-            <ArrowLeft aria-hidden="true" size={16} /> Volver a pedidos
+          <Link
+            className="text-action"
+            href={
+              (initialTableNumber || initialJoinedTableNumbers) &&
+              selectedTableOption
+                ? `/operation/tables/${selectedTableOption.id}`
+                : "/operation/orders"
+            }
+          >
+            <ArrowLeft aria-hidden="true" size={16} />
+            {initialTableNumber || initialJoinedTableNumbers
+              ? "Volver a la mesa"
+              : "Volver a pedidos"}
           </Link>
           <span className="ops-kicker">Nueva comanda</span>
           <h1>Nuevo pedido</h1>
@@ -209,7 +332,13 @@ export function NewOrderView() {
               <button
                 aria-pressed={channel === value}
                 key={value}
-                onClick={() => setChannel(value)}
+                onClick={() => {
+                  if (value === channel) return;
+                  setChannel(value);
+                  setCart([]);
+                  setCompletedAccountIds([]);
+                  setAccountFeedback("");
+                }}
                 type="button"
               >
                 {label}
@@ -218,19 +347,87 @@ export function NewOrderView() {
           </div>
         </div>
         {channel === "table" ? (
-          <label className="order-field">
-            <span>Mesa</span>
-            <select
-              onChange={(event) => setTable(event.target.value)}
-              value={selectedTable}
-            >
-              {tableOptions.map((option) => (
-                <option key={option.id} value={option.label}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="order-origin__table-fields">
+            <label className="order-field">
+              <span>Mesa</span>
+              <select
+                onChange={(event) => {
+                  setTable(event.target.value);
+                  setAccountId("");
+                  setCart([]);
+                  setCompletedAccountIds([]);
+                  setAccountFeedback("");
+                }}
+                value={selectedTable}
+              >
+                {tableOptions.map((option) => (
+                  <option key={option.id} value={option.label}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedAccount ? (
+              <label className="order-field">
+                <span>Cuenta</span>
+                <select
+                  onChange={(event) => setAccountId(event.target.value)}
+                  value={selectedAccount.id}
+                >
+                  {accountsForTable.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                  {accountsForTable.length === 0 ? (
+                    <option value={selectedAccount.id}>
+                      {selectedAccount.name}
+                    </option>
+                  ) : null}
+                </select>
+              </label>
+            ) : (
+              <div className="order-account-required">
+                <UserRound aria-hidden="true" size={17} />
+                <span>Abre una cuenta desde el detalle de la mesa.</span>
+                {selectedTableOption ? (
+                  <Link href={`/operation/tables/${selectedTableOption.id}`}>
+                    Ir a la mesa
+                  </Link>
+                ) : null}
+              </div>
+            )}
+            {accountsForTable.length > 1 ? (
+              <div
+                className="order-account-progress"
+                aria-label="Cuentas de la mesa"
+              >
+                {accountsForTable.map((account) => {
+                  const itemCount = cart
+                    .filter((item) => item.accountId === account.id)
+                    .reduce((sum, item) => sum + item.quantity, 0);
+                  const completed = completedAccountIds.includes(account.id);
+                  return (
+                    <button
+                      aria-pressed={selectedAccount?.id === account.id}
+                      key={account.id}
+                      onClick={() => {
+                        setAccountId(account.id);
+                        setAccountFeedback("");
+                      }}
+                      type="button"
+                    >
+                      {completed ? (
+                        <Check aria-hidden="true" size={14} />
+                      ) : null}
+                      <span>{account.name}</span>
+                      <small>{itemCount} producto(s)</small>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
         ) : (
           <label className="order-field">
             <span>Nombre del cliente</span>
@@ -332,6 +529,14 @@ export function NewOrderView() {
               <h2 id="cart-title">
                 {channel === "table" ? selectedTable : "Pedido externo"}
               </h2>
+              {channel === "table" && selectedAccount ? (
+                <small>
+                  Cuenta de {selectedAccount.name}
+                  {accountsInOrder.length > 0
+                    ? ` · ${accountsInOrder.length} cuenta(s) agregada(s)`
+                    : ""}
+                </small>
+              ) : null}
             </div>
             <strong>{cartCount}</strong>
           </div>
@@ -342,10 +547,21 @@ export function NewOrderView() {
                 <div className="cart-item__heading">
                   <div>
                     <strong>{item.name}</strong>
+                    {channel === "table" && item.accountName ? (
+                      <small className="cart-item__account">
+                        Cuenta de {item.accountName}
+                      </small>
+                    ) : null}
                     {item.modifiers.length > 0 ? (
                       <span>{item.modifiers.join(" · ")}</span>
                     ) : null}
                     {item.notes ? <small>Nota: {item.notes}</small> : null}
+                    {item.fulfillment === "takeaway" ? (
+                      <small className="cart-item__takeaway">
+                        <Package aria-hidden="true" size={12} /> Para llevar
+                        {item.readyAt ? ` · ${item.readyAt}` : ""}
+                      </small>
+                    ) : null}
                   </div>
                   <button
                     aria-label={`Quitar ${item.name}`}
@@ -400,13 +616,41 @@ export function NewOrderView() {
           {!source ? (
             <p className="order-cart__hint">Ingresa el nombre del cliente.</p>
           ) : null}
+          {channel === "table" && !selectedAccount ? (
+            <p className="order-cart__hint">
+              Abre o selecciona una cuenta antes de enviar.
+            </p>
+          ) : null}
+          {accountFeedback ? (
+            <p className="order-cart__account-feedback" role="status">
+              <Check aria-hidden="true" size={15} /> {accountFeedback}
+            </p>
+          ) : null}
+          {channel === "table" &&
+          selectedAccount &&
+          accountsForTable.length > 1 ? (
+            <button
+              className="button button--secondary button--full"
+              disabled={selectedAccountItems.length === 0}
+              onClick={saveAccountAndContinue}
+              type="button"
+            >
+              <Check aria-hidden="true" size={18} />
+              {nextAccount
+                ? "Guardar cuenta y continuar"
+                : "Marcar cuenta como lista"}
+            </button>
+          ) : null}
           <button
             className="button button--primary button--full"
             disabled={!canSend}
             onClick={() => setConfirming(true)}
             type="button"
           >
-            <Send aria-hidden="true" size={18} /> Revisar y enviar
+            <Send aria-hidden="true" size={18} />
+            {channel === "table"
+              ? "Revisar pedido completo"
+              : "Revisar y enviar"}
           </button>
         </aside>
       </div>
@@ -438,6 +682,39 @@ export function NewOrderView() {
             <h2 id="configure-product-title">{openProduct.name}</h2>
             <p>Configura el producto antes de agregarlo a la comanda.</p>
             <div className="product-dialog__groups">
+              <fieldset>
+                <legend>Entrega</legend>
+                <div className="order-fulfillment-options">
+                  <button
+                    aria-pressed={fulfillment === "dine-in"}
+                    onClick={() => {
+                      setFulfillment("dine-in");
+                      setReadyAt("");
+                    }}
+                    type="button"
+                  >
+                    Consumir en mesa
+                  </button>
+                  <button
+                    aria-pressed={fulfillment === "takeaway"}
+                    onClick={() => setFulfillment("takeaway")}
+                    type="button"
+                  >
+                    <Package aria-hidden="true" size={15} /> Para llevar
+                  </button>
+                </div>
+              </fieldset>
+              {fulfillment === "takeaway" ? (
+                <label className="order-field">
+                  <span>Hora para retirar (opcional)</span>
+                  <input
+                    aria-label="Hora para retirar"
+                    onChange={(event) => setReadyAt(event.target.value)}
+                    type="time"
+                    value={readyAt}
+                  />
+                </label>
+              ) : null}
               {(openProduct.modifierGroups ?? []).map((group) => (
                 <fieldset key={group.id}>
                   <legend>
@@ -468,7 +745,11 @@ export function NewOrderView() {
                 </fieldset>
               ))}
               <label className="order-field">
-                <span>Nota para cocina (opcional)</span>
+                <span>
+                  {fulfillment === "takeaway"
+                    ? "Indicaciones para llevar (opcional)"
+                    : "Nota para cocina (opcional)"}
+                </span>
                 <textarea
                   onChange={(event) => setNotes(event.target.value)}
                   placeholder="Ej. sin cebollín"
@@ -519,8 +800,11 @@ export function NewOrderView() {
             </span>
             <h2 id="send-order-title">Enviar pedido a cocina</h2>
             <p>
-              Se enviarán {cartCount} productos para {source}. Revisa cualquier
-              nota antes de continuar.
+              Se enviarán {cartCount} productos para {source}
+              {channel === "table"
+                ? `, distribuidos en ${accountsInOrder.length} cuenta(s)`
+                : ""}
+              . Revisa cualquier nota antes de continuar.
             </p>
             <strong className="confirm-dialog__amount">
               Q {total.toFixed(2)}

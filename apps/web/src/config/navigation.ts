@@ -14,6 +14,7 @@ export type NavigationIcon =
   | "orders"
   | "people"
   | "production"
+  | "requests"
   | "settings"
   | "tables";
 export type NavigationItem = {
@@ -75,6 +76,12 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       label: "Mensajes",
       route: "/operation/messages",
       icon: "messages",
+      requiredPermission: "messages.read",
+    },
+    {
+      label: "Solicitudes",
+      route: "/operation/online-requests",
+      icon: "requests",
       requiredPermission: "messages.read",
     },
     {

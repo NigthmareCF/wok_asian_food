@@ -130,3 +130,14 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Pruebas: lint, typecheck, 23 pruebas unitarias y build aprobados.
 - Decisiones: el detalle de platillo y las acciones de carrito permanecen fuera de alcance; las imágenes del catálogo son externas y demostrativas.
 - Pendiente: integrar datos y assets definitivos cuando exista contrato o referencia visual adicional.
+
+## 2026-09-11 — Integración de development en PR #12
+
+- Rama: feature/frontend-client; integración de origin/development (95f678a).
+- Conflicto de AppShell resuelto combinando navegación y diálogos demostrativos del cliente con menú lateral contraíble, icono de solicitudes y mejoras operativas.
+- Conservados los módulos, rutas y estilos propios del cliente. Ajustados nombres accesibles del menú contraído, botones demo, etiquetas persistentes en móvil y color del logo público.
+- Validación: lint, typecheck, 67 pruebas en 16 archivos y build:web aprobados. Nueva regresión del shell verifica enlaces Inicio/Menú y diálogos Pedidos/Perfil con menú contraído.
+- Brave headless: /client, /menu, /menu/maki-tuna, /client/cart, /login, /register, /location y /operation en 390, 768, 1280 y 1440 px, sin desbordamiento horizontal. Verificados contraer, abrir diálogo y pasar de escritorio contraído a móvil conservando etiquetas.
+- Cambio local previo de next-env.d.ts respaldado en stash; la compilación regeneró exactamente las mismas referencias de tipos de producción y se conserva en la entrega.
+- Sin nuevas dependencias ni integraciones. Validación de navegador automatizada; no sustituye pruebas con dispositivos físicos.
+- Formato: format:check no pudo ejecutarse porque Prettier no está instalado localmente; no se instalaron dependencias.

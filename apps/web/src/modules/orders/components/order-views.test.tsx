@@ -2,7 +2,10 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TableSessionProvider, useTableSession } from "@/modules/tables";
-import { OrderSessionProvider } from "../order-session-provider";
+import {
+  OrderSessionProvider,
+  useOrderSession,
+} from "../order-session-provider";
 import { NewOrderView } from "./new-order-view";
 import { OrderDetailView } from "./order-detail-view";
 import { OrderListView } from "./order-list-view";
@@ -26,6 +29,30 @@ function JoinTablesForTest() {
     <button onClick={() => joinTables(["table-2", "table-3"])} type="button">
       Unir mesas de prueba
     </button>
+  );
+}
+
+function MultiAccountOrderHarness() {
+  const { createTableAccount, orders } = useOrderSession();
+  const latestOrder = orders[0];
+
+  return (
+    <>
+      <button
+        onClick={() => {
+          createTableAccount("Mesa 4", "Pepito");
+          createTableAccount("Mesa 4", "María");
+        }}
+        type="button"
+      >
+        Crear cuentas de prueba
+      </button>
+      <output aria-label="Resumen del pedido creado">
+        {(latestOrder.accounts ?? []).map((account) => account.name).join(", ")}
+        {latestOrder.accounts ? ` · ${latestOrder.items.length} productos` : ""}
+      </output>
+      <NewOrderView initialTableNumber="4" />
+    </>
   );
 }
 
@@ -54,12 +81,85 @@ describe("Order views", () => {
     expect(within(cart).getAllByText("Q 68.00")).toHaveLength(2);
   });
 
+  it("keeps the table selected when the order starts from its detail", () => {
+    renderWithOrders(<NewOrderView initialTableNumber="4" />);
+
+    expect(screen.getByLabelText("Mesa")).toHaveValue("Mesa 4");
+    expect(
+      screen.getByRole("complementary", { name: "Mesa 4" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the account and allows takeaway items in a new table order", async () => {
+    const user = userEvent.setup();
+    renderWithOrders(
+      <NewOrderView
+        initialAccountId="account-pepito"
+        initialAccountName="Pepito"
+        initialTableNumber="4"
+      />,
+    );
+
+    expect(screen.getByLabelText("Cuenta")).toHaveValue("account-pepito");
+    expect(screen.getByText("Cuenta de Pepito")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Agregar Gyozas de cerdo" }),
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Para llevar" }),
+    );
+    await user.type(
+      within(dialog).getByLabelText("Hora para retirar"),
+      "21:20",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Agregar" }));
+
+    expect(screen.getByText(/Para llevar · 21:20/)).toBeInTheDocument();
+  });
+
+  it("combines several table accounts into one complete order", async () => {
+    const user = userEvent.setup();
+    renderWithOrders(<MultiAccountOrderHarness />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Crear cuentas de prueba" }),
+    );
+    expect(screen.getByLabelText("Cuenta")).toHaveDisplayValue("Pepito");
+
+    await user.click(
+      screen.getByRole("button", { name: "Agregar Gyozas de cerdo" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Agregar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Guardar cuenta y continuar" }),
+    );
+    expect(screen.getByLabelText("Cuenta")).toHaveDisplayValue("María");
+
+    await user.click(
+      screen.getByRole("button", { name: "Agregar Edamame picante" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Agregar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Revisar pedido completo" }),
+    );
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "distribuidos en 2 cuenta(s)",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar envío" }));
+    expect(
+      screen.getByLabelText("Resumen del pedido creado"),
+    ).toHaveTextContent("Pepito, María · 2 productos");
+  });
+
   it("offers a joined table as a single order destination", async () => {
     const user = userEvent.setup();
     renderWithOrders(
       <>
         <JoinTablesForTest />
-        <NewOrderView />
+        <NewOrderView initialJoinedTableNumbers="2,3" />
       </>,
     );
 
@@ -79,7 +179,6 @@ describe("Order views", () => {
     expect(
       within(tableSelector).queryByRole("option", { name: "Mesa 3" }),
     ).not.toBeInTheDocument();
-    await user.selectOptions(tableSelector, "Mesas 2 y 3 unidas");
     expect(tableSelector).toHaveValue("Mesas 2 y 3 unidas");
   });
 
@@ -101,6 +200,50 @@ describe("Order views", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent(
       "Pedido anulado. Motivo registrado: Solicitud del cliente.",
+    );
+  });
+
+  it("adds a new product to an existing order as a kitchen update", async () => {
+    const user = userEvent.setup();
+    renderWithOrders(<OrderDetailView orderId="A-107" />);
+
+    await user.click(screen.getByRole("button", { name: "Agregar producto" }));
+    await user.click(screen.getByRole("button", { name: /Gyozas de cerdo/ }));
+    await user.click(
+      screen.getByRole("button", { name: "Agregar a la cuenta" }),
+    );
+
+    expect(screen.getByText("Nuevo para cocina")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Enviar cambio" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "únicamente 1 cambio(s)",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar cambio" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Actualización enviada a cocina",
+    );
+    expect(screen.getByText("Agregado: Gyozas de cerdo")).toBeInTheDocument();
+  });
+
+  it("separates an additional item as takeaway with a pickup time", async () => {
+    const user = userEvent.setup();
+    renderWithOrders(<OrderDetailView orderId="A-107" />);
+
+    await user.click(screen.getByRole("button", { name: "Para llevar" }));
+    await user.click(screen.getByRole("button", { name: /Gyozas de cerdo/ }));
+    await user.type(screen.getByLabelText("Hora para retirar"), "21:20");
+    await user.type(
+      screen.getByLabelText("Indicaciones para llevar (opcional)"),
+      "Entregar en bolsa separada",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Agregar a la cuenta" }),
+    );
+
+    expect(screen.getByText(/Para llevar · 21:20/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "agregado para llevar",
     );
   });
 });

@@ -4,6 +4,58 @@ Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-11 — Navegación adaptable y pedidos con varias cuentas
+
+- Rama: `feature/operational-kitchen`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: shell operativo; O-03 mesas individuales y unidas; O-04 `/operation/orders/new`; O-05 detalle de pedido; O-06 `/operation/kitchen`; O-10 `/operation/online-requests`
+- Completado: menú lateral contraíble con accesos identificables y ocultamiento opcional de la barra móvil; tablero de Cocina en una columna desde tablet estrecha; estados de solicitudes acompañados por iconos; apertura de cuentas en mesas individuales o unidas; toma consecutiva por cuenta y envío de una sola comanda con todos los productos de la mesa, conservando la cuenta de cada producto
+- Archivos principales: `apps/web/src/shared/components/app-shell.tsx`, `apps/web/src/modules/kitchen`, `apps/web/src/modules/messaging`, `apps/web/src/modules/orders`, `apps/web/src/modules/tables`, `apps/web/src/data/fixtures/orders.ts`, `apps/web/src/app/globals.css` y `apps/web/src/app/orders.css`
+- Pruebas: lint, TypeScript y 39 pruebas unitarias aprobados; menú contraído, tablero, solicitudes y constructor multicuenta revisados en navegador sin desbordamiento horizontal en escritorio
+- Decisiones: guardar una cuenta conserva sus productos localmente y mueve la captura a la siguiente; Cocina recibe una sola comanda por mesa; cada producto mantiene su cuenta para resumen, edición y cobro posterior
+- Pendiente: persistencia y transacciones en backend; autorización; cobro independiente por cuenta; validación visual en dispositivos físicos adicionales
+- PR: Pendiente
+
+## 2026-09-11 — Reservaciones, mensajes y solicitudes en línea
+
+- Rama: `feature/operational-kitchen`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: O-07 `/operation/reservations`; O-08 `/operation/reservations/new` y `/operation/reservations/[reservationId]`; O-09 `/operation/messages`; O-10 `/operation/online-requests`
+- Completado: agenda por día, semana y mes con búsqueda y estados; alta, edición, asignación sugerida de mesa, detección de conflicto y confirmación humana; bandeja de mensajes por estado con toma, respuesta, transferencia y contexto; revisión manual de solicitudes remotas con revalidación obligatoria, aceptación como reservación, espera y rechazo con motivo
+- Archivos principales: `apps/web/src/modules/reservations`, `apps/web/src/modules/messaging`, `apps/web/src/data/fixtures/reservations.ts`, `apps/web/src/data/fixtures/messaging.ts`, rutas operativas y navegación
+- Pruebas: lint, TypeScript, 37 pruebas unitarias y build del frontend web aprobados; rutas y composición visual revisadas en navegador sin desbordamiento horizontal en escritorio
+- Decisiones: la atención presencial mantiene prioridad; ninguna solicitud remota se convierte automáticamente; horarios posteriores a las 21:15 requieren preorden; las acciones y datos permanecen simulados en memoria
+- Pendiente: persistencia, permisos, disponibilidad y conflictos calculados por backend; integración real de canales, entrega de mensajes, auditoría y sincronización en tiempo real
+- PR: Pendiente
+
+## 2026-09-11 — Cuenta de mesa, división y productos para llevar
+
+- Rama: `feature/operational-kitchen`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: O-03 `/operation/tables/[tableId]`; O-04 `/operation/orders/new`; O-05 `/operation/orders/[orderId]`; O-06 `/operation/kitchen`
+- Completado: vinculación de las comandas con su mesa de origen; resumen de productos, comandas y saldo pendiente al volver a la mesa; apertura de varias cuentas con nombre antes de pedir; asociación de cada comanda con su cuenta; incorporación de productos para llevar tanto en una comanda nueva como en una actualización, con hora opcional e indicaciones; identificación de estos productos en Pedido, Mesa y Cocina
+- Archivos principales: `apps/web/src/modules/tables`, `apps/web/src/modules/orders`, `apps/web/src/modules/kitchen`, `apps/web/src/data/fixtures/orders.ts`, `apps/web/src/app/globals.css` y `apps/web/src/app/orders.css`
+- Pruebas: lint, TypeScript, 32 pruebas unitarias y build del frontend web aprobados; revisión visual en escritorio y 390 px
+- Decisiones: las cuentas se abren desde la mesa antes de registrar productos y Pagos O-12 realizará el cobro por cuenta; dividir una cuenta existente queda para una etapa posterior; los cambios viven en memoria durante la navegación y se reinician al recargar
+- Pendiente: división posterior de una cuenta ya creada; persistencia y permisos en backend; cobrar cada cuenta desde O-12; calcular ETA según carga operativa, permitir ajuste manual y notificar el nuevo tiempo al portal del cliente mediante realtime
+- PR: Pendiente
+
+## 2026-09-10 — Actualizaciones de comanda y tablero de Cocina
+
+- Rama: `feature/operational-kitchen`
+- Responsables: Antony y Tomy
+- Asistencia: Codex
+- Vistas: O-05 `/operation/orders/[orderId]`; O-06 `/operation/kitchen`
+- Completado: conservación automática de la mesa de origen al crear una comanda; incorporación de productos a pedidos existentes con modificadores y notas; cálculo y envío de cambios incrementales sin duplicar la comanda; trazabilidad de productos agregados, modificados o retirados; KDS responsive por estado y estación; aceptación de comandas, cambio de ETA, marcado como listo, acceso al detalle y simulación de reconexión
+- Archivos principales: `apps/web/src/modules/orders`, `apps/web/src/modules/kitchen`, `apps/web/src/data/fixtures/orders.ts`, `apps/web/src/app/orders.css` y la ruta de Cocina
+- Pruebas: lint, TypeScript, 28 pruebas unitarias y build del frontend web
+- Decisiones: Cocina controla los estados de preparación y listo; Pedidos únicamente envía la comanda inicial o sus actualizaciones; cada actualización conserva un lote diferencial en memoria
+- Pendiente: persistencia, permisos reales, aceptación o rechazo individual de cambios, impresión y sincronización realtime
+- PR: Pendiente
+
 ## 2026-09-10 — Creación y gestión de pedidos
 
 - Rama: `feature/orders`
