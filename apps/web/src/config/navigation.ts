@@ -116,6 +116,7 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       requiredPermission: "users.read",
     },
     {
+
       label: "Roles y permisos",
       route: "/admin/roles",
       icon: "settings",
@@ -132,14 +133,72 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       route: "/admin/menu",
       icon: "menu",
       requiredPermission: "menu.read",
-      featureFlag: false,
     },
     {
       label: "Ajustes",
       route: "/admin/settings",
       icon: "settings",
       requiredPermission: "settings.read",
-      featureFlag: false,
+    },
+    {
+      label: "Recetas",
+      route: "/admin/recipes",
+      icon: "menu",
+      requiredPermission: "recipes.read",
+    },
+    {
+      label: "Proveedores",
+      route: "/admin/suppliers",
+      icon: "delivery",
+      requiredPermission: "suppliers.read",
+    },
+    {
+      label: "Compras",
+      route: "/admin/purchases",
+      icon: "orders",
+      requiredPermission: "purchases.read",
+    },
+    {
+      label: "Producción",
+      route: "/admin/production",
+      icon: "production",
+      requiredPermission: "production.read",
+    },
+    {
+      label: "Reportes",
+      route: "/admin/reports",
+      icon: "dashboard",
+      requiredPermission: "reports.read",
+    },
+    {
+      label: "Cierres de caja",
+      route: "/admin/cash-closings",
+      icon: "cash",
+      requiredPermission: "cash.read",
+    },
+    {
+      label: "Clientes",
+      route: "/admin/clients",
+      icon: "people",
+      requiredPermission: "clients.read",
+    },
+    {
+      label: "IA y mensajería",
+      route: "/admin/ai",
+      icon: "messages",
+      requiredPermission: "ai.read",
+    },
+    {
+      label: "Cámaras",
+      route: "/admin/vision",
+      icon: "requests",
+      requiredPermission: "vision.read",
+    },
+    {
+      label: "Auditoría",
+      route: "/admin/audit",
+      icon: "orders",
+      requiredPermission: "audit.read",
     },
   ],
 };

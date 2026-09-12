@@ -66,6 +66,16 @@ const mockPermissions: Record<NavigationContext, Permission[]> = {
     "staff.read",
     "menu.read",
     "settings.read",
+    "recipes.read",
+    "suppliers.read",
+    "purchases.read",
+    "production.read",
+    "reports.read",
+    "cash.read",
+    "clients.read",
+    "ai.read",
+    "vision.read",
+    "audit.read",
   ],
 };
 
