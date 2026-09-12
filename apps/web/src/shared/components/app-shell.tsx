@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  Activity,
   Bike,
   CalendarDays,
   ChefHat,
   CircleAlert,
   CircleDollarSign,
+  CreditCard,
   Factory,
   LayoutDashboard,
   LayoutGrid,
@@ -40,10 +42,12 @@ const icons: Record<NavigationIcon, typeof LayoutDashboard> = {
   menu: UtensilsCrossed,
   messages: MessagesSquare,
   orders: ReceiptText,
+  payments: CreditCard,
   people: UsersRound,
   production: Factory,
   requests: CircleAlert,
   settings: Settings,
+  status: Activity,
   tables: LayoutGrid,
 };
 
@@ -57,8 +61,10 @@ const mockPermissions: Record<NavigationContext, Permission[]> = {
     "messages.read",
     "delivery.read",
     "cash.read",
+    "payments.read",
     "inventory.read",
     "production.read",
+    "status.read",
   ],
   admin: ["users.read", "menu.read", "settings.read"],
 };
