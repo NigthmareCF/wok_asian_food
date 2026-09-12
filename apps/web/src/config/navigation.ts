@@ -116,6 +116,18 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       requiredPermission: "users.read",
     },
     {
+      label: "Roles y permisos",
+      route: "/admin/roles",
+      icon: "settings",
+      requiredPermission: "roles.read",
+    },
+    {
+      label: "Personal y horarios",
+      route: "/admin/staff",
+      icon: "calendar",
+      requiredPermission: "staff.read",
+    },
+    {
       label: "Menu",
       route: "/admin/menu",
       icon: "menu",

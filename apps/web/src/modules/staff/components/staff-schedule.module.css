@@ -1,0 +1,420 @@
+.page {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0 auto;
+  max-width: 98rem;
+  min-width: 0;
+}
+
+.backgroundContent {
+  display: grid;
+  gap: 1.1rem;
+  min-width: 0;
+}
+
+.header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+}
+
+.eyebrow,
+.sectionHeading span,
+.staffList button span,
+.shiftList small,
+.auditPanel li span,
+.auditPanel li small {
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+}
+
+.eyebrow {
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  font-size: clamp(1.45rem, 3vw, 2.2rem);
+  line-height: 1.2;
+  margin: 0.2rem 0 0.35rem;
+}
+
+.header p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.notice,
+.feedback {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: 0.7rem;
+  min-height: 3.5rem;
+  padding: 0.85rem 1rem;
+}
+
+.notice {
+  color: var(--text-secondary);
+}
+
+.notice svg,
+.feedback svg {
+  color: var(--info);
+  flex: 0 0 auto;
+}
+
+.toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  justify-content: space-between;
+}
+
+.search {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 0.25rem 0.55rem;
+  grid-template-columns: auto auto minmax(10rem, 1fr);
+  min-height: 2.75rem;
+  min-width: min(100%, 20rem);
+  padding: 0.5rem 0.8rem;
+}
+
+.search span {
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.search input {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  min-width: 0;
+  outline: 0;
+}
+
+.weekControls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.weekControls button,
+.dayActions button,
+.shiftActions button {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.weekControls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.workspace {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(16rem, 0.25fr) minmax(0, 1fr);
+}
+
+.staffPanel,
+.schedulePanel,
+.auditPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-width: 0;
+  padding: 1rem;
+}
+
+.sectionHeading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.sectionHeading h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.staffList {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.staffList button {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 0.2rem;
+  min-height: 4.2rem;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.staffList button[aria-pressed="true"],
+.staffList button:hover {
+  border-color: rgba(72, 137, 255, 0.55);
+}
+
+.weekGrid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(7, minmax(8.25rem, 1fr));
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.dayCard {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.dayContent {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+.dayHeader {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.dayHeader span,
+.absentLabel,
+.emptyText,
+.absenceNote {
+  color: var(--text-subtle);
+  font-size: 0.82rem;
+}
+
+.absentLabel {
+  color: var(--warning);
+  font-weight: 800;
+}
+
+.shiftList,
+.auditPanel ul {
+  display: grid;
+  gap: 0.55rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.shiftList li,
+.auditPanel li {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.65rem;
+}
+
+.shiftActions,
+.dayActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.dayActions button,
+.shiftActions button {
+  font-size: 0.82rem;
+  min-width: 100%;
+}
+
+.absenceNote {
+  border-left: 3px solid var(--warning);
+  margin: 0;
+  padding-left: 0.55rem;
+}
+
+.emptyText {
+  margin: 0;
+}
+
+.dialogBackdrop {
+  align-items: center;
+  background: rgba(0, 0, 0, 0.56);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 50;
+}
+
+.dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.24);
+  display: grid;
+  gap: 0.9rem;
+  max-height: calc(100vh - 2rem);
+  max-width: 34rem;
+  overflow: auto;
+  padding: 1rem;
+  width: min(100%, 34rem);
+}
+
+.dialogHeader {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.dialogHeader h2,
+.dialog h2 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.dialogHeader button {
+  align-items: center;
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.field span:first-child {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.field input {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+}
+
+.field input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.errorText {
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.dialogStatus {
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  min-height: 1.25rem;
+}
+
+.secondaryButton {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 750;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.7rem 1rem;
+}
+
+@media (max-width: 64rem) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .weekGrid {
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+  }
+}
+
+@media (max-width: 30rem) {
+  .page {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  .header,
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .weekControls {
+    justify-content: stretch;
+  }
+
+  .weekControls strong {
+    flex: 1 0 100%;
+  }
+
+  .weekControls button,
+  .dialogActions > * {
+    width: 100%;
+  }
+
+  .search {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .search input {
+    grid-column: 1 / -1;
+  }
+}

@@ -17,17 +17,20 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Pendiente: seleccionar IDs del sprint e implementar vistas asignadas
 - PR: `https://github.com/NigthmareCF/wok_asian_food/pull/2`
 
-## 2026-09-12 — A-01 y A-02 implementados
+## 2026-09-12 — Vistas administrativas A-01 a A-04
 
 - Rama: `feature/frontend-admin`
-- Vistas: A-01 Dashboard administrativo y A-02 Gestión de usuarios
-- Funcionalidad: dashboard con selector de período, métricas, alertas, productos críticos, compras sugeridas y producciones sugeridas; gestión local de usuarios con búsqueda, filtros por estado, creación, edición, consulta de roles múltiples, capacidades efectivas deduplicadas, activación, suspensión y bitácora simulada
-- Archivos principales: `apps/web/src/app/(private)/(admin)/admin`, `apps/web/src/modules/admin`, `apps/web/src/modules/users`, `apps/web/src/data/fixtures/admin.ts`, `apps/web/src/data/fixtures/users.ts` y `apps/web/src/config/navigation.ts`
-- Datos y permisos: datos, roles, capacidades y permisos simulados; permisos visuales sin autorización real de backend
-- Pruebas: 12 archivos y 54 pruebas aprobadas
+- A-01 Dashboard administrativo: completado
+- A-02 Gestión de usuarios: completado, incluyendo accesibilidad de diálogos y validación perceptible
+- A-03 Roles y permisos: completado con datos simulados
+- A-04 Personal y horarios semanales: completado parcialmente dentro del alcance confirmado
+- Bloqueado: `Gestionar auxiliar`, porque no existe definición funcional
+- Rutas: `/admin`, `/admin/users`, `/admin/roles` y `/admin/staff`
+- Navegación y permisos visuales simulados: `users.read`, `roles.read` y `staff.read`
+- Alcance técnico: sin API, persistencia, autenticación ni autorización real
 - Verificaciones: `npm run format:check`, `npm run lint` y `npm run typecheck` aprobados
-- Build: `build:web` bloqueado por el problema de Next.js 16.3.4 con la salida de TypeScript `--showConfig` bajo npm 12.0.2
-- Validación responsive: realizada en 390, 768, 1280 y 1440 px
-- Pendientes de A-02: gestión inicial del foco en diálogos, cierre con Escape, restauración del foco, trampa de foco/inert y mensajes perceptibles de validación
-- Figma: diseño específico de A-02 no identificado
-- A-03: no iniciado
+- Pruebas: 14 archivos y 84 pruebas aprobadas
+- Responsive: A-01, A-02 y A-03 validados; A-04 queda pendiente de revisión manual porque Firefox headless ignoró los viewports en la validación automatizada
+- Build: `build:web` continúa bloqueado por el problema documentado de Next.js 16.3.4, npm 12.0.2 y TypeScript `--showConfig`
+- Limitación: el aislamiento estricto del sidebar requeriría un modal global o portal compartido
+- A-05 y vistas posteriores: no iniciadas

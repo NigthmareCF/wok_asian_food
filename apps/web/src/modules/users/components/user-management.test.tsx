@@ -1,4 +1,10 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { navigation } from "@/config/navigation";
@@ -113,6 +119,115 @@ describe("UserManagementView", () => {
     );
   });
 
+  it("focuses the form, keeps the background inert and restores focus on cancel", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    const createButton = screen.getByRole("button", {
+      name: "Crear usuario",
+    });
+    await user.click(createButton);
+
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    expect(within(dialog).getByLabelText("Nombre")).toHaveFocus();
+    expect(
+      screen.getByText("Canal administrativo").parentElement?.parentElement
+        ?.parentElement,
+    ).toHaveAttribute("inert");
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(createButton).toHaveFocus());
+  });
+
+  it("closes the form with Escape without saving and restores focus", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    const createButton = screen.getByRole("button", {
+      name: "Crear usuario",
+    });
+    await user.click(createButton);
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    await user.type(within(dialog).getByLabelText("Nombre"), "Sin Guardar");
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sin Guardar")).not.toBeInTheDocument();
+    await waitFor(() => expect(createButton).toHaveFocus());
+  });
+
+  it("traps Tab and Shift+Tab inside the form dialog", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    const closeButton = within(dialog).getByRole("button", {
+      name: "Cerrar formulario",
+    });
+    const saveButton = within(dialog).getByRole("button", { name: "Guardar" });
+
+    closeButton.focus();
+    await user.tab({ shift: true });
+    expect(saveButton).toHaveFocus();
+
+    await user.tab();
+    expect(closeButton).toHaveFocus();
+  });
+
+  it("allows saving an empty form and reports required name and email fields", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+
+    const nameField = within(dialog).getByLabelText("Nombre");
+    const emailField = within(dialog).getByLabelText("Correo");
+
+    expect(
+      within(dialog).getByText("El nombre es requerido."),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("El correo es requerido."),
+    ).toBeInTheDocument();
+    expect(nameField).toHaveAttribute("aria-invalid", "true");
+    expect(emailField).toHaveAttribute("aria-invalid", "true");
+    expect(nameField).toHaveAttribute(
+      "aria-describedby",
+      "admin-user-name-help",
+    );
+    expect(emailField).toHaveAttribute(
+      "aria-describedby",
+      "admin-user-email-help",
+    );
+    await waitFor(() => expect(nameField).toHaveFocus());
+  });
+
+  it("does not require roles when creating a user", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    await user.type(within(dialog).getByLabelText("Nombre"), "Usuario Sin Rol");
+    await user.type(
+      within(dialog).getByLabelText("Correo"),
+      "sin.rol@wok.demo",
+    );
+    await user.click(
+      within(dialog).getByRole("checkbox", { name: /Administración demo/ }),
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+
+    expect(
+      screen.getByRole("row", { name: /Usuario Sin Rol/ }),
+    ).toBeInTheDocument();
+  });
+
   it("shows multiple roles and deduplicated effective capabilities", async () => {
     render(<UserManagementView />);
 
@@ -167,6 +282,51 @@ describe("UserManagementView", () => {
     expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
       "Suspensión",
     );
+  });
+
+  it("focuses confirmation cancel, closes with Escape and restores action focus", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    const row = screen.getByRole("row", { name: /Mariana López/ });
+    const suspendButton = within(row).getByRole("button", {
+      name: "Suspender",
+    });
+    await user.click(suspendButton);
+    const dialog = screen.getByRole("dialog", { name: "Suspender usuario" });
+
+    expect(
+      within(dialog).getByRole("button", { name: "Cancelar" }),
+    ).toHaveFocus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("row", { name: /Mariana López/ }),
+    ).toHaveTextContent("Activo");
+    await waitFor(() => expect(suspendButton).toHaveFocus());
+  });
+
+  it("traps Tab and Shift+Tab inside the confirmation dialog", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    const row = screen.getByRole("row", { name: /Mariana López/ });
+    await user.click(within(row).getByRole("button", { name: "Suspender" }));
+    const dialog = screen.getByRole("dialog", { name: "Suspender usuario" });
+    const closeButton = within(dialog).getByRole("button", {
+      name: "Cerrar confirmación",
+    });
+    const confirmButton = within(dialog).getByRole("button", {
+      name: "Confirmar suspensión",
+    });
+
+    closeButton.focus();
+    await user.tab({ shift: true });
+    expect(confirmButton).toHaveFocus();
+
+    await user.tab();
+    expect(closeButton).toHaveFocus();
   });
 
   it("cancels a confirmation without changing the user", async () => {

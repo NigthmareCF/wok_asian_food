@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import {
   AlertTriangle,
   Check,
@@ -37,6 +43,11 @@ type UserFormState = {
   email: string;
   name: string;
   roleIds: string[];
+};
+
+type UserFormErrors = {
+  email?: string;
+  name?: string;
 };
 
 const statusOrder: UserStatus[] = [
@@ -93,6 +104,55 @@ function buildAuditEntry({
   };
 }
 
+function getFocusableElements(container: HTMLElement) {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hasAttribute("aria-hidden"));
+}
+
+function handleDialogKeyDown(
+  event: KeyboardEvent<HTMLElement>,
+  onClose: () => void,
+) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    onClose();
+    return;
+  }
+
+  if (event.key !== "Tab") {
+    return;
+  }
+
+  const focusableElements = getFocusableElements(event.currentTarget);
+  const firstElement = focusableElements[0];
+  const lastElement = focusableElements[focusableElements.length - 1];
+
+  if (!firstElement || !lastElement) {
+    event.preventDefault();
+    return;
+  }
+
+  if (event.shiftKey && document.activeElement === firstElement) {
+    event.preventDefault();
+    lastElement.focus();
+  }
+
+  if (!event.shiftKey && document.activeElement === lastElement) {
+    event.preventDefault();
+    firstElement.focus();
+  }
+}
+
+function validateUserForm(formState: UserFormState): UserFormErrors {
+  return {
+    email: formState.email.trim() ? undefined : "El correo es requerido.",
+    name: formState.name.trim() ? undefined : "El nombre es requerido.",
+  };
+}
+
 export function UserManagementView({
   initialState = "normal",
 }: {
@@ -109,12 +169,38 @@ export function UserManagementView({
   const [formMode, setFormMode] = useState<FormMode | null>(null);
   const [editingUserId, setEditingUserId] = useState("");
   const [formState, setFormState] = useState<UserFormState>(emptyForm);
+  const [formErrors, setFormErrors] = useState<UserFormErrors>({});
   const [pendingOperation, setPendingOperation] = useState<{
     operation: UserOperation;
     userId: string;
   } | null>(null);
   const [operationReason, setOperationReason] = useState("");
   const [feedback, setFeedback] = useState("");
+  const backgroundRef = useRef<HTMLDivElement>(null);
+  const focusReturnRef = useRef<HTMLElement | null>(null);
+  const shouldRestoreFocusRef = useRef(false);
+
+  const isDialogOpen = Boolean(formMode) || Boolean(pendingOperation);
+
+  useEffect(() => {
+    const background = backgroundRef.current;
+    if (!background) return;
+
+    if (isDialogOpen) {
+      background.setAttribute("aria-hidden", "true");
+      background.setAttribute("inert", "");
+      return;
+    }
+
+    background.removeAttribute("aria-hidden");
+    background.removeAttribute("inert");
+
+    if (shouldRestoreFocusRef.current) {
+      shouldRestoreFocusRef.current = false;
+      focusReturnRef.current?.focus();
+      focusReturnRef.current = null;
+    }
+  }, [isDialogOpen]);
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("es");
@@ -139,14 +225,25 @@ export function UserManagementView({
     ? getEffectiveCapabilities(selectedUser.roles)
     : [];
 
-  const openCreateForm = () => {
+  const setFocusOrigin = (origin?: HTMLElement) => {
+    focusReturnRef.current =
+      origin ??
+      (document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null);
+  };
+
+  const openCreateForm = (origin?: HTMLElement) => {
+    setFocusOrigin(origin);
     setFormMode("create");
     setEditingUserId("");
     setFormState(emptyForm);
+    setFormErrors({});
     setFeedback("");
   };
 
-  const openEditForm = (user: AdminUser) => {
+  const openEditForm = (user: AdminUser, origin?: HTMLElement) => {
+    setFocusOrigin(origin);
     setFormMode("edit");
     setEditingUserId(user.id);
     setFormState({
@@ -154,13 +251,32 @@ export function UserManagementView({
       name: user.name,
       roleIds: user.roles.map((role) => role.id),
     });
+    setFormErrors({});
     setFeedback("");
   };
 
   const closeForm = () => {
+    shouldRestoreFocusRef.current = true;
     setFormMode(null);
     setEditingUserId("");
     setFormState(emptyForm);
+    setFormErrors({});
+  };
+
+  const openOperationConfirmation = (
+    operation: UserOperation,
+    userId: string,
+    origin?: HTMLElement,
+  ) => {
+    setFocusOrigin(origin);
+    setPendingOperation({ operation, userId });
+    setOperationReason("");
+  };
+
+  const closeOperationConfirmation = () => {
+    shouldRestoreFocusRef.current = true;
+    setPendingOperation(null);
+    setOperationReason("");
   };
 
   const updateRoleSelection = (roleId: string, checked: boolean) => {
@@ -172,17 +288,38 @@ export function UserManagementView({
     });
   };
 
+  const updateFormState = (nextState: UserFormState) => {
+    setFormState(nextState);
+    setFormErrors((current) => ({
+      email: nextState.email.trim() ? undefined : current.email,
+      name: nextState.name.trim() ? undefined : current.name,
+    }));
+  };
+
   const saveUser = () => {
+    const nextErrors = validateUserForm(formState);
+    const firstInvalidField = nextErrors.name
+      ? "admin-user-name"
+      : nextErrors.email
+        ? "admin-user-email"
+        : "";
+
+    if (firstInvalidField) {
+      setFormErrors(nextErrors);
+      const focusInvalidField = () => {
+        document.getElementById(firstInvalidField)?.focus();
+      };
+      if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(focusInvalidField);
+      } else {
+        window.setTimeout(focusInvalidField, 0);
+      }
+      return;
+    }
+
     const selectedRoles = dummyAdminRoles.filter((role) =>
       formState.roleIds.includes(role.id),
     );
-    if (
-      !formState.name.trim() ||
-      !formState.email.trim() ||
-      !selectedRoles.length
-    ) {
-      return;
-    }
 
     if (formMode === "create") {
       const nextUser: AdminUser = {
@@ -248,8 +385,7 @@ export function UserManagementView({
         ? "Usuario activado con datos simulados."
         : "Usuario suspendido con datos simulados.",
     );
-    setOperationReason("");
-    setPendingOperation(null);
+    closeOperationConfirmation();
   };
 
   const pendingUser = pendingOperation
@@ -258,215 +394,216 @@ export function UserManagementView({
 
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <div>
-          <span className="ops-kicker">Canal administrativo</span>
-          <h1>Gestión de usuarios</h1>
-          <p>Busca usuarios, consulta roles y registra cambios simulados.</p>
-        </div>
-        <div className={styles.headerActions}>
-          <StatusBadge label="DATOS SIMULADOS" tone="info" />
-          <Button onClick={openCreateForm} type="button">
-            <Plus aria-hidden="true" size={18} /> Crear usuario
-          </Button>
-        </div>
-      </header>
-
-      <section className={styles.notice}>
-        <ShieldCheck aria-hidden="true" size={19} />
-        <span>
-          Los permisos mostrados son únicamente visuales; no representan
-          autorización real del backend.
-        </span>
-      </section>
-
-      {feedback ? (
-        <div className={styles.feedback} role="status">
-          <Check aria-hidden="true" size={18} /> {feedback}
-        </div>
-      ) : null}
-
-      <section className={styles.toolbar} aria-label="Controles de usuarios">
-        <label className={styles.search}>
-          <Search aria-hidden="true" size={18} />
-          <span className="sr-only">Buscar usuario por nombre o correo</span>
-          <input
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por nombre o correo"
-            type="search"
-            value={query}
-          />
-        </label>
-        <div className={styles.controlGroup}>
-          <span>Estado</span>
-          <div className={styles.segmented} aria-label="Filtrar por estado">
-            <button
-              aria-pressed={statusFilter === "all"}
-              onClick={() => setStatusFilter("all")}
+      <div ref={backgroundRef} className={styles.backgroundContent}>
+        <header className={styles.header}>
+          <div>
+            <span className="ops-kicker">Canal administrativo</span>
+            <h1>Gestión de usuarios</h1>
+            <p>Busca usuarios, consulta roles y registra cambios simulados.</p>
+          </div>
+          <div className={styles.headerActions}>
+            <StatusBadge label="DATOS SIMULADOS" tone="info" />
+            <Button
+              onClick={(event) => openCreateForm(event.currentTarget)}
               type="button"
             >
-              Todos
-            </button>
-            {statusOrder.map((status) => (
-              <button
-                aria-pressed={statusFilter === status}
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                type="button"
-              >
-                {userStatusLabels[status]}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.controlGroup}>
-          <span>Estado simulado</span>
-          <div
-            className={styles.segmented}
-            aria-label="Seleccionar estado de vista"
-          >
-            {(Object.keys(viewStateLabels) as ViewState[]).map((state) => (
-              <button
-                aria-pressed={viewState === state}
-                key={state}
-                onClick={() => setViewState(state)}
-                type="button"
-              >
-                {viewStateLabels[state]}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {viewState === "loading" ? <LoadingState /> : null}
-      {viewState === "error" ? <ErrorState /> : null}
-
-      {viewState === "normal" || viewState === "empty" ? (
-        <section
-          className={styles.workspace}
-          aria-label="Usuarios administrativos"
-        >
-          <div className={styles.listPanel}>
-            <header className={styles.sectionHeading}>
-              <div>
-                <h2>Usuarios</h2>
-                <span>
-                  {visibleUsers.length} resultados con datos simulados
-                </span>
-              </div>
-            </header>
-
-            {visibleUsers.length ? (
-              <>
-                <UserTable
-                  expandedUserId={expandedUserId}
-                  onActivate={(userId) => {
-                    setPendingOperation({ operation: "activate", userId });
-                    setOperationReason("");
-                  }}
-                  onEdit={openEditForm}
-                  onSelect={setExpandedUserId}
-                  onSuspend={(userId) => {
-                    setPendingOperation({ operation: "suspend", userId });
-                    setOperationReason("");
-                  }}
-                  users={visibleUsers}
-                />
-              </>
-            ) : (
-              <EmptyState />
-            )}
-          </div>
-
-          <aside
-            className={styles.detailPanel}
-            id="admin-user-role-detail"
-            aria-label="Detalle de roles"
-          >
-            {selectedUser ? (
-              <>
-                <header>
-                  <span>Roles asignados</span>
-                  <h2>{selectedUser.name}</h2>
-                  <p>{selectedUser.email}</p>
-                </header>
-                <div className={styles.roleList}>
-                  {selectedUser.roles.map((role) => (
-                    <article key={role.id}>
-                      <strong>{role.name}</strong>
-                      <span>{role.capabilities.length} capacidades demo</span>
-                    </article>
-                  ))}
-                </div>
-                <section
-                  className={styles.capabilities}
-                  aria-label="Capacidades efectivas"
-                >
-                  <h3>Unión visual de capacidades</h3>
-                  <ul>
-                    {selectedCapabilities.map((capability) => (
-                      <li key={capability}>{capability}</li>
-                    ))}
-                  </ul>
-                </section>
-              </>
-            ) : (
-              <div className={styles.detailEmpty}>
-                <ClipboardList aria-hidden="true" size={22} />
-                <strong>Selecciona un usuario</strong>
-              </div>
-            )}
-          </aside>
-        </section>
-      ) : null}
-
-      <section className={styles.auditPanel} aria-label="Bitácora simulada">
-        <header className={styles.sectionHeading}>
-          <div>
-            <h2>Registro simulado</h2>
-            <span>Actor, fecha, operación y motivo opcional.</span>
+              <Plus aria-hidden="true" size={18} /> Crear usuario
+            </Button>
           </div>
         </header>
-        <ul>
-          {auditEntries.slice(0, 5).map((entry) => (
-            <li key={entry.id}>
-              <strong>{auditOperationLabels[entry.operation]}</strong>
-              <span>
-                {entry.actor} · {entry.performedAt}
-              </span>
-              <small>
-                Usuario {entry.userId}
-                {entry.reason ? ` · Motivo: ${entry.reason}` : ""}
-              </small>
-            </li>
-          ))}
-        </ul>
-      </section>
 
-      <p className={styles.disclaimer}>
-        Datos dummy para validar la experiencia. Los roles y capacidades no son
-        un catálogo definitivo. El registro público queda pendiente de
-        integración y nunca debe asignar roles operativos desde frontend.
-      </p>
+        <section className={styles.notice}>
+          <ShieldCheck aria-hidden="true" size={19} />
+          <span>
+            Los permisos mostrados son únicamente visuales; no representan
+            autorización real del backend.
+          </span>
+        </section>
+
+        {feedback ? (
+          <div className={styles.feedback} role="status">
+            <Check aria-hidden="true" size={18} /> {feedback}
+          </div>
+        ) : null}
+
+        <section className={styles.toolbar} aria-label="Controles de usuarios">
+          <label className={styles.search}>
+            <Search aria-hidden="true" size={18} />
+            <span className="sr-only">Buscar usuario por nombre o correo</span>
+            <input
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar por nombre o correo"
+              type="search"
+              value={query}
+            />
+          </label>
+          <div className={styles.controlGroup}>
+            <span>Estado</span>
+            <div className={styles.segmented} aria-label="Filtrar por estado">
+              <button
+                aria-pressed={statusFilter === "all"}
+                onClick={() => setStatusFilter("all")}
+                type="button"
+              >
+                Todos
+              </button>
+              {statusOrder.map((status) => (
+                <button
+                  aria-pressed={statusFilter === status}
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  type="button"
+                >
+                  {userStatusLabels[status]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={styles.controlGroup}>
+            <span>Estado simulado</span>
+            <div
+              className={styles.segmented}
+              aria-label="Seleccionar estado de vista"
+            >
+              {(Object.keys(viewStateLabels) as ViewState[]).map((state) => (
+                <button
+                  aria-pressed={viewState === state}
+                  key={state}
+                  onClick={() => setViewState(state)}
+                  type="button"
+                >
+                  {viewStateLabels[state]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {viewState === "loading" ? <LoadingState /> : null}
+        {viewState === "error" ? <ErrorState /> : null}
+
+        {viewState === "normal" || viewState === "empty" ? (
+          <section
+            className={styles.workspace}
+            aria-label="Usuarios administrativos"
+          >
+            <div className={styles.listPanel}>
+              <header className={styles.sectionHeading}>
+                <div>
+                  <h2>Usuarios</h2>
+                  <span>
+                    {visibleUsers.length} resultados con datos simulados
+                  </span>
+                </div>
+              </header>
+
+              {visibleUsers.length ? (
+                <>
+                  <UserTable
+                    expandedUserId={expandedUserId}
+                    onActivate={(userId, origin) =>
+                      openOperationConfirmation("activate", userId, origin)
+                    }
+                    onEdit={openEditForm}
+                    onSelect={setExpandedUserId}
+                    onSuspend={(userId, origin) =>
+                      openOperationConfirmation("suspend", userId, origin)
+                    }
+                    users={visibleUsers}
+                  />
+                </>
+              ) : (
+                <EmptyState />
+              )}
+            </div>
+
+            <aside
+              className={styles.detailPanel}
+              id="admin-user-role-detail"
+              aria-label="Detalle de roles"
+            >
+              {selectedUser ? (
+                <>
+                  <header>
+                    <span>Roles asignados</span>
+                    <h2>{selectedUser.name}</h2>
+                    <p>{selectedUser.email}</p>
+                  </header>
+                  <div className={styles.roleList}>
+                    {selectedUser.roles.map((role) => (
+                      <article key={role.id}>
+                        <strong>{role.name}</strong>
+                        <span>{role.capabilities.length} capacidades demo</span>
+                      </article>
+                    ))}
+                  </div>
+                  <section
+                    className={styles.capabilities}
+                    aria-label="Capacidades efectivas"
+                  >
+                    <h3>Unión visual de capacidades</h3>
+                    <ul>
+                      {selectedCapabilities.map((capability) => (
+                        <li key={capability}>{capability}</li>
+                      ))}
+                    </ul>
+                  </section>
+                </>
+              ) : (
+                <div className={styles.detailEmpty}>
+                  <ClipboardList aria-hidden="true" size={22} />
+                  <strong>Selecciona un usuario</strong>
+                </div>
+              )}
+            </aside>
+          </section>
+        ) : null}
+
+        <section className={styles.auditPanel} aria-label="Bitácora simulada">
+          <header className={styles.sectionHeading}>
+            <div>
+              <h2>Registro simulado</h2>
+              <span>Actor, fecha, operación y motivo opcional.</span>
+            </div>
+          </header>
+          <ul>
+            {auditEntries.slice(0, 5).map((entry) => (
+              <li key={entry.id}>
+                <strong>{auditOperationLabels[entry.operation]}</strong>
+                <span>
+                  {entry.actor} · {entry.performedAt}
+                </span>
+                <small>
+                  Usuario {entry.userId}
+                  {entry.reason ? ` · Motivo: ${entry.reason}` : ""}
+                </small>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <p className={styles.disclaimer}>
+          Datos dummy para validar la experiencia. Los roles y capacidades no
+          son un catálogo definitivo. El registro público queda pendiente de
+          integración y nunca debe asignar roles operativos desde frontend.
+        </p>
+      </div>
 
       {formMode ? (
         <UserFormPanel
+          errors={formErrors}
           formMode={formMode}
           formState={formState}
           onClose={closeForm}
           onRoleChange={updateRoleSelection}
           onSave={saveUser}
-          onUpdate={setFormState}
+          onUpdate={updateFormState}
         />
       ) : null}
 
       {pendingOperation && pendingUser ? (
         <ConfirmationDialog
-          onCancel={() => {
-            setPendingOperation(null);
-            setOperationReason("");
-          }}
+          onCancel={closeOperationConfirmation}
           onConfirm={confirmOperation}
           onReasonChange={setOperationReason}
           operation={pendingOperation.operation}
@@ -487,10 +624,10 @@ function UserTable({
   users,
 }: {
   expandedUserId: string;
-  onActivate: (userId: string) => void;
-  onEdit: (user: AdminUser) => void;
+  onActivate: (userId: string, origin: HTMLElement) => void;
+  onEdit: (user: AdminUser, origin: HTMLElement) => void;
   onSelect: (userId: string) => void;
-  onSuspend: (userId: string) => void;
+  onSuspend: (userId: string, origin: HTMLElement) => void;
   users: AdminUser[];
 }) {
   return (
@@ -533,9 +670,9 @@ function UserTable({
               </td>
               <td data-label="Acciones">
                 <UserActions
-                  onActivate={() => onActivate(user.id)}
-                  onEdit={() => onEdit(user)}
-                  onSuspend={() => onSuspend(user.id)}
+                  onActivate={(origin) => onActivate(user.id, origin)}
+                  onEdit={(origin) => onEdit(user, origin)}
+                  onSuspend={(origin) => onSuspend(user.id, origin)}
                   status={user.status}
                 />
               </td>
@@ -553,22 +690,26 @@ function UserActions({
   onSuspend,
   status,
 }: {
-  onActivate: () => void;
-  onEdit: () => void;
-  onSuspend: () => void;
+  onActivate: (origin: HTMLElement) => void;
+  onEdit: (origin: HTMLElement) => void;
+  onSuspend: (origin: HTMLElement) => void;
   status: UserStatus;
 }) {
   return (
     <div className={styles.actions}>
-      <button onClick={onEdit} type="button">
+      <button onClick={(event) => onEdit(event.currentTarget)} type="button">
         Editar
       </button>
-      <button disabled={status === "active"} onClick={onActivate} type="button">
+      <button
+        disabled={status === "active"}
+        onClick={(event) => onActivate(event.currentTarget)}
+        type="button"
+      >
         Activar
       </button>
       <button
         disabled={status === "suspended"}
-        onClick={onSuspend}
+        onClick={(event) => onSuspend(event.currentTarget)}
         type="button"
       >
         Suspender
@@ -578,6 +719,7 @@ function UserActions({
 }
 
 function UserFormPanel({
+  errors,
   formMode,
   formState,
   onClose,
@@ -585,6 +727,7 @@ function UserFormPanel({
   onSave,
   onUpdate,
 }: {
+  errors: UserFormErrors;
   formMode: FormMode;
   formState: UserFormState;
   onClose: () => void;
@@ -592,8 +735,9 @@ function UserFormPanel({
   onSave: () => void;
   onUpdate: (state: UserFormState) => void;
 }) {
-  const canSave =
-    formState.name.trim() && formState.email.trim() && formState.roleIds.length;
+  useEffect(() => {
+    document.getElementById("admin-user-name")?.focus();
+  }, []);
 
   return (
     <div className={styles.panelBackdrop} role="presentation">
@@ -601,6 +745,7 @@ function UserFormPanel({
         aria-labelledby="user-form-title"
         aria-modal="true"
         className={styles.sidePanel}
+        onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
         role="dialog"
       >
         <button
@@ -623,6 +768,8 @@ function UserFormPanel({
         </header>
         <div className={styles.formGrid}>
           <FormField
+            aria-invalid={Boolean(errors.name)}
+            help={errors.name}
             id="admin-user-name"
             label="Nombre"
             onChange={(event) =>
@@ -631,6 +778,8 @@ function UserFormPanel({
             value={formState.name}
           />
           <FormField
+            aria-invalid={Boolean(errors.email)}
+            help={errors.email}
             id="admin-user-email"
             label="Correo"
             onChange={(event) =>
@@ -662,7 +811,7 @@ function UserFormPanel({
           <Button onClick={onClose} type="button" variant="secondary">
             Cancelar
           </Button>
-          <Button disabled={!canSave} onClick={onSave} type="button">
+          <Button onClick={onSave} type="button">
             Guardar
           </Button>
         </div>
@@ -691,12 +840,17 @@ function ConfirmationDialog({
   const confirmLabel =
     operation === "activate" ? "Confirmar activación" : "Confirmar suspensión";
 
+  useEffect(() => {
+    document.getElementById("user-confirm-cancel")?.focus();
+  }, []);
+
   return (
     <div className={styles.panelBackdrop} role="presentation">
       <section
         aria-labelledby="user-confirm-title"
         aria-modal="true"
         className={styles.confirmDialog}
+        onKeyDown={(event) => handleDialogKeyDown(event, onCancel)}
         role="dialog"
       >
         <button
@@ -724,7 +878,12 @@ function ConfirmationDialog({
           />
         </label>
         <div className={styles.panelActions}>
-          <Button onClick={onCancel} type="button" variant="secondary">
+          <Button
+            id="user-confirm-cancel"
+            onClick={onCancel}
+            type="button"
+            variant="secondary"
+          >
             Cancelar
           </Button>
           <Button onClick={onConfirm} type="button">

@@ -60,7 +60,13 @@ const mockPermissions: Record<NavigationContext, Permission[]> = {
     "inventory.read",
     "production.read",
   ],
-  admin: ["users.read", "menu.read", "settings.read"],
+  admin: [
+    "users.read",
+    "roles.read",
+    "staff.read",
+    "menu.read",
+    "settings.read",
+  ],
 };
 
 export function AppShell({
