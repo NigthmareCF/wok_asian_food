@@ -30,6 +30,11 @@ type OrderSessionContextValue = {
   markOrdersPaid: (orderIds: string[]) => void;
   createTableAccount: (source: string, name: string) => OrderAccount;
   clearTableAccounts: (source: string) => void;
+  updateTableAccountStatus: (
+    source: string,
+    accountId: string,
+    status: OrderAccount["status"],
+  ) => void;
 };
 
 const OrderSessionContext = createContext<OrderSessionContextValue | null>(
@@ -194,6 +199,7 @@ export function OrderSessionProvider({
         const account = {
           id: `account-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           name: name.trim(),
+          status: "open" as const,
         };
         setTableAccounts((current) => ({
           ...current,
@@ -207,6 +213,14 @@ export function OrderSessionProvider({
           delete next[source];
           return next;
         });
+      },
+      updateTableAccountStatus(source, accountId, status) {
+        setTableAccounts((current) => ({
+          ...current,
+          [source]: (current[source] ?? []).map((account) =>
+            account.id === accountId ? { ...account, status } : account,
+          ),
+        }));
       },
     }),
     [orders, tableAccounts],

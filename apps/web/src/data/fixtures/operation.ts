@@ -8,7 +8,12 @@ export type OperationalOrder = {
 };
 
 export type OperationalTableStatus =
-  "free" | "occupied" | "reserved" | "preparing" | "out-of-service";
+  | "free"
+  | "occupied"
+  | "reserved"
+  | "preparing"
+  | "pending-payment"
+  | "out-of-service";
 
 export type OperationalTable = {
   id: string;

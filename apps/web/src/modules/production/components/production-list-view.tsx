@@ -7,14 +7,19 @@ import {
   ArrowRight,
   Beaker,
   CheckCircle2,
-  Clock3,
+  ChevronDown,
+  ChevronUp,
+  Flame,
+  Hourglass,
+  MoonStar,
   Search,
-  X,
+  XCircle,
 } from "lucide-react";
 import {
   productionCategories,
   productionStatusMeta,
   getProductionSummary,
+  type ProductionBatchStatus,
 } from "@/data/fixtures/production";
 import { useProductionSession } from "../production-session-provider";
 
@@ -29,11 +34,23 @@ const statusFilterOptions: { value: StatusFilter; label: string }[] = [
   { value: "discarded", label: "Descartados" },
 ];
 
+const productionStatusIcon: Record<
+  ProductionBatchStatus,
+  typeof CheckCircle2
+> = {
+  pending: Hourglass,
+  active: Flame,
+  resting: MoonStar,
+  completed: CheckCircle2,
+  discarded: XCircle,
+};
+
 export function ProductionListView() {
   const { batches, suggestions } = useProductionSession();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState("Todos");
   const [query, setQuery] = useState("");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(true);
   const summary = getProductionSummary(batches);
   const pendingSuggestions = suggestions.filter((s) => s.status === "pending");
 
@@ -88,8 +105,11 @@ export function ProductionListView() {
       </section>
 
       {pendingSuggestions.length > 0 && (
-        <section className="production-suggestions" aria-label="Sugerencias pendientes">
-          <div className="ops-section-heading">
+        <section
+          aria-label="Sugerencias pendientes"
+          className={`production-suggestions${suggestionsOpen ? "" : " production-suggestions--collapsed"}`}
+        >
+          <div className="ops-section-heading production-suggestions__heading">
             <div>
               <h2>
                 <AlertTriangle aria-hidden="true" className="ops-heading-icon" />{" "}
@@ -97,8 +117,22 @@ export function ProductionListView() {
               </h2>
               <p>Sugerencias de producción pendientes de revisión</p>
             </div>
+            <button
+              aria-expanded={suggestionsOpen}
+              className="production-suggestions__toggle"
+              onClick={() => setSuggestionsOpen((open) => !open)}
+              type="button"
+            >
+              {suggestionsOpen ? (
+                <ChevronUp aria-hidden="true" size={17} />
+              ) : (
+                <ChevronDown aria-hidden="true" size={17} />
+              )}
+              {suggestionsOpen ? "Ocultar" : "Mostrar"}
+            </button>
           </div>
-          <div className="production-suggestion-list">
+          {suggestionsOpen ? (
+            <div className="production-suggestion-list">
             {pendingSuggestions.map((sug) => {
               const priorityMeta = {
                 high: { label: "Alta", tone: "danger" as const },
@@ -133,6 +167,7 @@ export function ProductionListView() {
               );
             })}
           </div>
+          ) : null}
         </section>
       )}
 
@@ -189,6 +224,7 @@ export function ProductionListView() {
         <div className="production-list">
           {visibleBatches.map((batch) => {
             const status = productionStatusMeta[batch.status];
+            const StatusIcon = productionStatusIcon[batch.status];
             return (
               <Link
                 aria-label={`Abrir batch ${batch.recipeName}, estado ${status.label}`}
@@ -196,6 +232,12 @@ export function ProductionListView() {
                 href={`/operation/production/${batch.id}`}
                 key={batch.id}
               >
+                <span
+                  className={`production-row__status-space production-row__status-space--${status.tone}`}
+                  aria-hidden="true"
+                >
+                  <StatusIcon size={18} />
+                </span>
                 <div className="production-row__identity">
                   <span className="production-row__icon">
                     <Beaker aria-hidden="true" size={18} />

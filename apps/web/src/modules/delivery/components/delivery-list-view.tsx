@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -11,6 +12,7 @@ import {
   Clock3,
   MapPin,
   Package,
+  Play,
   Search,
   Truck,
   User,
@@ -44,9 +46,26 @@ const channelMeta = {
 } as const;
 
 export function DeliveryListView() {
-  const { orders } = useDeliverySession();
+  const router = useRouter();
+  const { orders, createDeliveryOrder } = useDeliverySession();
   const [filter, setFilter] = useState<StatusFilter>("active");
   const [query, setQuery] = useState("");
+
+  const startFullFlowDemo = () => {
+    const orderId = createDeliveryOrder({
+      customer: "Diego Figueroa",
+      address: "Zona 14, Torre Vista, Apto 5B",
+      phone: "555-2010",
+      notes: "Flujo desde cero: asigna repartidor, marca recogido y entregado.",
+      paymentMethod: "cash",
+      isDemo: true,
+      items: [
+        { id: "demo-1", name: "Wok teriyaki", quantity: 1, unitPrice: 112, modifiers: ["Pollo", "Medio"] },
+        { id: "demo-2", name: "Gyozas de cerdo", quantity: 2, unitPrice: 68 },
+      ],
+    });
+    router.push(`/operation/delivery/${orderId}`);
+  };
 
   const visibleOrders = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("es");
@@ -87,6 +106,13 @@ export function DeliveryListView() {
             <Package aria-hidden="true" size={18} /> {deliverySummary.total} pedidos ·{" "}
             {deliverySummary.pendingPayment} pendientes de pago
           </span>
+          <button
+            className="button button--secondary button--compact"
+            onClick={startFullFlowDemo}
+            type="button"
+          >
+            <Play aria-hidden="true" size={15} /> Probar flujo desde cero
+          </button>
         </div>
       </header>
 

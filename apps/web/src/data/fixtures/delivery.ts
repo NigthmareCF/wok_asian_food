@@ -24,6 +24,7 @@ export type DeliveryOrder = {
   paymentStatus: "pending" | "collected" | "partial";
   total: number;
   notes?: string;
+  isDemo?: boolean;
 };
 
 export type DeliveryOrderItem = {

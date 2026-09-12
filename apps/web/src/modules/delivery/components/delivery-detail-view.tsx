@@ -13,6 +13,7 @@ import {
   Package,
   Phone,
   Send,
+  Sparkles,
   Truck,
   User,
   X,
@@ -107,6 +108,19 @@ export function DeliveryDetailView({ orderId }: { orderId: string }) {
       {feedback ? (
         <div className="ops-inline-feedback" role="status">
           <CheckCircle2 aria-hidden="true" size={18} /> {feedback}
+        </div>
+      ) : null}
+
+      {order.isDemo ? (
+        <div className="delivery-demo-strip" role="note">
+          <Sparkles aria-hidden="true" size={18} />
+          <div>
+            <strong>Flujo desde cero</strong>
+            <span>
+              Pedido creado sin entregar: asigna un repartidor, marca recogido y
+              luego entregado para recorrer todo el flujo.
+            </span>
+          </div>
         </div>
       ) : null}
 

@@ -77,6 +77,7 @@ export function NewOrderView({
   const [completedAccountIds, setCompletedAccountIds] = useState<string[]>([]);
   const [accountFeedback, setAccountFeedback] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [showOriginWarning, setShowOriginWarning] = useState(false);
 
   const visibleProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("es");
@@ -338,6 +339,7 @@ export function NewOrderView({
                   setCart([]);
                   setCompletedAccountIds([]);
                   setAccountFeedback("");
+                  setShowOriginWarning(true);
                 }}
                 type="button"
               >
@@ -357,6 +359,7 @@ export function NewOrderView({
                   setCart([]);
                   setCompletedAccountIds([]);
                   setAccountFeedback("");
+                  setShowOriginWarning(true);
                 }}
                 value={selectedTable}
               >
@@ -659,6 +662,24 @@ export function NewOrderView({
         La disponibilidad y el ETA son aproximados hasta integrar cocina e
         inventario.
       </p>
+
+      {showOriginWarning ? (
+        <div className="order-origin-warning" role="status">
+          <AlertTriangle aria-hidden="true" size={18} />
+          <span>
+            <strong>Cambio de origen</strong>
+            El pedido se desvincula de la mesa y el carrito se vació. Los
+            productos ya enviados a cocina no se modifican.
+          </span>
+          <button
+            aria-label="Cerrar aviso de cambio de origen"
+            onClick={() => setShowOriginWarning(false)}
+            type="button"
+          >
+            <X aria-hidden="true" size={17} />
+          </button>
+        </div>
+      ) : null}
 
       {openProduct ? (
         <div className="confirm-dialog__backdrop" role="presentation">

@@ -133,7 +133,7 @@ export function PaymentDetailView({ recordId }: { recordId: string }) {
             {isPaid
               ? "Comanda completamente pagada"
               : hasDifference
-              ? `Exceso de ${formatGTQ(Math.abs(remaining))}`
+              ? `Cambio de ${formatGTQ(Math.abs(remaining))}`
               : `Faltan ${formatGTQ(remaining)} por cobrar`}
           </span>
         </div>
@@ -211,7 +211,7 @@ export function PaymentDetailView({ recordId }: { recordId: string }) {
               <strong className="text-success">{formatGTQ(paidAmount)}</strong>
             </div>
             <div className="payment-detail__remaining">
-              <span>{hasDifference ? "Exceso" : "Falta por cobrar"}</span>
+              <span>{hasDifference ? "Cambio" : "Falta por cobrar"}</span>
               <strong className={hasDifference ? "text-danger" : "text-warning"}>
                 {formatGTQ(Math.abs(remaining))}
               </strong>

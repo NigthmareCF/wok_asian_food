@@ -1,9 +1,13 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DeliverySessionProvider } from "../delivery-session-provider";
 import { DeliveryListView } from "./delivery-list-view";
 import { DeliveryDetailView } from "./delivery-detail-view";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
 
 afterEach(cleanup);
 
