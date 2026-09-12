@@ -1,5 +1,14 @@
 # Progreso del canal Cliente
 
+## 2026-09-11 — Correcciones PR #8 C-07, C-09 y C-10
+
+- Rama: `feature/client-views-c07-c12`
+- Completado: C-09 ahora identifica Mesa, Para recoger y Delivery mediante controles de demostración con query validado. Mesa oculta precios, total, pago, métodos y propina; presenta únicamente una solicitud pendiente simulada. Para recoger y Delivery conservan el resumen monetario y métodos orientados a Cliente, sin datos ni acciones Operativas.
+- Completado: C-07 dirige el preorden “Sí” temporalmente a `/menu`, con un aviso explícito de selección de platillos y sin carrito ni persistencia. C-08 y `?demo=late` se conservan.
+- Completado: C-10 incorpora `/client/orders`, una lista demostrativa de Cliente con enlaces a `/client/orders/[orderId]`, estado vacío y fixtures exclusivos de Cliente. Se mantienen los controles de estados dentro del seguimiento individual.
+- Decisiones: no se crearon `/orders`, `/orders/[orderId]`, carrito, provider, integración de pago, API ni persistencia. No se modificaron `/menu`, módulos de menú, AppShell, navegación compartida ni módulos Operativos.
+- Pendiente: integrar C-05 como fuente real de servicio y artículos del checkout, y sustituir los controles demostrativos cuando exista el contrato de carrito aprobado.
+
 ## 2026-09-11 — C-11 y C-12
 
 - Rama: `feature/client-views-c07-c12`

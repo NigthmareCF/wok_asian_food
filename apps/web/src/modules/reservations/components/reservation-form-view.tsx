@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Clock3, Minus, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { clientReservationFixture } from "@/data/fixtures/client-reservations";
@@ -218,18 +219,18 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
 
         <fieldset className={styles.group}>
           <legend>¿INCLUIR PREORDEN?</legend>
+          <p className={styles.help} id="preorder-help">
+            Al elegir Sí podrás seleccionar platillos en el menú. Este acceso es
+            demostrativo y temporal.
+          </p>
           <div className={styles.choiceGrid}>
-            <button
-              aria-pressed={includesPreorder === true}
+            <Link
+              aria-describedby="preorder-help"
               className={includesPreorder === true ? styles.selected : ""}
-              onClick={() => {
-                setIncludesPreorder(true);
-                setErrors((current) => ({ ...current, preorder: undefined }));
-              }}
-              type="button"
+              href="/menu"
             >
               Sí
-            </button>
+            </Link>
             <button
               aria-pressed={includesPreorder === false}
               className={includesPreorder === false ? styles.selected : ""}

@@ -16,7 +16,7 @@ const demoViews = [
     label: "C-08 Reserva tardía",
   },
   { href: "/client/checkout", id: "checkout", label: "C-09 Checkout" },
-  { href: "/client/orders/demo-190", id: "order", label: "C-10 Seguimiento" },
+  { href: "/client/orders", id: "order", label: "C-10 Pedidos" },
   { href: "/location", id: "location", label: "C-11 Ubicación" },
   { href: "/client/messages", id: "messages", label: "C-12 Mensajes" },
 ] as const;
@@ -25,7 +25,8 @@ function getActiveDemoView(pathname: string, demo: string | null) {
   if (pathname === "/client/reservations/new") {
     return demo === "late" ? "late-reservation" : "reservation";
   }
-  if (pathname.startsWith("/client/orders/")) return "order";
+  if (pathname === "/client/orders" || pathname.startsWith("/client/orders/"))
+    return "order";
   return demoViews.find((view) => view.href === pathname)?.id;
 }
 

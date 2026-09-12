@@ -29,7 +29,7 @@ describe("ClientDemoNavigation", () => {
       ["C-07 Reservación", "/client/reservations/new"],
       ["C-08 Reserva tardía", "/client/reservations/new?demo=late"],
       ["C-09 Checkout", "/client/checkout"],
-      ["C-10 Seguimiento", "/client/orders/demo-190"],
+      ["C-10 Pedidos", "/client/orders"],
       ["C-11 Ubicación", "/location"],
       ["C-12 Mensajes", "/client/messages"],
     ].forEach(([label, href]) => {
@@ -39,9 +39,10 @@ describe("ClientDemoNavigation", () => {
       );
     });
 
-    expect(
-      screen.getByRole("link", { name: /C-10 Seguimiento/ }),
-    ).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /C-10 Pedidos/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(screen.getByText("Actual")).toBeInTheDocument();
   });
 

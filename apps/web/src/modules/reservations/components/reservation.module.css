@@ -92,7 +92,8 @@ textarea.control {
   padding: 0.1rem;
 }
 .peopleControl button,
-.choiceGrid button {
+.choiceGrid button,
+.choiceGrid a {
   align-items: center;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -123,7 +124,8 @@ textarea.control {
   font-weight: 800;
   text-align: center;
 }
-.choiceGrid button {
+.choiceGrid button,
+.choiceGrid a {
   background: var(--surface-elevated);
   color: #cbd8ee;
   padding: 0.6rem;

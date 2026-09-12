@@ -1,8 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { checkoutPreviewSnapshot } from "@/data/fixtures/checkout-preview";
-import { formatQuetzales, getCheckoutTotalCents } from "../checkout-snapshot";
+import { createCheckoutPreviewSnapshot } from "@/data/fixtures/checkout-preview";
+import { getSafeCheckoutService } from "../checkout-snapshot";
 import { CheckoutPreview } from "./checkout-preview";
 import { CheckoutView } from "./checkout-view";
 
@@ -17,42 +17,103 @@ const actions = {
 };
 
 describe("CheckoutView", () => {
-  it("renders the snapshot summary with prices stored in cents", () => {
+  it.each([
+    ["table", "Consumo en mesa"],
+    ["pickup", "Para recoger"],
+    ["delivery", "Delivery"],
+  ] as const)("identifies the %s service", (service, label) => {
     render(
-      <CheckoutView actions={actions} snapshot={checkoutPreviewSnapshot} />,
+      <CheckoutView
+        actions={actions}
+        snapshot={createCheckoutPreviewSnapshot(service)}
+      />,
+    );
+
+    expect(screen.getByText(`Tipo de servicio: ${label}`)).toBeInTheDocument();
+  });
+
+  it("keeps table service free of prices, payment controls and tips", () => {
+    render(
+      <CheckoutView
+        actions={actions}
+        snapshot={createCheckoutPreviewSnapshot("table")}
+      />,
     );
 
     expect(
       screen.getByText("Wok teriyaki", { exact: false }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Q385.00")).toBeInTheDocument();
-    expect(formatQuetzales(38500)).toBe("Q385.00");
-    expect(getCheckoutTotalCents(checkoutPreviewSnapshot)).toBe(38500);
-  });
-
-  it("runs the local simulated revalidation action", async () => {
-    const user = userEvent.setup();
-    render(
-      <CheckoutView actions={actions} snapshot={checkoutPreviewSnapshot} />,
-    );
-
-    await user.click(
-      screen.getByRole("button", { name: "REVALIDAR SOLICITUD" }),
-    );
-    expect(actions.onRevalidate).toHaveBeenCalledOnce();
-  });
-
-  it("shows the simulated pending request and its demo tracking link", async () => {
-    const user = userEvent.setup();
-    render(<CheckoutPreview />);
-
-    await user.click(screen.getByRole("button", { name: "CONFIRMAR PAGO" }));
+    expect(screen.queryByText(/Q385.00/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Total")).not.toBeInTheDocument();
+    expect(screen.queryByText("MÉTODO DE PAGO")).not.toBeInTheDocument();
     expect(
-      screen.getByText("Solicitud pendiente simulada"),
+      screen.queryByText(/Pagar ahora|Pagar en mesa|PROPINA/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "ENVIAR SOLICITUD" }),
+    ).toBeInTheDocument();
+  });
+
+  it.each(["pickup", "delivery"] as const)(
+    "shows authorized client payment details for %s",
+    (service) => {
+      render(
+        <CheckoutView
+          actions={actions}
+          snapshot={createCheckoutPreviewSnapshot(service)}
+        />,
+      );
+
+      expect(screen.getByText("Q385.00")).toBeInTheDocument();
+      expect(screen.getByText("Total")).toBeInTheDocument();
+      expect(screen.getByText("MÉTODO DE PAGO")).toBeInTheDocument();
+      expect(screen.queryByText(/PROPINA/)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "CONFIRMAR SOLICITUD" }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("uses table as the safe service for an unknown query", () => {
+    expect(getSafeCheckoutService("unsupported")).toBe("table");
+    expect(getSafeCheckoutService(undefined)).toBe("table");
+  });
+
+  it("renders demo service routes and marks the active service", () => {
+    render(
+      <CheckoutView
+        actions={actions}
+        snapshot={createCheckoutPreviewSnapshot("pickup")}
+      />,
+    );
+
+    [
+      ["Consumo en mesa", "/client/checkout?service=table"],
+      ["Para recoger", "/client/checkout?service=pickup"],
+      ["Delivery", "/client/checkout?service=delivery"],
+    ].forEach(([label, href]) => {
+      expect(screen.getByRole("link", { name: label })).toHaveAttribute(
+        "href",
+        href,
+      );
+    });
+    expect(screen.getByRole("link", { name: "Para recoger" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("shows a pending simulated request without claiming payment or confirmation", async () => {
+    const user = userEvent.setup();
+    render(<CheckoutPreview service="table" />);
+
+    await user.click(screen.getByRole("button", { name: "ENVIAR SOLICITUD" }));
+    expect(screen.getByText("Solicitud pendiente")).toBeInTheDocument();
+    expect(
+      screen.getByText(/solicitud permanece pendiente/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "VER SEGUIMIENTO DE DEMOSTRACIÓN" }),
-    ).toHaveAttribute("href", "/client/orders/demo-190");
-    expect(screen.getByText(/no procesó el pago/)).toBeInTheDocument();
+      screen.queryByText(/pago|pedido confirmado/i),
+    ).not.toBeInTheDocument();
   });
 });

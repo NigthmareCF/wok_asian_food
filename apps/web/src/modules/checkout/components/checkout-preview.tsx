@@ -1,15 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { checkoutPreviewSnapshot } from "@/data/fixtures/checkout-preview";
+import {
+  checkoutPreviewSnapshot,
+  createCheckoutPreviewSnapshot,
+} from "@/data/fixtures/checkout-preview";
 import type {
+  CheckoutService,
   PaymentMethod,
   PaymentTiming,
   TipOption,
 } from "../checkout-snapshot";
 import { CheckoutView } from "./checkout-view";
 
-export function CheckoutPreview() {
+export function CheckoutPreview({ service }: { service: CheckoutService }) {
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>(
     checkoutPreviewSnapshot.paymentTiming,
   );
@@ -22,13 +26,17 @@ export function CheckoutPreview() {
   const [revalidationMessage, setRevalidationMessage] = useState<string>();
   const [isPending, setIsPending] = useState(false);
   const snapshot = useMemo(
+    () => createCheckoutPreviewSnapshot(service),
+    [service],
+  );
+  const interactiveSnapshot = useMemo(
     () => ({
-      ...checkoutPreviewSnapshot,
+      ...snapshot,
       paymentTiming,
       paymentMethod,
       tipPercentage,
     }),
-    [paymentMethod, paymentTiming, tipPercentage],
+    [paymentMethod, paymentTiming, snapshot, tipPercentage],
   );
 
   return (
@@ -45,7 +53,7 @@ export function CheckoutPreview() {
       }}
       isPending={isPending}
       revalidationMessage={revalidationMessage}
-      snapshot={snapshot}
+      snapshot={interactiveSnapshot}
     />
   );
 }

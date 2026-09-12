@@ -1,4 +1,4 @@
-import type { CheckoutSnapshot } from "@/modules/checkout";
+import type { CheckoutService, CheckoutSnapshot } from "@/modules/checkout";
 
 /** Fixture temporal de demostración. No lee ni replica el CartProvider de C-05. */
 export const checkoutPreviewSnapshot: CheckoutSnapshot = Object.freeze({
@@ -26,3 +26,9 @@ export const checkoutPreviewSnapshot: CheckoutSnapshot = Object.freeze({
   canPayAtTable: true,
   demoTrackingOrderId: "demo-190",
 });
+
+export function createCheckoutPreviewSnapshot(
+  service: CheckoutService,
+): CheckoutSnapshot {
+  return Object.freeze({ ...checkoutPreviewSnapshot, service });
+}

@@ -9,6 +9,7 @@ export type ClientOrderChange = Readonly<{
 /** Modelo de seguimiento exclusivo de Cliente; no comparte contratos Operativos. */
 export type ClientOrderTrackingSnapshot = Readonly<{
   id: string;
+  summary: string;
   status: ClientOrderStatus;
   estimatedTime?: string;
   delayMessage?: string;

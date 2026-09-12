@@ -1,11 +1,16 @@
-import { CheckoutPreview } from "@/modules/checkout";
+import { CheckoutPreview, getSafeCheckoutService } from "@/modules/checkout";
 import { ClientDemoNavigation } from "@/modules/client-demo-navigation";
 
-export default function CheckoutPage() {
+export default async function CheckoutPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ service?: string }>;
+}) {
+  const { service } = await searchParams;
   return (
     <>
       <ClientDemoNavigation />
-      <CheckoutPreview />
+      <CheckoutPreview service={getSafeCheckoutService(service)} />
     </>
   );
 }

@@ -43,6 +43,30 @@ describe("ReservationFormView", () => {
     );
   });
 
+  it("sends the preorder choice to the temporary menu access", () => {
+    render(<ReservationFormView />);
+
+    expect(screen.getByRole("link", { name: "Sí" })).toHaveAttribute(
+      "href",
+      "/menu",
+    );
+    expect(
+      screen.getByText(/podrás seleccionar platillos en el menú/),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the no-preorder choice in the reservation flow", async () => {
+    const user = userEvent.setup();
+    render(<ReservationFormView />);
+
+    await user.click(screen.getByRole("button", { name: "Ahora no" }));
+    await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
+
+    expect(
+      screen.getByText("Solicitud pendiente de confirmación"),
+    ).toBeInTheDocument();
+  });
+
   it("increases and decreases the number of people", async () => {
     const user = userEvent.setup();
     render(<ReservationFormView />);
@@ -94,9 +118,9 @@ describe("ReservationFormView", () => {
     await user.click(screen.getByRole("button", { name: "USAR 21:15" }));
 
     expect(screen.getByLabelText("HORA")).toHaveValue("21:15");
-    expect(screen.getByRole("button", { name: "Sí" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
+    expect(screen.getByRole("link", { name: "Sí" })).toHaveAttribute(
+      "href",
+      "/menu",
     );
     expect(
       screen.queryByText(/La última hora disponible para ingreso/),
@@ -134,7 +158,7 @@ describe("ReservationFormView", () => {
     const user = userEvent.setup();
     render(<ReservationFormView />);
 
-    await user.click(screen.getByRole("button", { name: "Sí" }));
+    await user.click(screen.getByRole("button", { name: "Ahora no" }));
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
     const pendingConfirmation = screen.getByText(

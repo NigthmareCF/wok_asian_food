@@ -3,6 +3,14 @@ export type PaymentTiming = "now" | "at-table";
 export type PaymentMethod = "cash" | "card" | "transfer";
 export type TipOption = 0 | 5 | 10 | 15;
 
+export function getSafeCheckoutService(
+  value: string | undefined,
+): CheckoutService {
+  return value === "pickup" || value === "delivery" || value === "table"
+    ? value
+    : "table";
+}
+
 export type CheckoutLineSnapshot = Readonly<{
   id: string;
   quantity: number;
