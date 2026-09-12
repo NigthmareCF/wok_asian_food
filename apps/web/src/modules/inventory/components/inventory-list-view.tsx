@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   Clock3,
   Filter,
-  Package,
   Search,
   X,
 } from "lucide-react";
@@ -70,14 +69,6 @@ export function InventoryListView() {
           <span className="ops-kicker">Módulo operativo</span>
           <h1>Inventario</h1>
           <p>Controla stock, lotes, entradas y ajustes de insumos.</p>
-        </div>
-        <div className="ops-header-actions">
-          <Link
-            className="button button--primary button--compact"
-            href="/operation/inventory/new"
-          >
-            <Package aria-hidden="true" size={17} /> Nueva entrada
-          </Link>
         </div>
       </header>
 

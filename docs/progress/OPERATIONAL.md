@@ -71,10 +71,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
   - `apps/web/src/data/fixtures/inventory.ts`, `production.ts`
   - `apps/web/src/app/(private)/(operational)/operation/inventory`, `production`, `status`
   - `apps/web/src/app/operational-views.css` (estilos nuevos de inventario, producción y estado del servicio)
-- Pruebas: lint, TypeScript, 39 pruebas unitarias conjuntas y build aprobados; rutas de detalle dinámicas (`inventory/[itemId]`, `production/[batchId]`, `production/suggestion/[suggestionId]`) compiladas; responsive por breakpoints 960/720/440px según los patrones existentes.
-- Decisiones: datos simulados en memoria que se reinician al recargar; fechas de caducidad se comparan contra una referencia fija para mantener renders deterministas; O-17 no tiene página propia y se resuelve con disponible, reservado, mínimo y rendimiento; el enlace "Nueva entrada" del listado aún apunta a `/operation/inventory/new` (pendiente de decidir como ruta o eliminar).
-- Pendiente: persistencia real, permisos backend, sincronización con pedidos/cocina, impresión, alertas por mínimos y caducidad, y decisión sobre el registro de entradas desde el listado.
-- PR: Pendiente
+- Pruebas: lint, TypeScript, 55 pruebas unitarias conjuntas y build aprobados; rutas de detalle dinámicas (`inventory/[itemId]`, `production/[batchId]`, `production/suggestion/[suggestionId]`) compiladas; responsive por breakpoints 960/720/440px según los patrones existentes.
+- Decisiones: datos simulados en memoria que se reinician al recargar; fechas de caducidad se comparan contra una referencia fija para mantener renders deterministas; O-17 no tiene página propia y se resuelve con disponible, reservado, mínimo y rendimiento; las entradas de stock se registran únicamente desde el detalle del producto (se retiró el botón "Nueva entrada" del listado, cuyo destino no existe).
+- Pendiente: persistencia real, permisos backend, sincronización con pedidos/cocina, impresión, alertas por mínimos y caducidad.
+- PR: `https://github.com/NigthmareCF/wok_asian_food/pull/10`
 
 ## 2026-09-10 — Delivery, Pagos, Precuenta y Caja (Bloque 1 Tomy)
 
@@ -93,10 +93,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
   - `apps/web/src/modules/cash` (provider, vista, fixtures)
   - `apps/web/src/data/fixtures/delivery.ts`, `payments.ts`, `cash.ts`
   - `apps/web/src/app/(private)/(operational)/operation/delivery`, `payments`, `cash`
-- Pruebas: lint, TypeScript, 39 pruebas unitarias conjuntas y build aprobados; revisión visual en escritorio (1440px) y móvil (390px); sin desbordamiento horizontal; estados vacío, carga y error cubiertos.
+- Pruebas: lint, TypeScript, 55 pruebas unitarias conjuntas y build aprobados; revisión visual en escritorio (1440px) y móvil (390px); sin desbordamiento horizontal; estados vacío, carga y error cubiertos.
 - Decisiones: datos y permisos simulados en memoria; repartidores y movimientos de caja se reinician al recargar; precuenta no es documento fiscal; pagos y delivery integrados con pedidos existentes mediante IDs compartidos.
 - Pendiente: persistencia real, permisos backend, sincronización con cocina/inventario, impresión real, notificaciones push a repartidor, conciliación bancaria.
-- PR: Pendiente
+- PR: `https://github.com/NigthmareCF/wok_asian_food/pull/10`
 
 ## 2026-09-10 — Creación y gestión de pedidos
 

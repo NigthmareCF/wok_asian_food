@@ -169,7 +169,7 @@ export function ServiceStatusView() {
             <button
               className="button button--primary button--full"
               disabled={!reason.trim()}
-              onClick={() => setCandidate(candidate)}
+              onClick={handleConfirm}
               type="button"
             >
               <Check aria-hidden="true" size={18} /> Confirmar cambio de estado
