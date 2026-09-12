@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRef, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import { usePathname } from "next/navigation";
 import {
   Bike,
@@ -61,11 +63,15 @@ const mockPermissions: Record<NavigationContext, Permission[]> = {
 export function AppShell({
   children,
   context,
+  contextualActions,
 }: {
   children: React.ReactNode;
   context: NavigationContext;
+  contextualActions?: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const demoDialog = useRef<HTMLDialogElement>(null);
+  const [demoContent, setDemoContent] = useState({ title: "", message: "" });
   const contextRoot = {
     admin: "/admin",
     client: "/client",
@@ -84,13 +90,42 @@ export function AppShell({
         <Link className="brand" href="/">
           <span>WOK</span> ASIAN FOOD
         </Link>
-        <nav className="navigation" aria-label={`Navegacion ${context}`}>
+        <nav
+          className="navigation"
+          aria-label={
+            context === "client"
+              ? "Navegación de cliente"
+              : `Navegacion ${context}`
+          }
+        >
           {visibleItems.map((item) => {
             const Icon = icons[item.icon];
             const active =
               pathname === item.route ||
               (item.route !== contextRoot &&
                 pathname.startsWith(`${item.route}/`));
+            if (item.demoNotice) {
+              return (
+                <button
+                  key={item.route}
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    setDemoContent({
+                      title: item.label,
+                      message: item.demoNotice ?? "",
+                    });
+                    demoDialog.current?.showModal();
+                  }}
+                >
+                  <Icon aria-hidden="true" size={19} />
+                  <span>
+                    {item.label}
+                    <small>Demo</small>
+                  </span>
+                </button>
+              );
+            }
             return (
               <Link
                 aria-current={active ? "page" : undefined}
@@ -113,7 +148,25 @@ export function AppShell({
           </div>
         ) : null}
       </aside>
-      <main className="app-shell__main">{children}</main>
+      <main className="app-shell__main">
+        {contextualActions}
+        {children}
+      </main>
+      {context === "client" ? (
+        <dialog
+          className="client-demo-dialog"
+          ref={demoDialog}
+          aria-labelledby="client-demo-title"
+          aria-describedby="client-demo-description"
+        >
+          <span className="eyebrow">DEMOSTRATIVO</span>
+          <h2 id="client-demo-title">{demoContent.title}</h2>
+          <p id="client-demo-description">{demoContent.message}</p>
+          <Button type="button" onClick={() => demoDialog.current?.close()}>
+            Entendido
+          </Button>
+        </dialog>
+      ) : null}
     </div>
   );
 }

@@ -22,25 +22,27 @@ export type NavigationItem = {
   icon: NavigationIcon;
   requiredPermission?: Permission;
   featureFlag?: boolean;
+  demoNotice?: string;
 };
 
 export const navigation: Record<NavigationContext, NavigationItem[]> = {
   client: [
     { label: "Inicio", route: "/client", icon: "dashboard" },
-    { label: "Menu", route: "/menu", icon: "menu" },
-    { label: "Ubicacion", route: "/location", icon: "location" },
+    { label: "Menú", route: "/menu", icon: "menu" },
     {
       label: "Pedidos",
       route: "/client/orders",
       icon: "orders",
       requiredPermission: "orders.read",
-      featureFlag: false,
+      demoNotice:
+        "El seguimiento de pedidos aún no está habilitado. Este acceso es demostrativo y no consulta pedidos reales.",
     },
     {
       label: "Perfil",
       route: "/client/profile",
       icon: "people",
-      featureFlag: false,
+      demoNotice:
+        "El perfil aún no está habilitado. Este acceso es demostrativo y no consulta ni modifica datos personales.",
     },
   ],
   operational: [
