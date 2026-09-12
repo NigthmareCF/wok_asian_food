@@ -114,7 +114,6 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       route: "/admin/users",
       icon: "people",
       requiredPermission: "users.read",
-      featureFlag: false,
     },
     {
       label: "Menu",
