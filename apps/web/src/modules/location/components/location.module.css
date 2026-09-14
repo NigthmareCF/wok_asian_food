@@ -1,0 +1,72 @@
+.location {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto;
+  max-width: 42rem;
+  padding: clamp(2rem, 8vw, 5rem) 0 1rem;
+}
+
+.header {
+  display: grid;
+  gap: 0.45rem;
+}
+.kicker {
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.header h1 {
+  font-size: clamp(2rem, 7vw, 3rem);
+  margin: 0;
+}
+.header p,
+.card p,
+.notice p,
+.help {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.card {
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  gap: 1rem;
+  padding: 1.15rem;
+}
+.icon {
+  color: var(--primary);
+  flex: 0 0 auto;
+}
+.card h2 {
+  font-size: 1rem;
+  margin: 0 0 0.3rem;
+}
+.notice {
+  align-items: flex-start;
+  background: rgb(235 177 52 / 12%);
+  border: 1px solid rgb(235 177 52 / 45%);
+  border-radius: var(--radius-md);
+  color: #f7d98f;
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+.notice strong {
+  color: var(--text);
+}
+.notice p,
+.help {
+  font-size: 0.8125rem;
+}
+.help {
+  margin-top: -0.5rem;
+}
+
+@media (min-width: 768px) {
+  .location {
+    max-width: 48rem;
+  }
+}
