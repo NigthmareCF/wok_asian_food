@@ -1,4 +1,4 @@
-import { PortalOverview } from "@/shared/components/portal-overview";
+import { ClientHome } from "@/modules/clients";
 export default function ClientPage() {
-  return <PortalOverview context="client" />;
+  return <ClientHome />;
 }

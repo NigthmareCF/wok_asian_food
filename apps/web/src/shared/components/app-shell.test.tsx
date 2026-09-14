@@ -10,6 +10,44 @@ vi.mock("next/navigation", () => ({
 afterEach(cleanup);
 
 describe("AppShell", () => {
+  it("preserves client links and demo dialogs when the sidebar is collapsed", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <AppShell context="client">
+        <div>Contenido cliente</div>
+      </AppShell>,
+    );
+    const dialog = container.querySelector("dialog")!;
+    const showModal = vi.fn(() => dialog.setAttribute("open", ""));
+    const close = vi.fn(() => dialog.removeAttribute("open"));
+    Object.defineProperties(dialog, {
+      showModal: { value: showModal, configurable: true },
+      close: { value: close, configurable: true },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Contraer menú" }));
+    expect(
+      screen.getByRole("navigation", { name: "Navegación de cliente" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Inicio" })).toHaveAttribute(
+      "href",
+      "/client",
+    );
+    expect(screen.getByRole("link", { name: "Menú" })).toHaveAttribute(
+      "href",
+      "/menu",
+    );
+    for (const label of ["Pedidos", "Perfil"]) {
+      await user.click(screen.getByRole("button", { name: label }));
+      expect(screen.getByRole("dialog", { name: label })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Entendido" }));
+      expect(dialog).not.toHaveAttribute("open");
+    }
+    expect(showModal).toHaveBeenCalledTimes(2);
+    await user.click(screen.getByRole("button", { name: "Expandir menú" }));
+    expect(container.firstChild).not.toHaveClass("app-shell--sidebar-collapsed");
+  });
+
   it("collapses and restores the operational navigation", async () => {
     const user = userEvent.setup();
     const { container } = render(

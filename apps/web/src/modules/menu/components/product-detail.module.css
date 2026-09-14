@@ -1,0 +1,226 @@
+.detail {
+  max-width: 68rem;
+  margin-inline: auto;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+.back:hover {
+  text-decoration: underline;
+}
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 0 0 1.5rem;
+}
+.notice svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+.heading {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+.category {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+.titleRow h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+.basePrice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.basePrice strong {
+  color: var(--text);
+  font-size: 1.35rem;
+}
+.description {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0.75rem 0 0;
+}
+.configuration {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+.configuration h2 {
+  font-size: 1.125rem;
+  margin: 0 0 1.25rem;
+}
+.controls {
+  min-width: 0;
+}
+.optionGroup {
+  border: 0;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  min-width: 0;
+}
+.optionGroup legend {
+  padding: 0;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+.optionGroup legend span {
+  display: block;
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 52px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  background: var(--surface);
+  font-size: 0.875rem;
+}
+.choice input {
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+}
+.choice small {
+  margin-left: auto;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.choice:has(input:checked) {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+}
+.choice:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+.choice:has(input:disabled) {
+  cursor: not-allowed;
+}
+.quantityRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.stepper button {
+  width: 48px;
+  height: 48px;
+  padding: 0.5rem;
+}
+.stepper output {
+  min-width: 2rem;
+  text-align: center;
+  font-weight: 700;
+}
+.summary {
+  min-width: 0;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.summary dl {
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+.summary dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.summary dt {
+  color: var(--text-secondary);
+}
+.summary dd {
+  margin: 0;
+  white-space: nowrap;
+}
+.total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin-top: 1rem;
+  font-weight: 700;
+}
+.total output {
+  font-size: 1.5rem;
+}
+.help {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 1rem 0;
+}
+.summary > button {
+  font-size: 0.875rem;
+  min-height: 48px;
+}
+.confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  margin: 1rem 0 0;
+}
+.confirmation svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+@media (min-width: 768px) {
+  .configuration {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 2rem;
+  }
+  .summary {
+    position: sticky;
+    top: 1.5rem;
+  }
+}
