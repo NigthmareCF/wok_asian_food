@@ -1,5 +1,9 @@
 export type ReservationStatus =
-  "upcoming" | "confirmed" | "late" | "preorder" | "expired";
+  | "upcoming"
+  | "confirmed"
+  | "late"
+  | "preorder"
+  | "expired";
 
 export type ReservationSource = "phone" | "online" | "walk-in";
 

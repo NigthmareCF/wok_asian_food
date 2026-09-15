@@ -1,35 +1,264 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { ArrowLeft, CheckCircle2, LockKeyhole } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Mail,
+  Phone,
+  KeyRound,
+  UserRound,
+} from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 
 function AuthCard({
   children,
   description,
+  isLogin = false,
   title,
 }: {
   children: React.ReactNode;
   description: string;
+  isLogin?: boolean;
   title: string;
 }) {
   return (
-    <section className="auth-card">
+    <section className={`auth-card${isLogin ? " auth-card--login" : ""}`}>
       <header className="auth-card__header">
-        <Link className="brand" href="/">
-          <span>WOK</span> ASIAN FOOD
-        </Link>
+        {isLogin ? (
+          <Link
+            aria-label="WOK Asian Food, inicio"
+            className="auth-logo"
+            href="/"
+          >
+            <Image
+              alt="WOK Asian Food"
+              fill
+              priority
+              sizes="(max-width: 480px) 280px, 344px"
+              src="/logo-wok-asian-food.jpg"
+            />
+          </Link>
+        ) : (
+          <Link className="brand" href="/">
+            <span>WOK</span> ASIAN FOOD
+          </Link>
+        )}
         <h1>{title}</h1>
         <p>{description}</p>
+        <p>
+          Demostración local: no se crean cuentas, se autentican usuarios ni se
+          envían correos. Usa datos de prueba.
+        </p>
       </header>
       {children}
     </section>
   );
 }
 
-function MockForm({
+type AccessMethod = "email" | "phone";
+
+function formatPhone(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return digits.length > 4
+    ? `${digits.slice(0, 4)}-${digits.slice(4)}`
+    : digits;
+}
+
+function isContactValid(method: AccessMethod, value: string) {
+  return method === "email"
+    ? /^\S+@\S+\.\S+$/.test(value)
+    : value.replace(/\D/g, "").length === 8;
+}
+
+function ContactMethodField({
+  error,
+  method,
+  onMethodChange,
+  onValueChange,
+  value,
+}: {
+  error?: string;
+  method: AccessMethod;
+  onMethodChange: (method: AccessMethod) => void;
+  onValueChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <div className={`contact-field contact-field--${method}`}>
+      {method === "phone" ? (
+        <FormField
+          autoComplete="tel-national"
+          error={error}
+          id="auth-phone"
+          inputMode="numeric"
+          label="Teléfono"
+          onChange={(event) => onValueChange(formatPhone(event.target.value))}
+          placeholder="0000-0000"
+          required
+          type="tel"
+          value={value}
+        />
+      ) : (
+        <FormField
+          autoComplete="email"
+          error={error}
+          id="auth-email"
+          label="Correo electrónico"
+          onChange={(event) => onValueChange(event.target.value)}
+          placeholder="ejemplo@gmail.com"
+          required
+          type="email"
+          value={value}
+        />
+      )}
+      <div
+        className="contact-field__controls"
+        role="group"
+        aria-label="Método de acceso"
+      >
+        <button
+          aria-label="Usar correo electrónico"
+          aria-pressed={method === "email"}
+          onClick={() => onMethodChange("email")}
+          title="Correo electrónico"
+          type="button"
+        >
+          <Mail aria-hidden="true" size={18} />
+        </button>
+        <button
+          aria-label="Usar teléfono"
+          aria-pressed={method === "phone"}
+          onClick={() => onMethodChange("phone")}
+          title="Teléfono"
+          type="button"
+        >
+          <Phone aria-hidden="true" size={18} />
+        </button>
+      </div>
+      {method === "phone" ? (
+        <span className="contact-field__prefix">+502</span>
+      ) : null}
+    </div>
+  );
+}
+
+export function LoginForm() {
+  const router = useRouter();
+  const [accessMethod, setAccessMethod] = useState<AccessMethod>("email");
+  const [identity, setIdentity] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberSession, setRememberSession] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const isIdentityValid = isContactValid(accessMethod, identity);
+  const identityError =
+    submitted && !isIdentityValid
+      ? accessMethod === "email"
+        ? "Ingresa un correo electrónico válido."
+        : "Ingresa los 8 dígitos de tu teléfono."
+      : undefined;
+  const passwordError =
+    submitted && password.length < 6
+      ? "Ingresa una contraseña de al menos 6 caracteres."
+      : undefined;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitted(true);
+    if (!isIdentityValid || password.length < 6) return;
+
+    setIsSubmitting(true);
+    window.setTimeout(() => router.push("/client"), 450);
+  }
+
+  function selectAccessMethod(method: AccessMethod) {
+    setAccessMethod(method);
+    setIdentity("");
+    setSubmitted(false);
+  }
+
+  return (
+    <div className="login-page">
+      <AuthCard
+        description="Accede para consultar el menú y gestionar tu experiencia."
+        isLogin
+        title="Iniciar sesión"
+      >
+        <form className="form-stack" noValidate onSubmit={submit}>
+          <ContactMethodField
+            error={identityError}
+            method={accessMethod}
+            onMethodChange={selectAccessMethod}
+            onValueChange={setIdentity}
+            value={identity}
+          />
+          <div className="password-field login-field">
+            <LockKeyhole aria-hidden="true" size={18} />
+            <FormField
+              autoComplete="current-password"
+              error={passwordError}
+              id="login-password"
+              label="Contraseña"
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              type={showPassword ? "text" : "password"}
+              value={password}
+            />
+            <button
+              aria-label={
+                showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+              }
+              className="password-field__toggle"
+              onClick={() => setShowPassword((current) => !current)}
+              type="button"
+            >
+              {showPassword ? (
+                <EyeOff aria-hidden="true" size={18} />
+              ) : (
+                <Eye aria-hidden="true" size={18} />
+              )}
+            </button>
+          </div>
+          <div className="auth-options">
+            <label className="auth-checkbox">
+              <input
+                checked={rememberSession}
+                onChange={(event) => setRememberSession(event.target.checked)}
+                type="checkbox"
+              />
+              <span>Recordar sesión (demo, sin persistencia)</span>
+            </label>
+            <Link href="/forgot-password">¿Olvidaste tu contraseña?</Link>
+          </div>
+          <Button disabled={isSubmitting} fullWidth type="submit">
+            {isSubmitting ? "INGRESANDO..." : "INICIAR SESIÓN"}
+          </Button>
+          <Link
+            className="button button--secondary button--full"
+            href="/register"
+          >
+            CREAR CUENTA
+          </Link>
+        </form>
+        <p className="auth-legal">
+          Términos de Servicio y Política de Privacidad pendientes de
+          publicación.
+        </p>
+      </AuthCard>
+    </div>
+  );
+}
+
+function StaticMockForm({
   children,
   submitLabel,
 }: {
@@ -37,16 +266,19 @@ function MockForm({
   submitLabel: string;
 }) {
   const [done, setDone] = useState(false);
-  function submit(event: FormEvent) {
+
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setDone(true);
   }
+
   return (
     <form className="form-stack" onSubmit={submit}>
       {children}
       {done ? (
         <p className="form-feedback" role="status">
-          Flujo simulado completado. No se enviaron datos.
+          Demostración completada. No se enviaron datos ni se modificó ninguna
+          cuenta.
         </p>
       ) : null}
       <Button fullWidth type="submit">
@@ -55,68 +287,91 @@ function MockForm({
     </form>
   );
 }
-
-export function LoginForm() {
-  return (
-    <AuthCard
-      title="Iniciar sesion"
-      description="Accede a tu cuenta para continuar."
-    >
-      <MockForm submitLabel="INICIAR SESION">
-        <FormField
-          autoComplete="username"
-          id="login-identity"
-          label="Correo electronico o telefono"
-          required
-        />
-        <FormField
-          autoComplete="current-password"
-          id="login-password"
-          label="Contrasena"
-          required
-          type="password"
-        />
-      </MockForm>
-      <div className="auth-links">
-        <Link href="/forgot-password">Olvide mi contrasena</Link>
-        <Link href="/register">Crear cuenta</Link>
-      </div>
-    </AuthCard>
-  );
-}
 export function RegisterForm() {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [accessMethod, setAccessMethod] = useState<AccessMethod>("email");
+  const [contact, setContact] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const nameError =
+    submitted && !name.trim() ? "Ingresa tu nombre." : undefined;
+  const contactError =
+    submitted && !isContactValid(accessMethod, contact)
+      ? accessMethod === "email"
+        ? "Ingresa un correo electrónico válido."
+        : "Ingresa los 8 dígitos de tu teléfono."
+      : undefined;
+  const passwordError =
+    submitted && password.length < 6
+      ? "La contraseña debe tener al menos 6 caracteres."
+      : undefined;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitted(true);
+    if (
+      !name.trim() ||
+      !isContactValid(accessMethod, contact) ||
+      password.length < 6
+    )
+      return;
+    setIsSubmitting(true);
+    window.setTimeout(() => router.push("/client"), 450);
+  }
+
+  function selectAccessMethod(method: AccessMethod) {
+    setAccessMethod(method);
+    setContact("");
+    setSubmitted(false);
+  }
+
   return (
     <AuthCard
       title="Crear cuenta"
-      description="El registro publico crea un perfil de cliente."
+      description="Crea tu cuenta para continuar."
+      isLogin
     >
-      <MockForm submitLabel="CREAR CUENTA">
-        <FormField
-          autoComplete="name"
-          id="register-name"
-          label="Nombre"
-          required
+      <form className="form-stack" noValidate onSubmit={submit}>
+        <div className="login-field auth-input-with-icon">
+          <UserRound aria-hidden="true" size={18} />
+          <FormField
+            autoComplete="name"
+            error={nameError}
+            id="register-name"
+            label="Nombre"
+            onChange={(event) => setName(event.target.value)}
+            required
+            value={name}
+          />
+        </div>
+        <ContactMethodField
+          error={contactError}
+          method={accessMethod}
+          onMethodChange={selectAccessMethod}
+          onValueChange={setContact}
+          value={contact}
         />
-        <FormField
-          autoComplete="email"
-          id="register-email"
-          label="Correo electronico"
-          required
-          type="email"
-        />
-        <FormField
-          autoComplete="new-password"
-          help="La politica definitiva sera configurada por el backend."
-          id="register-password"
-          label="Contrasena"
-          required
-          type="password"
-        />
-      </MockForm>
+        <div className="login-field auth-input-with-icon">
+          <LockKeyhole aria-hidden="true" size={18} />
+          <FormField
+            autoComplete="new-password"
+            error={passwordError}
+            id="register-password"
+            label="Contraseña"
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            type="password"
+            value={password}
+          />
+        </div>
+        <Button disabled={isSubmitting} fullWidth type="submit">
+          {isSubmitting ? "CREANDO..." : "CREAR CUENTA"}
+        </Button>
+      </form>
       <div className="auth-links">
-        <Link href="/login">
-          <ArrowLeft size={15} aria-hidden="true" /> Volver al acceso
-        </Link>
+        <Link href="/login">¿Ya tienes una cuenta? Iniciar sesión</Link>
       </div>
     </AuthCard>
   );
@@ -125,37 +380,76 @@ export function VerificationPinForm() {
   return (
     <AuthCard
       title="Verificar correo"
-      description="Ingresa el PIN recibido para continuar."
+      description="Ingresa el PIN para continuar."
+      isLogin
     >
-      <MockForm submitLabel="VERIFICAR">
-        <FormField
-          autoComplete="one-time-code"
-          id="verification-pin"
-          inputMode="numeric"
-          label="PIN de verificacion"
-          maxLength={6}
-          pattern="[0-9]*"
-          required
-        />
-      </MockForm>
+      <StaticMockForm submitLabel="VERIFICAR">
+        <div className="login-field auth-input-with-icon">
+          <KeyRound aria-hidden="true" size={18} />
+          <FormField
+            autoComplete="one-time-code"
+            id="verification-pin"
+            inputMode="numeric"
+            label="PIN de verificación"
+            maxLength={6}
+            pattern="[0-9]*"
+            required
+          />
+        </div>
+      </StaticMockForm>
     </AuthCard>
   );
 }
 export function ForgotPasswordForm() {
+  const [accessMethod, setAccessMethod] = useState<AccessMethod>("email");
+  const [contact, setContact] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [done, setDone] = useState(false);
+  const contactError =
+    submitted && !isContactValid(accessMethod, contact)
+      ? accessMethod === "email"
+        ? "Ingresa un correo electrónico válido."
+        : "Ingresa los 8 dígitos de tu teléfono."
+      : undefined;
+
+  function selectAccessMethod(method: AccessMethod) {
+    setAccessMethod(method);
+    setContact("");
+    setSubmitted(false);
+    setDone(false);
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitted(true);
+    if (!isContactValid(accessMethod, contact)) return;
+    setDone(true);
+  }
+
   return (
     <AuthCard
-      title="Recuperar acceso"
-      description="Te mostraremos el mismo resultado aunque la cuenta no exista."
+      title="Recuperar contraseña"
+      description="Elige cómo deseas continuar con tu recuperación."
+      isLogin
     >
-      <MockForm submitLabel="CONTINUAR">
-        <FormField
-          autoComplete="email"
-          id="recovery-email"
-          label="Correo electronico"
-          required
-          type="email"
+      <form className="form-stack" noValidate onSubmit={submit}>
+        <ContactMethodField
+          error={contactError}
+          method={accessMethod}
+          onMethodChange={selectAccessMethod}
+          onValueChange={setContact}
+          value={contact}
         />
-      </MockForm>
+        {done ? (
+          <p className="form-feedback" role="status">
+            Demostración de recuperación completada. No se envió ningún correo
+            ni SMS.
+          </p>
+        ) : null}
+        <Button fullWidth type="submit">
+          CONTINUAR
+        </Button>
+      </form>
       <div className="auth-links">
         <Link href="/login">Volver al acceso</Link>
       </div>
@@ -168,7 +462,7 @@ export function ResetPasswordForm() {
       title="Nueva contrasena"
       description="Completa el desafio de recuperacion."
     >
-      <MockForm submitLabel="RESTABLECER">
+      <StaticMockForm submitLabel="RESTABLECER">
         <FormField
           autoComplete="one-time-code"
           id="reset-code"
@@ -182,7 +476,7 @@ export function ResetPasswordForm() {
           required
           type="password"
         />
-      </MockForm>
+      </StaticMockForm>
     </AuthCard>
   );
 }
@@ -192,7 +486,7 @@ export function ChangePasswordForm() {
       title="Cambiar contrasena"
       description="Actualiza el acceso de tu perfil."
     >
-      <MockForm submitLabel="GUARDAR CAMBIO">
+      <StaticMockForm submitLabel="GUARDAR CAMBIO">
         <FormField
           autoComplete="current-password"
           id="current-password"
@@ -207,7 +501,7 @@ export function ChangePasswordForm() {
           required
           type="password"
         />
-      </MockForm>
+      </StaticMockForm>
     </AuthCard>
   );
 }

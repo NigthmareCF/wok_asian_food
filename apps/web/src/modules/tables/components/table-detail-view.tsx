@@ -6,12 +6,17 @@ import {
   ArrowLeft,
   CalendarPlus,
   CalendarClock,
+  Check,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
   CircleCheck,
   CreditCard,
   FileText,
+  Minus,
   Package,
   Plus,
+  Printer,
   ReceiptText,
   Send,
   Split,
@@ -30,17 +35,12 @@ import { getOrderTotal, type OrderItem } from "@/data/fixtures/orders";
 import { useOrderSession } from "@/modules/orders";
 import { useTableSession } from "@/modules/tables/table-session-provider";
 
-type TableAction = "charge" | "transfer" | "release";
+type TableAction = "transfer" | "release";
 
 const actionContent: Record<
   TableAction,
   { title: string; description: string; confirm: string }
 > = {
-  charge: {
-    title: "Confirmar cobro",
-    description: "Verifica el monto y el método de pago antes de continuar.",
-    confirm: "Confirmar cobro",
-  },
   transfer: {
     title: "Trasladar mesa",
     description: "El pedido y el saldo pasarán a la mesa seleccionada.",
@@ -63,6 +63,7 @@ const detailStatusLabel: Record<OperationalTable["status"], string> = {
   occupied: "Ocupada",
   reserved: "Reservada",
   preparing: "Preparación",
+  "pending-payment": "Pendiente de cobro",
   "out-of-service": "Fuera de servicio",
 };
 
@@ -77,9 +78,9 @@ export function TableDetailView({
   const {
     clearTableAccounts,
     createTableAccount,
-    markOrdersPaid,
     orders,
     tableAccounts,
+    updateTableAccountStatus,
   } = useOrderSession();
   const table =
     tables.find((item) => item.id === initialTable.id) ?? initialTable;
@@ -89,6 +90,19 @@ export function TableDetailView({
   const [feedback, setFeedback] = useState("");
   const [showAccountCreator, setShowAccountCreator] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");
+  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(
+    null,
+  );
+  const [showChargeModal, setShowChargeModal] = useState(false);
+  const [chargeScope, setChargeScope] = useState<"table" | "account">("table");
+  const [chargeAccountId, setChargeAccountId] = useState("");
+  const [showPrebillModal, setShowPrebillModal] = useState(false);
+  const [prebillScope, setPrebillScope] = useState<"table" | "account">(
+    "account",
+  );
+  const [prebillAccountId, setPrebillAccountId] = useState("");
+  const [includeTip, setIncludeTip] = useState(true);
+  const [tipPercentage, setTipPercentage] = useState("10");
 
   const tableSource = `Mesa ${table.number}`;
   const sourceOrders = orders.filter(
@@ -133,7 +147,30 @@ export function TableDetailView({
     0,
   );
   const openAccounts = tableAccounts[tableSource] ?? [];
-  const canRelease = pendingTotal === 0 && table.status === "occupied";
+  const isPendingPayment = table.status === "pending-payment";
+  const isOccupiedWorkspace =
+    table.status === "occupied" || table.status === "pending-payment";
+  const accountBreakdown = openAccounts.map((account) => {
+    const accountOrders = pendingOrders.filter(
+      (order) =>
+        order.accountId === account.id ||
+        order.items.some((item) => item.accountId === account.id),
+    );
+    const accountItems = accountOrders.flatMap((order) =>
+      order.items.filter(
+        (item) =>
+          item.accountId === account.id ||
+          (!item.accountId && order.accountId === account.id),
+      ),
+    );
+    const accountTotal = accountItems.reduce(
+      (total, item) => total + item.unitPrice * item.quantity,
+      0,
+    );
+    return { account, accountOrders, accountItems, accountTotal };
+  });
+  const canRelease =
+    pendingTotal === 0 && (table.status === "occupied" || isPendingPayment);
   const isAvailable = table.status === "free";
   const isReserved = table.status === "reserved";
   const isServicePending =
@@ -202,11 +239,7 @@ export function TableDetailView({
   const confirmAction = () => {
     if (!activeAction) return;
 
-    if (activeAction === "charge") {
-      markOrdersPaid(pendingOrders.map((order) => order.id));
-      updateTable(table.id, (current) => ({ ...current, balance: 0 }));
-      setFeedback("Cobro registrado. La mesa ya puede liberarse.");
-    } else if (activeAction === "release") {
+    if (activeAction === "release") {
       clearTableAccounts(tableSource);
       updateTable(table.id, (current) => ({
         ...current,
@@ -225,6 +258,71 @@ export function TableDetailView({
 
     setActiveAction(null);
   };
+
+  const confirmCharge = () => {
+    if (chargeScope === "account" && chargeAccountId) {
+      updateTableAccountStatus(tableSource, chargeAccountId, "pending-payment");
+      const account = openAccounts.find(
+        (item) => item.id === chargeAccountId,
+      );
+      setFeedback(
+        `Cuenta de ${account?.name ?? "la cuenta"} marcada como pendiente de cobro. Registra el pago en el módulo de pagos.`,
+      );
+    } else {
+      openAccounts.forEach((account) =>
+        updateTableAccountStatus(tableSource, account.id, "pending-payment"),
+      );
+      updateTable(table.id, (current) => ({
+        ...current,
+        status: "pending-payment",
+      }));
+      setFeedback(
+        "Mesa marcada como pendiente de cobro. Registra el pago en el módulo de pagos.",
+      );
+    }
+    setShowChargeModal(false);
+    setChargeScope("table");
+    setChargeAccountId("");
+  };
+
+  const confirmPrebill = () => {
+    const percent = includeTip ? Math.max(0, Number(tipPercentage) || 0) : 0;
+    setShowPrebillModal(false);
+    setIncludeTip(true);
+    setTipPercentage("10");
+    setFeedback(
+      percent > 0
+        ? `Precuenta enviada a la impresora (simulado) con propina sugerida del ${percent}%.`
+        : "Precuenta enviada a la impresora (simulado) sin propina.",
+    );
+  };
+
+  const prebillAccount = accountBreakdown.find(
+    (entry) => entry.account.id === prebillAccountId,
+  );
+  const prebillBase =
+    prebillScope === "account"
+      ? (prebillAccount?.accountTotal ?? 0)
+      : pendingTotal;
+  const prebillPercent = includeTip
+    ? Math.max(0, Number(tipPercentage) || 0)
+    : 0;
+  const prebillTip = (prebillBase * prebillPercent) / 100;
+  const prebillTotal = prebillBase + prebillTip;
+  const prebillLines =
+    prebillScope === "account"
+      ? (prebillAccount?.accountItems ?? []).map((item) => ({
+          key: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        }))
+      : accountLines.map((line) => ({
+          key: line.key,
+          name: line.item.name,
+          quantity: line.item.quantity,
+          unitPrice: line.item.unitPrice,
+        }));
 
   return (
     <div className="ops-dashboard table-detail">
@@ -295,6 +393,25 @@ export function TableDetailView({
             </strong>
           </div>
           <span>{table.nextReservation.people} personas</span>
+        </section>
+      ) : null}
+
+      {isPendingPayment ? (
+        <section
+          className="table-payments-pending-strip"
+          aria-label="Cobro pendiente"
+        >
+          <CreditCard aria-hidden="true" size={19} />
+          <div>
+            <span>Pendiente de cobro</span>
+            <strong>
+              La mesa no se liberará hasta registrar el pago en el módulo de
+              pagos.
+            </strong>
+          </div>
+          <Link className="text-action" href="/operation/payments">
+            Registrar pago
+          </Link>
         </section>
       ) : null}
 
@@ -396,38 +513,88 @@ export function TableDetailView({
 
             {openAccounts.length > 0 ? (
               <div className="table-open-accounts">
-                {openAccounts.map((account) => {
-                  const accountOrders = pendingOrders.filter(
-                    (order) =>
-                      order.accountId === account.id ||
-                      order.items.some((item) => item.accountId === account.id),
-                  );
-                  const accountItems = accountOrders.flatMap((order) =>
-                    order.items.filter(
-                      (item) =>
-                        item.accountId === account.id ||
-                        (!item.accountId && order.accountId === account.id),
-                    ),
-                  );
-                  const accountTotal = accountItems.reduce(
-                    (total, item) => total + item.unitPrice * item.quantity,
-                    0,
-                  );
+                {accountBreakdown.map(({ account, accountItems, accountOrders, accountTotal }) => {
+                  const expanded = expandedAccountId === account.id;
                   return (
-                    <article key={account.id}>
-                      <div>
+                    <article
+                      className={`table-open-account${account.status === "pending-payment" ? " table-open-account--pending" : ""}`}
+                      key={account.id}
+                    >
+                      <button
+                        aria-controls={`account-detail-${account.id}`}
+                        aria-expanded={expanded}
+                        className="table-open-account__toggle"
+                        onClick={() =>
+                          setExpandedAccountId((current) =>
+                            current === account.id ? null : account.id,
+                          )
+                        }
+                        type="button"
+                      >
                         <UserRound aria-hidden="true" size={17} />
                         <span>
                           <strong>{account.name}</strong>
+                          {account.status === "pending-payment" ? (
+                            <em className="table-open-account__badge">
+                              En cobro
+                            </em>
+                          ) : null}
                           <small>
                             {accountItems.length
                               ? `${accountItems.reduce((sum, item) => sum + item.quantity, 0)} producto(s) en ${accountOrders.length} pedido(s)`
                               : "Lista para agregar productos"}
                           </small>
                         </span>
-                      </div>
-                      <strong>{money.format(accountTotal)}</strong>
+                        <strong className="table-open-account__amount">
+                          {money.format(accountTotal)}
+                        </strong>
+                        {expanded ? (
+                          <ChevronUp
+                            aria-hidden="true"
+                            className="table-open-account__chevron"
+                            size={16}
+                          />
+                        ) : (
+                          <ChevronDown
+                            aria-hidden="true"
+                            className="table-open-account__chevron"
+                            size={16}
+                          />
+                        )}
+                      </button>
+                      {expanded ? (
+                        <div
+                          className="table-open-account__detail"
+                          id={`account-detail-${account.id}`}
+                        >
+                          {accountItems.length > 0 ? (
+                            accountItems.map((item) => (
+                              <div
+                                key={`${account.id}:${item.id}`}
+                              >
+                                <span>
+                                  {item.quantity}× {item.name}
+                                  {item.modifiers.length > 0
+                                    ? ` · ${item.modifiers.join(", ")}`
+                                    : ""}
+                                </span>
+                                <strong>
+                                  {money.format(
+                                    item.quantity * item.unitPrice,
+                                  )}
+                                </strong>
+                              </div>
+                            ))
+                          ) : (
+                            <span className="table-open-account__empty">
+                              Esta cuenta aún no tiene productos en la
+                              comanda pendiente.
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
                       <Link
+                        aria-label={`Agregar productos a la cuenta de ${account.name}`}
                         className="button button--secondary button--compact"
                         href={`/operation/orders/new?table=${table.number}&account=${encodeURIComponent(account.id)}&accountName=${encodeURIComponent(account.name)}`}
                       >
@@ -538,13 +705,24 @@ export function TableDetailView({
               </button>
               <button
                 onClick={() => {
-                  setFeedback("Precuenta preparada para impresión.");
+                  setPrebillScope(
+                    openAccounts[0] ? "account" : "table",
+                  );
+                  setPrebillAccountId(openAccounts[0]?.id ?? "");
+                  setShowPrebillModal(true);
                 }}
                 type="button"
               >
                 <FileText aria-hidden="true" size={18} /> Precuenta
               </button>
-              <button onClick={() => setActiveAction("charge")} type="button">
+              <button
+                onClick={() => {
+                  setChargeScope("table");
+                  setChargeAccountId("");
+                  setShowChargeModal(true);
+                }}
+                type="button"
+              >
                 <CreditCard aria-hidden="true" size={18} /> Cobrar
               </button>
               <button onClick={() => setActiveAction("transfer")} type="button">
@@ -573,9 +751,10 @@ export function TableDetailView({
       )}
 
       <p className="mock-disclaimer">
-        Datos y permisos simulados. Las cuentas se conservan al navegar;
-        división posterior, cobro, precuenta y traslado se completarán en sus
-        módulos definitivos.
+        Datos y permisos simulados. Las cuentas se conservan al navegar; la
+        división posterior y el traslado se completarán en sus módulos
+        definitivos. El cobro pasa por el flujo de «pendiente de cobro» y se
+        registra en el módulo de pagos.
       </p>
 
       {showReservationPicker ? (
@@ -707,6 +886,243 @@ export function TableDetailView({
         </div>
       ) : null}
 
+      {showChargeModal ? (
+        <div className="confirm-dialog__backdrop" role="presentation">
+          <section
+            aria-labelledby="charge-modal-title"
+            aria-modal="true"
+            className="confirm-dialog table-charge-dialog"
+            role="dialog"
+          >
+            <button
+              aria-label="Cerrar cobro"
+              className="icon-button confirm-dialog__close"
+              onClick={() => setShowChargeModal(false)}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <span className="confirm-dialog__icon">
+              <CreditCard aria-hidden="true" size={22} />
+            </span>
+            <h2 id="charge-modal-title">Pendiente de cobro</h2>
+            <p>
+              La mesa o la cuenta quedará «pendiente de cobro» y no se liberará
+              hasta registrar el pago en el módulo de pagos.
+            </p>
+            {openAccounts.length > 0 ? (
+              <div className="table-charge-dialog__list">
+                {accountBreakdown.map(
+                  ({ account, accountItems, accountTotal }) => (
+                    <label
+                      className={
+                        account.status === "pending-payment"
+                          ? "table-charge-dialog__option is-charged"
+                          : "table-charge-dialog__option"
+                      }
+                      key={account.id}
+                    >
+                      <input
+                        checked={chargeScope === "account" && chargeAccountId === account.id}
+                        name="charge-target"
+                        onChange={() => {
+                          setChargeScope("account");
+                          setChargeAccountId(account.id);
+                        }}
+                        type="radio"
+                      />
+                      <span>
+                        <strong>{account.name}</strong>
+                        <small>
+                          {account.status === "pending-payment"
+                            ? "Ya marcada en cobro"
+                            : `${accountItems.reduce((sum, item) => sum + item.quantity, 0)} producto(s)`}
+                        </small>
+                      </span>
+                      <strong>{money.format(accountTotal)}</strong>
+                    </label>
+                  ),
+                )}
+                <label className="table-charge-dialog__option">
+                  <input
+                    checked={chargeScope === "table"}
+                    name="charge-target"
+                    onChange={() => {
+                      setChargeScope("table");
+                      setChargeAccountId("");
+                    }}
+                    type="radio"
+                  />
+                  <span>
+                    <strong>Toda la mesa</strong>
+                    <small>
+                      Marca todas las cuentas y la mesa en pendiente de cobro
+                    </small>
+                  </span>
+                  <strong>{money.format(pendingTotal)}</strong>
+                </label>
+              </div>
+            ) : (
+              <div className="table-charge-dialog__note">
+                No hay cuentas abiertas; se marcará toda la mesa como pendiente
+                de cobro ({money.format(pendingTotal)}).
+              </div>
+            )}
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                onClick={() => setShowChargeModal(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="button button--primary"
+                disabled={
+                  chargeScope === "account" && !chargeAccountId
+                }
+                onClick={confirmCharge}
+                type="button"
+              >
+                Marcar para cobro
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showPrebillModal ? (
+        <div className="confirm-dialog__backdrop" role="presentation">
+          <section
+            aria-labelledby="prebill-modal-title"
+            aria-modal="true"
+            className="confirm-dialog table-prebill-dialog"
+            role="dialog"
+          >
+            <button
+              aria-label="Cerrar precuenta"
+              className="icon-button confirm-dialog__close"
+              onClick={() => setShowPrebillModal(false)}
+              type="button"
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <span className="confirm-dialog__icon">
+              <FileText aria-hidden="true" size={22} />
+            </span>
+            <h2 id="prebill-modal-title">Precuenta y propina sugerida</h2>
+            <p>
+              Elige la cuenta y decide si imprimir con propina sugerida.
+            </p>
+            {openAccounts.length > 0 ? (
+              <div
+                className="table-prebill-dialog__scopes"
+                aria-label="Alcance de la precuenta"
+                role="radiogroup"
+              >
+                {accountBreakdown.map(({ account }) => (
+                  <button
+                    aria-pressed={
+                      prebillScope === "account" &&
+                      prebillAccountId === account.id
+                    }
+                    className="table-prebill-dialog__scope"
+                    key={account.id}
+                    onClick={() => {
+                      setPrebillScope("account");
+                      setPrebillAccountId(account.id);
+                    }}
+                    type="button"
+                  >
+                    {account.name}
+                  </button>
+                ))}
+                <button
+                  aria-pressed={prebillScope === "table"}
+                  className="table-prebill-dialog__scope"
+                  onClick={() => setPrebillScope("table")}
+                  type="button"
+                >
+                  Toda la mesa
+                </button>
+              </div>
+            ) : null}
+            <div className="prebill-table">
+              {prebillLines.length > 0 ? (
+                prebillLines.map((line) => (
+                  <div className="prebill-table__row" key={line.key}>
+                    <span>
+                      {line.quantity}× {line.name}
+                    </span>
+                    <strong>
+                      {money.format(line.quantity * line.unitPrice)}
+                    </strong>
+                  </div>
+                ))
+              ) : (
+                <small className="prebill-table__empty">
+                  No hay productos pendientes para esta selección.
+                </small>
+              )}
+            </div>
+            <div className="table-prebill-dialog__totals">
+              <div>
+                <span>Subtotal</span>
+                <strong>{money.format(prebillBase)}</strong>
+              </div>
+              <label className="table-prebill-dialog__tip">
+                <input
+                  checked={includeTip}
+                  onChange={(event) => setIncludeTip(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>Incluir propina sugerida</strong>
+                  <small>Sobre el subtotal de la selección</small>
+                </span>
+                {includeTip ? (
+                  <span className="table-prebill-dialog__tip-input">
+                    <input
+                      aria-label="Porcentaje de propina"
+                      min={0}
+                      onChange={(event) =>
+                        setTipPercentage(event.target.value)
+                      }
+                      type="number"
+                      value={tipPercentage}
+                    />
+                    <em>%</em>
+                  </span>
+                ) : null}
+                <strong className="table-prebill-dialog__tip-amount">
+                  {money.format(prebillTip)}
+                </strong>
+              </label>
+              <div className="table-prebill-dialog__grand-total">
+                <span>Total a imprimir</span>
+                <strong>{money.format(prebillTotal)}</strong>
+              </div>
+            </div>
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                onClick={() => setShowPrebillModal(false)}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="button button--primary"
+                onClick={confirmPrebill}
+                type="button"
+              >
+                <Printer aria-hidden="true" size={16} /> Imprimir precuenta
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {activeAction ? (
         <div className="confirm-dialog__backdrop" role="presentation">
           <section
@@ -730,11 +1146,6 @@ export function TableDetailView({
               {actionContent[activeAction].title}
             </h2>
             <p>{actionContent[activeAction].description}</p>
-            {activeAction === "charge" ? (
-              <strong className="confirm-dialog__amount">
-                {money.format(pendingTotal)}
-              </strong>
-            ) : null}
             <div className="confirm-dialog__actions">
               <button
                 className="button button--secondary"
