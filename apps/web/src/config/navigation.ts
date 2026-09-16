@@ -38,7 +38,22 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       icon: "orders",
       requiredPermission: "orders.read",
       demoNotice:
-        "El seguimiento de pedidos aún no está habilitado. Este acceso es demostrativo y no consulta pedidos reales.",
+        "El seguimiento de pedidos usa datos demostrativos y no consulta pedidos reales.",
+    },
+    {
+      label: "Reservas",
+      route: "/client/reservations/new",
+      icon: "calendar",
+    },
+    {
+      label: "Mensajes",
+      route: "/client/messages",
+      icon: "messages",
+    },
+    {
+      label: "Ubicación",
+      route: "/location",
+      icon: "location",
     },
     {
       label: "Perfil",

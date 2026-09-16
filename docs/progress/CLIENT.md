@@ -1,5 +1,19 @@
 # Progreso del canal Cliente
 
+## 2026-09-15 — Flujo unificado por canal
+
+- Se retiraron las barras de navegación de demostración de las rutas Cliente para que el `AppShell` sea la navegación única.
+- Se conectaron los accesos de inicio y sidebar con Reservas, Mensajes, Ubicación, Pedidos, Menú y Carrito.
+- Los formularios de reserva y mensajería quedan identificados como pendientes de ampliación; sus rutas ya son alcanzables dentro del flujo.
+- Cliente mantiene fixtures y estado local propios; Operativo y Administrativo conservan sus layouts y rutas independientes.
+
+## 2026-09-15 — Integración funcional del flujo Cliente
+
+- Se conectó el checkout de Cliente con el `CartProvider`: los artículos, cantidades, opciones, servicio y subtotal ahora provienen del carrito de la sesión.
+- El carrito ofrece acceso directo a revisar la solicitud; el checkout permite revalidación local y envío pendiente demostrativo.
+- Inicio enlaza Reservar, Ubicación y Mensajes con sus vistas del canal.
+- Verificaciones: typecheck, diff check y 216 pruebas aprobadas.
+
 ## 2026-09-11 — Correcciones PR #8 C-07, C-09 y C-10
 
 - Rama: `feature/client-views-c07-c12`

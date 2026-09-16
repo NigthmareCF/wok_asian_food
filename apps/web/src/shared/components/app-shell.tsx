@@ -157,7 +157,11 @@ export function AppShell({
                   type="button"
                   aria-haspopup="dialog"
                   aria-label={item.label}
-                  title={sidebarCollapsed ? `${item.label} (Demo)` : undefined}
+                  title={
+                    sidebarCollapsed && context !== "client"
+                      ? `${item.label} (Demo)`
+                      : undefined
+                  }
                   onClick={() => {
                     setDemoContent({
                       title: item.label,
@@ -180,7 +184,11 @@ export function AppShell({
                 aria-current={active ? "page" : undefined}
                 href={item.route}
                 key={item.route}
-                title={sidebarCollapsed ? item.label : undefined}
+                title={
+                  sidebarCollapsed && context !== "client"
+                    ? item.label
+                    : undefined
+                }
               >
                 <Icon aria-hidden="true" size={19} />
                 <span>{item.label}</span>

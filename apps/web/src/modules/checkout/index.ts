@@ -1,4 +1,5 @@
 export { CheckoutPreview } from "./components/checkout-preview";
+export { ClientCheckout } from "./components/client-checkout";
 export { CheckoutView } from "./components/checkout-view";
 export type {
   CheckoutActions,

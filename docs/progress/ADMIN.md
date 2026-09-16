@@ -4,6 +4,11 @@ Responsables: Edgar y Beto.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-15 — Auditoría de integración de rutas
+
+- Las 16 vistas administrativas tienen rutas y accesos en la sidebar: usuarios, roles, personal, menú, ajustes, recetas, proveedores, compras, producción, reportes, caja, clientes, IA, cámaras y auditoría.
+- Los formularios administrativos se conservan como pendientes de ampliación.
+
 ## 2026-09-12 — A-05 a A-16: flujos administrativos simulados
 
 - Rama: `feature/frontend-admin`, sobre `51964d2`; incluye `development` verificado en `95f678a` y los avances A-01/A-02 de Roberto.
