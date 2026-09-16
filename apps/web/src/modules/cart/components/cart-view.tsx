@@ -212,6 +212,9 @@ export function CartView({
                   ? "Ver solicitud pendiente"
                   : "Continuar"}
             </Button>
+            <Link className="button button--secondary" href="/client/checkout">
+              Revisar solicitud
+            </Link>
             <div className={styles.review} role="status" aria-atomic="true">
               {busy
                 ? "Revalidando disponibilidad… Comprobación local demostrativa."

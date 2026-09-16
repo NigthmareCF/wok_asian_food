@@ -97,9 +97,9 @@ export function ClientHome() {
             <ChevronDown aria-hidden="true" size={18} />
           </summary>
           <p>
-            Las reservas aún no están habilitadas. Aquí no se registra ninguna
-            solicitud.
+            Elige fecha, hora y personas para preparar una reserva demostrativa.
           </p>
+          <Link href="/client/reservations/new" className={styles.textLink}>Crear reserva <ArrowRight aria-hidden="true" size={16} /></Link>
         </details>
         <details className={styles.action}>
           <summary>
@@ -112,6 +112,7 @@ export function ClientHome() {
             La dirección oficial y las indicaciones para llegar están pendientes
             de confirmar.
           </p>
+          <Link href="/location" className={styles.textLink}>Ver ubicación <ArrowRight aria-hidden="true" size={16} /></Link>
         </details>
         <details className={styles.action}>
           <summary>
@@ -121,9 +122,9 @@ export function ClientHome() {
             <ChevronDown aria-hidden="true" size={18} />
           </summary>
           <p>
-            La atención por mensajes aún no está habilitada. No se envían
-            conversaciones desde esta vista.
+            Comunícate con el restaurante mediante el buzón demostrativo.
           </p>
+          <Link href="/client/messages" className={styles.textLink}>Abrir mensajes <ArrowRight aria-hidden="true" size={16} /></Link>
         </details>
       </section>
 

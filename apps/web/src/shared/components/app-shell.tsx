@@ -67,7 +67,23 @@ const mockPermissions: Record<NavigationContext, Permission[]> = {
     "production.read",
     "status.read",
   ],
-  admin: ["users.read", "menu.read", "settings.read"],
+  admin: [
+    "users.read",
+    "roles.read",
+    "staff.read",
+    "menu.read",
+    "settings.read",
+    "recipes.read",
+    "suppliers.read",
+    "purchases.read",
+    "production.read",
+    "reports.read",
+    "cash.read",
+    "clients.read",
+    "ai.read",
+    "vision.read",
+    "audit.read",
+  ],
 };
 
 export function AppShell({
@@ -141,7 +157,11 @@ export function AppShell({
                   type="button"
                   aria-haspopup="dialog"
                   aria-label={item.label}
-                  title={sidebarCollapsed ? `${item.label} (Demo)` : undefined}
+                  title={
+                    sidebarCollapsed && context !== "client"
+                      ? `${item.label} (Demo)`
+                      : undefined
+                  }
                   onClick={() => {
                     setDemoContent({
                       title: item.label,
@@ -164,7 +184,11 @@ export function AppShell({
                 aria-current={active ? "page" : undefined}
                 href={item.route}
                 key={item.route}
-                title={sidebarCollapsed ? item.label : undefined}
+                title={
+                  sidebarCollapsed && context !== "client"
+                    ? item.label
+                    : undefined
+                }
               >
                 <Icon aria-hidden="true" size={19} />
                 <span>{item.label}</span>

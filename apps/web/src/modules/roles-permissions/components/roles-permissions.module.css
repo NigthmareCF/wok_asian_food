@@ -1,0 +1,526 @@
+.page {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0 auto;
+  max-width: 96rem;
+  min-width: 0;
+}
+
+.backgroundContent {
+  display: grid;
+  gap: 1.1rem;
+  min-width: 0;
+}
+
+.header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+}
+
+.header h1 {
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
+  line-height: 1.2;
+  margin: 0.2rem 0 0.35rem;
+}
+
+.header p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.headerActions {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: flex-end;
+}
+
+.notice,
+.feedback,
+.conflict {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: 0.7rem;
+  min-height: 3.5rem;
+  padding: 0.85rem 1rem;
+}
+
+.notice {
+  color: var(--text-secondary);
+}
+
+.notice svg,
+.feedback svg {
+  color: var(--info);
+  flex: 0 0 auto;
+}
+
+.conflict {
+  border-color: rgba(255, 155, 125, 0.5);
+  color: var(--warning);
+}
+
+.toolbar {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.search {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 0.55rem;
+  min-height: 2.75rem;
+  min-width: min(100%, 19rem);
+  padding: 0 0.8rem;
+}
+
+.search input {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  min-width: 0;
+  outline: 0;
+  width: 100%;
+}
+
+.stateControls {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.stateControls > span {
+  color: var(--text-subtle);
+  font-size: 0.6875rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.segmented {
+  align-items: center;
+  display: flex;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.segmented button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  white-space: nowrap;
+}
+
+.segmented button:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.segmented button:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.segmented button[aria-pressed="true"],
+.segmented button:hover:not(:disabled) {
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.segmented button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.workspace {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(17rem, 0.32fr) minmax(0, 1fr);
+}
+
+.listPanel,
+.detailPanel,
+.auditPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-width: 0;
+  padding: 1rem;
+}
+
+.sectionHeading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.sectionHeading h2,
+.permissionsPanel h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.sectionHeading span,
+.detailHeader p,
+.roleList button span,
+.permissionsPanel li span,
+.auditPanel li span,
+.auditPanel li small {
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+}
+
+.roleList {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.roleList button {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 0.2rem;
+  min-height: 4.2rem;
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.roleList button[aria-pressed="true"],
+.roleList button:hover {
+  border-color: rgba(72, 137, 255, 0.55);
+}
+
+.detailPanel {
+  display: grid;
+  gap: 1rem;
+}
+
+.detailHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.detailHeader span {
+  color: var(--text-subtle);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.detailHeader h2 {
+  margin: 0.2rem 0 0.35rem;
+}
+
+.permissionsPanel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.permissionsPanel ul,
+.auditPanel ul {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.permissionsPanel ul {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.permissionsPanel li,
+.auditPanel li {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+.permissionsPanel p,
+.disclaimer {
+  color: var(--text-subtle);
+  margin: 0;
+}
+
+.auditPanel ul {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.auditPanel li strong,
+.auditPanel li span,
+.auditPanel li small {
+  overflow-wrap: anywhere;
+}
+
+.emptyState {
+  align-items: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  justify-content: center;
+  min-height: 12rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.disclaimer {
+  font-size: 0.78rem;
+}
+
+.dialogBackdrop,
+.confirmBackdrop {
+  align-items: center;
+  background: rgba(12, 18, 28, 0.56);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 30;
+}
+
+.confirmBackdrop {
+  z-index: 40;
+}
+
+.roleDialog,
+.confirmDialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: 1rem;
+  position: relative;
+  width: min(100%, 42rem);
+}
+
+.confirmDialog {
+  width: min(100%, 28rem);
+}
+
+.iconButton {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  position: absolute;
+  right: 0.85rem;
+  top: 0.85rem;
+}
+
+.iconButton:hover {
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.roleDialog header {
+  padding-right: 3rem;
+}
+
+.roleDialog header span {
+  color: var(--text-subtle);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.roleDialog h2,
+.confirmDialog h2 {
+  margin: 0.2rem 0 0.45rem;
+}
+
+.roleDialog p,
+.confirmDialog p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.field label,
+.permissionMatrix legend {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.field input {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  min-height: 2.75rem;
+  padding: 0.65rem;
+}
+
+.field input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.fieldError {
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
+.permissionMatrix {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.permissionMatrix fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.85rem;
+}
+
+.permissionMatrix legend {
+  padding: 0 0.35rem;
+}
+
+.permissionMatrix label {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+}
+
+.permissionMatrix input {
+  min-height: 1.2rem;
+  min-width: 1.2rem;
+}
+
+.dialogState {
+  align-items: center;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  min-height: 2.75rem;
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.confirmIcon {
+  align-items: center;
+  background: rgba(255, 155, 125, 0.14);
+  border-radius: 50%;
+  color: var(--warning);
+  display: inline-flex;
+  height: 2.75rem;
+  justify-content: center;
+  margin-bottom: 0.8rem;
+  width: 2.75rem;
+}
+
+@media (max-width: 72rem) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .auditPanel ul,
+  .permissionsPanel ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48rem) {
+  .header,
+  .detailHeader {
+    display: grid;
+  }
+
+  .headerActions,
+  .toolbar,
+  .search,
+  .stateControls {
+    width: 100%;
+  }
+
+  .permissionMatrix,
+  .auditPanel ul,
+  .permissionsPanel ul {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .segmented button {
+    border-radius: var(--radius-sm);
+    white-space: normal;
+  }
+
+  .roleList {
+    grid-template-columns: 1fr;
+  }
+
+  .dialogActions {
+    justify-content: stretch;
+  }
+
+  .dialogActions button {
+    flex: 1 1 10rem;
+  }
+}
+
+@media (max-width: 30rem) {
+  .page {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+}

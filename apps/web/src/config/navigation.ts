@@ -38,7 +38,22 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       icon: "orders",
       requiredPermission: "orders.read",
       demoNotice:
-        "El seguimiento de pedidos aún no está habilitado. Este acceso es demostrativo y no consulta pedidos reales.",
+        "El seguimiento de pedidos usa datos demostrativos y no consulta pedidos reales.",
+    },
+    {
+      label: "Reservas",
+      route: "/client/reservations/new",
+      icon: "calendar",
+    },
+    {
+      label: "Mensajes",
+      route: "/client/messages",
+      icon: "messages",
+    },
+    {
+      label: "Ubicación",
+      route: "/location",
+      icon: "location",
     },
     {
       label: "Perfil",
@@ -130,21 +145,91 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       route: "/admin/users",
       icon: "people",
       requiredPermission: "users.read",
-      featureFlag: false,
+    },
+    {
+
+      label: "Roles y permisos",
+      route: "/admin/roles",
+      icon: "settings",
+      requiredPermission: "roles.read",
+    },
+    {
+      label: "Personal y horarios",
+      route: "/admin/staff",
+      icon: "calendar",
+      requiredPermission: "staff.read",
     },
     {
       label: "Menu",
       route: "/admin/menu",
       icon: "menu",
       requiredPermission: "menu.read",
-      featureFlag: false,
     },
     {
       label: "Ajustes",
       route: "/admin/settings",
       icon: "settings",
       requiredPermission: "settings.read",
-      featureFlag: false,
+    },
+    {
+      label: "Recetas",
+      route: "/admin/recipes",
+      icon: "menu",
+      requiredPermission: "recipes.read",
+    },
+    {
+      label: "Proveedores",
+      route: "/admin/suppliers",
+      icon: "delivery",
+      requiredPermission: "suppliers.read",
+    },
+    {
+      label: "Compras",
+      route: "/admin/purchases",
+      icon: "orders",
+      requiredPermission: "purchases.read",
+    },
+    {
+      label: "Producción",
+      route: "/admin/production",
+      icon: "production",
+      requiredPermission: "production.read",
+    },
+    {
+      label: "Reportes",
+      route: "/admin/reports",
+      icon: "dashboard",
+      requiredPermission: "reports.read",
+    },
+    {
+      label: "Cierres de caja",
+      route: "/admin/cash-closings",
+      icon: "cash",
+      requiredPermission: "cash.read",
+    },
+    {
+      label: "Clientes",
+      route: "/admin/clients",
+      icon: "people",
+      requiredPermission: "clients.read",
+    },
+    {
+      label: "IA y mensajería",
+      route: "/admin/ai",
+      icon: "messages",
+      requiredPermission: "ai.read",
+    },
+    {
+      label: "Cámaras",
+      route: "/admin/vision",
+      icon: "requests",
+      requiredPermission: "vision.read",
+    },
+    {
+      label: "Auditoría",
+      route: "/admin/audit",
+      icon: "orders",
+      requiredPermission: "audit.read",
     },
   ],
 };

@@ -1,5 +1,4 @@
 import { ReservationFormView } from "@/modules/reservations";
-import { ClientDemoNavigation } from "@/modules/client-demo-navigation";
 
 export default async function NewReservationPage({
   searchParams,
@@ -7,12 +6,5 @@ export default async function NewReservationPage({
   searchParams: Promise<{ demo?: string }>;
 }) {
   const { demo } = await searchParams;
-  return (
-    <>
-      <ClientDemoNavigation />
-      <ReservationFormView
-        initialTime={demo === "late" ? "22:00" : undefined}
-      />
-    </>
-  );
+  return <ReservationFormView initialTime={demo === "late" ? "22:00" : undefined} />;
 }

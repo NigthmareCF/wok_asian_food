@@ -1,4 +1,5 @@
-import { PortalOverview } from "@/shared/components/portal-overview";
+import { AdminDashboardView } from "@/modules/admin";
+
 export default function AdminPage() {
-  return <PortalOverview context="admin" />;
+  return <AdminDashboardView />;
 }

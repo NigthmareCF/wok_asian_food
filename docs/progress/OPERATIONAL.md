@@ -4,6 +4,11 @@ Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-15 — Auditoría de integración de rutas
+
+- Operación, Mesas, Pedidos, Cocina, Reservas, Mensajes, Solicitudes, Delivery, Caja, Pagos, Inventario, Producción y Estado del servicio tienen rutas y accesos en la sidebar.
+- Los formularios operativos se conservan como pendientes de ampliación.
+
 ## 2026-09-12 — Ajustes de revisión del PR #10
 
 - Rama: `feature/operational-delivery-payments`
@@ -194,3 +199,9 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Decisiones: permisos, ETA, pedidos y realtime son únicamente conceptos visuales
 - Pendiente: seleccionar IDs del sprint e implementar vistas asignadas
 - PR: `https://github.com/NigthmareCF/wok_asian_food/pull/2`
+# Progreso del canal Operativo
+
+## 2026-09-15 — Auditoría de integración de rutas
+
+- Se verificó la cobertura de navegación del canal: Operación, Mesas, Pedidos, Cocina, Reservas, Mensajes, Solicitudes, Delivery, Caja, Pagos, Inventario, Producción y Estado del servicio tienen rutas y accesos en la sidebar.
+- Se conservaron los formularios operativos como pendientes de ampliación.

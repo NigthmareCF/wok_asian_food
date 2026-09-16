@@ -1,0 +1,651 @@
+.page {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0 auto;
+  max-width: 96rem;
+  min-width: 0;
+}
+
+.backgroundContent {
+  display: grid;
+  gap: 1.1rem;
+  min-width: 0;
+}
+
+.header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-bottom: 1rem;
+}
+
+.header h1 {
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
+  line-height: 1.2;
+  margin: 0.2rem 0 0.35rem;
+}
+
+.header p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.headerActions {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: flex-end;
+}
+
+.notice,
+.feedback,
+.statePanel {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: 0.7rem;
+  min-height: 3.5rem;
+  padding: 0.85rem 1rem;
+}
+
+.notice {
+  color: var(--text-secondary);
+}
+
+.notice svg,
+.feedback svg {
+  color: var(--info);
+  flex: 0 0 auto;
+}
+
+.feedback {
+  color: var(--text);
+}
+
+.toolbar {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.search {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 0.55rem;
+  min-height: 2.75rem;
+  min-width: min(100%, 19rem);
+  padding: 0 0.8rem;
+}
+
+.search input {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  min-width: 0;
+  outline: 0;
+  width: 100%;
+}
+
+.controlGroup {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.controlGroup > span {
+  color: var(--text-subtle);
+  font-size: 0.6875rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.segmented {
+  align-items: center;
+  display: flex;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.segmented button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  white-space: nowrap;
+}
+
+.segmented button:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.segmented button:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.segmented button[aria-pressed="true"],
+.segmented button:hover {
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.workspace {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.36fr);
+}
+
+.listPanel,
+.detailPanel,
+.auditPanel,
+.statePanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.listPanel,
+.detailPanel,
+.auditPanel {
+  padding: 1rem;
+}
+
+.sectionHeading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.sectionHeading h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.sectionHeading span,
+.detailPanel p,
+.roleList span,
+.auditPanel li span,
+.auditPanel li small {
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  min-width: 48rem;
+  width: 100%;
+}
+
+.table th {
+  color: var(--text-subtle);
+  font-size: 0.72rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 0.65rem;
+  vertical-align: middle;
+}
+
+.identityButton {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 0.15rem;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0;
+  text-align: left;
+}
+
+.identityButton span,
+.identityButton small {
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+}
+
+.identityButton[aria-expanded="true"] strong {
+  color: var(--primary);
+}
+
+.statusBadge {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  min-height: 1.75rem;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+}
+
+.status_active {
+  background: rgba(48, 166, 106, 0.12);
+  color: var(--success);
+}
+
+.status_suspended {
+  background: rgba(255, 155, 125, 0.14);
+  color: var(--warning);
+}
+
+.status_disabled {
+  background: var(--surface-elevated);
+  color: var(--text-subtle);
+}
+
+.status_pending {
+  background: rgba(72, 137, 255, 0.12);
+  color: var(--info);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.actions button,
+.iconButton {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 750;
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0.5rem 0.7rem;
+}
+
+.actions button:hover,
+.iconButton:hover {
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.detailPanel {
+  display: grid;
+  gap: 1rem;
+}
+
+.detailPanel header span {
+  color: var(--text-subtle);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.detailPanel h2 {
+  font-size: 1.2rem;
+  margin: 0.2rem 0;
+}
+
+.roleList {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.roleList article {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem;
+}
+
+.capabilities {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+}
+
+.capabilities h3 {
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.capabilities ul,
+.auditPanel ul {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.capabilities li {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  padding: 0.55rem 0.65rem;
+}
+
+.detailEmpty,
+.emptyState {
+  align-items: center;
+  color: var(--text-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  justify-content: center;
+  min-height: 12rem;
+  text-align: center;
+}
+
+.emptyState {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+
+.statePanel {
+  color: var(--text-subtle);
+}
+
+.statePanel svg,
+.emptyState svg {
+  color: var(--info);
+  flex: 0 0 auto;
+}
+
+.auditPanel ul {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.auditPanel li {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+.auditPanel li strong,
+.auditPanel li span,
+.auditPanel li small {
+  overflow-wrap: anywhere;
+}
+
+.disclaimer {
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.panelBackdrop {
+  align-items: center;
+  background: rgba(12, 18, 28, 0.56);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 30;
+}
+
+.sidePanel,
+.confirmDialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.24);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: 1rem;
+  position: relative;
+  width: min(100%, 34rem);
+}
+
+.confirmDialog {
+  width: min(100%, 28rem);
+}
+
+.iconButton {
+  position: absolute;
+  right: 0.85rem;
+  top: 0.85rem;
+}
+
+.sidePanel header,
+.confirmDialog h2 {
+  padding-right: 3rem;
+}
+
+.sidePanel header span {
+  color: var(--text-subtle);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sidePanel h2,
+.confirmDialog h2 {
+  margin: 0.2rem 0 0.45rem;
+}
+
+.sidePanel p,
+.confirmDialog p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.sidePanel [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.formGrid {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.roleFieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0 0;
+  padding: 0.85rem;
+}
+
+.roleFieldset legend {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0 0.35rem;
+  text-transform: uppercase;
+}
+
+.roleFieldset label {
+  align-items: start;
+  display: flex;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+}
+
+.roleFieldset input {
+  margin-top: 0.2rem;
+  min-height: 1.2rem;
+  min-width: 1.2rem;
+}
+
+.roleFieldset label span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.roleFieldset small {
+  color: var(--text-subtle);
+}
+
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.confirmIcon {
+  align-items: center;
+  background: rgba(255, 155, 125, 0.14);
+  border-radius: 50%;
+  color: var(--warning);
+  display: inline-flex;
+  height: 2.75rem;
+  justify-content: center;
+  margin-bottom: 0.8rem;
+  width: 2.75rem;
+}
+
+.reasonField {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.reasonField span {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.reasonField textarea {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  min-height: 5.5rem;
+  padding: 0.65rem;
+  resize: vertical;
+}
+
+@media (max-width: 72rem) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .detailPanel {
+    order: -1;
+  }
+
+  .auditPanel ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48rem) {
+  .header {
+    display: grid;
+  }
+
+  .headerActions,
+  .toolbar,
+  .search {
+    width: 100%;
+  }
+
+  .controlGroup {
+    width: 100%;
+  }
+
+  .tableWrap {
+    overflow: visible;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .table thead {
+    border: 0;
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+  }
+
+  .table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .table tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem;
+  }
+
+  .table td {
+    border-bottom: 0;
+    padding: 0.4rem 0;
+  }
+
+  .table td::before {
+    color: var(--text-subtle);
+    content: attr(data-label);
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 800;
+    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+  }
+
+  .auditPanel ul {
+    grid-template-columns: 1fr;
+  }
+
+  .panelActions {
+    justify-content: stretch;
+  }
+
+  .panelActions button {
+    flex: 1 1 10rem;
+  }
+}
