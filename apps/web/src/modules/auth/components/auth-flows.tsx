@@ -77,6 +77,32 @@ function isContactValid(method: AccessMethod, value: string) {
     : value.replace(/\D/g, "").length === 8;
 }
 
+const passwordHelp =
+  "Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.";
+
+function getPasswordError(value: string) {
+  if (value.length < 8) {
+    return "La contraseña debe tener al menos 8 caracteres.";
+  }
+  if (!/[A-Z]/.test(value)) {
+    return "Incluye al menos una letra mayúscula.";
+  }
+  if (!/[a-z]/.test(value)) {
+    return "Incluye al menos una letra minúscula.";
+  }
+  if (!/\d/.test(value)) {
+    return "Incluye al menos un número.";
+  }
+  if (!/[^A-Za-z0-9]/.test(value)) {
+    return "Incluye al menos un símbolo.";
+  }
+  return undefined;
+}
+
+function getPasswordConfirmationError(password: string, confirmation: string) {
+  return password !== confirmation ? "Las contraseñas no coinciden." : undefined;
+}
+
 function ContactMethodField({
   error,
   method,
@@ -166,15 +192,12 @@ export function LoginForm() {
         ? "Ingresa un correo electrónico válido."
         : "Ingresa los 8 dígitos de tu teléfono."
       : undefined;
-  const passwordError =
-    submitted && password.length < 6
-      ? "Ingresa una contraseña de al menos 6 caracteres."
-      : undefined;
+  const passwordError = submitted ? getPasswordError(password) : undefined;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitted(true);
-    if (!isIdentityValid || password.length < 6) return;
+    if (!isIdentityValid || getPasswordError(password)) return;
 
     setIsSubmitting(true);
     window.setTimeout(() => router.push("/client"), 450);
@@ -206,6 +229,7 @@ export function LoginForm() {
             <FormField
               autoComplete="current-password"
               error={passwordError}
+              help={passwordHelp}
               id="login-password"
               label="Contraseña"
               onChange={(event) => setPassword(event.target.value)}
@@ -293,6 +317,7 @@ export function RegisterForm() {
   const [accessMethod, setAccessMethod] = useState<AccessMethod>("email");
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nameError =
@@ -303,10 +328,10 @@ export function RegisterForm() {
         ? "Ingresa un correo electrónico válido."
         : "Ingresa los 8 dígitos de tu teléfono."
       : undefined;
-  const passwordError =
-    submitted && password.length < 6
-      ? "La contraseña debe tener al menos 6 caracteres."
-      : undefined;
+  const passwordError = submitted ? getPasswordError(password) : undefined;
+  const passwordConfirmationError = submitted
+    ? getPasswordConfirmationError(password, passwordConfirmation)
+    : undefined;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -314,7 +339,8 @@ export function RegisterForm() {
     if (
       !name.trim() ||
       !isContactValid(accessMethod, contact) ||
-      password.length < 6
+      getPasswordError(password) ||
+      getPasswordConfirmationError(password, passwordConfirmation)
     )
       return;
     setIsSubmitting(true);
@@ -358,12 +384,26 @@ export function RegisterForm() {
           <FormField
             autoComplete="new-password"
             error={passwordError}
+            help={passwordHelp}
             id="register-password"
             label="Contraseña"
             onChange={(event) => setPassword(event.target.value)}
             required
             type="password"
             value={password}
+          />
+        </div>
+        <div className="login-field auth-input-with-icon">
+          <LockKeyhole aria-hidden="true" size={18} />
+          <FormField
+            autoComplete="new-password"
+            error={passwordConfirmationError}
+            id="register-password-confirmation"
+            label="Confirmar contraseña"
+            onChange={(event) => setPasswordConfirmation(event.target.value)}
+            required
+            type="password"
+            value={passwordConfirmation}
           />
         </div>
         <Button disabled={isSubmitting} fullWidth type="submit">
@@ -457,51 +497,162 @@ export function ForgotPasswordForm() {
   );
 }
 export function ResetPasswordForm() {
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [done, setDone] = useState(false);
+  const recoveryCodeError =
+    submitted && !/^\d{6}$/.test(recoveryCode)
+      ? "Ingresa el código de recuperación de 6 dígitos."
+      : undefined;
+  const passwordError = submitted ? getPasswordError(password) : undefined;
+  const passwordConfirmationError = submitted
+    ? getPasswordConfirmationError(password, passwordConfirmation)
+    : undefined;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitted(true);
+    if (
+      !/^\d{6}$/.test(recoveryCode) ||
+      getPasswordError(password) ||
+      getPasswordConfirmationError(password, passwordConfirmation)
+    )
+      return;
+    setDone(true);
+  }
+
   return (
     <AuthCard
-      title="Nueva contrasena"
-      description="Completa el desafio de recuperacion."
+      title="Nueva contraseña"
+      description="Completa el desafío de recuperación."
     >
-      <StaticMockForm submitLabel="RESTABLECER">
+      <form className="form-stack" noValidate onSubmit={submit}>
         <FormField
           autoComplete="one-time-code"
+          error={recoveryCodeError}
           id="reset-code"
-          label="Codigo de recuperacion"
+          inputMode="numeric"
+          label="Código de recuperación"
+          maxLength={6}
+          onChange={(event) =>
+            setRecoveryCode(event.target.value.replace(/\D/g, ""))
+          }
+          pattern="[0-9]*"
           required
+          value={recoveryCode}
         />
         <FormField
           autoComplete="new-password"
+          error={passwordError}
+          help={passwordHelp}
           id="reset-password"
-          label="Nueva contrasena"
+          label="Nueva contraseña"
+          onChange={(event) => setPassword(event.target.value)}
           required
           type="password"
+          value={password}
         />
-      </StaticMockForm>
+        <FormField
+          autoComplete="new-password"
+          error={passwordConfirmationError}
+          id="reset-password-confirmation"
+          label="Confirmar contraseña"
+          onChange={(event) => setPasswordConfirmation(event.target.value)}
+          required
+          type="password"
+          value={passwordConfirmation}
+        />
+        {done ? (
+          <p className="form-feedback" role="status">
+            Demostración completada. La contraseña no se modificó porque aún no
+            existe conexión con el backend.
+          </p>
+        ) : null}
+        <Button fullWidth type="submit">
+          RESTABLECER
+        </Button>
+      </form>
     </AuthCard>
   );
 }
 export function ChangePasswordForm() {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [done, setDone] = useState(false);
+  const currentPasswordError =
+    submitted && !currentPassword
+      ? "Ingresa tu contraseña actual."
+      : undefined;
+  const newPasswordError = submitted
+    ? getPasswordError(newPassword)
+    : undefined;
+  const passwordConfirmationError = submitted
+    ? getPasswordConfirmationError(newPassword, passwordConfirmation)
+    : undefined;
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitted(true);
+    if (
+      !currentPassword ||
+      getPasswordError(newPassword) ||
+      getPasswordConfirmationError(newPassword, passwordConfirmation)
+    )
+      return;
+    setDone(true);
+  }
+
   return (
     <AuthCard
-      title="Cambiar contrasena"
+      title="Cambiar contraseña"
       description="Actualiza el acceso de tu perfil."
     >
-      <StaticMockForm submitLabel="GUARDAR CAMBIO">
+      <form className="form-stack" noValidate onSubmit={submit}>
         <FormField
           autoComplete="current-password"
+          error={currentPasswordError}
           id="current-password"
-          label="Contrasena actual"
+          label="Contraseña actual"
+          onChange={(event) => setCurrentPassword(event.target.value)}
           required
           type="password"
+          value={currentPassword}
         />
         <FormField
           autoComplete="new-password"
+          error={newPasswordError}
+          help={passwordHelp}
           id="new-password"
-          label="Nueva contrasena"
+          label="Nueva contraseña"
+          onChange={(event) => setNewPassword(event.target.value)}
           required
           type="password"
+          value={newPassword}
         />
-      </StaticMockForm>
+        <FormField
+          autoComplete="new-password"
+          error={passwordConfirmationError}
+          id="new-password-confirmation"
+          label="Confirmar contraseña"
+          onChange={(event) => setPasswordConfirmation(event.target.value)}
+          required
+          type="password"
+          value={passwordConfirmation}
+        />
+        {done ? (
+          <p className="form-feedback" role="status">
+            Demostración completada. La contraseña no se modificó porque aún no
+            existe conexión con el backend.
+          </p>
+        ) : null}
+        <Button fullWidth type="submit">
+          GUARDAR CAMBIO
+        </Button>
+      </form>
     </AuthCard>
   );
 }
