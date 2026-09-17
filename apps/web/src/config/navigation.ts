@@ -37,8 +37,6 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       route: "/client/orders",
       icon: "orders",
       requiredPermission: "orders.read",
-      demoNotice:
-        "El seguimiento de pedidos usa datos demostrativos y no consulta pedidos reales.",
     },
     {
       label: "Reservas",
