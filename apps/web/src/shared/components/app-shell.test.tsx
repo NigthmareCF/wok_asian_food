@@ -5,6 +5,61 @@ import { AppShell } from "./app-shell";
 
 const pathState = vi.hoisted(() => ({ pathname: "/operation" }));
 
+const expectedNavigationRoutes = {
+  admin: {
+    "Ajustes": "/admin/settings",
+    "Auditoría": "/admin/audit",
+    "Cierres de caja": "/admin/cash-closings",
+    "Clientes": "/admin/clients",
+    "Compras": "/admin/purchases",
+    "IA y mensajería": "/admin/ai",
+    "Menu": "/admin/menu",
+    "Personal y horarios": "/admin/staff",
+    "Producción": "/admin/production",
+    "Proveedores": "/admin/suppliers",
+    "Recetas": "/admin/recipes",
+    "Reportes": "/admin/reports",
+    "Resumen": "/admin",
+    "Roles y permisos": "/admin/roles",
+    "Usuarios": "/admin/users",
+    "Cámaras": "/admin/vision",
+  },
+  client: {
+    Inicio: "/client",
+    Mensajes: "/client/messages",
+    Menú: "/menu",
+    Pedidos: "/client/orders",
+    Reservas: "/client/reservations/new",
+    Ubicación: "/location",
+  },
+  operational: {
+    Caja: "/operation/cash",
+    Cocina: "/operation/kitchen",
+    Delivery: "/operation/delivery",
+    "Estado del servicio": "/operation/status",
+    Inventario: "/operation/inventory",
+    Mesas: "/operation/tables",
+    Mensajes: "/operation/messages",
+    Operacion: "/operation",
+    Pagos: "/operation/payments",
+    Pedidos: "/operation/orders",
+    Produccion: "/operation/production",
+    Reservas: "/operation/reservations",
+    Solicitudes: "/operation/online-requests",
+  },
+} as const;
+
+function expectNavigationRoutes(context: keyof typeof expectedNavigationRoutes) {
+  for (const [label, route] of Object.entries(
+    expectedNavigationRoutes[context],
+  )) {
+    expect(screen.getByRole("link", { name: label })).toHaveAttribute(
+      "href",
+      route,
+    );
+  }
+}
+
 vi.mock("next/navigation", () => ({
   usePathname: () => pathState.pathname,
 }));
@@ -50,6 +105,7 @@ describe("AppShell", () => {
       "href",
       "/client/orders",
     );
+    expectNavigationRoutes("client");
     await user.click(screen.getByRole("button", { name: "Perfil" }));
     expect(screen.getByRole("dialog", { name: "Perfil" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Entendido" }));
@@ -77,6 +133,7 @@ describe("AppShell", () => {
       "href",
       "/operation",
     );
+    expectNavigationRoutes("operational");
 
     await user.click(screen.getByRole("button", { name: "Expandir menú" }));
     expect(container.firstChild).not.toHaveClass(
@@ -102,6 +159,7 @@ describe("AppShell", () => {
       "href",
       "/admin",
     );
+    expectNavigationRoutes("admin");
 
     pathState.pathname = "/operation";
     rerender(
