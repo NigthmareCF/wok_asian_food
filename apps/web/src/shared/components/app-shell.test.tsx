@@ -38,17 +38,23 @@ describe("AppShell", () => {
       "href",
       "/client",
     );
+    expect(screen.getByRole("link", { name: "WOK Asian Food" })).toHaveAttribute(
+      "href",
+      "/client",
+    );
     expect(screen.getByRole("link", { name: "Menú" })).toHaveAttribute(
       "href",
       "/menu",
     );
-    for (const label of ["Pedidos", "Perfil"]) {
-      await user.click(screen.getByRole("button", { name: label }));
-      expect(screen.getByRole("dialog", { name: label })).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Entendido" }));
-      expect(dialog).not.toHaveAttribute("open");
-    }
-    expect(showModal).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("link", { name: "Pedidos" })).toHaveAttribute(
+      "href",
+      "/client/orders",
+    );
+    await user.click(screen.getByRole("button", { name: "Perfil" }));
+    expect(screen.getByRole("dialog", { name: "Perfil" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Entendido" }));
+    expect(dialog).not.toHaveAttribute("open");
+    expect(showModal).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "Expandir menú" }));
     expect(container.firstChild).not.toHaveClass("app-shell--sidebar-collapsed");
   });
@@ -66,6 +72,10 @@ describe("AppShell", () => {
     expect(screen.getByRole("link", { name: "Mesas" })).toHaveAttribute(
       "title",
       "Mesas",
+    );
+    expect(screen.getByRole("link", { name: "WOK Asian Food" })).toHaveAttribute(
+      "href",
+      "/operation",
     );
 
     await user.click(screen.getByRole("button", { name: "Expandir menú" }));
@@ -88,6 +98,10 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("link", { name: "Personal y horarios" }),
     ).toHaveAttribute("href", "/admin/staff");
+    expect(screen.getByRole("link", { name: "WOK Asian Food" })).toHaveAttribute(
+      "href",
+      "/admin",
+    );
 
     pathState.pathname = "/operation";
     rerender(

@@ -117,7 +117,11 @@ export function AppShell({
     >
       <aside className="sidebar">
         <div className="sidebar__header">
-          <Link className="brand" href="/">
+          <Link
+            aria-label="WOK Asian Food"
+            className="brand"
+            href={contextRoot}
+          >
             <span className="brand__mark">WOK</span>
             <span className="brand__name"> ASIAN FOOD</span>
           </Link>
