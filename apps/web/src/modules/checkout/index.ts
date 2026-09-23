@@ -6,5 +6,4 @@ export type {
   CheckoutService,
   CheckoutSnapshot,
 } from "./checkout-snapshot";
-export { formatQuetzales, getCheckoutTotalCents } from "./checkout-snapshot";
-export { getSafeCheckoutService } from "./checkout-snapshot";
+export { formatQuetzales } from "./checkout-snapshot";

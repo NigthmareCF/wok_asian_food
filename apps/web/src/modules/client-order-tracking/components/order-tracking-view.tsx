@@ -7,80 +7,93 @@ import {
   TriangleAlert,
   Truck,
 } from "lucide-react";
+import type { ClientOrder } from "@/modules/clients/client-session";
 import type { ClientOrderTrackingSnapshot } from "../order-tracking";
 import { orderStatusLabels } from "../order-tracking";
 import styles from "./order-tracking.module.css";
 
 const restaurantStages = [
+  ["pending", "Pendiente"],
   ["confirmed", "Confirmado"],
   ["preparing", "En preparación"],
   ["ready", "Listo"],
 ] as const;
 
-const demoOrderStates = [
-  { id: "demo-pending", label: "Pendiente" },
-  { id: "demo-confirmed", label: "Confirmado" },
-  { id: "demo-preparing", label: "Preparando" },
-  { id: "demo-ready", label: "Listo" },
-  { id: "demo-190", label: "Retrasado" },
-  { id: "demo-delivered", label: "Entregado" },
-] as const;
-
 export function OrderTrackingView({
   order,
 }: {
-  order?: ClientOrderTrackingSnapshot;
+  order?: ClientOrderTrackingSnapshot &
+    Partial<Pick<ClientOrder, "createdAt" | "lines">>;
 }) {
   if (!order)
     return (
       <section className={styles.empty} aria-labelledby="not-found-title">
         <PackageCheck aria-hidden="true" size={32} />
         <h1 id="not-found-title">Pedido no encontrado</h1>
-        <p>Este seguimiento no está disponible en la demostración.</p>
+        <Link className="button button--secondary" href="/client/orders">
+          Mis pedidos
+        </Link>
+        <Link className="button button--secondary" href="/client">
+          Inicio de Cliente
+        </Link>
+        <p>
+          Este pedido no está disponible en esta sesión. Al recargar se
+          reinician los pedidos locales.
+        </p>
       </section>
     );
 
   const isDelivery = order.fulfillment === "delivery";
   return (
     <section className={styles.tracking} aria-labelledby="tracking-title">
+      <Link className="button button--secondary" href="/client/orders">
+        Volver a Mis pedidos
+      </Link>
+      <Link className="button button--secondary" href="/client">
+        Inicio de Cliente
+      </Link>
       <header className={styles.header}>
-        <span className={styles.kicker}>
-          PEDIDO #{order.id.replace("demo-", "")}
-        </span>
+        <span className={styles.kicker}>PEDIDO #{order.id}</span>
         <h1 id="tracking-title">Seguimiento de pedido</h1>
         <span className={styles.currentStatus}>
           {orderStatusLabels[order.status]}
         </span>
       </header>
 
-      <section
-        className={styles.demoControls}
-        aria-labelledby="demo-states-title"
-      >
-        <div>
-          <h2 id="demo-states-title">Probar estados del pedido</h2>
-          <p>Controles de demostración. No actualizan un pedido real.</p>
-        </div>
-        <nav
-          aria-label="Estados de demostración del pedido"
-          className={styles.demoLinks}
-        >
-          {demoOrderStates.map((demoState) => {
-            const isCurrent = demoState.id === order.id;
-            return (
-              <Link
-                aria-current={isCurrent ? "page" : undefined}
-                className={`${styles.demoLink} ${isCurrent ? styles.demoLinkCurrent : ""}`}
-                href={`/client/orders/${demoState.id}`}
-                key={demoState.id}
-              >
-                {demoState.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </section>
-
+      <p>
+        Guardado solamente durante esta sesión. Una solicitud local no ha sido
+        enviada ni aceptada por el restaurante.
+      </p>
+      <p>
+        Servicio:{" "}
+        {
+          { table: "Mesa", pickup: "Para recoger", delivery: "Delivery" }[
+            order.fulfillment
+          ]
+        }
+      </p>
+      {order.createdAt ? (
+        <time dateTime={order.createdAt}>
+          {new Date(order.createdAt).toLocaleString("es-GT")}
+        </time>
+      ) : null}
+      <p>{order.summary}</p>
+      {order.lines ? (
+        <ul aria-label="Artículos del pedido">
+          {order.lines.map((line) => (
+            <li key={line.id}>
+              {line.quantity} × {line.title}
+              {line.detail ? " · " + line.detail : ""}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {!order.estimatedTime ? (
+        <p>Tiempo estimado pendiente de confirmación.</p>
+      ) : null}
+      <Link className="button button--secondary" href="/client/messages">
+        Mensajes y ayuda
+      </Link>
       <section className={styles.card} aria-labelledby="status-title">
         <h2 id="status-title">ESTADO DEL PEDIDO</h2>
         <div className={styles.timeline}>
