@@ -76,17 +76,17 @@ export const dummyStaffMembers: StaffMember[] = [
   {
     availabilityStatus: "planned",
     id: "staff-ana",
-    name: "Ana Rodriguez",
+    name: "Ana Rodríguez",
   },
   {
     availabilityStatus: "available",
     id: "staff-carlos",
-    name: "Carlos Mendez",
+    name: "Carlos Méndez",
   },
   {
     availabilityStatus: "absent",
     id: "staff-marina",
-    name: "Marina Lopez",
+    name: "Marina López",
   },
 ];
 
@@ -168,7 +168,7 @@ export const dummyStaffAbsences: StaffAbsence[] = [
 
 export const initialStaffAuditEntries: StaffAuditEntry[] = [
   {
-    actor: "Administracion demo",
+    actor: "Administración demo",
     id: "staff-audit-1",
     operation: "schedule-update",
     performedAt: "2026-09-07 09:20",

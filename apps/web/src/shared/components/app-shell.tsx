@@ -96,7 +96,11 @@ export function AppShell({
     >
       <aside className="sidebar">
         <div className="sidebar__header">
-          <Link className="brand" href="/">
+          <Link
+            aria-label="WOK ASIAN FOOD"
+            className="brand"
+            href={contextRoot}
+          >
             <span className="brand__mark">WOK</span>
             <span className="brand__name"> ASIAN FOOD</span>
           </Link>
@@ -115,7 +119,7 @@ export function AppShell({
             )}
           </button>
         </div>
-        <nav className="navigation" aria-label={`Navegacion ${context}`}>
+        <nav className="navigation" aria-label={`Navegación ${context}`}>
           {visibleItems.map((item) => {
             const Icon = icons[item.icon];
             const active =

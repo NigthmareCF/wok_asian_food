@@ -50,6 +50,10 @@ type UserFormErrors = {
   name?: string;
 };
 
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 const statusOrder: UserStatus[] = [
   "active",
   "suspended",
@@ -147,10 +151,27 @@ function handleDialogKeyDown(
 }
 
 function validateUserForm(formState: UserFormState): UserFormErrors {
+  const email = formState.email.trim();
   return {
-    email: formState.email.trim() ? undefined : "El correo es requerido.",
+    email: !email
+      ? "El correo es requerido."
+      : isValidEmail(email)
+        ? undefined
+        : "Ingresa un correo válido.",
     name: formState.name.trim() ? undefined : "El nombre es requerido.",
   };
+}
+
+function hasUserFormChanges(
+  formState: UserFormState,
+  initialFormState: UserFormState,
+) {
+  return (
+    formState.email !== initialFormState.email ||
+    formState.name !== initialFormState.name ||
+    [...formState.roleIds].sort().join(",") !==
+      [...initialFormState.roleIds].sort().join(",")
+  );
 }
 
 export function UserManagementView({
@@ -169,7 +190,10 @@ export function UserManagementView({
   const [formMode, setFormMode] = useState<FormMode | null>(null);
   const [editingUserId, setEditingUserId] = useState("");
   const [formState, setFormState] = useState<UserFormState>(emptyForm);
+  const [initialFormState, setInitialFormState] =
+    useState<UserFormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<UserFormErrors>({});
+  const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   const [pendingOperation, setPendingOperation] = useState<{
     operation: UserOperation;
     userId: string;
@@ -178,9 +202,14 @@ export function UserManagementView({
   const [feedback, setFeedback] = useState("");
   const backgroundRef = useRef<HTMLDivElement>(null);
   const focusReturnRef = useRef<HTMLElement | null>(null);
+  const discardFocusReturnRef = useRef<HTMLElement | null>(null);
   const shouldRestoreFocusRef = useRef(false);
 
-  const isDialogOpen = Boolean(formMode) || Boolean(pendingOperation);
+  const hasPendingFormChanges = formMode
+    ? hasUserFormChanges(formState, initialFormState)
+    : false;
+  const isDialogOpen =
+    Boolean(formMode) || discardConfirmationOpen || Boolean(pendingOperation);
 
   useEffect(() => {
     const background = backgroundRef.current;
@@ -201,6 +230,18 @@ export function UserManagementView({
       focusReturnRef.current = null;
     }
   }, [isDialogOpen]);
+
+  useEffect(() => {
+    if (!hasPendingFormChanges) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasPendingFormChanges]);
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("es");
@@ -238,6 +279,7 @@ export function UserManagementView({
     setFormMode("create");
     setEditingUserId("");
     setFormState(emptyForm);
+    setInitialFormState(emptyForm);
     setFormErrors({});
     setFeedback("");
   };
@@ -246,21 +288,43 @@ export function UserManagementView({
     setFocusOrigin(origin);
     setFormMode("edit");
     setEditingUserId(user.id);
-    setFormState({
+    const nextFormState = {
       email: user.email,
       name: user.name,
       roleIds: user.roles.map((role) => role.id),
-    });
+    };
+    setFormState(nextFormState);
+    setInitialFormState(nextFormState);
     setFormErrors({});
     setFeedback("");
   };
 
   const closeForm = () => {
     shouldRestoreFocusRef.current = true;
+    setDiscardConfirmationOpen(false);
     setFormMode(null);
     setEditingUserId("");
     setFormState(emptyForm);
+    setInitialFormState(emptyForm);
     setFormErrors({});
+  };
+
+  const requestCloseForm = () => {
+    if (!hasPendingFormChanges) {
+      closeForm();
+      return;
+    }
+
+    discardFocusReturnRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setDiscardConfirmationOpen(true);
+  };
+
+  const cancelDiscard = () => {
+    setDiscardConfirmationOpen(false);
+    window.setTimeout(() => discardFocusReturnRef.current?.focus(), 0);
   };
 
   const openOperationConfirmation = (
@@ -291,7 +355,10 @@ export function UserManagementView({
   const updateFormState = (nextState: UserFormState) => {
     setFormState(nextState);
     setFormErrors((current) => ({
-      email: nextState.email.trim() ? undefined : current.email,
+      email:
+        nextState.email.trim() && isValidEmail(nextState.email.trim())
+          ? undefined
+          : current.email,
       name: nextState.name.trim() ? undefined : current.name,
     }));
   };
@@ -594,10 +661,18 @@ export function UserManagementView({
           errors={formErrors}
           formMode={formMode}
           formState={formState}
-          onClose={closeForm}
+          inert={discardConfirmationOpen}
+          onClose={requestCloseForm}
           onRoleChange={updateRoleSelection}
           onSave={saveUser}
           onUpdate={updateFormState}
+        />
+      ) : null}
+
+      {discardConfirmationOpen ? (
+        <DiscardUserChangesDialog
+          onCancel={cancelDiscard}
+          onConfirm={closeForm}
         />
       ) : null}
 
@@ -722,6 +797,7 @@ function UserFormPanel({
   errors,
   formMode,
   formState,
+  inert,
   onClose,
   onRoleChange,
   onSave,
@@ -730,6 +806,7 @@ function UserFormPanel({
   errors: UserFormErrors;
   formMode: FormMode;
   formState: UserFormState;
+  inert: boolean;
   onClose: () => void;
   onRoleChange: (roleId: string, checked: boolean) => void;
   onSave: () => void;
@@ -742,9 +819,11 @@ function UserFormPanel({
   return (
     <div className={styles.panelBackdrop} role="presentation">
       <section
+        aria-hidden={inert ? "true" : undefined}
         aria-labelledby="user-form-title"
         aria-modal="true"
         className={styles.sidePanel}
+        inert={inert ? true : undefined}
         onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
         role="dialog"
       >
@@ -813,6 +892,49 @@ function UserFormPanel({
           </Button>
           <Button onClick={onSave} type="button">
             Guardar
+          </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DiscardUserChangesDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    document.getElementById("user-discard-cancel")?.focus();
+  }, []);
+
+  return (
+    <div className={styles.panelBackdrop} role="presentation">
+      <section
+        aria-labelledby="user-discard-title"
+        aria-modal="true"
+        className={styles.confirmDialog}
+        onKeyDown={(event) => handleDialogKeyDown(event, onCancel)}
+        role="dialog"
+      >
+        <span className={styles.confirmIcon}>
+          <CircleAlert aria-hidden="true" size={22} />
+        </span>
+        <h2 id="user-discard-title">Descartar cambios</h2>
+        <p>Los cambios pendientes del usuario simulado no se guardarán.</p>
+        <div className={styles.panelActions}>
+          <Button
+            id="user-discard-cancel"
+            onClick={onCancel}
+            type="button"
+            variant="secondary"
+          >
+            Cancelar
+          </Button>
+          <Button onClick={onConfirm} type="button">
+            Descartar cambios
           </Button>
         </div>
       </section>

@@ -65,4 +65,20 @@ describe("AppShell", () => {
       screen.queryByRole("link", { name: "Personal y horarios" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each([
+    ["admin", "/admin"],
+    ["client", "/client"],
+    ["operational", "/operation"],
+  ] as const)("links the %s brand to its channel home", (context, route) => {
+    render(
+      <AppShell context={context}>
+        <div>Contenido del canal</div>
+      </AppShell>,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "WOK ASIAN FOOD" }),
+    ).toHaveAttribute("href", route);
+  });
 });

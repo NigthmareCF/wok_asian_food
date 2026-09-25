@@ -61,8 +61,12 @@ a {
 }
 
 .brand {
+  align-items: center;
+  display: inline-flex;
   font-size: 1rem;
   font-weight: 800;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
   white-space: nowrap;
 }
 .brand__mark,
