@@ -4,6 +4,13 @@ Responsables: Edgar y Beto.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-26 — Capacidad de servicio con cambio auditado
+
+- Rama backend: `feature/availability`. `GET /api/v1/public/service-capabilities` expone estados activos persistidos.
+- Admin autenticado puede listar servicios y cambiar estado con motivo obligatorio y `expectedVersion`; cada cambio incrementa versión/policy, genera evento y audit log en una transacción.
+- Una versión obsoleta responde 409. Cambio, actor y auditoría se comprobaron contra PostgreSQL temporal con HTTP.
+- La UI administrativa conserva fixtures y permisos visuales. La API es un slice, no implica una integración productiva ya conectada al portal.
+
 ## 2026-09-15 — Auditoría de integración de rutas
 
 - Las 16 vistas administrativas tienen rutas y accesos en la sidebar: usuarios, roles, personal, menú, ajustes, recetas, proveedores, compras, producción, reportes, caja, clientes, IA, cámaras y auditoría.
