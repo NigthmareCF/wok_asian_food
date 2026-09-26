@@ -54,6 +54,8 @@ public class AuthService {
             SELECT ?, id FROM wok.roles WHERE code = 'CLIENT' AND active
             """, userId);
         if (roleCount != 1) throw new IllegalStateException("CLIENT role seed is missing");
+        jdbc.update("INSERT INTO wok.customer_profiles (user_id, full_name) VALUES (?, ?)",
+                userId, request.displayName().trim());
         issueChallenge(userId, email, "ACCOUNT_VERIFICATION");
     }
 

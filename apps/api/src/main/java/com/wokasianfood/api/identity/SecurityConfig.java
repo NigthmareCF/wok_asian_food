@@ -2,6 +2,7 @@ package com.wokasianfood.api.identity;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,19 +49,26 @@ public class SecurityConfig {
         decoder.setJwtValidator(jwt -> {
             var result = standard.validate(jwt);
             if (result.hasErrors()) return result;
+            UUID sessionId;
+            UUID userId;
             try {
-                UUID sessionId = UUID.fromString(jwt.getClaimAsString("sid"));
-                UUID userId = UUID.fromString(jwt.getSubject());
-                Boolean valid = jdbc.queryForObject("""
-                    SELECT EXISTS (
-                      SELECT 1 FROM wok.auth_sessions s JOIN wok.users u ON u.id = s.user_id
-                      WHERE s.id = ? AND s.user_id = ? AND s.revoked_at IS NULL
-                        AND s.expires_at > now() AND u.status = 'ACTIVE'
-                        AND u.sessions_valid_after <= ?
-                    )
-                    """, Boolean.class, sessionId, userId, jwt.getIssuedAt());
-                if (Boolean.TRUE.equals(valid)) return OAuth2TokenValidatorResult.success();
-            } catch (RuntimeException ignored) { /* Reject malformed or unknown sessions. */ }
+                sessionId = UUID.fromString(jwt.getClaimAsString("sid"));
+                userId = UUID.fromString(jwt.getSubject());
+            } catch (IllegalArgumentException malformedIdentity) {
+                return OAuth2TokenValidatorResult.failure(new org.springframework.security.oauth2.core.OAuth2Error("session_invalid"));
+            }
+            Instant issuedAt = jwt.getIssuedAt();
+            if (issuedAt == null) return OAuth2TokenValidatorResult.failure(
+                    new org.springframework.security.oauth2.core.OAuth2Error("session_invalid"));
+            Boolean valid = jdbc.queryForObject("""
+                SELECT EXISTS (
+                  SELECT 1 FROM wok.auth_sessions s JOIN wok.users u ON u.id = s.user_id
+                  WHERE s.id = ? AND s.user_id = ? AND s.revoked_at IS NULL
+                    AND s.expires_at > now() AND u.status = 'ACTIVE'
+                    AND u.sessions_valid_after <= ?
+                )
+                """, Boolean.class, sessionId, userId, Timestamp.from(issuedAt));
+            if (Boolean.TRUE.equals(valid)) return OAuth2TokenValidatorResult.success();
             return OAuth2TokenValidatorResult.failure(new org.springframework.security.oauth2.core.OAuth2Error("session_invalid"));
         });
         return decoder;

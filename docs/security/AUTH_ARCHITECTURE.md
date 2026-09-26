@@ -9,3 +9,9 @@ Access JWT firmado, 10–15 min configurable, claims mínimos; cada API comprueb
 Google OIDC verifica issuer/audience/nonce y `sub`; `AUTH_IDENTITY(provider, provider_subject, user_id)` une identidad externa con usuario interno. Correo coincidente no vincula cuentas automáticamente: exige sesión existente/challenge fuerte. Google no asigna permisos WOK. Personal crítico conserva método local para operar sin WAN. Apple queda `LATER / DECISION_REQUIRED`. MFA TOTP se evalúa para cuentas privilegiadas; WebAuthn después. Guest, si se habilita, recibe token opaco limitado a una operación; anonymous puede ver menú/horario y mantener carrito local.
 
 Pruebas de aceptación: register/verify/código malo/expiry/resend, login, refresh rotación/reuse/revoke, Google linking, escalada de rol, usuario suspendido con JWT vigente, acceso de cliente A a recurso B, CSRF/cookie y sesión local durante corte WAN. Registrar requestId sin contraseñas, tokens ni datos privados en logs.
+
+## Evidencia implementada — 2026-09-26
+
+- `feature/backend-auth` implementa registro CLIENT pendiente de verificación, perfil Cliente inicial, challenges HMAC de un uso, password adaptativo, reset neutral, login con rate threshold, JWT de acceso, refresh opaco rotativo/reuse, logout/revocación y outbox cifrado para email.
+- La verificación del JWT comprueba la sesión activa en PostgreSQL y convierte `iat` a `Timestamp` JDBC. El verificador Google permanece deshabilitado hasta configurar credenciales OIDC; no existe linking productivo.
+- Evidencia HTTP en PostgreSQL efímero: registro 202, verify 200, login 200. Los escenarios de refresh reuse, ownership y privilege escalation continúan pendientes de pruebas automatizadas.
