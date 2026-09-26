@@ -28,6 +28,8 @@ La web y app usan la misma API a través de Nginx. Desconexión no confirma oper
 | `POST` | `/api/v1/auth/logout` | autenticado | Revoca la sesión actual. |
 | `GET` | `/api/v1/public/service-capabilities` | público | Estado de capacidades vigentes. |
 | `PUT` | `/api/v1/admin/service-capabilities/{code}` | ADMIN | Requiere motivo y `expectedVersion`; guarda evento y auditoría. |
+| `GET` | `/api/v1/admin/users?search=&limit=50&offset=0` | ADMIN | Búsqueda paginada de cuentas, estado, versión y roles vigentes. |
+| `PUT` | `/api/v1/admin/users/{userId}/roles/{roleCode}` | ADMIN | Concede/revoca OPERATIONAL o ADMIN; requiere `action`, motivo y `expectedVersion`, persiste auditoría y protege el último ADMIN activo. El rol CLIENT sólo se asigna en registro. |
 | `POST` | `/api/v1/public/reservations/evaluate` | público | Evaluación sin crear ni confirmar solicitud. |
 | `POST` | `/api/v1/client/reservations` | CLIENT | Requiere `Idempotency-Key`; crea solicitud pendiente o persiste evaluación sin reserva si la regla rechaza. Siempre distingue solicitud de confirmación. |
 | `GET` | `/api/v1/operational/reservations/pending` | OPERACIONAL o ADMIN | Lista solicitudes aún no revisadas. |
