@@ -6,7 +6,8 @@
 | ------- | ------ | ----------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | CORE-01 | NOW    | Spring, Flyway, Postgres, Nginx, health y OpenAPI arrancan desde entorno limpio                 | TD-01–03; DB y Docker                     |
 | IAM-01  | NOW    | register CLIENT, challenge, verify, login, JWT y refresh rotativo/reuse probados                | RN-025/026; CORE-01                       |
-| IAM-02  | NOW    | RBAC y ownership A/B; Google OIDC por `sub` y linking seguro                                    | IAM-01; Google real requiere credenciales |
+| IAM-02  | NOW    | Admin de usuarios/roles está parcial; automatizar permisos/ownership A/B y refresh reuse         | IAM-01; roles básicos implementados       |
+| IAM-03  | BLOCKED| Google OIDC por `sub` y linking seguro                                                          | Credenciales/configuración OIDC reales    |
 | OPS-01  | NOW    | service capability individual, override auditado y salud externa separada                       | CORE-01                                   |
 | CAP-01  | NOW    | motor de capacidad y estimador de ocupación con reason codes/alternativas                       | OPS-01, mesas/turnos                      |
 | RES-01  | NOW    | reserva y mesa digital: 3 h, horarios, 20 min, preorden/condiciones y autorización humana       | CAP-01, IAM-01                            |
