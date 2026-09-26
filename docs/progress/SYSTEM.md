@@ -4,9 +4,9 @@
 
 - Las referencias locales especializadas se adelantaron fast-forward a `origin/development` `3bbd0ed`; después se hicieron 18 commits/push normales con la distribución inicial. No hubo force ni merge a `development`.
 - El mapa de commits, ramas y dependencias está en [BRANCH_HANDOFF.md](../project/BRANCH_HANDOFF.md). Los worktrees permanecen bajo `/tmp/wok-worktrees/`; el workspace Admin conserva sólo su guía.
-- Slices publicados en ramas especializadas: reservas autenticadas/idempotentes con revisión auditada; capacidades de servicio con versionado; y caja con apertura, ledger, arqueo/cierre, claves idempotentes y auditoría. Flyway V5 cubre reservas y V6 caja.
+- Slices publicados o validados en ramas especializadas: reservas autenticadas/idempotentes con revisión auditada; capacidades de servicio con versionado; caja con apertura, ledger, arqueo/cierre, claves idempotentes y auditoría; RBAC Admin para buscar cuentas y gestionar roles con control de versión y protección del último administrador. Flyway V5 cubre reservas y V6 caja.
 - Validación de caja: `mvn verify` combinado 12/12; PostgreSQL 18 aplicó V1–V6 y pasó test SQL; smoke HTTP verificó ledger Q108, replay, rechazo 409 de cambios, diferencia −Q3 y protección de sesión cerrada.
-- Los últimos commits de caja están en `feature/payments`, `feature/database-migrations`, `docs/database`, `docs/api` y `feature/project-foundation`; `development` continúa sin merges.
+- Caja está publicada en `feature/payments`/`feature/database-migrations` y su documentación; RBAC se encuentra validado en `feature/backend-auth` con smoke HTTP y pendiente de commit al cierre de esta nota. `development` continúa sin merges.
 
 ## 2026-09-25 — Base maestra ejecutable y handoff
 
