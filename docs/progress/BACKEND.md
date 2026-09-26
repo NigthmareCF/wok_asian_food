@@ -3,8 +3,9 @@
 ## 2026-09-26 — Reparto en ramas del backend
 
 - Los worktrees `feature/backend-foundation`, `feature/backend-auth`, `feature/backend-api`, `feature/reservations`, `feature/availability`, `feature/ai` y `feature/payments` están sobre `3bbd0ed`; los paquetes se distribuyeron sin duplicar la aplicación Maven en ramas de dominio.
-- Foundation contiene Maven/Spring/config/Compose/Nginx; auth contiene identity/email; reservations/availability tienen sus slices; AI y payments/FEL tienen puertos, mocks y tests. Las ramas de dominio dependen del PR de foundation y del corte DB antes de que puedan validarse como integración.
-- No hay commits ni pushes. Ver [handoff](../project/BRANCH_HANDOFF.md) desde el worktree `feature/project-foundation` para orden y dependencias.
+- El reparto inicial se committed/pushed por rama. Foundation contiene Maven/Spring/config/Compose/Nginx; auth identity/email; reservations/availability sus slices; AI y payments/FEL tienen puertos, mocks y tests.
+- Después se añadieron localmente el registro de perfil Cliente, compatibilidad JDBC para timestamp JWT, solicitud/revisión de reserva y gestión auditada de capacidades. Maven verify combinado pasó 12/12; V1–V5 se aplicaron en PostgreSQL 18 efímero y el smoke HTTP/DB pasó. Estos cambios siguen sin commit en sus ramas; dependen de foundation + migraciones para integración.
+- Ver [handoff](../project/BRANCH_HANDOFF.md) desde el worktree `feature/project-foundation` para el estado branch por branch y dependencias.
 
 ## 2026-09-25 — Primer core Spring verificable
 
