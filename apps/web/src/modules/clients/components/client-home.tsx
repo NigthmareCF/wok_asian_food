@@ -21,6 +21,7 @@ import {
 } from "@/data/fixtures/client-home";
 import { StatusBadge } from "@/shared/components/ui/status-badge";
 import styles from "./client-home.module.css";
+import { ClientCapabilitySummary } from "./client-capability-summary";
 
 const categoryIcons = {
   sushi: Fish,
@@ -79,7 +80,7 @@ export function ClientHome() {
             Ver menú <ArrowRight aria-hidden="true" size={19} />
           </Link>
         </div>
-        <ServiceSummary service={clientServiceFixture} />
+        <ClientCapabilitySummary />
       </header>
 
       <section aria-label="Acciones rápidas" className={styles.actions}>

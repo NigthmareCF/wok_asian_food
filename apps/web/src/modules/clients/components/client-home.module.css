@@ -64,6 +64,28 @@
 .service svg {
   flex-shrink: 0;
 }
+.serviceHint,
+.serviceUnavailable {
+  max-width: 38rem;
+  font-size: 0.8rem !important;
+}
+.serviceUnavailable {
+  color: var(--danger, #9a3330) !important;
+}
+.capabilityList {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.capabilityList li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
 .actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

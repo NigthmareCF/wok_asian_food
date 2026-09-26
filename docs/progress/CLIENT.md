@@ -1,5 +1,12 @@
 # Progreso del canal Cliente
 
+## 2026-09-26 — C-02: disponibilidad pública por canal
+
+- Inicio consulta `GET /api/public/service-capabilities`, un Route Handler same-origin que llama al endpoint público Spring usando `WOK_API_BASE_URL` solo del lado servidor. La respuesta se limita a códigos/estados permitidos y se envía sin cache; no expone razones internas ni datos de producción.
+- El inicio muestra Reservaciones, Mesa en línea, Para recoger, Delivery, Pedidos en línea y Mensajes con estados `ENABLED`, `MANUAL_APPROVAL`, `PAUSED` y `DISABLED`. No deduce apertura del local, ETA ni confirmación a partir de estos flags. Si no hay conexión/API, no conserva el “Abierto” demostrativo anterior y advierte que no pudo verificar.
+- Verificación: 7 pruebas focalizadas, lint, typecheck y build Webpack aprobados. Suite completa: 226/227 en primera corrida por la aserción temporal preexistente de `staff-schedule.test.tsx`; esa suite aislada pasó 12/12. La prueba de backend de disponibilidad cubre proxy sin cache, sanitización de DTO y modo sin URL.
+- Dependencia de integración: el endpoint `/api/v1/public/service-capabilities` está en `feature/availability`, y sus capacidades/seeds en `feature/database-migrations`. El canal Cliente solo se conecta cuando esas ramas se integren/desplieguen. Requiere `WOK_API_BASE_URL`; no se configura un host real en el repo.
+
 ## 2026-09-15 — Flujo unificado por canal
 
 - Se retiraron las barras de navegación de demostración de las rutas Cliente para que el `AppShell` sea la navegación única.
