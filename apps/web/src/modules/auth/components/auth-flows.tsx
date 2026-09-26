@@ -20,11 +20,13 @@ import { FormField } from "@/shared/components/ui/form-field";
 function AuthCard({
   children,
   description,
+  notice,
   isLogin = false,
   title,
 }: {
   children: React.ReactNode;
   description: string;
+  notice?: string;
   isLogin?: boolean;
   title: string;
 }) {
@@ -53,8 +55,8 @@ function AuthCard({
         <h1>{title}</h1>
         <p>{description}</p>
         <p>
-          Demostración local: no se crean cuentas, se autentican usuarios ni se
-          envían correos. Usa datos de prueba.
+          {notice ??
+            "Demostración local: no se crean cuentas, se autentican usuarios ni se envían correos. Usa datos de prueba."}
         </p>
       </header>
       {children}
@@ -100,16 +102,20 @@ function getPasswordError(value: string) {
 }
 
 function getPasswordConfirmationError(password: string, confirmation: string) {
-  return password !== confirmation ? "Las contraseñas no coinciden." : undefined;
+  return password !== confirmation
+    ? "Las contraseñas no coinciden."
+    : undefined;
 }
 
 function ContactMethodField({
+  allowPhone = true,
   error,
   method,
   onMethodChange,
   onValueChange,
   value,
 }: {
+  allowPhone?: boolean;
   error?: string;
   method: AccessMethod;
   onMethodChange: (method: AccessMethod) => void;
@@ -144,30 +150,32 @@ function ContactMethodField({
           value={value}
         />
       )}
-      <div
-        className="contact-field__controls"
-        role="group"
-        aria-label="Método de acceso"
-      >
-        <button
-          aria-label="Usar correo electrónico"
-          aria-pressed={method === "email"}
-          onClick={() => onMethodChange("email")}
-          title="Correo electrónico"
-          type="button"
+      {allowPhone ? (
+        <div
+          className="contact-field__controls"
+          role="group"
+          aria-label="Método de acceso"
         >
-          <Mail aria-hidden="true" size={18} />
-        </button>
-        <button
-          aria-label="Usar teléfono"
-          aria-pressed={method === "phone"}
-          onClick={() => onMethodChange("phone")}
-          title="Teléfono"
-          type="button"
-        >
-          <Phone aria-hidden="true" size={18} />
-        </button>
-      </div>
+          <button
+            aria-label="Usar correo electrónico"
+            aria-pressed={method === "email"}
+            onClick={() => onMethodChange("email")}
+            title="Correo electrónico"
+            type="button"
+          >
+            <Mail aria-hidden="true" size={18} />
+          </button>
+          <button
+            aria-label="Usar teléfono"
+            aria-pressed={method === "phone"}
+            onClick={() => onMethodChange("phone")}
+            title="Teléfono"
+            type="button"
+          >
+            <Phone aria-hidden="true" size={18} />
+          </button>
+        </div>
+      ) : null}
       {method === "phone" ? (
         <span className="contact-field__prefix">+502</span>
       ) : null}
@@ -175,7 +183,11 @@ function ContactMethodField({
   );
 }
 
-export function LoginForm() {
+export function LoginForm({
+  backendEnabled = false,
+}: {
+  backendEnabled?: boolean;
+}) {
   const router = useRouter();
   const [accessMethod, setAccessMethod] = useState<AccessMethod>("email");
   const [identity, setIdentity] = useState("");
@@ -184,6 +196,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [feedback, setFeedback] = useState("");
 
   const isIdentityValid = isContactValid(accessMethod, identity);
   const identityError =
@@ -192,15 +205,48 @@ export function LoginForm() {
         ? "Ingresa un correo electrónico válido."
         : "Ingresa los 8 dígitos de tu teléfono."
       : undefined;
-  const passwordError = submitted ? getPasswordError(password) : undefined;
+  const passwordError = submitted
+    ? backendEnabled
+      ? password.length < 12
+        ? "La contraseña debe tener al menos 12 caracteres."
+        : undefined
+      : getPasswordError(password)
+    : undefined;
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitted(true);
-    if (!isIdentityValid || getPasswordError(password)) return;
+    const invalidPassword = backendEnabled
+      ? password.length < 12
+      : Boolean(getPasswordError(password));
+    if (!isIdentityValid || invalidPassword) return;
 
+    setFeedback("");
     setIsSubmitting(true);
-    window.setTimeout(() => router.push("/client"), 450);
+    if (!backendEnabled) {
+      window.setTimeout(() => router.push("/client"), 450);
+      return;
+    }
+    try {
+      const response = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: identity.trim(), password }),
+      });
+      const result = (await response.json()) as {
+        destination?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        setFeedback(result.message ?? "No se pudo iniciar sesión.");
+        setIsSubmitting(false);
+        return;
+      }
+      router.push(result.destination ?? "/client");
+    } catch {
+      setFeedback("No pudimos conectar con el servicio de acceso.");
+      setIsSubmitting(false);
+    }
   }
 
   function selectAccessMethod(method: AccessMethod) {
@@ -213,11 +259,17 @@ export function LoginForm() {
     <div className="login-page">
       <AuthCard
         description="Accede para consultar el menú y gestionar tu experiencia."
+        notice={
+          backendEnabled
+            ? "Acceso conectado al backend WOK. Los tokens usan cookies HttpOnly y SameSite; Secure se activa con HTTPS en producción."
+            : undefined
+        }
         isLogin
         title="Iniciar sesión"
       >
         <form className="form-stack" noValidate onSubmit={submit}>
           <ContactMethodField
+            allowPhone={!backendEnabled}
             error={identityError}
             method={accessMethod}
             onMethodChange={selectAccessMethod}
@@ -229,7 +281,9 @@ export function LoginForm() {
             <FormField
               autoComplete="current-password"
               error={passwordError}
-              help={passwordHelp}
+              help={
+                backendEnabled ? "Contraseña de tu cuenta WOK." : passwordHelp
+              }
               id="login-password"
               label="Contraseña"
               onChange={(event) => setPassword(event.target.value)}
@@ -252,26 +306,40 @@ export function LoginForm() {
               )}
             </button>
           </div>
-          <div className="auth-options">
-            <label className="auth-checkbox">
-              <input
-                checked={rememberSession}
-                onChange={(event) => setRememberSession(event.target.checked)}
-                type="checkbox"
-              />
-              <span>Recordar sesión (demo, sin persistencia)</span>
-            </label>
-            <Link href="/forgot-password">¿Olvidaste tu contraseña?</Link>
-          </div>
+          {!backendEnabled ? (
+            <div className="auth-options">
+              <label className="auth-checkbox">
+                <input
+                  checked={rememberSession}
+                  onChange={(event) => setRememberSession(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>Recordar sesión (demo, sin persistencia)</span>
+              </label>
+              <Link href="/forgot-password">¿Olvidaste tu contraseña?</Link>
+            </div>
+          ) : (
+            <p className="auth-legal">
+              Las cuentas operativas deben usar correo electrónico y contraseña
+              WOK.
+            </p>
+          )}
+          {feedback ? (
+            <p className="form-feedback" role="alert">
+              {feedback}
+            </p>
+          ) : null}
           <Button disabled={isSubmitting} fullWidth type="submit">
             {isSubmitting ? "INGRESANDO..." : "INICIAR SESIÓN"}
           </Button>
-          <Link
-            className="button button--secondary button--full"
-            href="/register"
-          >
-            CREAR CUENTA
-          </Link>
+          {!backendEnabled ? (
+            <Link
+              className="button button--secondary button--full"
+              href="/register"
+            >
+              CREAR CUENTA
+            </Link>
+          ) : null}
         </form>
         <p className="auth-legal">
           Términos de Servicio y Política de Privacidad pendientes de
@@ -584,9 +652,7 @@ export function ChangePasswordForm() {
   const [submitted, setSubmitted] = useState(false);
   const [done, setDone] = useState(false);
   const currentPasswordError =
-    submitted && !currentPassword
-      ? "Ingresa tu contraseña actual."
-      : undefined;
+    submitted && !currentPassword ? "Ingresa tu contraseña actual." : undefined;
   const newPasswordError = submitted
     ? getPasswordError(newPassword)
     : undefined;

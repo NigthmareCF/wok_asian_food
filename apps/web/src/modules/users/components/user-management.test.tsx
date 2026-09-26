@@ -6,11 +6,13 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { navigation } from "@/config/navigation";
 import { UserManagementView } from "./user-management-view";
 
 afterEach(cleanup);
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 
 describe("UserManagementView", () => {
   it("searches users by name and email", async () => {

@@ -4,6 +4,16 @@ Responsables: Edgar y Beto.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-26 — Integración de sesión y roles con backend WOK
+
+- Rama `feature/frontend-admin`. Login Web usa `POST /api/session` en un Route Handler de Next como BFF; el backend es el único emisor de tokens. Access y refresh quedan en cookies `HttpOnly`, `SameSite=Lax`, `Secure` en producción. La renovación rota el refresh token al recibir 401 y las mutaciones comprueban origen del navegador.
+- El BFF ofrece `GET /api/admin/users` y `PUT /api/admin/users/{uuid}/roles/{ADMIN|OPERATIONAL}` hacia las rutas Spring. El frontend envía motivo y `expectedVersion`; el backend aplica permisos, protege al último ADMIN y escribe audit.
+- `A-02` reconoce `WOK_API_BASE_URL` server-only. En modo conectado muestra cuentas reales y habilita un rol a la vez. No finge creación, edición de identidad, activación/suspensión, permisos efectivos ni una vista de auditoría; esas partes permanecen pendientes. Sin la variable, sigue explícito en modo demo.
+- Archivos: BFF bajo `apps/web/src/app/api`, helper `src/shared/server/wok-backend.ts`, login y gestión de usuarios, `apps/web/.env.example`.
+- Tests nuevos cubren login BFF en frontend, lista real, asignación con motivo/versión y conflicto obsoleto. `typecheck`, `lint` y Vitest pasaron: 223 pruebas. `build:web` también pasó tras fijar el uso de TypeScript API de Next; se conserva la comprobación de tipos.
+- La web está levantada en `0.0.0.0:3000` para revisión en la LAN. En esta laptop la IP Wi-Fi actual es `192.168.1.109`; abrir `http://192.168.1.109:3000` desde un dispositivo conectado a la misma red. El BFF devuelve 503 en esta instancia porque `WOK_API_BASE_URL` todavía no está configurada; la portada responde 200.
+- Pendientes: validar el BFF contra una instancia API + PostgreSQL levantada con `WOK_API_BASE_URL`, hacer prueba navegador/dispositivo, integrar registro/recuperación/logout global, exponer permisos efectivos y añadir alta/cambio de estado al backend antes de habilitar esas acciones.
+
 ## 2026-09-15 — Auditoría de integración de rutas
 
 - Las 16 vistas administrativas tienen rutas y accesos en la sidebar: usuarios, roles, personal, menú, ajustes, recetas, proveedores, compras, producción, reportes, caja, clientes, IA, cámaras y auditoría.

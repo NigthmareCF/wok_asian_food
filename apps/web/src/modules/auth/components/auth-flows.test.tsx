@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -12,7 +12,10 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("auth flows", () => {
   it("rejects a weak password when signing in", async () => {
@@ -28,6 +31,38 @@ describe("auth flows", () => {
 
     expect(
       screen.getByText("Incluye al menos una letra mayúscula."),
+    ).toBeInTheDocument();
+  });
+
+  it("authenticates through the same-origin session endpoint in backend mode", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ authenticated: true, destination: "/admin" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<LoginForm backendEnabled />);
+
+    await user.type(
+      screen.getByLabelText("Correo electrónico"),
+      "admin@wok.test",
+    );
+    await user.type(screen.getByLabelText("Contraseña"), "password-long12");
+    await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/session",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          email: "admin@wok.test",
+          password: "password-long12",
+        }),
+      }),
+    );
+    expect(
+      screen.getByText(/cookies HttpOnly y SameSite/i),
     ).toBeInTheDocument();
   });
 
@@ -47,7 +82,9 @@ describe("auth flows", () => {
     );
     await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
 
-    expect(screen.getByText("Las contraseñas no coinciden.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Las contraseñas no coinciden."),
+    ).toBeInTheDocument();
   });
 
   it("validates the recovery code and password confirmation", async () => {
@@ -55,10 +92,7 @@ describe("auth flows", () => {
     render(<ResetPasswordForm />);
 
     await user.type(screen.getByLabelText("Código de recuperación"), "12a");
-    await user.type(
-      screen.getByLabelText("Nueva contraseña"),
-      "ClaveSegura1!",
-    );
+    await user.type(screen.getByLabelText("Nueva contraseña"), "ClaveSegura1!");
     await user.type(
       screen.getByLabelText("Confirmar contraseña"),
       "OtraClave1!",
@@ -68,7 +102,9 @@ describe("auth flows", () => {
     expect(
       screen.getByText("Ingresa el código de recuperación de 6 dígitos."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Las contraseñas no coinciden.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Las contraseñas no coinciden."),
+    ).toBeInTheDocument();
   });
 
   it("accepts a valid password change as a local demonstration", async () => {
@@ -76,10 +112,7 @@ describe("auth flows", () => {
     render(<ChangePasswordForm />);
 
     await user.type(screen.getByLabelText("Contraseña actual"), "Anterior1!");
-    await user.type(
-      screen.getByLabelText("Nueva contraseña"),
-      "ClaveSegura1!",
-    );
+    await user.type(screen.getByLabelText("Nueva contraseña"), "ClaveSegura1!");
     await user.type(
       screen.getByLabelText("Confirmar contraseña"),
       "ClaveSegura1!",

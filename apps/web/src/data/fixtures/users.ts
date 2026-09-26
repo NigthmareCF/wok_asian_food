@@ -12,6 +12,7 @@ export type AdminUser = {
   email: string;
   status: UserStatus;
   roles: AdminUserRole[];
+  rowVersion?: number;
 };
 
 export type UserAuditEntry = {
