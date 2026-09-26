@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -43,6 +44,10 @@ public class CashSessionController {
     }
     @GetMapping("/{sessionId}")
     public CashSession get(@PathVariable UUID sessionId) { return service.get(sessionId); }
+    @GetMapping("/current")
+    public CashSession current(@RequestParam(defaultValue = "MAIN") @Size(max = 32) String registerCode) {
+        return service.current(registerCode);
+    }
     @PostMapping("/{sessionId}/movements")
     public CashMovement movement(@PathVariable UUID sessionId, @AuthenticationPrincipal Jwt jwt,
                                  @RequestHeader("Idempotency-Key") UUID requestId,
@@ -130,6 +135,17 @@ class CashSessionService {
         List<CashSessionController.CashMovement> movements = movements(id);
         return new CashSessionController.CashSession(row.id, row.registerCode, row.status, expected, row.countedCash,
                 row.difference, row.openedBy, row.openedAt, row.closedBy, row.closedAt, row.rowVersion, movements);
+    }
+
+    @Transactional(readOnly = true)
+    public CashSessionController.CashSession current(String registerCode) {
+        String code = registerCode.trim().toUpperCase(java.util.Locale.ROOT);
+        List<UUID> ids = jdbc.query("""
+            SELECT s.id FROM wok.cash_sessions s JOIN wok.cash_registers r ON r.id = s.cash_register_id
+            WHERE r.code = ? AND s.status IN ('OPEN', 'CLOSING') ORDER BY s.opened_at DESC LIMIT 1
+            """, (rs, row) -> rs.getObject(1, UUID.class), code);
+        if (ids.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No hay una sesión abierta para esta caja.");
+        return get(ids.getFirst());
     }
 
     @Transactional
