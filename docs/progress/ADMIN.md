@@ -57,3 +57,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Build: `build:web` continúa bloqueado por el problema documentado de Next.js 16.3.4, npm 12.0.2 y TypeScript `--showConfig`
 - Limitación: el aislamiento estricto del sidebar requeriría un modal global o portal compartido
 - A-05 y vistas posteriores: no iniciadas
+
+
+## 2026-09-26 — Administración API de usuarios y roles
+
+- Rama `feature/backend-auth`: `GET /api/v1/admin/users` paginado/buscable y `PUT /{id}/roles/{roleCode}` para conceder/revocar `OPERATIONAL` o `ADMIN`. `CLIENT` permanece reservado al registro público.
+- Los cambios requieren motivo y versión esperada; se conserva historial de roles, aumenta `users.row_version` y se escribe `audit_logs`. El último administrador activo no se puede retirar.
+- Validación: API combinada compiló en Docker Java 21 (`mvn verify`, 12/12); PostgreSQL 18 con V1–V6; smoke HTTP comprobó 401 anónimo, listado, grant/revoke, conflicto por versión vieja, último ADMIN 409 y rol CLIENT 400. Falta automatizar RBAC en CI y conectar la pantalla Admin.
