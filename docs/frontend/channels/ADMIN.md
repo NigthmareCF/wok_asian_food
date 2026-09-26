@@ -1,5 +1,7 @@
 # Canal Administrativo
 
+> **Actualización de alcance 2026-09-25:** se añaden sesiones, eventos de seguridad, reglas de reserva, capacidades de servicio, pagos, FEL, Meta, correo, feedback/datasets IA y salud de integraciones. La antigua limitación «no implementar AI o Vision más allá del alcance confirmado» queda `SUPERSEDED` por la arquitectura IA aislada ahora confirmada; la operación productiva sigue pendiente de proveedor/hardware y pruebas. Ver [brechas por canal](../CHANNEL_GAPS.md).
+
 Responsables: Edgar y Beto. Rama de canal disponible: `feature/frontend-admin`.
 
 El canal Administrativo concentra configuración, catálogos, usuarios, reportes y auditoría. Debe favorecer comparación, búsqueda y edición controlada; no debe parecer una página promocional.
