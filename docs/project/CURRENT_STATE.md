@@ -1,9 +1,9 @@
-# Estado actual
+# Estado actual del sistema
 
-- Fecha: 2026-09-09.
-- Fase: preparación del trabajo paralelo frontend.
-- Rama de integración: `development`; guías en revisión desde `docs/frontend-channel-guides`.
-- Scrum Master: coordinador semanal; nombre pendiente de registrar.
-- Áreas activas: definición de vistas por canal, onboarding del equipo y registros de avance.
-- Bloqueos: decision sobre repositorios, assets oficiales y politicas backend.
-- Siguiente hito: aprobar las guías, actualizar ramas de canal desde `development` y abrir trabajo paralelo por contexto.
+Actualizado: 2026-09-26. Rama principal `feature/frontend-admin`, adelantada fast-forward a `origin/development` `3bbd0ed`; sin commit ni push. Los cambios se encuentran distribuidos, sin commit, en worktrees de ramas especializadas según [BRANCH_HANDOFF.md](BRANCH_HANDOFF.md). La web corre en `0.0.0.0:3000` y respondió HTTP 200.
+
+La web Next.js tiene rutas y flujos interactivos con fixtures para Cliente, Operativo y Administrativo. Esto permite revisar UX, pero no prueba auth, pedidos, pagos, FEL, permisos ni persistencia. El modelo PostgreSQL de 128 tablas es candidato generado; el corte Flyway V1–V4 sí fue ejecutado en una base desechable. La app móvil sigue documentada, no ejecutable.
+
+La instrucción vigente reemplaza el recorte de los planes antiguos: se construye una base modular para el alcance integral, por slices verificables. Ya existe Spring Boot Java 21 con auth inicial, health/OpenAPI, evaluación preliminar de reservas, capacidades públicas y puertos mock de pagos/FEL/IA/email. Flyway V1–V4 arranca desde DB vacía; Compose/Nginx separan redes y servicios. La web sigue usando fixtures para la mayoría de flujos. La matriz [GAP_ANALYSIS.md](GAP_ANALYSIS.md) y el [handoff por ramas](BRANCH_HANDOFF.md) distinguen lo ejecutado del alcance pendiente y dónde continúa cada slice.
+
+Las integraciones de pagos, FEL y Meta permanecen mock; Google OIDC real, SMTP productivo y runtime IA no están habilitados. Menú y recetario se cargarán únicamente a partir de datos entregados por coordinación. Validación actual: 219/219 pruebas web, 12/12 JUnit, Flyway V1–V4 en PostgreSQL 16 efímero, health/OpenAPI/capabilities 200. No se ha probado el ciclo HTTP de auth, despliegue LAN/WAN físico, concurrencia de pedidos/pagos ni una integración externa real. Consultar [DECISIONS_REQUIRED.md](DECISIONS_REQUIRED.md) para dependencias externas y [TECH_DECISIONS.md](TECH_DECISIONS.md) para arquitectura confirmada.

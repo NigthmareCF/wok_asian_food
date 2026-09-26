@@ -1,0 +1,569 @@
+{
+  "date": "2026-09-18",
+  "status": "COMPLETE_DOCUMENTARY_CONSOLIDATION_NOT_IMPLEMENTATION_CERTIFICATION",
+  "external_sources_previously_recovered": [
+    "/mnt/One_Touch/UNIVERSIDAD/ANALISIS DE SISTEMAS 1 Y 2/PROYECTO_WOK_DOCUMENTACION/epicas_historias_usuario.txt",
+    "/mnt/One_Touch/UNIVERSIDAD/ANALISIS DE SISTEMAS 1 Y 2/PROYECTO_WOK_DOCUMENTACION/reglas_negocio_requisitos_tecnicos.txt",
+    "/mnt/One_Touch/UNIVERSIDAD/ANALISIS DE SISTEMAS 1 Y 2/PROYECTO_WOK_DOCUMENTACION/vistas_mockups_rgb.txt"
+  ],
+  "sources": [
+    {
+      "id": "S001",
+      "group": "Requisitos originales completos",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/requirements/epics-and-user-stories.txt",
+      "archive_path": "docs/database/requirements/epics-and-user-stories.txt",
+      "bytes": 35305,
+      "sha256": "c2b8aa95619c61a37aae765f5f9018045138552d52180ffcb782b2e9544d479e",
+      "in_master": true
+    },
+    {
+      "id": "S002",
+      "group": "Requisitos originales completos",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/requirements/business-rules-and-requirements.txt",
+      "archive_path": "docs/database/requirements/business-rules-and-requirements.txt",
+      "bytes": 21124,
+      "sha256": "d327393e8d70491de624faece458ecf4392a5429167e5ce5b7623c687141ac50",
+      "in_master": true
+    },
+    {
+      "id": "S003",
+      "group": "Requisitos originales completos",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/requirements/views-and-mockups.txt",
+      "archive_path": "docs/database/requirements/views-and-mockups.txt",
+      "bytes": 25057,
+      "sha256": "d25757a07ead8979d1a1f51fc772caa6f061c5a30cf7d41bfa54f0320dbd67ea",
+      "in_master": true
+    },
+    {
+      "id": "S004",
+      "group": "Interpretación funcional desarrollada y revisión individual",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/FUNCTIONAL_SCOPE.md",
+      "archive_path": "docs/database/FUNCTIONAL_SCOPE.md",
+      "bytes": 128933,
+      "sha256": "4f5aeb18e3d85342ba05d33101e2bfcf41d8d328539cf54623446b29a356e539",
+      "in_master": true
+    },
+    {
+      "id": "S005",
+      "group": "Interpretación funcional desarrollada y revisión individual",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/REQUIREMENTS_REVIEW.csv",
+      "archive_path": "docs/database/REQUIREMENTS_REVIEW.csv",
+      "bytes": 86481,
+      "sha256": "9eb0d06be7c3c90bbe6ae12ad44ae4f780f8939dc0734711578658768c46201c",
+      "in_master": true
+    },
+    {
+      "id": "S006",
+      "group": "Contexto y decisiones registradas",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/WOK_ASIAN_FOOD_CONTEXTO_CENTRAL.md",
+      "archive_path": "docs/WOK_ASIAN_FOOD_CONTEXTO_CENTRAL.md",
+      "bytes": 41191,
+      "sha256": "c64ff5998c3eb41eed6b46b13c4d6c5e601ce299b2a87e4037fa363bf527db48",
+      "in_master": true
+    },
+    {
+      "id": "S007",
+      "group": "Contexto y decisiones registradas",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/project/CURRENT_STATE.md",
+      "archive_path": "docs/project/CURRENT_STATE.md",
+      "bytes": 553,
+      "sha256": "44fe92c90513b54af8a67c71d6897157b98c203e7692ef2ffa9ef0e600120b7e",
+      "in_master": true
+    },
+    {
+      "id": "S008",
+      "group": "Contexto y decisiones registradas",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/project/TECH_DECISIONS.md",
+      "archive_path": "docs/project/TECH_DECISIONS.md",
+      "bytes": 2258,
+      "sha256": "8bbb898e3ab190f239972ab3478c0160a14e0e960dcca8857debddd9414b536b",
+      "in_master": true
+    },
+    {
+      "id": "S009",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/TEAM_GUIDE.md",
+      "archive_path": "docs/frontend/TEAM_GUIDE.md",
+      "bytes": 7295,
+      "sha256": "09683034e45e9176b69b8d191987d9923232118d2e9481b0dbbbc6a063410b61",
+      "in_master": true
+    },
+    {
+      "id": "S010",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/channels/README.md",
+      "archive_path": "docs/frontend/channels/README.md",
+      "bytes": 6012,
+      "sha256": "b35a17bcb85902bb6e69ce8c4cfcb2bbb5b6cb6427fae507f27bd954063e8e0b",
+      "in_master": true
+    },
+    {
+      "id": "S011",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/channels/CLIENT.md",
+      "archive_path": "docs/frontend/channels/CLIENT.md",
+      "bytes": 5595,
+      "sha256": "886facc3d6b88b3394a2068a2a03afca868bc21877049e96127f0e85a26cf0f3",
+      "in_master": true
+    },
+    {
+      "id": "S012",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/channels/OPERATIONAL.md",
+      "archive_path": "docs/frontend/channels/OPERATIONAL.md",
+      "bytes": 6203,
+      "sha256": "26c5732c15759810570c38c6c1adc22d6ad2dbdd1ba2f8f74cda2ad034a2cfb6",
+      "in_master": true
+    },
+    {
+      "id": "S013",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/channels/ADMIN.md",
+      "archive_path": "docs/frontend/channels/ADMIN.md",
+      "bytes": 6034,
+      "sha256": "8617539f9e4d1a146141484654b80ac438e077e99f00a5201715524a7622c011",
+      "in_master": true
+    },
+    {
+      "id": "S014",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/ARCHITECTURE.md",
+      "archive_path": "docs/frontend/ARCHITECTURE.md",
+      "bytes": 1128,
+      "sha256": "dea048739556e0104eac7b8cf61e9c8398ad9bbf66597f46464da8debc76a5d7",
+      "in_master": true
+    },
+    {
+      "id": "S015",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/FRONTEND_FOUNDATION_BLUEPRINT.md",
+      "archive_path": "docs/frontend/FRONTEND_FOUNDATION_BLUEPRINT.md",
+      "bytes": 86867,
+      "sha256": "fd207fdc16ed87c7cfedd9e5d3da771c707301c9302cba9bfcbbe03c195e3fc2",
+      "in_master": true
+    },
+    {
+      "id": "S016",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/WORKSTREAMS.md",
+      "archive_path": "docs/frontend/WORKSTREAMS.md",
+      "bytes": 1500,
+      "sha256": "dde54e7fb5e52d444c98797019c3a6f4520d431cbec64acb2c6cc7e5ea7bce28",
+      "in_master": true
+    },
+    {
+      "id": "S017",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/QA_CHECKLIST.md",
+      "archive_path": "docs/frontend/QA_CHECKLIST.md",
+      "bytes": 3608,
+      "sha256": "179ffe56adbd0e0fe537e26438dbe9a9eb7b04bf846dd021083f03c81c58f3e5",
+      "in_master": true
+    },
+    {
+      "id": "S018",
+      "group": "Frontend: arquitectura, colaboración y funciones por portal",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/frontend/ADMIN_HANDOFF.md",
+      "archive_path": "docs/frontend/ADMIN_HANDOFF.md",
+      "bytes": 4919,
+      "sha256": "ed7a9d169a0e93833157994c84abb63c46c459f69fb573e23918f1424f478b7c",
+      "in_master": true
+    },
+    {
+      "id": "S019",
+      "group": "Planes anteriores completos: propuestas de entrega, no límite del producto",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/backend/README.md",
+      "archive_path": "docs/backend/README.md",
+      "bytes": 1605,
+      "sha256": "d1bddd7cda56582e59f0d4fa3b59a887459de3f5293876fc8e6b1f29a15afaa6",
+      "in_master": true
+    },
+    {
+      "id": "S020",
+      "group": "Planes anteriores completos: propuestas de entrega, no límite del producto",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/backend/DEVELOPMENT_PLAN.md",
+      "archive_path": "docs/backend/DEVELOPMENT_PLAN.md",
+      "bytes": 66908,
+      "sha256": "3606f4847843f834d1eacd0f570e2dc2d208db2bdeda16a9897decebb40b93d7",
+      "in_master": true
+    },
+    {
+      "id": "S021",
+      "group": "Planes anteriores completos: propuestas de entrega, no límite del producto",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/backend/BACKLOG.md",
+      "archive_path": "docs/backend/BACKLOG.md",
+      "bytes": 17511,
+      "sha256": "2325764817f308439bf8f40f222ad3cc72b6f8b72c5b9a61d8caab585a6bd9e6",
+      "in_master": true
+    },
+    {
+      "id": "S022",
+      "group": "Planes anteriores completos: propuestas de entrega, no límite del producto",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/mobile/README.md",
+      "archive_path": "docs/mobile/README.md",
+      "bytes": 684,
+      "sha256": "46baadcea458ffa5d329da50a98e0184dccd935572ded0d5cc54fa4ac1c71e3e",
+      "in_master": true
+    },
+    {
+      "id": "S023",
+      "group": "Planes anteriores completos: propuestas de entrega, no límite del producto",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/mobile/CLIENT_APP_PLAN.md",
+      "archive_path": "docs/mobile/CLIENT_APP_PLAN.md",
+      "bytes": 24082,
+      "sha256": "1a8fa260d3e7209169eb75098919061d333b4cf9d0c3365a77d5a3d0bb114549",
+      "in_master": true
+    },
+    {
+      "id": "S024",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/README.md",
+      "archive_path": "docs/database/README.md",
+      "bytes": 6977,
+      "sha256": "51ad02c76199001392700c1fdc87602304e18bf5ec1fa1ffb09fa3fab317dc56",
+      "in_master": true
+    },
+    {
+      "id": "S025",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/BACKEND_MAPPING.md",
+      "archive_path": "docs/database/BACKEND_MAPPING.md",
+      "bytes": 12908,
+      "sha256": "cb2502b29bd91baaf0bb8730f9956be488e3c20ccb4822cc0fbae77690151482",
+      "in_master": true
+    },
+    {
+      "id": "S026",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/REVIEW_FINDINGS.md",
+      "archive_path": "docs/database/REVIEW_FINDINGS.md",
+      "bytes": 8711,
+      "sha256": "82f451fa3ebc8baaf668c8ae4c726d02588a8b7b494eec0770f8e6a53431ff36",
+      "in_master": true
+    },
+    {
+      "id": "S027",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/design-decisions.md",
+      "archive_path": "docs/database/design-decisions.md",
+      "bytes": 28669,
+      "sha256": "e409112d01856a1d4d2d84d0b18066d18fb44f8dee9d63f4716c8718e82a5966",
+      "in_master": true
+    },
+    {
+      "id": "S028",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/VALIDATION.md",
+      "archive_path": "docs/database/VALIDATION.md",
+      "bytes": 2636,
+      "sha256": "ff864a9caf0d7a7d5c162b39b1c85782efae899f6d2d41fb4b233a6e9514eb90",
+      "in_master": true
+    },
+    {
+      "id": "S029",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/VALIDATION.json",
+      "archive_path": "docs/database/VALIDATION.json",
+      "bytes": 479,
+      "sha256": "72be193ab7bd29b56672257008e64b08cb276820e3e9f03230680d8f5f2edfa4",
+      "in_master": true
+    },
+    {
+      "id": "S030",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/SOURCE_MANIFEST.json",
+      "archive_path": "docs/database/SOURCE_MANIFEST.json",
+      "bytes": 2887,
+      "sha256": "aec4b6d2b5bb504aa242a0a8f328893053cbac0793fd0f26b73713d19398353c",
+      "in_master": true
+    },
+    {
+      "id": "S031",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/legacy-mapping.md",
+      "archive_path": "docs/database/erd/legacy-mapping.md",
+      "bytes": 6418,
+      "sha256": "c402ae855b53338863f054cadfaea8a2dcedf7027e14689ca2a9b110645f81ad",
+      "in_master": true
+    },
+    {
+      "id": "S032",
+      "group": "Diseño candidato: correspondencia, contratos, brechas y validación",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/README.md",
+      "archive_path": "docs/database/erd/README.md",
+      "bytes": 2036,
+      "sha256": "67e0d2a808ba475145bce02077644bd689c436cb2e3c41e7b5a7920c4f17fd3e",
+      "in_master": true
+    },
+    {
+      "id": "S033",
+      "group": "Evidencia documental de avances: fotografías fechadas, no auditoría actual de código",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/progress/CLIENT.md",
+      "archive_path": "docs/progress/CLIENT.md",
+      "bytes": 31214,
+      "sha256": "b58ee9c597fd01622d49764d32c309d244a0a88a23abf41c742398e7c99c7b06",
+      "in_master": true
+    },
+    {
+      "id": "S034",
+      "group": "Evidencia documental de avances: fotografías fechadas, no auditoría actual de código",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/progress/OPERATIONAL.md",
+      "archive_path": "docs/progress/OPERATIONAL.md",
+      "bytes": 22134,
+      "sha256": "d401715a1f836eed5525a802d818bac72be54bf473d95db805d4203f312a9eab",
+      "in_master": true
+    },
+    {
+      "id": "S035",
+      "group": "Evidencia documental de avances: fotografías fechadas, no auditoría actual de código",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/progress/ADMIN.md",
+      "archive_path": "docs/progress/ADMIN.md",
+      "bytes": 5809,
+      "sha256": "3923468215e7489c3070ecc0346b33f28057f99bfe625e5d453fe21ff13aa1db",
+      "in_master": true
+    },
+    {
+      "id": "S036",
+      "group": "Evidencia documental de avances: fotografías fechadas, no auditoría actual de código",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/progress/BACKEND.md",
+      "archive_path": "docs/progress/BACKEND.md",
+      "bytes": 3547,
+      "sha256": "00cb64c01924e277894099ae79bd54a90020224262f7948240eb3fa2bca44fa4",
+      "in_master": true
+    },
+    {
+      "id": "S037",
+      "group": "Evidencia documental de avances: fotografías fechadas, no auditoría actual de código",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/progress/MOBILE.md",
+      "archive_path": "docs/progress/MOBILE.md",
+      "bytes": 1378,
+      "sha256": "a40408201511cc71c2349df1ba60847142bde5d5fd3d40c74dede193deea70cc",
+      "in_master": true
+    },
+    {
+      "id": "S038",
+      "group": "Evidencia documental de avances: fotografías fechadas, no auditoría actual de código",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/progress/DATABASE.md",
+      "archive_path": "docs/progress/DATABASE.md",
+      "bytes": 2716,
+      "sha256": "60e2bc64352944eb54cd18bb09bec476cfe412b7218cde7c473302f677f98612",
+      "in_master": true
+    },
+    {
+      "id": "S039",
+      "group": "Diccionario físico completo",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/data-dictionary.md",
+      "archive_path": "docs/database/data-dictionary.md",
+      "bytes": 217381,
+      "sha256": "5628becc9cddae78f385fc6894dca0ead7a78fb454dd129535a487670f070dcf",
+      "in_master": true
+    },
+    {
+      "id": "S040",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/01-auth-iam.mmd",
+      "archive_path": "docs/database/erd/01-auth-iam.mmd",
+      "bytes": 5170,
+      "sha256": "49397eed4ddb8def867cc6c366e11531c30a993a84ae621df0310e0f9686a85b",
+      "in_master": true
+    },
+    {
+      "id": "S041",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/02-customers-staff.mmd",
+      "archive_path": "docs/database/erd/02-customers-staff.mmd",
+      "bytes": 4313,
+      "sha256": "8158c7aaaa5824affdc6c7246a13a94e9b5226acc91b24fef3c1d84d1f6676f3",
+      "in_master": true
+    },
+    {
+      "id": "S042",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/03-tables-reservations.mmd",
+      "archive_path": "docs/database/erd/03-tables-reservations.mmd",
+      "bytes": 2938,
+      "sha256": "3523be624fee150ea86f1cfeac2e596d7a092cd7904031a8c9dc3957f635bb8c",
+      "in_master": true
+    },
+    {
+      "id": "S043",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/04-menu.mmd",
+      "archive_path": "docs/database/erd/04-menu.mmd",
+      "bytes": 3728,
+      "sha256": "654e9126d82a5269e618baaa82ea759b121f951c1b8fb6937a5aa8cff38d7cd9",
+      "in_master": true
+    },
+    {
+      "id": "S044",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/05-recipes-items.mmd",
+      "archive_path": "docs/database/erd/05-recipes-items.mmd",
+      "bytes": 2905,
+      "sha256": "ac48bdf5755337a1cd5c6eec180666410459df80cbc66abfdb1f16fe56ae5a19",
+      "in_master": true
+    },
+    {
+      "id": "S045",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/06-inventory.mmd",
+      "archive_path": "docs/database/erd/06-inventory.mmd",
+      "bytes": 5370,
+      "sha256": "339374439988f54710d24d47f0fde138bc4fa554476fceb125a78afdf8015245",
+      "in_master": true
+    },
+    {
+      "id": "S046",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/07-suppliers-purchases.mmd",
+      "archive_path": "docs/database/erd/07-suppliers-purchases.mmd",
+      "bytes": 5134,
+      "sha256": "e9abece2f767fc6a9a0d8bc00f68b20c4f7de15f40fd66d11c4a79514a383890",
+      "in_master": true
+    },
+    {
+      "id": "S047",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/08-production.mmd",
+      "archive_path": "docs/database/erd/08-production.mmd",
+      "bytes": 4542,
+      "sha256": "ebab0b660291cf27989202703ce2cb8c50da55dae0c0480e115b89b56ac5fc57",
+      "in_master": true
+    },
+    {
+      "id": "S048",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/09-availability-operations.mmd",
+      "archive_path": "docs/database/erd/09-availability-operations.mmd",
+      "bytes": 2560,
+      "sha256": "68f62956b300d311243c6c04435fadaddffc7df850d34182a01655c275513024",
+      "in_master": true
+    },
+    {
+      "id": "S049",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/10-orders-kitchen.mmd",
+      "archive_path": "docs/database/erd/10-orders-kitchen.mmd",
+      "bytes": 6762,
+      "sha256": "be0122ecedd49c44d27ca3949f76dfae3d19934bda89d5e2f8163e6f6f644203",
+      "in_master": true
+    },
+    {
+      "id": "S050",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/11-delivery-messaging.mmd",
+      "archive_path": "docs/database/erd/11-delivery-messaging.mmd",
+      "bytes": 4827,
+      "sha256": "e80b1d51cc8a7e510fe3d2a2ea73f44e50baa480cfcd79bafadee8992d91f9ea",
+      "in_master": true
+    },
+    {
+      "id": "S051",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/12-billing-payments-cash.mmd",
+      "archive_path": "docs/database/erd/12-billing-payments-cash.mmd",
+      "bytes": 10111,
+      "sha256": "7ff85a9800b4ae251e532b269aad0900a9d82f17cd0b6aac1ad4ccb19aa9fe23",
+      "in_master": true
+    },
+    {
+      "id": "S052",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/13-ai-vision.mmd",
+      "archive_path": "docs/database/erd/13-ai-vision.mmd",
+      "bytes": 3180,
+      "sha256": "aa9823262da3553a3f90baf6f7ebec0257edcbd7c5f1538e16ec82b0487cfa62",
+      "in_master": true
+    },
+    {
+      "id": "S053",
+      "group": "Diagramas textuales completos por dominio",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/14-audit-settings-events.mmd",
+      "archive_path": "docs/database/erd/14-audit-settings-events.mmd",
+      "bytes": 2723,
+      "sha256": "94842c3807d76f71ae5f54c489358024316dd0e4d50f7c0d6ee4219a22181941",
+      "in_master": true
+    },
+    {
+      "id": "S054",
+      "group": "Anexos técnicos íntegros: SQL y modelo declarativo candidatos",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/database/schema/postgresql.sql",
+      "archive_path": "database/schema/postgresql.sql",
+      "bytes": 196206,
+      "sha256": "682c2b615d901a9e084457493fc6a4fd70457bd0565ecd475fe8fd6045897119",
+      "in_master": true
+    },
+    {
+      "id": "S055",
+      "group": "Anexos técnicos íntegros: SQL y modelo declarativo candidatos",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/database/design/model.json",
+      "archive_path": "database/design/model.json",
+      "bytes": 283852,
+      "sha256": "0b6967bc1ceaceb5a966e501bff83ce9a623199966a5cc2265ebaef14c087c24",
+      "in_master": true
+    },
+    {
+      "id": "A001",
+      "group": "Adjunto técnico",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/wok-complete-erd.drawio",
+      "archive_path": "docs/database/erd/wok-complete-erd.drawio",
+      "bytes": 2100060,
+      "sha256": "3f33f1df0f96f0862c0229f906d4e1aa734e14832f1c123f870d1ec9fd571a5e",
+      "in_master": false
+    },
+    {
+      "id": "A002",
+      "group": "Adjunto técnico",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/invoicing-focus.drawio",
+      "archive_path": "docs/database/erd/invoicing-focus.drawio",
+      "bytes": 8872,
+      "sha256": "573cdb8a44742e7fafd65d82756f0938fbe58816050b744affd92e7789801647",
+      "in_master": false
+    },
+    {
+      "id": "A003",
+      "group": "Adjunto técnico",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/docs/database/erd/invoicing-focus.svg",
+      "archive_path": "docs/database/erd/invoicing-focus.svg",
+      "bytes": 10464,
+      "sha256": "e40d922548ee41a07059f1463e9955147703ea854ac0409225cb4bb795e8a03a",
+      "in_master": false
+    },
+    {
+      "id": "A004",
+      "group": "Adjunto técnico",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/database/design/generate.py",
+      "archive_path": "database/design/generate.py",
+      "bytes": 66972,
+      "sha256": "134b8121a150d22dbbc428bc0fc5c12c58b22c7db0c2bfdf8c79a963d051c503",
+      "in_master": false
+    },
+    {
+      "id": "A005",
+      "group": "Adjunto técnico",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/database/design/generate_views.py",
+      "archive_path": "database/design/generate_views.py",
+      "bytes": 10979,
+      "sha256": "acb9d2f106c874cca498e584267d264fe21c7b02751be4bef88bfe37bc267687",
+      "in_master": false
+    },
+    {
+      "id": "A006",
+      "group": "Adjunto técnico",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/database/design/validate.py",
+      "archive_path": "database/design/validate.py",
+      "bytes": 7870,
+      "sha256": "d58f2ff95f69d49b589acb05c106b8c0906dc36cc3c7418a2d41bc447abe7c3b",
+      "in_master": false
+    },
+    {
+      "id": "A007",
+      "group": "Adjunto técnico",
+      "absolute_path": "/home/fer-cachy/Wok_Asian_Food/AGENTS.md",
+      "archive_path": "AGENTS.md",
+      "bytes": 1474,
+      "sha256": "5324f07b01a53b68107b9b0f12e17184a4efaa77c492589a28b8178ea8850b17",
+      "in_master": false
+    }
+  ]
+}
