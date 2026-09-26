@@ -56,6 +56,13 @@ Responsables: Barrera y Carlos Chan.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-26 — Regla 3 h y contrato de reserva API
+
+- Rama `feature/frontend-client`: el formulario calcula y comunica la hora mínima de reserva; los tests cubren límites de horario local y anticipación.
+- Backend `feature/reservations` ya ofrece `POST /api/v1/client/reservations`, requiere sesión `CLIENT` e `Idempotency-Key`, y devuelve evaluación/estado pendiente sin confirmar disponibilidad.
+- La UI todavía usa fixture/local state y no consume ese endpoint. La integración queda pendiente de sesión WOK conectada, manejo de 202/decisiones y contrato OpenAPI revisado; no agregar fallback silencioso a fixtures al integrar.
+- Pruebas UI: la suite no pudo repetirse desde el worktree porque `@vitejs/plugin-react` no está instalado en `node_modules`; las 219 pruebas previas son del ciclo combinado anterior. No se instalaron dependencias.
+
 ## 2026-09-11 — Revisión para publicación de C-01 a C-06
 
 - Rama: `feature/frontend-client`; destino: PR hacia `development`, sin merge.
