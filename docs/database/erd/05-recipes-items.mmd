@@ -1,0 +1,94 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    itemTypes["item_types"] {
+        uuid id PK
+        text code UK
+        text name
+        timestamptz created_at
+    }
+    items["items"] {
+        uuid id PK
+        text sku UK
+        text name
+        text description "NULL permitido"
+        uuid item_type_id FK
+        uuid base_unit_id FK
+        boolean track_inventory
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    presentations["presentations"] {
+        uuid id PK
+        uuid item_id FK
+        text name
+        numeric base_quantity
+        text barcode "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    recipeComponents["recipe_components"] {
+        uuid id PK
+        uuid recipe_version_id FK
+        uuid component_item_id FK
+        uuid component_recipe_version_id FK "NULL permitido"
+        numeric quantity
+        numeric waste_fraction
+        integer position
+        timestamptz created_at
+    }
+    recipeVersions["recipe_versions"] {
+        uuid id PK
+        uuid recipe_id FK
+        integer version_number
+        numeric yield_quantity
+        text status
+        text instructions "NULL permitido"
+        timestamptz published_at "NULL permitido"
+        uuid created_by FK
+        timestamptz created_at
+    }
+    recipes["recipes"] {
+        uuid id PK
+        uuid output_item_id FK
+        text name
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    units["units"] {
+        uuid id PK
+        text code UK
+        text name
+        text dimension
+        numeric factor_to_base
+        timestamptz created_at
+    }
+    users["users"] {
+        uuid id PK
+    }
+    itemTypes ||..o{ items : "item_type_id"
+    units ||..o{ items : "base_unit_id"
+    users |o..o{ items : "created_by"
+    users |o..o{ items : "updated_by"
+    items ||..o{ presentations : "item_id"
+    users |o..o{ presentations : "created_by"
+    users |o..o{ presentations : "updated_by"
+    recipeVersions ||..o{ recipeComponents : "recipe_version_id"
+    items ||..o{ recipeComponents : "component_item_id"
+    recipeVersions |o..o{ recipeComponents : "component_recipe_version_id"
+    recipes ||..o{ recipeVersions : "recipe_id"
+    users ||..o{ recipeVersions : "created_by"
+    items ||..o{ recipes : "output_item_id"
+    users |o..o{ recipes : "created_by"
+    users |o..o{ recipes : "updated_by"

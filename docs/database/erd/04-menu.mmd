@@ -1,0 +1,117 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    currencies["currencies"] {
+        uuid id PK
+    }
+    items["items"] {
+        uuid id PK
+    }
+    menuCategories["menu_categories"] {
+        uuid id PK
+        text name UK
+        integer display_order
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    menuItemModifierGroups["menu_item_modifier_groups"] {
+        uuid id PK
+        uuid menu_item_id FK
+        uuid group_id FK
+        integer display_order
+        timestamptz created_at
+    }
+    menuItems["menu_items"] {
+        uuid id PK
+        uuid item_id FK
+        uuid recipe_version_id FK "NULL permitido"
+        uuid category_id FK
+        uuid preparation_area_id FK
+        text name
+        text description "NULL permitido"
+        numeric price
+        uuid currency_id FK
+        text image_reference "NULL permitido"
+        text visibility
+        text status
+        integer display_order
+        integer estimated_preparation_seconds
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    modifierGroups["modifier_groups"] {
+        uuid id PK
+        text name
+        integer min_selection
+        integer max_selection
+        boolean required
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    modifierItemImpacts["modifier_item_impacts"] {
+        uuid id PK
+        uuid modifier_id FK
+        uuid item_id FK
+        numeric quantity_delta
+        boolean affects_availability
+        timestamptz created_at
+    }
+    modifiers["modifiers"] {
+        uuid id PK
+        uuid group_id FK
+        text name
+        numeric price_delta
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    preparationAreas["preparation_areas"] {
+        uuid id PK
+        text code UK
+        text name
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    recipeVersions["recipe_versions"] {
+        uuid id PK
+    }
+    users["users"] {
+        uuid id PK
+    }
+    users |o..o{ menuCategories : "created_by"
+    users |o..o{ menuCategories : "updated_by"
+    menuItems ||..o{ menuItemModifierGroups : "menu_item_id"
+    modifierGroups ||..o{ menuItemModifierGroups : "group_id"
+    items ||..o{ menuItems : "item_id"
+    recipeVersions |o..o{ menuItems : "recipe_version_id"
+    menuCategories ||..o{ menuItems : "category_id"
+    preparationAreas ||..o{ menuItems : "preparation_area_id"
+    currencies ||..o{ menuItems : "currency_id"
+    users |o..o{ menuItems : "created_by"
+    users |o..o{ menuItems : "updated_by"
+    users |o..o{ modifierGroups : "created_by"
+    users |o..o{ modifierGroups : "updated_by"
+    modifiers ||..o{ modifierItemImpacts : "modifier_id"
+    items ||..o{ modifierItemImpacts : "item_id"
+    modifierGroups ||..o{ modifiers : "group_id"
+    users |o..o{ modifiers : "created_by"
+    users |o..o{ modifiers : "updated_by"
+    users |o..o{ preparationAreas : "created_by"
+    users |o..o{ preparationAreas : "updated_by"

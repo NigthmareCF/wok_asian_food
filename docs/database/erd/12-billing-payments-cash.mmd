@@ -1,0 +1,379 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    billItems["bill_items"] {
+        uuid id PK
+        uuid bill_id FK
+        uuid order_item_id FK "NULL permitido"
+        text line_type
+        text description_snapshot
+        numeric quantity
+        numeric unit_price
+        numeric discount_amount
+        numeric tax_amount
+        numeric tax_rate_snapshot
+        timestamptz voided_at "NULL permitido"
+        uuid voided_by FK "NULL permitido"
+        text void_reason "NULL permitido"
+        timestamptz created_at
+    }
+    billOrders["bill_orders"] {
+        uuid id PK
+        uuid bill_id FK
+        uuid order_id FK
+        timestamptz created_at
+    }
+    bills["bills"] {
+        uuid id PK
+        uuid customer_id FK "NULL permitido"
+        uuid currency_id FK
+        text name "NULL permitido"
+        text status
+        timestamptz issued_at "NULL permitido"
+        timestamptz closed_at "NULL permitido"
+        text void_reason "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    cashMovements["cash_movements"] {
+        uuid id PK
+        uuid cash_session_id FK
+        text movement_type
+        numeric amount_delta
+        uuid payment_id FK, UK "NULL permitido"
+        uuid refund_id FK, UK "NULL permitido"
+        uuid reversal_of_id FK, UK "NULL permitido"
+        text reason
+        uuid responsible_user_id FK
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    cashReconciliations["cash_reconciliations"] {
+        uuid id PK
+        uuid cash_session_id FK
+        numeric expected_cash
+        numeric counted_cash
+        numeric difference
+        uuid counted_by FK
+        timestamptz counted_at
+        boolean is_final
+        text notes "NULL permitido"
+        timestamptz created_at
+    }
+    cashRegisters["cash_registers"] {
+        uuid id PK
+        text code UK
+        text name
+        uuid currency_id FK
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    cashSessions["cash_sessions"] {
+        uuid id PK
+        uuid cash_register_id FK
+        uuid opened_by FK
+        timestamptz opened_at
+        uuid closed_by FK "NULL permitido"
+        timestamptz closed_at "NULL permitido"
+        text status
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    currencies["currencies"] {
+        uuid id PK
+        text code UK
+        text name
+        integer minor_units
+        timestamptz created_at
+    }
+    customerProfiles["customer_profiles"] {
+        uuid id PK
+    }
+    employeeProfiles["employee_profiles"] {
+        uuid id PK
+    }
+    fiscalAllocations["fiscal_allocations"] {
+        uuid id PK
+        uuid invoice_id FK
+        uuid bill_id FK
+        numeric allocated_amount
+        timestamptz released_at "NULL permitido"
+        timestamptz created_at
+    }
+    fiscalArtifacts["fiscal_artifacts"] {
+        uuid id PK
+        uuid invoice_id FK
+        text artifact_type
+        text storage_key UK
+        text sha256
+        text provider_uuid "NULL permitido"
+        text series "NULL permitido"
+        text document_number "NULL permitido"
+        timestamptz created_at
+    }
+    fiscalAttempts["fiscal_attempts"] {
+        uuid id PK
+        uuid invoice_id FK
+        text provider
+        uuid request_id UK
+        text status
+        timestamptz submitted_at
+        timestamptz completed_at "NULL permitido"
+        text provider_reference "NULL permitido"
+        text error_code "NULL permitido"
+        timestamptz created_at
+    }
+    invoiceItems["invoice_items"] {
+        uuid id PK
+        uuid invoice_id FK
+        uuid bill_item_id FK "NULL permitido"
+        text description_snapshot
+        numeric quantity
+        numeric unit_price
+        numeric discount_amount
+        numeric tax_amount
+        numeric line_total
+        timestamptz created_at
+    }
+    invoices["invoices"] {
+        uuid id PK
+        uuid bill_id FK
+        uuid customer_id FK "NULL permitido"
+        text document_type
+        uuid original_invoice_id FK "NULL permitido"
+        text series "NULL permitido"
+        text document_number "NULL permitido"
+        text status
+        jsonb issuer_snapshot
+        text customer_name_snapshot
+        text tax_identifier_snapshot "NULL permitido"
+        text address_snapshot "NULL permitido"
+        uuid currency_id FK
+        numeric subtotal
+        numeric tax_total
+        numeric total
+        timestamptz issued_at "NULL permitido"
+        timestamptz voided_at "NULL permitido"
+        text void_reason "NULL permitido"
+        text external_authorization UK "NULL permitido"
+        text document_uri "NULL permitido"
+        timestamptz created_at
+    }
+    orderItems["order_items"] {
+        uuid id PK
+    }
+    orders["orders"] {
+        uuid id PK
+    }
+    paymentAllocations["payment_allocations"] {
+        uuid id PK
+        uuid payment_id FK
+        uuid tip_id FK "NULL permitido"
+        text allocation_type
+        numeric amount
+        timestamptz created_at
+    }
+    paymentFees["payment_fees"] {
+        uuid id PK
+        uuid payment_id FK
+        numeric amount
+        text description
+        timestamptz assessed_at
+        timestamptz created_at
+    }
+    paymentGatewayEvents["payment_gateway_events"] {
+        uuid id PK
+        uuid payment_intent_id FK "NULL permitido"
+        text provider
+        text provider_event_id
+        text event_type
+        text payload_hash
+        timestamptz received_at
+        timestamptz processed_at "NULL permitido"
+        text processing_status
+        text error_code "NULL permitido"
+        timestamptz created_at
+    }
+    paymentIntents["payment_intents"] {
+        uuid id PK
+        uuid bill_id FK
+        text provider
+        text provider_intent_id "NULL permitido"
+        numeric amount
+        uuid currency_id FK
+        text status
+        text idempotency_key
+        text requires_action_url "NULL permitido"
+        timestamptz expires_at "NULL permitido"
+        timestamptz captured_at "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    paymentMethods["payment_methods"] {
+        uuid id PK
+        text code UK
+        text name
+        boolean is_cash
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    paymentReceipts["payment_receipts"] {
+        uuid id PK
+        uuid payment_id FK, UK
+        text receipt_number UK
+        timestamptz issued_at
+        numeric amount_snapshot
+        uuid currency_id FK
+        text payer_name_snapshot "NULL permitido"
+        text document_uri "NULL permitido"
+        uuid issued_by FK
+        timestamptz created_at
+    }
+    paymentRefunds["payment_refunds"] {
+        uuid id PK
+        uuid payment_id FK
+        numeric amount
+        text status
+        text reason
+        text provider_reference "NULL permitido"
+        timestamptz refunded_at "NULL permitido"
+        uuid created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    payments["payments"] {
+        uuid id PK
+        uuid bill_id FK
+        uuid payment_method_id FK
+        numeric amount
+        text status
+        text provider "NULL permitido"
+        text provider_reference "NULL permitido"
+        timestamptz paid_at "NULL permitido"
+        uuid received_by FK "NULL permitido"
+        uuid request_id "NULL permitido"
+        uuid correlation_id "NULL permitido"
+        uuid client_action_id "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    refundAllocations["refund_allocations"] {
+        uuid id PK
+        uuid refund_id FK
+        uuid payment_allocation_id FK
+        numeric amount
+        timestamptz created_at
+    }
+    tipDistributions["tip_distributions"] {
+        uuid id PK
+        uuid tip_id FK
+        uuid employee_id FK
+        numeric amount
+        timestamptz paid_at "NULL permitido"
+        uuid cash_movement_id FK "NULL permitido"
+        uuid created_by FK
+        timestamptz created_at
+    }
+    tips["tips"] {
+        uuid id PK
+        uuid bill_id FK
+        numeric amount
+        text status
+        uuid created_by FK "NULL permitido"
+        timestamptz voided_at "NULL permitido"
+        text reason "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    users["users"] {
+        uuid id PK
+    }
+    bills ||..o{ billItems : "bill_id"
+    orderItems |o..o{ billItems : "order_item_id"
+    users |o..o{ billItems : "voided_by"
+    bills ||..o{ billOrders : "bill_id"
+    orders ||..o{ billOrders : "order_id"
+    customerProfiles |o..o{ bills : "customer_id"
+    currencies ||..o{ bills : "currency_id"
+    users |o..o{ bills : "created_by"
+    users |o..o{ bills : "updated_by"
+    cashSessions ||..o{ cashMovements : "cash_session_id"
+    payments |o..o| cashMovements : "payment_id"
+    paymentRefunds |o..o| cashMovements : "refund_id"
+    cashMovements |o..o| cashMovements : "reversal_of_id"
+    users ||..o{ cashMovements : "responsible_user_id"
+    cashSessions ||..o{ cashReconciliations : "cash_session_id"
+    users ||..o{ cashReconciliations : "counted_by"
+    currencies ||..o{ cashRegisters : "currency_id"
+    users |o..o{ cashRegisters : "created_by"
+    users |o..o{ cashRegisters : "updated_by"
+    cashRegisters ||..o{ cashSessions : "cash_register_id"
+    users ||..o{ cashSessions : "opened_by"
+    users |o..o{ cashSessions : "closed_by"
+    users |o..o{ cashSessions : "created_by"
+    users |o..o{ cashSessions : "updated_by"
+    invoices ||..o{ fiscalAllocations : "invoice_id"
+    bills ||..o{ fiscalAllocations : "bill_id"
+    invoices ||..o{ fiscalArtifacts : "invoice_id"
+    invoices ||..o{ fiscalAttempts : "invoice_id"
+    invoices ||..o{ invoiceItems : "invoice_id"
+    billItems |o..o{ invoiceItems : "bill_item_id"
+    bills ||..o{ invoices : "bill_id"
+    customerProfiles |o..o{ invoices : "customer_id"
+    invoices |o..o{ invoices : "original_invoice_id"
+    currencies ||..o{ invoices : "currency_id"
+    payments ||..o{ paymentAllocations : "payment_id"
+    tips |o..o{ paymentAllocations : "tip_id"
+    payments ||..o{ paymentFees : "payment_id"
+    paymentIntents |o..o{ paymentGatewayEvents : "payment_intent_id"
+    bills ||..o{ paymentIntents : "bill_id"
+    currencies ||..o{ paymentIntents : "currency_id"
+    users |o..o{ paymentIntents : "created_by"
+    users |o..o{ paymentIntents : "updated_by"
+    users |o..o{ paymentMethods : "created_by"
+    users |o..o{ paymentMethods : "updated_by"
+    payments ||..o| paymentReceipts : "payment_id"
+    currencies ||..o{ paymentReceipts : "currency_id"
+    users ||..o{ paymentReceipts : "issued_by"
+    payments ||..o{ paymentRefunds : "payment_id"
+    users ||..o{ paymentRefunds : "created_by"
+    users |o..o{ paymentRefunds : "updated_by"
+    bills ||..o{ payments : "bill_id"
+    paymentMethods ||..o{ payments : "payment_method_id"
+    users |o..o{ payments : "received_by"
+    users |o..o{ payments : "created_by"
+    users |o..o{ payments : "updated_by"
+    paymentRefunds ||..o{ refundAllocations : "refund_id"
+    paymentAllocations ||..o{ refundAllocations : "payment_allocation_id"
+    tips ||..o{ tipDistributions : "tip_id"
+    employeeProfiles ||..o{ tipDistributions : "employee_id"
+    cashMovements |o..o{ tipDistributions : "cash_movement_id"
+    users ||..o{ tipDistributions : "created_by"
+    bills ||..o{ tips : "bill_id"
+    users |o..o{ tips : "created_by"
+    users |o..o{ tips : "updated_by"

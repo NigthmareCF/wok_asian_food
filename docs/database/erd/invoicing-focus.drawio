@@ -1,0 +1,101 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net">
+  <diagram id="invoicing" name="Facturacion - relaciones principales">
+    <mxGraphModel grid="1" page="1" pageWidth="1520" pageHeight="1510" background="#f8fafc">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="WOK | Facturacion, cuentas y pagos" vertex="1" parent="1" style="text;html=0;fontSize=24;fontStyle=1;align=left;">
+          <mxGeometry as="geometry" x="40" y="15" width="1420" height="40" />
+        </mxCell>
+        <mxCell id="note" value="Vista parcial del modelo de 109 tablas. Flecha: tabla hija -&gt; padre. NULL/UNIQUE determinan cardinalidad." vertex="1" parent="1" style="text;html=0;fontSize=12;align=left;">
+          <mxGeometry as="geometry" x="40" y="55" width="1420" height="32" />
+        </mxCell>
+        <mxCell id="edge-bill_orders-order_id" value="order_id (0..N / 1)" edge="1" parent="1" source="bill_orders" target="orders" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-bill_orders-bill_id" value="bill_id (0..N / 1)" edge="1" parent="1" source="bill_orders" target="bills" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-bill_items-bill_id" value="bill_id (0..N / 1)" edge="1" parent="1" source="bill_items" target="bills" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-invoices-bill_id" value="bill_id (0..N / 1)" edge="1" parent="1" source="invoices" target="bills" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="840" y="500" />
+              <mxPoint x="1180" y="500" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-invoice_items-invoice_id" value="invoice_id (0..N / 1)" edge="1" parent="1" source="invoice_items" target="invoices" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-invoice_items-bill_item_id" value="bill_item_id (0..N / 0..1)" edge="1" parent="1" source="invoice_items" target="bill_items" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="350" y="545" />
+              <mxPoint x="1270" y="545" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-invoices-original_invoice_id" value="original_invoice_id (0..N / 0..1)" edge="1" parent="1" source="invoices" target="invoices" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="490" y="850" />
+              <mxPoint x="490" y="920" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-payments-bill_id" value="bill_id (0..N / 1)" edge="1" parent="1" source="payments" target="bills" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="1490" y="1280" />
+              <mxPoint x="1490" y="380" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-payment_receipts-payment_id" value="payment_id (0..1 / 1)" edge="1" parent="1" source="payment_receipts" target="payments" style="edgeStyle=orthogonalEdgeStyle;html=0;endArrow=block;strokeColor=#52627a;fontSize=11;labelBackgroundColor=#f8fafc;">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="orders" value="orders&#10;&#10;PK id&#10;FK customer_id ?&#10;   channel&#10;   order_type&#10;   status&#10;FK currency_id&#10;   accepted_at ?" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#ffffff;strokeColor=#8a9bb0;fontColor=#132338;fontFamily=monospace;fontSize=16;align=left;verticalAlign=top;spacing=16;">
+          <mxGeometry as="geometry" x="40" y="100" width="400" height="345" />
+        </mxCell>
+        <mxCell id="bill_orders" value="bill_orders&#10;&#10;PK id&#10;FK bill_id&#10;FK order_id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#ffffff;strokeColor=#8a9bb0;fontColor=#132338;fontFamily=monospace;fontSize=16;align=left;verticalAlign=top;spacing=16;">
+          <mxGeometry as="geometry" x="550" y="100" width="400" height="345" />
+        </mxCell>
+        <mxCell id="bills" value="bills&#10;&#10;PK id&#10;FK customer_id ?&#10;FK currency_id&#10;   status&#10;   issued_at ?&#10;   closed_at ?" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#ffffff;strokeColor=#8a9bb0;fontColor=#132338;fontFamily=monospace;fontSize=16;align=left;verticalAlign=top;spacing=16;">
+          <mxGeometry as="geometry" x="1060" y="100" width="400" height="345" />
+        </mxCell>
+        <mxCell id="invoice_items" value="invoice_items&#10;&#10;PK id&#10;FK invoice_id&#10;FK bill_item_id ?&#10;   description_snapshot&#10;   quantity&#10;   unit_price&#10;   tax_amount&#10;   line_total" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#ffffff;strokeColor=#8a9bb0;fontColor=#132338;fontFamily=monospace;fontSize=16;align=left;verticalAlign=top;spacing=16;">
+          <mxGeometry as="geometry" x="40" y="600" width="400" height="345" />
+        </mxCell>
+        <mxCell id="invoices" value="invoices&#10;&#10;PK id&#10;FK bill_id&#10;   document_type&#10;FK original_invoice_id ?&#10;   series ?&#10;   document_number ?&#10;   status&#10;   total&#10;   external_authorization ?" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#ffffff;strokeColor=#8a9bb0;fontColor=#132338;fontFamily=monospace;fontSize=16;align=left;verticalAlign=top;spacing=16;">
+          <mxGeometry as="geometry" x="550" y="600" width="400" height="345" />
+        </mxCell>
+        <mxCell id="bill_items" value="bill_items&#10;&#10;PK id&#10;FK bill_id&#10;FK order_item_id ?&#10;   line_type&#10;   quantity&#10;   unit_price&#10;   tax_amount&#10;   voided_at ?" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#ffffff;strokeColor=#8a9bb0;fontColor=#132338;fontFamily=monospace;fontSize=16;align=left;verticalAlign=top;spacing=16;">
+          <mxGeometry as="geometry" x="1060" y="600" width="400" height="345" />
+        </mxCell>
+        <mxCell id="payment_receipts" value="payment_receipts&#10;&#10;PK id&#10;FK payment_id&#10;   receipt_number&#10;   issued_at&#10;   amount_snapshot&#10;FK currency_id" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#ffffff;strokeColor=#8a9bb0;fontColor=#132338;fontFamily=monospace;fontSize=16;align=left;verticalAlign=top;spacing=16;">
+          <mxGeometry as="geometry" x="550" y="1100" width="400" height="345" />
+        </mxCell>
+        <mxCell id="payments" value="payments&#10;&#10;PK id&#10;FK bill_id&#10;FK payment_method_id&#10;   amount&#10;   status&#10;   provider_reference ?&#10;   paid_at ?" vertex="1" parent="1" style="rounded=1;whiteSpace=wrap;html=0;fillColor=#ffffff;strokeColor=#8a9bb0;fontColor=#132338;fontFamily=monospace;fontSize=16;align=left;verticalAlign=top;spacing=16;">
+          <mxGeometry as="geometry" x="1060" y="1100" width="400" height="345" />
+        </mxCell>
+        <mxCell id="footer" value="? = nullable. FK externas y columnas omitidas: consultar ERD completo. CREDIT_NOTE referencia factura original; no equivale a reembolso." vertex="1" parent="1" style="text;html=0;fontSize=12;align=left;">
+          <mxGeometry as="geometry" x="40" y="1460" width="1420" height="40" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

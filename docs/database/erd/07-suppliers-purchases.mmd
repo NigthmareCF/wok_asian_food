@@ -1,0 +1,147 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    currencies["currencies"] {
+        uuid id PK
+    }
+    goodsReceiptItems["goods_receipt_items"] {
+        uuid id PK
+        uuid goods_receipt_id FK
+        uuid purchase_order_item_id FK
+        numeric accepted_quantity
+        numeric rejected_quantity
+        numeric unit_cost
+        uuid location_id FK
+        text rejection_reason "NULL permitido"
+        timestamptz created_at
+    }
+    goodsReceipts["goods_receipts"] {
+        uuid id PK
+        uuid purchase_order_id FK
+        text receipt_reference
+        timestamptz received_at
+        uuid received_by FK
+        text status
+        timestamptz posted_at "NULL permitido"
+        text notes "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    inventoryLocations["inventory_locations"] {
+        uuid id PK
+    }
+    items["items"] {
+        uuid id PK
+    }
+    presentations["presentations"] {
+        uuid id PK
+    }
+    purchaseOrderItems["purchase_order_items"] {
+        uuid id PK
+        uuid purchase_order_id FK
+        uuid item_id FK
+        uuid presentation_id FK "NULL permitido"
+        numeric requested_quantity
+        numeric purchased_quantity
+        numeric unit_price
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    purchaseOrderStatusHistory["purchase_order_status_history"] {
+        uuid id PK
+        uuid purchase_order_id FK
+        text from_status "NULL permitido"
+        text to_status
+        text reason "NULL permitido"
+        uuid actor_user_id FK "NULL permitido"
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    purchaseOrders["purchase_orders"] {
+        uuid id PK
+        uuid supplier_id FK
+        text status
+        uuid currency_id FK
+        timestamptz requested_at
+        timestamptz ordered_at "NULL permitido"
+        timestamptz expected_at "NULL permitido"
+        text notes "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    supplierItemPrices["supplier_item_prices"] {
+        uuid id PK
+        uuid supplier_item_id FK
+        numeric price
+        uuid currency_id FK
+        timestamptz valid_from
+        timestamptz valid_until "NULL permitido"
+        timestamptz created_at
+    }
+    supplierItems["supplier_items"] {
+        uuid id PK
+        uuid supplier_id FK
+        uuid presentation_id FK
+        text supplier_sku "NULL permitido"
+        boolean preferred
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    suppliers["suppliers"] {
+        uuid id PK
+        text name
+        text contact_name "NULL permitido"
+        text email "NULL permitido"
+        text phone "NULL permitido"
+        text address_text "NULL permitido"
+        text tax_identifier "NULL permitido"
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    users["users"] {
+        uuid id PK
+    }
+    goodsReceipts ||..o{ goodsReceiptItems : "goods_receipt_id"
+    purchaseOrderItems ||..o{ goodsReceiptItems : "purchase_order_item_id"
+    inventoryLocations ||..o{ goodsReceiptItems : "location_id"
+    purchaseOrders ||..o{ goodsReceipts : "purchase_order_id"
+    users ||..o{ goodsReceipts : "received_by"
+    users |o..o{ goodsReceipts : "created_by"
+    users |o..o{ goodsReceipts : "updated_by"
+    purchaseOrders ||..o{ purchaseOrderItems : "purchase_order_id"
+    items ||..o{ purchaseOrderItems : "item_id"
+    presentations |o..o{ purchaseOrderItems : "presentation_id"
+    users |o..o{ purchaseOrderItems : "created_by"
+    users |o..o{ purchaseOrderItems : "updated_by"
+    purchaseOrders ||..o{ purchaseOrderStatusHistory : "purchase_order_id"
+    users |o..o{ purchaseOrderStatusHistory : "actor_user_id"
+    suppliers ||..o{ purchaseOrders : "supplier_id"
+    currencies ||..o{ purchaseOrders : "currency_id"
+    users |o..o{ purchaseOrders : "created_by"
+    users |o..o{ purchaseOrders : "updated_by"
+    supplierItems ||..o{ supplierItemPrices : "supplier_item_id"
+    currencies ||..o{ supplierItemPrices : "currency_id"
+    suppliers ||..o{ supplierItems : "supplier_id"
+    presentations ||..o{ supplierItems : "presentation_id"
+    users |o..o{ supplierItems : "created_by"
+    users |o..o{ supplierItems : "updated_by"
+    users |o..o{ suppliers : "created_by"
+    users |o..o{ suppliers : "updated_by"

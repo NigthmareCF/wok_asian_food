@@ -1,0 +1,105 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    menuItemAvailabilityOverrides["menu_item_availability_overrides"] {
+        uuid id PK
+        uuid menu_item_id FK
+        text channel
+        boolean is_available
+        text reason
+        uuid created_by FK
+        timestamptz expires_at "NULL permitido"
+        uuid revoked_by FK "NULL permitido"
+        timestamptz revoked_at "NULL permitido"
+        timestamptz created_at
+    }
+    menuItems["menu_items"] {
+        uuid id PK
+    }
+    preparationAreas["preparation_areas"] {
+        uuid id PK
+    }
+    preparationCapacitySlots["preparation_capacity_slots"] {
+        uuid id PK
+        uuid preparation_area_id FK
+        timestamptz starts_at
+        timestamptz ends_at
+        numeric capacity_units
+        numeric reserved_units
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    serviceCapabilities["service_capabilities"] {
+        uuid id PK
+        text code UK
+        text status
+        text reason "NULL permitido"
+        timestamptz effective_from
+        timestamptz effective_until "NULL permitido"
+        uuid changed_by FK "NULL permitido"
+        integer policy_version
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    serviceCapabilityEvents["service_capability_events"] {
+        uuid id PK
+        uuid capability_id FK
+        text previous_status
+        text new_status
+        text reason
+        uuid actor_user_id FK
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    serviceStatus["service_status"] {
+        uuid id PK
+        integer singleton_key UK
+        boolean restaurant_open
+        boolean dine_in_enabled
+        boolean pickup_enabled
+        boolean delivery_enabled
+        boolean online_orders_enabled
+        boolean high_demand
+        boolean production_in_progress
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    serviceStatusHistory["service_status_history"] {
+        uuid id PK
+        uuid service_status_id FK
+        uuid actor_user_id FK
+        text reason
+        jsonb before_data
+        jsonb after_data
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    users["users"] {
+        uuid id PK
+    }
+    menuItems ||..o{ menuItemAvailabilityOverrides : "menu_item_id"
+    users ||..o{ menuItemAvailabilityOverrides : "created_by"
+    users |o..o{ menuItemAvailabilityOverrides : "revoked_by"
+    preparationAreas ||..o{ preparationCapacitySlots : "preparation_area_id"
+    users |o..o{ preparationCapacitySlots : "created_by"
+    users |o..o{ preparationCapacitySlots : "updated_by"
+    users |o..o{ serviceCapabilities : "changed_by"
+    users |o..o{ serviceCapabilities : "created_by"
+    users |o..o{ serviceCapabilities : "updated_by"
+    serviceCapabilities ||..o{ serviceCapabilityEvents : "capability_id"
+    users ||..o{ serviceCapabilityEvents : "actor_user_id"
+    users |o..o{ serviceStatus : "created_by"
+    users |o..o{ serviceStatus : "updated_by"
+    serviceStatus ||..o{ serviceStatusHistory : "service_status_id"
+    users ||..o{ serviceStatusHistory : "actor_user_id"

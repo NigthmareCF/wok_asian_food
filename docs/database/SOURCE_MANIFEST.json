@@ -1,0 +1,89 @@
+{
+  "review_date": "2026-09-17",
+  "status": "EVOLVED_CANDIDATE_WITH_EXPLICIT_V1_MIGRATION",
+  "sources": [
+    {
+      "source_group": "Academic database design",
+      "source": "database/design/model.json",
+      "copy": "database/design/model.json",
+      "bytes": 283852,
+      "sha256": "0b6967bc1ceaceb5a966e501bff83ce9a623199966a5cc2265ebaef14c087c24",
+      "current_sha256": "9416eac4e46cf4f2012c0a8fb2788eba8e746c558128a88ab2780c834117706f",
+      "current_bytes": 328398
+    },
+    {
+      "source_group": "Academic database design",
+      "source": "database/schema/postgresql.sql",
+      "copy": "database/schema/postgresql.sql",
+      "bytes": 196206,
+      "sha256": "682c2b615d901a9e084457493fc6a4fd70457bd0565ecd475fe8fd6045897119",
+      "current_sha256": "e6d895c3fb8fd276e8415cde5549ed37f63ee26608e2a821fd15b8e5a31d5668",
+      "current_bytes": 227470
+    },
+    {
+      "source_group": "Academic database design",
+      "source": "docs/database/data-dictionary.md",
+      "copy": "docs/database/data-dictionary.md",
+      "bytes": 217381,
+      "sha256": "5628becc9cddae78f385fc6894dca0ead7a78fb454dd129535a487670f070dcf",
+      "current_sha256": "3a2da62887f1b896a90e95bd9c05ea47cea593ff047affe258244bb8aa39d349",
+      "current_bytes": 251458
+    },
+    {
+      "source_group": "Academic database design",
+      "source": "docs/database/design-decisions.md",
+      "copy": "docs/database/design-decisions.md",
+      "bytes": 28669,
+      "sha256": "e409112d01856a1d4d2d84d0b18066d18fb44f8dee9d63f4716c8718e82a5966",
+      "current_sha256": "768423e49db9511ceb6a1d10030d052678a989e7b43bbc6758da939ef4350b27",
+      "current_bytes": 31687
+    },
+    {
+      "source_group": "Academic database design",
+      "source": "docs/database/erd/wok-complete-erd.drawio",
+      "copy": "docs/database/erd/wok-complete-erd.drawio",
+      "bytes": 2100060,
+      "sha256": "3f33f1df0f96f0862c0229f906d4e1aa734e14832f1c123f870d1ec9fd571a5e",
+      "current_sha256": "49af28841f66d7c8da253534653f998abf6bb13c1b663f47a894fe0085e7a49b",
+      "current_bytes": 2416669
+    },
+    {
+      "source_group": "Academic database design",
+      "source": "docs/database/erd/legacy-mapping.md",
+      "copy": "docs/database/erd/legacy-mapping.md",
+      "bytes": 6418,
+      "sha256": "c402ae855b53338863f054cadfaea8a2dcedf7027e14689ca2a9b110645f81ad"
+    },
+    {
+      "source_group": "Original restaurant requirements",
+      "source": "epicas_historias_usuario.txt",
+      "copy": "docs/database/requirements/epics-and-user-stories.txt",
+      "bytes": 35305,
+      "sha256": "c2b8aa95619c61a37aae765f5f9018045138552d52180ffcb782b2e9544d479e"
+    },
+    {
+      "source_group": "Original restaurant requirements",
+      "source": "reglas_negocio_requisitos_tecnicos.txt",
+      "copy": "docs/database/requirements/business-rules-and-requirements.txt",
+      "bytes": 21124,
+      "sha256": "d327393e8d70491de624faece458ecf4392a5429167e5ce5b7623c687141ac50"
+    },
+    {
+      "source_group": "Original restaurant requirements",
+      "source": "vistas_mockups_rgb.txt",
+      "copy": "docs/database/requirements/views-and-mockups.txt",
+      "bytes": 25057,
+      "sha256": "d25757a07ead8979d1a1f51fc772caa6f061c5a30cf7d41bfa54f0320dbd67ea"
+    },
+    {
+      "source_group": "Academic database design",
+      "source": "database/design/generate.py",
+      "copy": "database/design/generate.py",
+      "bytes": 66972,
+      "sha256": "134b8121a150d22dbbc428bc0fc5c12c58b22c7db0c2bfdf8c79a963d051c503",
+      "current_sha256": "b09eb1cf4b83b4c46ef66e5042f29a581c019d1c426490565852e84fcc2fa0ad",
+      "current_bytes": 75231
+    }
+  ],
+  "evolution_note": "sha256 is the recovered source hash; current_sha256 identifies locally evolved copies. Original source bundle is preserved separately."
+}

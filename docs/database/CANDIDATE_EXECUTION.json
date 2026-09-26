@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-25",
+  "database": "postgres:16-alpine",
+  "isolation": "second disposable database in temporary container, network none, no published ports",
+  "commands": [
+    "psql -v ON_ERROR_STOP=1 -d wok_candidate_review < database/schema/postgresql.sql",
+    "psql -v ON_ERROR_STOP=1 -d wok_candidate_review < database/tests/candidate_constraints.sql"
+  ],
+  "result": "PASS_DB_CANDIDATE",
+  "limitations": [
+    "Candidate schema is not a Flyway migration",
+    "No application service or concurrent transaction was exercised",
+    "No migration upgrade-with-data test"
+  ]
+}

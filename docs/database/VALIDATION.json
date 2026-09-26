@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-25",
+  "status": "PASS_STATIC",
+  "tables": 128,
+  "columns": 1345,
+  "simple_foreign_keys": 341,
+  "composite_foreign_keys": 1,
+  "diagram_pages": 17,
+  "explicit_indexes": 206,
+  "epics": 21,
+  "user_stories": 308,
+  "business_rules": 145,
+  "technical_requirements": 76,
+  "sql_parser": "No disponible; no se acredita analisis sintactico completo ni ejecucion PostgreSQL.",
+  "sql_executed": false,
+  "business_rules_implemented": false,
+  "errors": []
+}

@@ -1,0 +1,124 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    customerAddresses["customer_addresses"] {
+        uuid id PK
+        uuid customer_id FK
+        text label
+        text address_text
+        text recipient_name
+        text recipient_phone
+        numeric latitude "NULL permitido"
+        numeric longitude "NULL permitido"
+        text instructions "NULL permitido"
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    customerIncidents["customer_incidents"] {
+        uuid id PK
+        uuid customer_id FK
+        uuid order_id FK "NULL permitido"
+        text description
+        timestamptz occurred_at
+        uuid created_by FK
+        timestamptz created_at
+    }
+    customerProfiles["customer_profiles"] {
+        uuid id PK
+        uuid user_id FK, UK "NULL permitido"
+        text full_name
+        text guest_phone "NULL permitido"
+        text notes "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    customerRestrictions["customer_restrictions"] {
+        uuid id PK
+        uuid customer_id FK
+        text restriction_type
+        text reason
+        uuid created_by FK
+        timestamptz expires_at "NULL permitido"
+        uuid revoked_by FK "NULL permitido"
+        timestamptz revoked_at "NULL permitido"
+        timestamptz created_at
+    }
+    employeeProfiles["employee_profiles"] {
+        uuid id PK
+        uuid user_id FK, UK
+        text employee_code UK
+        date hired_on
+        date ended_on "NULL permitido"
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    orders["orders"] {
+        uuid id PK
+    }
+    preparationAreas["preparation_areas"] {
+        uuid id PK
+    }
+    scheduleExceptions["schedule_exceptions"] {
+        uuid id PK
+        uuid employee_id FK
+        uuid schedule_id FK "NULL permitido"
+        text exception_type
+        timestamptz starts_at
+        timestamptz ends_at
+        text reason
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    staffSchedules["staff_schedules"] {
+        uuid id PK
+        uuid employee_id FK
+        timestamptz starts_at
+        timestamptz ends_at
+        uuid preparation_area_id FK "NULL permitido"
+        text notes "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    users["users"] {
+        uuid id PK
+    }
+    customerProfiles ||..o{ customerAddresses : "customer_id"
+    users |o..o{ customerAddresses : "created_by"
+    users |o..o{ customerAddresses : "updated_by"
+    customerProfiles ||..o{ customerIncidents : "customer_id"
+    orders |o..o{ customerIncidents : "order_id"
+    users ||..o{ customerIncidents : "created_by"
+    users |o..o| customerProfiles : "user_id"
+    users |o..o{ customerProfiles : "created_by"
+    users |o..o{ customerProfiles : "updated_by"
+    customerProfiles ||..o{ customerRestrictions : "customer_id"
+    users ||..o{ customerRestrictions : "created_by"
+    users |o..o{ customerRestrictions : "revoked_by"
+    users ||..o| employeeProfiles : "user_id"
+    users |o..o{ employeeProfiles : "created_by"
+    users |o..o{ employeeProfiles : "updated_by"
+    employeeProfiles ||..o{ scheduleExceptions : "employee_id"
+    staffSchedules |o..o{ scheduleExceptions : "schedule_id"
+    users |o..o{ scheduleExceptions : "created_by"
+    users |o..o{ scheduleExceptions : "updated_by"
+    employeeProfiles ||..o{ staffSchedules : "employee_id"
+    preparationAreas |o..o{ staffSchedules : "preparation_area_id"
+    users |o..o{ staffSchedules : "created_by"
+    users |o..o{ staffSchedules : "updated_by"

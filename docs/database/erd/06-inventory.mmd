@@ -1,0 +1,147 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    currencies["currencies"] {
+        uuid id PK
+    }
+    goodsReceiptItems["goods_receipt_items"] {
+        uuid id PK
+    }
+    inventoryAllocations["inventory_allocations"] {
+        uuid id PK
+        uuid order_item_id FK "NULL permitido"
+        uuid production_order_id FK "NULL permitido"
+        uuid lot_id FK
+        uuid location_id FK
+        numeric quantity
+        timestamptz expires_at "NULL permitido"
+        timestamptz released_at "NULL permitido"
+        timestamptz consumed_at "NULL permitido"
+        timestamptz created_at
+    }
+    inventoryBalances["inventory_balances"] {
+        uuid id PK
+        uuid lot_id FK
+        uuid location_id FK
+        numeric quantity
+        numeric reserved_quantity
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    inventoryLocations["inventory_locations"] {
+        uuid id PK
+        text code UK
+        text name
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    inventoryLots["inventory_lots"] {
+        uuid id PK
+        uuid item_id FK
+        text lot_code
+        timestamptz received_at
+        timestamptz expires_at "NULL permitido"
+        numeric unit_cost
+        uuid currency_id FK
+        uuid goods_receipt_item_id FK "NULL permitido"
+        uuid production_output_id FK "NULL permitido"
+        text source_reason "NULL permitido"
+        timestamptz created_at
+    }
+    inventoryMovements["inventory_movements"] {
+        uuid id PK
+        uuid lot_id FK
+        uuid location_id FK
+        text movement_type
+        numeric quantity_delta
+        numeric unit_cost
+        timestamptz occurred_at
+        uuid created_by FK
+        uuid goods_receipt_item_id FK "NULL permitido"
+        uuid production_consumption_id FK "NULL permitido"
+        uuid production_output_id FK "NULL permitido"
+        uuid order_item_id FK "NULL permitido"
+        uuid transfer_id FK "NULL permitido"
+        uuid reversal_of_id FK, UK "NULL permitido"
+        text reason
+        uuid request_id "NULL permitido"
+        uuid correlation_id "NULL permitido"
+        timestamptz created_at
+    }
+    inventoryTransfers["inventory_transfers"] {
+        uuid id PK
+        uuid source_location_id FK
+        uuid destination_location_id FK
+        text reason
+        uuid created_by FK
+        timestamptz posted_at "NULL permitido"
+        timestamptz created_at
+    }
+    items["items"] {
+        uuid id PK
+    }
+    orderItems["order_items"] {
+        uuid id PK
+    }
+    productionConsumptions["production_consumptions"] {
+        uuid id PK
+    }
+    productionOrders["production_orders"] {
+        uuid id PK
+    }
+    productionOutputs["production_outputs"] {
+        uuid id PK
+    }
+    stockThresholds["stock_thresholds"] {
+        uuid id PK
+        uuid item_id FK
+        uuid location_id FK
+        numeric minimum_quantity
+        numeric target_quantity
+        numeric maximum_quantity
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    users["users"] {
+        uuid id PK
+    }
+    orderItems |o..o{ inventoryAllocations : "order_item_id"
+    productionOrders |o..o{ inventoryAllocations : "production_order_id"
+    inventoryLots ||..o{ inventoryAllocations : "lot_id"
+    inventoryLocations ||..o{ inventoryAllocations : "location_id"
+    inventoryLots ||..o{ inventoryBalances : "lot_id"
+    inventoryLocations ||..o{ inventoryBalances : "location_id"
+    users |o..o{ inventoryBalances : "created_by"
+    users |o..o{ inventoryBalances : "updated_by"
+    users |o..o{ inventoryLocations : "created_by"
+    users |o..o{ inventoryLocations : "updated_by"
+    items ||..o{ inventoryLots : "item_id"
+    currencies ||..o{ inventoryLots : "currency_id"
+    goodsReceiptItems |o..o{ inventoryLots : "goods_receipt_item_id"
+    productionOutputs |o..o{ inventoryLots : "production_output_id"
+    inventoryLots ||..o{ inventoryMovements : "lot_id"
+    inventoryLocations ||..o{ inventoryMovements : "location_id"
+    users ||..o{ inventoryMovements : "created_by"
+    goodsReceiptItems |o..o{ inventoryMovements : "goods_receipt_item_id"
+    productionConsumptions |o..o{ inventoryMovements : "production_consumption_id"
+    productionOutputs |o..o{ inventoryMovements : "production_output_id"
+    orderItems |o..o{ inventoryMovements : "order_item_id"
+    inventoryTransfers |o..o{ inventoryMovements : "transfer_id"
+    inventoryMovements |o..o| inventoryMovements : "reversal_of_id"
+    inventoryLocations ||..o{ inventoryTransfers : "source_location_id"
+    inventoryLocations ||..o{ inventoryTransfers : "destination_location_id"
+    users ||..o{ inventoryTransfers : "created_by"
+    items ||..o{ stockThresholds : "item_id"
+    inventoryLocations ||..o{ stockThresholds : "location_id"
+    users |o..o{ stockThresholds : "created_by"
+    users |o..o{ stockThresholds : "updated_by"

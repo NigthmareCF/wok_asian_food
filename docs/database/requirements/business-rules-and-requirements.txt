@@ -1,0 +1,277 @@
+SISTEMA INTEGRAL DE GESTIÓN PARA RESTAURANTE
+REGLAS DE NEGOCIO Y REQUISITOS TÉCNICOS
+Versión consolidada
+
+============================================================
+A. REGLAS DE NEGOCIO
+============================================================
+
+RN-001. El restaurante opera normalmente de martes a domingo de 14:00 a 22:00.
+RN-002. La cocina cierra normalmente a las 21:30.
+RN-003. El último ingreso normal para consumo en local es a las 21:15.
+RN-004. Entre 21:16 y 21:30 solo se aceptan normalmente pedidos para recoger, sujeto a carga y disponibilidad.
+RN-005. Los pedidos de ese último período deben recogerse dentro del margen operativo definido por el restaurante.
+RN-006. El servicio de delivery externo deja de recoger normalmente alrededor de las 21:00.
+RN-007. Entre 20:00 y 21:00 los pedidos a domicilio deben evaluar carga y ETA antes de confirmarse.
+RN-008. El restaurante puede cerrar anticipadamente por baja demanda, falta de producción, alta carga u otra decisión autorizada.
+RN-009. La tolerancia normal de llegada a una reservación es de 20 minutos.
+RN-010. Al superar la tolerancia se libera el espacio previsto, pero el registro de la reservación puede mantenerse.
+RN-011. La preparación física de una mesa reservada se realiza normalmente como máximo una hora antes, salvo excepción.
+RN-012. El cliente puede realizar decoración si cumple la política de retiro al finalizar.
+RN-013. Una reservación puede incluir preorden, pero no es obligatoria salvo reglas especiales por horario.
+RN-014. Una reservación sin preorden está sujeta al tiempo de preparación existente al momento del servicio.
+RN-015. El cliente indica número de comensales, pero no selecciona directamente el área física de mesas.
+RN-016. El sistema o personal asigna mesas según capacidad, combinaciones y disponibilidad.
+RN-017. Un pedido a domicilio puede exigir depósito previo según política y antecedentes.
+RN-018. El pago contra entrega, cuando esté autorizado, se maneja únicamente con el medio habilitado por el restaurante.
+RN-019. El costo de delivery se maneja separado del total del restaurante.
+RN-020. El restaurante no garantiza el tiempo de traslado externo.
+RN-021. Los métodos de pago actuales son efectivo, tarjeta y transferencia.
+RN-022. Una cuenta puede usar varios métodos de pago.
+RN-023. La disponibilidad automática puede ser reemplazada temporalmente por un override manual autorizado.
+RN-024. IA y visión no deben presentar como hecho información no confirmada.
+
+RN-025. Un usuario puede tener múltiples roles.
+RN-026. Cada rol se compone de permisos independientes.
+RN-027. Los horarios del personal pueden variar por fecha.
+RN-028. El cálculo de carga puede considerar únicamente personal disponible.
+RN-029. Los movimientos de inventario deben registrar responsable.
+RN-030. Las conversaciones de distintos canales no se fusionan aunque pertenezcan al mismo cliente.
+RN-031. Los canales pueden asociarse al mismo perfil solo cuando la identidad esté confirmada.
+RN-032. WhatsApp, Instagram y chat interno pueden atenderse por separado.
+RN-033. Al transferir una conversación de IA a humano se debe proporcionar contexto/resumen.
+RN-034. La IA puede proponer soluciones, pero las acciones restringidas requieren autorización.
+RN-035. Para pedidos se acepta texto y comprobantes permitidos según política.
+RN-036. Archivos no permitidos no deben conservarse permanentemente.
+RN-037. Un cliente puede tener restricciones específicas de servicio.
+RN-038. Las restricciones deben ser auditables.
+RN-039. Los pedidos para recoger deben validar la hora solicitada contra el ETA.
+RN-040. Cocina puede confirmar o modificar el ETA calculado.
+RN-041. Los cambios de ETA deben propagarse al personal correspondiente.
+RN-042. Una modificación de preorden cercana a la reservación debe validar si todavía puede completarse.
+RN-043. Alcanzada la hora de la reserva, el cliente no puede modificar directamente la preorden.
+RN-044. Personal autorizado sí puede modificar pedidos ya comandados.
+RN-045. Toda modificación posterior a comanda debe conservar trazabilidad.
+RN-046. Las cuentas pueden pagarse parcialmente.
+RN-047. Una persona puede pagar productos pertenecientes a otra cuenta.
+RN-048. Una mesa no se libera mientras existan saldos pendientes, salvo autorización especial.
+RN-049. La división de cuenta no debe duplicar observaciones ni modificadores.
+RN-050. La disponibilidad aproximada debe actualizarse con inventario, producción y pedidos.
+RN-051. Nueva producción puede incrementar dinámicamente el ETA.
+RN-052. El inicio del servicio puede tener capacidad reducida por producciones pendientes.
+RN-053. La disponibilidad mostrada al cliente puede ser menos detallada que la del personal.
+RN-054. Los productos no disponibles pueden ocultarse del menú del cliente.
+RN-055. Los estados operativos pueden activarse por horario o manualmente por personal autorizado.
+
+RN-056. Un artículo enviado a cocina no debe borrarse físicamente del historial.
+RN-057. Un artículo anulado deja de formar parte del importe cobrable, pero conserva trazabilidad.
+RN-058. Un cambio debe relacionar el artículo original con su reemplazo.
+RN-059. Toda modificación posterior al envío a cocina debe generar actualización de comanda.
+RN-060. La actualización puede ser parcial o completa según criterio del personal.
+RN-061. Una comanda completa actualizada debe indicar que sustituye la versión anterior.
+RN-062. Las comandas deben manejar revisión/versionado.
+RN-063. Si un artículo ya está siendo preparado, el personal decide si el cambio es posible.
+RN-064. Una anulación con insumos ya consumidos puede generar merma independiente del cobro.
+RN-065. No se debe aceptar una reservación presencial posterior al último horario válido de ingreso.
+RN-066. Si se solicita una hora posterior, el sistema debe proponer la última alternativa válida.
+RN-067. Una reservación tardía puede requerir preorden completa.
+RN-068. Una reservación tardía debe informar el horario de cierre.
+RN-069. La aceptación final de una reserva tardía considera carga, tamaño de pedido y tiempo restante.
+RN-070. El sistema no crea promociones, descuentos o combos sin configuración/autorización explícita.
+
+RN-071. Cada producto del menú debe estar asociado a un área de preparación o despacho.
+RN-072. Cada comanda debe contener únicamente productos del área receptora.
+RN-073. Un cambio entre áreas genera anulación en el área original y adición en el área nueva.
+RN-074. Solo pueden seleccionarse extras y modificaciones configurados como válidos para el producto.
+RN-075. Los pedidos especiales fuera de menú requieren autorización.
+RN-076. Una preparación no cobrada debe clasificarse como corresponda: anulación, cortesía, consumo interno, merma o cargo al personal.
+RN-077. La propina sugerida aplica únicamente a consumo en mesa.
+RN-078. La propina debe mantenerse separada de los ingresos por venta.
+RN-079. Las comisiones de medios de pago se registran separadamente.
+RN-080. Una reservación puede tener hora de llegada y hora objetivo de servicio distintas.
+RN-081. Las ampliaciones posteriores de un pedido pueden tener ETA independiente.
+RN-082. Cocina puede alterar el orden sugerido de preparación por criterio operativo.
+RN-083. Una lista de compras debe registrar cantidad solicitada, comprada y pendiente.
+RN-084. Registrar una compra no incrementa inventario hasta que sea recibida/ingresada.
+RN-085. Las producciones pueden registrar tiempos activos y pasivos.
+RN-086. Los productos perecederos pueden manejarse mediante lotes con fechas de caducidad.
+RN-087. El sistema debe conservar la versión histórica de receta utilizada.
+RN-088. Durante indisponibilidad online, solicitudes no confirmadas no se convierten automáticamente en pedidos.
+
+RN-089. La disponibilidad confirmada debe reservarse atómicamente para evitar sobreventa concurrente.
+RN-090. En solicitudes concurrentes sobre stock insuficiente, tiene prioridad la primera transacción confirmada.
+RN-091. Agregar productos al carrito no reserva stock, salvo configuración expresa.
+RN-092. La disponibilidad considera stock físico, reservado y comprometido.
+RN-093. Cancelar un pedido no preparado libera sus reservas de recursos.
+RN-094. Recursos ya consumidos no regresan al inventario solo por anulación económica.
+RN-095. La capacidad de un platillo puede depender de recursos compartidos con otros.
+RN-096. Pedidos de volumen extraordinario pueden requerir confirmación humana.
+RN-097. Confirmar un pedido requiere disponibilidad material y capacidad operativa.
+RN-098. Una solicitud online recibida durante indisponibilidad puede mantenerse pendiente si el cliente lo acepta.
+RN-099. Solicitudes pendientes deben revalidarse antes de convertirse en pedidos.
+RN-100. Recuperar conectividad no convierte automáticamente solicitudes pendientes en pedidos.
+
+RN-101. La inexistencia de preproducción no implica indisponibilidad si existen recursos y tiempo suficiente para producir desde cero.
+RN-102. Cuando un platillo requiere nueva producción, su ETA considera tiempo de producción, carga y preparación final.
+RN-103. Personal autorizado puede aceptar o rechazar una nueva producción sugerida.
+RN-104. La decisión de producir considera la hora y el tiempo restante de servicio.
+RN-105. No debe recomendarse una producción cuya finalización sea operativamente inconveniente respecto al cierre, salvo autorización.
+RN-106. Al suspender una producción crítica, los productos dependientes actualizan automáticamente su disponibilidad.
+RN-107. El sistema puede ofrecer alternativas que usen producciones todavía disponibles.
+RN-108. Una solicitud online no es un pedido confirmado hasta ser aceptada.
+RN-109. La atención presencial tiene prioridad operativa sobre solicitudes remotas pendientes.
+RN-110. Una solicitud remota puede mantenerse en espera por decisión del cliente.
+RN-111. Antes de aceptar una solicitud en espera se revalidan disponibilidad, carga, horario y ETA.
+RN-112. El restaurante puede suspender temporalmente pedidos online por alta demanda.
+RN-113. Una cuenta eliminada pierde acceso, pero su histórico puede permanecer archivado según política.
+RN-114. Una nueva cuenta posterior a eliminación voluntaria no recupera automáticamente preferencias ni datos visibles antiguos.
+RN-115. Una cuenta suspendida debe diferenciarse de una eliminada voluntariamente.
+RN-116. Una nueva cuenta asociada a identidad suspendida puede requerir revisión autorizada.
+
+RN-117. El propietario/encargado o usuarios con permiso específico pueden cerrar total o parcialmente servicios.
+RN-118. Los permisos de cierre pueden diferenciar local, recoger, online, delivery u otras capacidades.
+RN-119. Usuarios con permiso pueden marcar productos no disponibles manualmente.
+RN-120. Todo cierre, suspensión u override de producto debe registrar usuario, fecha/hora y motivo.
+RN-121. La reactivación de un producto suspendido manualmente requiere permiso correspondiente.
+RN-122. El sistema debe distinguir disponibilidad calculada de disponibilidad publicada.
+RN-123. Un producto manualmente suspendido no debe mostrarse como vendible aunque el cálculo automático indique existencias.
+RN-124. El sistema puede mantener visible internamente la causa del agotamiento o suspensión.
+
+RN-125. Los artículos antes de confirmar un pedido pueden agregarse o quitarse sin generar una anulación histórica formal.
+RN-126. Una vez comandado, retirar un artículo debe registrarse como anulación o cambio.
+RN-127. Una reimpresión no crea un nuevo pedido.
+RN-128. Las reimpresiones deben identificarse claramente.
+RN-129. Un fallo de impresión no implica fallo del pedido si el registro digital fue confirmado.
+RN-130. El KDS o log digital puede utilizarse como respaldo ante fallo de impresión.
+
+RN-131. La propina sugerida se calcula con el porcentaje configurado y la regla de redondeo definida.
+RN-132. La propina es opcional.
+RN-133. El cierre debe separar propina por método de pago.
+RN-134. Si existe comisión sobre propina de tarjeta, se calcula separadamente.
+RN-135. Un descuento excepcional debe requerir permiso.
+RN-136. Una cortesía debe quedar diferenciada de un descuento.
+RN-137. Los pagos para recoger pueden realizarse antes o al recibir, según métodos habilitados.
+RN-138. El pago del delivery externo no debe mezclarse con el ingreso del restaurante si es cobrado por terceros.
+
+RN-139. Las compras pueden provenir de varios proveedores para un mismo producto.
+RN-140. Una lista de compras puede completarse parcialmente.
+RN-141. El historial de compras debe conservar proveedor, cantidad, fecha y precio cuando se disponga.
+RN-142. El sistema puede sugerir proveedor, pero no comprar automáticamente.
+RN-143. Una lista de producción sugerida funciona como apoyo, no como obligación automática.
+RN-144. Las recomendaciones de productos al cliente no implican promociones.
+RN-145. Productos más pedidos pueden mostrarse como recomendación sin alterar precio.
+
+============================================================
+B. REQUISITOS TÉCNICOS / NO FUNCIONALES
+============================================================
+
+RT-001. Las operaciones críticas deben ser idempotentes.
+RT-002. Cada creación de pedido debe usar un identificador único de operación.
+RT-003. Cada modificación de pedido debe usar un identificador único independiente.
+RT-004. Las operaciones críticas deben ejecutarse en transacciones ACID.
+RT-005. La reserva de inventario debe usar control de concurrencia pesimista cuando exista riesgo de sobreventa.
+RT-006. El bloqueo pesimista debe mantenerse durante la transacción y no durante el tiempo de navegación del cliente.
+RT-007. Los recursos múltiples deben bloquearse en orden determinista para reducir deadlocks.
+RT-008. Los deadlocks o fallos transitorios deben admitir reintento seguro.
+RT-009. La idempotencia debe impedir que un reintento duplique pedidos, pagos o movimientos.
+RT-010. La confirmación al cliente solo se muestra después del commit exitoso.
+RT-011. Las actualizaciones concurrentes de entidades editables deben usar control de versión para evitar sobrescritura silenciosa.
+RT-012. El sistema debe diferenciar el procesamiento del pedido del trabajo de impresión.
+RT-013. Un fallo de impresión no debe reprocesar el pedido.
+RT-014. Las reimpresiones deben operar sobre el mismo pedido y quedar auditadas.
+RT-015. El sistema debe conservar logs de operaciones, errores e impresiones.
+
+RT-016. La operación local debe continuar ante pérdida de Internet externo si la LAN y el servidor interno continúan disponibles.
+RT-017. La caída de integraciones externas no debe detener mesas, caja, cocina, inventario ni KDS local.
+RT-018. Los canales remotos deben poder pasar a modo degradado o suspendido.
+RT-019. Las solicitudes externas pendientes no deben aceptarse retroactivamente sin revalidación.
+RT-020. Debe existir un mecanismo externo o relay si se desea informar al cliente aun cuando el servidor interno pierda conectividad a Internet.
+RT-021. Las integraciones externas deben usar timeout.
+RT-022. Las integraciones externas deben usar aislamiento de fallos/circuit breaker o mecanismo equivalente.
+RT-023. El fallo de WhatsApp, Instagram u otra integración no debe bloquear el core operacional.
+RT-024. El sistema debe soportar colas para desacoplar tareas de mensajería, IA, notificaciones e impresión cuando corresponda.
+RT-025. Debe existir backpressure o control de presión ante alta tasa de solicitudes.
+
+RT-026. El sistema debe soportar alta concurrencia sin sobreventa.
+RT-027. El inventario disponible debe derivarse de stock físico menos reservas/compromisos vigentes.
+RT-028. Las reservas de recursos compartidos deben ser atómicas.
+RT-029. El motor de disponibilidad debe considerar dependencias recursivas de recetas/producciones.
+RT-030. La disponibilidad potencial no debe sumar dos veces el mismo recurso compartido.
+RT-031. Los cálculos de disponibilidad y ETA deben poder invalidarse/recalcularse ante cambios de inventario, producción o carga.
+
+RT-032. Los clientes web, móvil y escritorio deben consumir una API coherente.
+RT-033. Los permisos deben validarse en backend, no únicamente en interfaz.
+RT-034. Todo registro público debe recibir exclusivamente privilegios de cliente.
+RT-035. Los roles operativos solo pueden asignarse desde una interfaz administrativa autorizada.
+RT-036. El LLM no debe acceder directamente a la base de datos.
+RT-037. El LLM solo puede usar herramientas/APIs permitidas.
+RT-038. El contexto de cada conversación debe estar aislado por sesión/cliente/canal.
+RT-039. El sistema debe evitar mezclar respuestas entre usuarios concurrentes.
+RT-040. El servidor LLM debe poder usar cola o batching cuando exista alta carga.
+RT-041. Consultas simples deben resolverse por lógica o plantillas cuando no sea necesario usar LLM.
+
+RT-042. Debe existir trazabilidad de usuario, fecha y operación para acciones sensibles.
+RT-043. La auditoría debe distinguir creación, modificación, anulación, cambio, reimpresión y corrección de pago.
+RT-044. El sistema debe conservar histórico suficiente para reconstruir la evolución de un pedido.
+RT-045. Los cambios de receta deben usar versionado.
+RT-046. Las entidades anuladas o reemplazadas no deben eliminarse físicamente si afectan auditoría o contabilidad.
+RT-047. El sistema debe separar estado operativo del pedido y estado financiero.
+
+RT-048. El KDS debe seguir siendo usable aunque una impresora falle.
+RT-049. La impresión debe enrutar tickets por área.
+RT-050. Una actualización parcial debe llegar solo a las áreas afectadas.
+RT-051. Una comanda completa revisada debe llevar número de revisión y aviso de sustitución.
+RT-052. El sistema debe prevenir impresiones duplicadas causadas por reintentos de red.
+RT-053. Cada trabajo de impresión debe tener identificador propio.
+
+RT-054. El sistema debe soportar tres contextos principales de interfaz: Cliente, Operativo y Administrativo.
+RT-055. Las funciones visibles dentro del portal operativo deben depender de permisos.
+RT-056. Un usuario con varios roles puede ver la unión de las capacidades permitidas.
+RT-057. La interfaz debe mostrar estados críticos sin depender únicamente de color.
+RT-058. El diseño de KDS debe priorizar legibilidad, tiempos y cambios.
+RT-059. El portal cliente debe usar estados de disponibilidad simplificados.
+RT-060. El portal operativo puede mostrar cifras aproximadas de disponibilidad más detalladas.
+RT-061. El portal administrativo debe permitir configuración sin hardcodear horarios, propina, tolerancias ni cierres especiales.
+
+RT-062. El sistema debe poder registrar lotes y fechas de caducidad.
+RT-063. El sistema debe poder sugerir FEFO para productos perecederos.
+RT-064. El sistema debe diferenciar stock físico, reservado, disponible y conteo físico.
+RT-065. Los ajustes de inventario deben quedar auditados.
+
+RT-066. Los datos de clientes deben contar con estados como activo, eliminado y suspendido.
+RT-067. Eliminar una cuenta debe revocar acceso y sesiones.
+RT-068. Una cuenta nueva posterior a eliminación voluntaria debe iniciar un perfil funcional nuevo.
+RT-069. Las restricciones internas deben mantenerse separadas del perfil público del cliente.
+RT-070. La asociación entre WhatsApp, Instagram y cuenta interna debe requerir identidad confirmada.
+
+RT-071. La arquitectura debe permitir degradación parcial de servicios.
+RT-072. El core operacional debe priorizar consistencia por encima de disponibilidad cuando exista riesgo de sobreventa o cobro duplicado.
+RT-073. El sistema debe poder escalar las tareas de IA/mensajería sin bloquear pedidos.
+RT-074. Las tareas pesadas de IA, reportes o visión no deben bloquear las transacciones críticas del restaurante.
+RT-075. El sistema debe registrar métricas de carga, latencia, errores y fallos de integraciones.
+RT-076. Deben existir mecanismos de recuperación ante reinicio del servidor sin duplicar operaciones ya confirmadas.
+
+============================================================
+C. CRITERIOS ARQUITECTÓNICOS ORIENTATIVOS
+============================================================
+
+1. Arquitectura cliente-servidor con tres familias de cliente: web, móvil y escritorio.
+2. Core operacional local para mesas, pedidos, caja, cocina, inventario y producción.
+3. Servicios o módulos aislables para mensajería, IA, notificaciones, impresión e integraciones externas.
+4. Base de datos transaccional relacional, adecuada para bloqueo pesimista y consistencia ACID.
+5. Separación entre:
+   - Pedido
+   - Ítems
+   - Cambios/anulaciones
+   - Comandas por área
+   - Revisiones
+   - Cuentas
+   - Pagos
+   - Movimientos de caja
+   - Inventario físico
+   - Reservas de recursos
+   - Producciones
+6. No es obligatorio implementar microservicios completos desde el inicio; puede partirse de monolito modular con fronteras claras.
+7. La arquitectura debe permitir evolucionar sin reescribir el dominio central.
+
+FIN DEL DOCUMENTO

@@ -1,0 +1,148 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    aiDatasetVersions["ai_dataset_versions"] {
+        uuid id PK
+        text version_tag UK
+        text storage_key
+        text sha256
+        integer record_count
+        text status
+        uuid approved_by FK "NULL permitido"
+        timestamptz approved_at "NULL permitido"
+        timestamptz created_at
+    }
+    aiFeedback["ai_feedback"] {
+        uuid id PK
+        uuid ai_session_id FK
+        uuid message_id FK "NULL permitido"
+        integer rating "NULL permitido"
+        text outcome
+        text human_answer "NULL permitido"
+        text correction "NULL permitido"
+        text category "NULL permitido"
+        text status
+        uuid reviewed_by FK "NULL permitido"
+        timestamptz reviewed_at "NULL permitido"
+        timestamptz created_at
+    }
+    aiHandoffs["ai_handoffs"] {
+        uuid id PK
+        uuid ai_session_id FK
+        uuid conversation_id FK
+        text reason
+        timestamptz requested_at
+        uuid accepted_by FK "NULL permitido"
+        timestamptz accepted_at "NULL permitido"
+        timestamptz resolved_at "NULL permitido"
+        timestamptz created_at
+    }
+    aiSessions["ai_sessions"] {
+        uuid id PK
+        uuid conversation_id FK "NULL permitido"
+        uuid initiated_by FK "NULL permitido"
+        text model_reference
+        text status
+        timestamptz started_at
+        timestamptz ended_at "NULL permitido"
+        uuid correlation_id "NULL permitido"
+        timestamptz created_at
+    }
+    aiToolCalls["ai_tool_calls"] {
+        uuid id PK
+        uuid ai_session_id FK
+        text tool_name
+        jsonb arguments_redacted
+        jsonb result_summary "NULL permitido"
+        text status
+        uuid authorized_user_id FK "NULL permitido"
+        timestamptz started_at
+        timestamptz finished_at "NULL permitido"
+        uuid request_id
+        uuid correlation_id "NULL permitido"
+        timestamptz created_at
+    }
+    cameraSources["camera_sources"] {
+        uuid id PK
+        text code UK
+        text name
+        text location_description
+        text stream_reference
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    conversations["conversations"] {
+        uuid id PK
+    }
+    messages["messages"] {
+        uuid id PK
+    }
+    orders["orders"] {
+        uuid id PK
+    }
+    payments["payments"] {
+        uuid id PK
+    }
+    users["users"] {
+        uuid id PK
+    }
+    visionEventReviews["vision_event_reviews"] {
+        uuid id PK
+        uuid vision_event_id FK
+        uuid reviewer_user_id FK
+        text decision
+        text reason
+        timestamptz reviewed_at
+        uuid supersedes_review_id FK, UK "NULL permitido"
+        timestamptz created_at
+    }
+    visionEvents["vision_events"] {
+        uuid id PK
+        uuid camera_source_id FK
+        text event_type
+        numeric confidence
+        timestamptz occurred_at
+        text model_reference
+        text evidence_uri "NULL permitido"
+        timestamptz evidence_expires_at "NULL permitido"
+        jsonb metadata
+        uuid correlation_id "NULL permitido"
+        timestamptz created_at
+    }
+    voucherEvidence["voucher_evidence"] {
+        uuid id PK
+        uuid payment_id FK "NULL permitido"
+        uuid order_id FK "NULL permitido"
+        text storage_key
+        text sha256 UK
+        text status
+        jsonb extracted_fields
+        uuid reviewed_by FK "NULL permitido"
+        timestamptz reviewed_at "NULL permitido"
+        text review_reason "NULL permitido"
+        timestamptz created_at
+    }
+    users |o..o{ aiDatasetVersions : "approved_by"
+    aiSessions ||..o{ aiFeedback : "ai_session_id"
+    messages |o..o{ aiFeedback : "message_id"
+    users |o..o{ aiFeedback : "reviewed_by"
+    aiSessions ||..o{ aiHandoffs : "ai_session_id"
+    conversations ||..o{ aiHandoffs : "conversation_id"
+    users |o..o{ aiHandoffs : "accepted_by"
+    conversations |o..o{ aiSessions : "conversation_id"
+    users |o..o{ aiSessions : "initiated_by"
+    aiSessions ||..o{ aiToolCalls : "ai_session_id"
+    users |o..o{ aiToolCalls : "authorized_user_id"
+    users |o..o{ cameraSources : "created_by"
+    users |o..o{ cameraSources : "updated_by"
+    visionEvents ||..o{ visionEventReviews : "vision_event_id"
+    users ||..o{ visionEventReviews : "reviewer_user_id"
+    visionEventReviews |o..o| visionEventReviews : "supersedes_review_id"
+    cameraSources ||..o{ visionEvents : "camera_source_id"
+    payments |o..o{ voucherEvidence : "payment_id"
+    orders |o..o{ voucherEvidence : "order_id"
+    users |o..o{ voucherEvidence : "reviewed_by"

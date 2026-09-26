@@ -1,0 +1,194 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    currencies["currencies"] {
+        uuid id PK
+    }
+    customerProfiles["customer_profiles"] {
+        uuid id PK
+    }
+    diningTables["dining_tables"] {
+        uuid id PK
+    }
+    items["items"] {
+        uuid id PK
+    }
+    kitchenTicketItems["kitchen_ticket_items"] {
+        uuid id PK
+        uuid kitchen_ticket_id FK
+        uuid order_item_id FK
+        numeric quantity
+        text status
+        timestamptz cancelled_at "NULL permitido"
+        text reason "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    kitchenTickets["kitchen_tickets"] {
+        uuid id PK
+        uuid order_id FK
+        uuid preparation_area_id FK
+        text status
+        timestamptz sent_at
+        timestamptz started_at "NULL permitido"
+        timestamptz ready_at "NULL permitido"
+        integer sequence_number
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    menuItems["menu_items"] {
+        uuid id PK
+    }
+    modifiers["modifiers"] {
+        uuid id PK
+    }
+    orderItemModifiers["order_item_modifiers"] {
+        uuid id PK
+        uuid order_item_id FK
+        uuid modifier_id FK
+        text name_snapshot
+        integer quantity
+        numeric price_delta
+        timestamptz created_at
+    }
+    orderItemStatusHistory["order_item_status_history"] {
+        uuid id PK
+        uuid order_item_id FK
+        text from_status "NULL permitido"
+        text to_status
+        text reason "NULL permitido"
+        uuid actor_user_id FK "NULL permitido"
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    orderItems["order_items"] {
+        uuid id PK
+        uuid order_id FK
+        uuid menu_item_id FK
+        uuid recipe_version_id FK "NULL permitido"
+        text item_name_snapshot
+        numeric quantity
+        numeric unit_price
+        text status
+        text notes "NULL permitido"
+        timestamptz sent_at "NULL permitido"
+        timestamptz cancelled_at "NULL permitido"
+        text cancellation_reason "NULL permitido"
+        uuid replaces_order_item_id FK "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    orderModifierItemImpacts["order_modifier_item_impacts"] {
+        uuid id PK
+        uuid order_item_modifier_id FK
+        uuid item_id FK
+        numeric quantity_delta
+        timestamptz created_at
+    }
+    orderStatusHistory["order_status_history"] {
+        uuid id PK
+        uuid order_id FK
+        text from_status "NULL permitido"
+        text to_status
+        text reason "NULL permitido"
+        uuid actor_user_id FK "NULL permitido"
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    orders["orders"] {
+        uuid id PK
+        uuid customer_id FK "NULL permitido"
+        uuid table_id FK "NULL permitido"
+        uuid reservation_id FK "NULL permitido"
+        text channel
+        text order_type
+        text status
+        uuid currency_id FK
+        text comments "NULL permitido"
+        timestamptz ordered_at
+        timestamptz accepted_at "NULL permitido"
+        timestamptz estimated_ready_at "NULL permitido"
+        timestamptz completed_at "NULL permitido"
+        timestamptz cancelled_at "NULL permitido"
+        uuid request_id "NULL permitido"
+        uuid correlation_id "NULL permitido"
+        uuid client_action_id "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    preparationAreas["preparation_areas"] {
+        uuid id PK
+    }
+    recipeVersions["recipe_versions"] {
+        uuid id PK
+    }
+    reservations["reservations"] {
+        uuid id PK
+    }
+    specialRequests["special_requests"] {
+        uuid id PK
+        uuid order_id FK
+        uuid order_item_id FK "NULL permitido"
+        text description
+        text status
+        uuid reviewed_by FK "NULL permitido"
+        timestamptz reviewed_at "NULL permitido"
+        text response "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    users["users"] {
+        uuid id PK
+    }
+    kitchenTickets ||..o{ kitchenTicketItems : "kitchen_ticket_id"
+    orderItems ||..o{ kitchenTicketItems : "order_item_id"
+    users |o..o{ kitchenTicketItems : "created_by"
+    users |o..o{ kitchenTicketItems : "updated_by"
+    orders ||..o{ kitchenTickets : "order_id"
+    preparationAreas ||..o{ kitchenTickets : "preparation_area_id"
+    users |o..o{ kitchenTickets : "created_by"
+    users |o..o{ kitchenTickets : "updated_by"
+    orderItems ||..o{ orderItemModifiers : "order_item_id"
+    modifiers ||..o{ orderItemModifiers : "modifier_id"
+    orderItems ||..o{ orderItemStatusHistory : "order_item_id"
+    users |o..o{ orderItemStatusHistory : "actor_user_id"
+    orders ||..o{ orderItems : "order_id"
+    menuItems ||..o{ orderItems : "menu_item_id"
+    recipeVersions |o..o{ orderItems : "recipe_version_id"
+    orderItems |o..o{ orderItems : "replaces_order_item_id"
+    users |o..o{ orderItems : "created_by"
+    users |o..o{ orderItems : "updated_by"
+    orderItemModifiers ||..o{ orderModifierItemImpacts : "order_item_modifier_id"
+    items ||..o{ orderModifierItemImpacts : "item_id"
+    orders ||..o{ orderStatusHistory : "order_id"
+    users |o..o{ orderStatusHistory : "actor_user_id"
+    customerProfiles |o..o{ orders : "customer_id"
+    diningTables |o..o{ orders : "table_id"
+    reservations |o..o{ orders : "reservation_id"
+    currencies ||..o{ orders : "currency_id"
+    users |o..o{ orders : "created_by"
+    users |o..o{ orders : "updated_by"
+    orders ||..o{ specialRequests : "order_id"
+    orderItems |o..o{ specialRequests : "order_item_id"
+    users |o..o{ specialRequests : "reviewed_by"
+    users |o..o{ specialRequests : "created_by"
+    users |o..o{ specialRequests : "updated_by"
+    %% FK compuesta adicional special_requests(order_item_id, order_id) -> order_items(id, order_id).
+    orderItems |o..o{ specialRequests : "FK compuesta contextual"

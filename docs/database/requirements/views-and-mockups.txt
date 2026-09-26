@@ -1,0 +1,907 @@
+SISTEMA INTEGRAL DE GESTIÓN PARA RESTAURANTE
+LISTA DE VISTAS / MOCKUPS BASE
+Incluye referencia ASCII y sugerencias RGB
+
+============================================================
+PALETA GENERAL SUGERIDA
+============================================================
+
+Objetivo visual: moderno, limpio, legible en operación, con estados rápidos de reconocer.
+
+Paleta base:
+- Fondo principal oscuro: RGB(18, 18, 20)
+- Fondo secundario/tarjetas: RGB(30, 30, 34)
+- Superficie elevada: RGB(42, 42, 48)
+- Texto principal: RGB(245, 245, 245)
+- Texto secundario: RGB(180, 180, 190)
+
+Acentos:
+- Primario / acción: RGB(232, 89, 48)
+- Secundario / información: RGB(53, 132, 228)
+- Éxito / disponible: RGB(46, 160, 90)
+- Advertencia / baja disponibilidad: RGB(235, 177, 52)
+- Error / agotado / anulado: RGB(210, 65, 65)
+- Neutral / deshabilitado: RGB(105, 105, 115)
+
+Uso recomendado:
+- Verde: disponible, pagado, listo, confirmado.
+- Amarillo: baja disponibilidad, espera, atención necesaria.
+- Rojo: anulado, suspendido, error, agotado.
+- Azul: información, comunicación, estados de proceso.
+- Naranja/rojo cálido: botones principales, marca, acciones rápidas.
+
+Evitar:
+- usar rojo como botón primario normal;
+- depender solo del color para transmitir estado;
+- demasiados colores saturados en cocina/KDS.
+
+============================================================
+PORTAL 1. CLIENTE
+============================================================
+
+VISTA C-01. LOGIN / REGISTRO
+Propósito:
+Acceso de clientes. Todo nuevo registro público recibe automáticamente rol Cliente.
+
+Elementos:
+- Logo/nombre
+- Correo o teléfono
+- Contraseña
+- Iniciar sesión
+- Crear cuenta
+- Recuperar acceso
+- Aviso de privacidad
+
+ASCII:
++--------------------------------------+
+|            WOK ASIAN FOOD            |
+|                                      |
+| Correo / teléfono                    |
+| [______________________________]     |
+| Contraseña                           |
+| [______________________________]     |
+|                                      |
+|        [ INICIAR SESIÓN ]            |
+|        [ CREAR CUENTA ]              |
++--------------------------------------+
+
+Color:
+- Fondo RGB(18,18,20)
+- Botón principal RGB(232,89,48)
+- Campos RGB(42,42,48)
+
+------------------------------------------------------------
+
+VISTA C-02. INICIO CLIENTE
+Propósito:
+Resumen de disponibilidad general, acceso al menú, pedido, reserva y ubicación.
+
+Elementos:
+- Estado del restaurante
+- Tiempo estimado general
+- Categorías
+- Más pedidos de la semana
+- Recomendados
+- Reservar
+- Pedir
+- Ubicación
+- Mensajería
+
+ASCII:
++--------------------------------------------------+
+| WOK        ABIERTO        ETA 25-35 min          |
+|--------------------------------------------------|
+| [PEDIR] [RESERVAR] [UBICACIÓN] [MENSAJES]       |
+|--------------------------------------------------|
+| MÁS PEDIDOS ESTA SEMANA                         |
+| [foto] Crunchy   [foto] Uramaki   [foto] Panko |
+|--------------------------------------------------|
+| CATEGORÍAS                                       |
+| Sushi | Especialidades | Bebidas | ...           |
++--------------------------------------------------+
+
+Color:
+- Estado abierto RGB(46,160,90)
+- ETA alto RGB(235,177,52)
+
+------------------------------------------------------------
+
+VISTA C-03. MENÚ POR CATEGORÍA
+Propósito:
+Navegar productos disponibles.
+
+Elementos:
+- Categorías
+- Buscador
+- Foto
+- Nombre
+- Precio
+- Estado disponibilidad
+- Botón agregar
+- ETA dinámico superior
+
+ASCII:
++--------------------------------------------------+
+| SUSHI                  ETA ACTUAL: 30-40 min     |
+| [Buscar____________________________]             |
+|--------------------------------------------------|
+| [foto] Maki Atún          Q70       Disponible   |
+|        [Agregar]                                  |
+| [foto] Crunchy            Q65       Pocas unidades|
+|        [Agregar]                                  |
++--------------------------------------------------+
+
+Color:
+- Disponible RGB(46,160,90)
+- Pocas unidades RGB(235,177,52)
+
+------------------------------------------------------------
+
+VISTA C-04. DETALLE DE PLATILLO
+Propósito:
+Seleccionar modificadores permitidos sin aceptar opciones fuera de configuración.
+
+Elementos:
+- Foto
+- Descripción
+- Precio
+- Grupo de opciones obligatorias
+- Extras
+- Observaciones permitidas
+- ETA adicional
+- Agregar al carrito
+
+ASCII:
++------------------------------------------+
+| Uramaki Atún                             |
+| [ FOTO ]                                 |
+| Q70                                      |
+|------------------------------------------|
+| Base (elige 1)                           |
+| ( ) Arroz frito                          |
+| ( ) Chow mein                            |
+| Extras                                   |
+| [ ] Aguacate +Q5                         |
+| [ ] Mayo chipotle +Q5                    |
+|------------------------------------------|
+| [ AGREGAR AL PEDIDO ]                    |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA C-05. CARRITO / CONFIRMACIÓN
+Propósito:
+Mostrar artículos, subtotal y ETA recalculado antes de enviar solicitud.
+
+Elementos:
+- Lista de artículos
+- Cantidades
+- Modificadores
+- Tipo de servicio
+- ETA
+- Disponibilidad revalidada
+- Confirmar solicitud
+
+ASCII:
++------------------------------------------+
+| TU PEDIDO                                |
+| 2 x Crunchy                 Q130          |
+| 1 x Matcha                   Q30          |
+|------------------------------------------|
+| Subtotal                    Q160          |
+| ETA estimado              35-45 min       |
+|------------------------------------------|
+| [ CONFIRMAR SOLICITUD ]                   |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA C-06. PEDIDO EN ESPERA / SERVICIO DEGRADADO
+Propósito:
+Manejar fallas de Internet o saturación sin convertir la solicitud en pedido automáticamente.
+
+ASCII:
++------------------------------------------+
+| Estamos presentando inconvenientes       |
+| técnicos / alta demanda.                 |
+| Aún no podemos confirmar tu pedido.      |
+|                                          |
+| [ ESPERAR ] [ CANCELAR ] [ AVISARME ]   |
++------------------------------------------+
+
+Color:
+- Advertencia RGB(235,177,52)
+
+------------------------------------------------------------
+
+VISTA C-07. RESERVAR MESA
+Elementos:
+- Fecha
+- Hora
+- Número de personas
+- Preorden sí/no
+- Nota
+- Hora objetivo de servicio opcional
+
+ASCII:
++------------------------------------------+
+| RESERVAR MESA                            |
+| Fecha [__/__/____] Hora [__:__]          |
+| Personas [-] 4 [+]                       |
+| ¿Preorden?  [Sí] [Ahora no]              |
+| Hora objetivo servicio [__:__] opcional  |
+| [ CONTINUAR ]                            |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA C-08. RESERVA TARDÍA / REGLA 21:15
+Propósito:
+Explicar límite de ingreso y condición de preorden.
+
+ASCII:
++------------------------------------------+
+| La última hora disponible para ingreso   |
+| es 21:15.                                |
+|                                          |
+| Para esta hora se requiere preorden      |
+| completa y confirmación del restaurante. |
+|                                          |
+| [ USAR 21:15 ] [ ELEGIR OTRA HORA ]      |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA C-09. CHECKOUT / FORMA DE PAGO
+Elementos:
+- Tipo de servicio
+- Pagar ahora / al recibir
+- Efectivo / tarjeta / transferencia según disponibilidad
+- Delivery separado
+- Propina solo si consumo en mesa
+
+ASCII:
++------------------------------------------+
+| FORMA DE PAGO                            |
+| Tipo: Recoger                            |
+| ( ) Pagar ahora                          |
+| ( ) Pagar al recoger                     |
+|                                          |
+| Método:                                  |
+| [Efectivo] [Tarjeta] [Transferencia]     |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA C-10. SEGUIMIENTO DE PEDIDO
+Elementos:
+- Estado
+- ETA
+- Cambios
+- Delivery separado
+- Mensaje de retraso si aplica
+
+ASCII:
++------------------------------------------+
+| PEDIDO #190                              |
+| ✓ Confirmado                             |
+| ● En preparación                         |
+| ○ Listo                                  |
+| ○ Recogido / entregado a repartidor      |
+|------------------------------------------|
+| ETA preparación: 20-30 min               |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA C-11. UBICACIÓN
+Elementos:
+- Mapa
+- Ubicación del local
+- Ubicación del usuario con permiso
+- Abrir navegación externa
+
+ASCII:
++------------------------------------------+
+|                MAPA                      |
+|           ● Tu ubicación                 |
+|                    ★ Restaurante          |
+|------------------------------------------|
+| [ CÓMO LLEGAR ] [ ABRIR EN MAPS ]        |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA C-12. MENSAJERÍA
+Elementos:
+- Chat
+- Estado del agente
+- Mensajes predefinidos
+- Envío de comprobante permitido
+
+ASCII:
++------------------------------------------+
+| CHAT CON RESTAURANTE                     |
+|------------------------------------------|
+| Tú: ¿Hacen domicilio?                    |
+| Bot: Sí, te ayudamos con...              |
+|------------------------------------------|
+| [Escribir mensaje________________] [>]    |
++------------------------------------------+
+
+============================================================
+PORTAL 2. OPERATIVO / PERSONAL
+============================================================
+
+VISTA O-01. DASHBOARD OPERATIVO GENERAL
+Propósito:
+Vista principal del personal.
+
+Elementos:
+- Hora
+- Estado del restaurante
+- Mesas activas
+- Pedidos
+- Reservas próximas
+- Solicitudes online pendientes
+- Carga cocina
+- ETA general
+- Productos críticos
+- Estado delivery
+- Atajos según permisos
+
+ASCII:
++----------------------------------------------------------------+
+| WOK   19:42   SERVICIO: ABIERTO   CARGA: 74%     Usuario: FC   |
+|----------------------------------------------------------------|
+| MESAS 8/12 | PEDIDOS 11 | RESERVAS 3 | ONLINE EN ESPERA 4     |
+|----------------------------------------------------------------|
+| ETA general: 25-35 min        Delivery: ACTIVO                  |
+| Arroz sushi: BAJO             Salmón: ≈12 rolls                |
+|----------------------------------------------------------------|
+| [MESAS] [PEDIDOS] [RESERVAS] [MENSAJES] [CAJA] [INVENTARIO]   |
++----------------------------------------------------------------+
+
+Color:
+- Carga <60% verde
+- 60-85% amarillo
+- >85% rojo
+
+------------------------------------------------------------
+
+VISTA O-02. MAPA DE MESAS
+Elementos:
+- Número de mesa
+- Capacidad
+- Personas actuales
+- Estado
+- Tiempo ocupada
+- Responsable
+- Próxima reserva
+- Unir/separar
+
+ASCII:
++------------------------------------------------------+
+| M1 2/2 00:18 FC | M2 4/4 01:07 JR | M3 LIBRE      |
+| OCUPADA         | RESERVADA       |                |
+|                                                      |
+|        [ M4 + M5 ] 7/8 00:42 FC                    |
+|                                                      |
+| M6 2/4 CUENTA ABIERTA | M7 PREPARACIÓN RESERVA      |
++------------------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA O-03. DETALLE DE MESA
+Elementos:
+- Responsable
+- Tiempo
+- Pedido
+- Cuentas
+- Agregar productos
+- Historial
+- Precuenta
+- Cobrar
+- Trasladar
+
+ASCII:
++------------------------------------------+
+| MESA 4 + 5      8 personas      00:42    |
+| Responsable: Fernando                    |
+|------------------------------------------|
+| Pedido #184                              |
+| 2 Philadelphia                 Q120       |
+| 1 Alaska                        Q65       |
+|------------------------------------------|
+| [AGREGAR] [DIVIDIR] [PRECUENTA] [COBRAR]|
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA O-04. CONSTRUCTOR DE PEDIDO
+Elementos:
+- Categorías configurables
+- Buscador
+- Foto
+- Disponibilidad aproximada
+- ETA
+- Carrito
+- Modificadores
+- Pedido especial con permiso
+
+ASCII:
++----------------------------+---------------------------+
+| SUSHI                      | PEDIDO MESA 4             |
+| Buscar [____________]      | 2 x Crunchy      Q130    |
+|----------------------------| 1 x Matcha        Q30     |
+| Maki Atún        ≈10       |---------------------------|
+| Crunchy           ≈5       | ETA actual: 30-40 min    |
+| Uramaki Salmón    ≈3 !     | [ENVIAR A COCINA]        |
++----------------------------+---------------------------+
+
+------------------------------------------------------------
+
+VISTA O-05. MODIFICAR / CAMBIAR / ANULAR
+ASCII:
++------------------------------------------+
+| ITEM: Maki Camarón                       |
+| Estado: ENVIADO A COCINA                 |
+|                                          |
+| [ EDITAR ] [ CAMBIAR ] [ ANULAR ]        |
+|                                          |
+| Notificación a cocina:                   |
+| ( ) Solo cambios                         |
+| ( ) Comanda completa actualizada         |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA O-06. KDS / COCINA
+Elementos:
+- Pedido
+- Área
+- Hora ingreso
+- ETA
+- Hora objetivo
+- Repartidor si aplica
+- Cambios
+- Marcar listo
+- Modificar ETA
+
+ASCII:
++--------------------------+--------------------------+
+| #184 MESA 4              | #185 DELIVERY            |
+| Ingreso 19:10            | Ingreso 19:18            |
+| ETA 19:42                | ETA cocina 19:55         |
+|                          | Repartidor 20:05         |
+| 2 Philadelphia           | 3 California             |
+| 1 Uramaki sin pepino     | 2 Alaska                 |
+|                          |                          |
+| [LISTO] [CAMBIAR ETA]    | [LISTO] [CAMBIAR ETA]   |
++--------------------------+--------------------------+
+
+------------------------------------------------------------
+
+VISTA O-07. AGENDA DE RESERVACIONES
+ASCII:
++--------------------------------------------------+
+| JUEVES 27/08     [DÍA] [SEMANA] [MES]           |
+|--------------------------------------------------|
+| 15:00 López     4 pax   Confirmada               |
+| 18:30 García    8 pax   Preorden ✓               |
+| 20:00 Pérez     6 pax   Decoración               |
+| 21:15 Morales   2 pax   Preorden obligatoria     |
++--------------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA O-08. CREAR / EDITAR RESERVA
+Elementos:
+- Cliente
+- Fecha/hora
+- Personas
+- Preorden
+- Hora objetivo servicio
+- Solicitudes especiales
+- Mesa sugerida
+- Confirmación
+
+------------------------------------------------------------
+
+VISTA O-09. BANDEJA OMNICANAL
+ASCII:
++-------------------------+--------------------------------+
+| CONVERSACIONES          | Andrea - WhatsApp             |
+| WA Carlos       2 min   |                                |
+| IG Andrea       5 min   | "¿Cuánto falta?"               |
+| APP Luis       11 min   |                                |
+| ! Requiere atención     | [Tomar conversación]           |
++-------------------------+--------------------------------+
+
+Panel lateral opcional:
+- cliente
+- pedido activo
+- reservas
+- resumen IA
+- acciones rápidas
+
+------------------------------------------------------------
+
+VISTA O-10. SOLICITUDES ONLINE PENDIENTES
+Elementos:
+- Hora
+- Cliente
+- Pedido
+- ETA calculado
+- Motivo espera
+- Aceptar / rechazar / mantener
+- Revalidar
+
+ASCII:
++--------------------------------------------------+
+| SOLICITUDES PENDIENTES                           |
+|--------------------------------------------------|
+| #S-104  19:20  3 rolls  ETA 35-45  [REVISAR]    |
+| #S-105  19:24  8 rolls  ETA 60-75  [REVISAR]    |
++--------------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA O-11. COORDINACIÓN DE DELIVERY
+Elementos:
+- Datos cliente
+- Pago
+- ETA cocina
+- Hora objetivo
+- ETA repartidor
+- Contra entrega
+- Compartir datos
+- Marcar llegada/recogida
+
+------------------------------------------------------------
+
+VISTA O-12. CUENTAS Y PAGOS
+ASCII:
++--------------------------------------------------+
+| MESA 5 - TOTAL Q460                              |
+| Cuenta Ana   Q120  Pagado Q40  Pendiente Q80    |
+| Cuenta Luis   Q90  Pagado Q90  PAGADA           |
+| Cuenta Pedro Q250  Pagado Q250 PAGADA           |
+|--------------------------------------------------|
+| [DIVIDIR] [MOVER ITEM] [PAGO PARCIAL] [COBRAR]  |
++--------------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA O-13. PRECUENTA
+Elementos:
+- Productos
+- Subtotal
+- Propina sugerida 7% redondeada
+- Total con/sin propina
+- Imprimir
+
+------------------------------------------------------------
+
+VISTA O-14. CAJA OPERATIVA
+Elementos:
+- Ventas por método
+- Gastos
+- Retiros
+- Propinas
+- Comisión tarjeta
+- Fondo inicial
+- Nuevo gasto
+- Cierre
+
+------------------------------------------------------------
+
+VISTA O-15. INVENTARIO OPERATIVO
+Elementos:
+- Producto
+- Stock actual
+- Reservado
+- Disponible
+- Mínimo
+- Lotes
+- Caducidad
+- Ajuste
+- Entrada
+
+ASCII:
++--------------------------------------------------+
+| SALMÓN                                           |
+| Físico 8.2kg | Reservado 2.0kg | Disponible 6.2 |
+| Mínimo 5kg   | Objetivo 12kg                   |
+| Lote A vence 23/09   Lote B vence 18/10         |
++--------------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA O-16. PRODUCCIONES
+Elementos:
+- Producción
+- Cantidad
+- Estado
+- ETA
+- Tiempo activo/pasivo
+- Registrar producción
+- Sugerencias
+
+------------------------------------------------------------
+
+VISTA O-17. DISPONIBILIDAD INTEGRADA EN MENÚ
+No necesita ser pantalla independiente.
+En cada categoría mostrar:
+- ≈ cantidad disponible para personal
+- alerta de limitante
+- disponible con producción
+- override manual
+
+Ejemplo:
+Maki Atún             ≈10
+Crunchy                ≈5
+Uramaki Salmón         ≈3 !
+Arroz sushi requerido  PRODUCCIÓN NUEVA ~55 min
+
+------------------------------------------------------------
+
+VISTA O-18. ESTADO OPERATIVO / CIERRES
+ASCII:
++------------------------------------------+
+| ESTADO OPERATIVO                         |
+| (●) Normal                               |
+| ( ) Alta demanda                         |
+| ( ) Producción en curso                  |
+| ( ) Solo recoger                         |
+| ( ) Delivery suspendido                  |
+| ( ) Pedidos online suspendidos           |
+| ( ) Cerrado anticipadamente              |
+|                                          |
+| [APLICAR]                                |
++------------------------------------------+
+
+============================================================
+PORTAL 3. ADMINISTRATIVO
+============================================================
+
+VISTA A-01. DASHBOARD ADMINISTRATIVO
+Elementos:
+- Ventas
+- Pedidos
+- Ticket promedio
+- Tiempo promedio
+- Carga máxima
+- Productos críticos
+- Anulaciones
+- Compras pendientes
+- Producciones sugeridas
+- Alertas
+
+ASCII:
++--------------------------------------------------+
+| HOY                                              |
+| Ventas Q4,820 | Pedidos 83 | Ticket Q58.07      |
+| ETA medio 24m | Carga máxima 91%                |
+|--------------------------------------------------|
+| Críticos: Salmón 18% | Arroz sushi 24%          |
+| Compras pendientes: 6                            |
+| Producciones sugeridas: 3                        |
++--------------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA A-02. USUARIOS
+Elementos:
+- Lista
+- Crear
+- Activar/suspender
+- Roles
+- Último acceso
+
+------------------------------------------------------------
+
+VISTA A-03. ROLES Y PERMISOS
+ASCII:
++------------------------------------------+
+| ROL: CAJERO                              |
+|------------------------------------------|
+| [x] pago.registrar                       |
+| [x] pago.dividir                         |
+| [x] caja.consultar                       |
+| [ ] servicio.cerrar                      |
+| [ ] usuario.asignar_rol                  |
+|------------------------------------------|
+| [GUARDAR]                                |
++------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA A-04. PERSONAL / HORARIOS
+Elementos:
+- Horario base
+- Turnos especiales
+- Auxiliares
+- Ausencias
+- Disponibilidad prevista
+
+------------------------------------------------------------
+
+VISTA A-05. MENÚ / CATEGORÍAS / MODIFICADORES
+Elementos:
+- CRUD de categorías
+- CRUD de platillos
+- Fotos
+- Área de preparación
+- Extras
+- Opciones obligatorias
+- Restricción de edad
+- Visibilidad
+
+------------------------------------------------------------
+
+VISTA A-06. RECETAS Y VERSIONES
+Elementos:
+- Receta
+- Componentes
+- Producciones anidadas
+- Rendimiento
+- Versión
+- Vigencia
+
+------------------------------------------------------------
+
+VISTA A-07. PROVEEDORES
+Elementos:
+- Proveedor
+- Contacto
+- Productos
+- Último precio
+- Preferido
+- Incidencias
+- Historial
+
+------------------------------------------------------------
+
+VISTA A-08. LISTAS DE COMPRAS
+ASCII:
++--------------------------------------------------+
+| COMPRAS 28/08                                   |
+| Producto       Solicitado  Comprado  Pendiente |
+| Queso crema        5           3          2      |
+| Salmón             8kg         8kg        0      |
+| Aguacate          20          18          2      |
+|--------------------------------------------------|
+| [EDITAR] [GUARDAR] [REGISTRAR INGRESO]          |
++--------------------------------------------------+
+
+------------------------------------------------------------
+
+VISTA A-09. PLAN DE PRODUCCIÓN
+Elementos:
+- Sugerencias
+- Cantidad
+- Tiempo activo
+- Cocción/reposo/enfriamiento
+- Hora estimada disponible
+- Aceptar/rechazar
+
+------------------------------------------------------------
+
+VISTA A-10. REPORTES
+Secciones sugeridas:
+- ventas
+- caja
+- anulaciones
+- cortesías
+- inventario
+- producción
+- compras
+- proveedores
+- tiempos
+- carga
+- clientes
+- productos más pedidos
+
+------------------------------------------------------------
+
+VISTA A-11. CIERRES DE CAJA HISTÓRICOS
+Elementos:
+- Fecha
+- Usuario
+- Efectivo
+- Tarjeta
+- Transferencia
+- Propinas
+- Comisiones
+- Gastos
+- Diferencia
+- Observaciones
+
+------------------------------------------------------------
+
+VISTA A-12. CLIENTES / INCIDENCIAS / RESTRICCIONES
+Elementos:
+- Perfil
+- Historial
+- Restricciones
+- Motivo
+- Estado
+- Auditoría
+- Bloqueo total o parcial
+
+------------------------------------------------------------
+
+VISTA A-13. CONFIGURACIÓN DEL RESTAURANTE
+Elementos:
+- Horarios
+- Último ingreso local
+- Cierre cocina
+- Límite delivery
+- Tolerancia reserva
+- Propina %
+- Redondeo
+- Estados operativos
+- Políticas de archivos
+- Promociones habilitadas/no
+
+------------------------------------------------------------
+
+VISTA A-14. IA Y MENSAJERÍA
+Elementos:
+- Plantillas
+- Estado del LLM
+- Permisos/herramientas del agente
+- Cola de solicitudes
+- Límites
+- Logs de transferencias a humano
+
+------------------------------------------------------------
+
+VISTA A-15. CÁMARAS / VISIÓN
+Elementos:
+- Feed autorizado
+- Indicadores de carga
+- Eventos detectados
+- Confianza
+- Confirmar/rechazar
+
+------------------------------------------------------------
+
+VISTA A-16. AUDITORÍA Y LOGS
+Elementos:
+- Usuario
+- Acción
+- Fecha/hora
+- Entidad afectada
+- Antes/después
+- Errores técnicos
+- Reimpresiones
+
+============================================================
+RECOMENDACIÓN PARA EL MOCKUP ACADÉMICO
+============================================================
+
+Si el equipo necesita repartir trabajo rápido, priorizar estas vistas:
+1. Login/Registro cliente
+2. Inicio cliente
+3. Menú cliente
+4. Reservación cliente
+5. Dashboard operativo
+6. Mapa de mesas
+7. Constructor de pedido
+8. KDS/Cocina
+9. Agenda de reservaciones
+10. Bandeja omnicanal
+11. Delivery
+12. Cuentas/Pagos
+13. Caja
+14. Dashboard administrativo
+15. Usuarios/Roles
+16. Compras
+17. Producción
+18. Reportes
+
+Con estas 18 se demuestra casi todo el sistema sin diseñar cada pantalla secundaria.
+
+FIN DEL DOCUMENTO

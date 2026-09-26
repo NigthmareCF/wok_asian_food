@@ -1,0 +1,100 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    auditLogs["audit_logs"] {
+        uuid id PK
+        uuid actor_user_id FK "NULL permitido"
+        text action
+        text entity_type
+        uuid entity_id
+        jsonb before_data "NULL permitido"
+        jsonb after_data "NULL permitido"
+        text reason "NULL permitido"
+        text result
+        uuid request_id "NULL permitido"
+        uuid correlation_id "NULL permitido"
+        text actor_label_snapshot "NULL permitido"
+        timestamptz created_at
+    }
+    businessHours["business_hours"] {
+        uuid id PK
+        text service_type
+        integer weekday
+        time opens_at
+        time closes_at
+        text timezone_name
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    emailOutbox["email_outbox"] {
+        uuid id PK
+        text recipient
+        text template_code
+        jsonb payload
+        text status
+        integer attempt_count
+        timestamptz next_attempt_at
+        timestamptz sent_at "NULL permitido"
+        text provider_message_id "NULL permitido"
+        text last_error "NULL permitido"
+        uuid correlation_id "NULL permitido"
+        timestamptz created_at
+    }
+    idempotencyKeys["idempotency_keys"] {
+        uuid id PK
+        text principal_scope
+        text operation
+        text key
+        text request_hash
+        text status
+        text resource_type "NULL permitido"
+        uuid resource_id "NULL permitido"
+        integer response_code "NULL permitido"
+        jsonb response_snapshot "NULL permitido"
+        timestamptz locked_until
+        timestamptz expires_at
+        timestamptz completed_at "NULL permitido"
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    outboxEvents["outbox_events"] {
+        uuid id PK
+        text aggregate_type
+        uuid aggregate_id
+        integer aggregate_version
+        text event_type
+        jsonb payload
+        timestamptz occurred_at
+        timestamptz published_at "NULL permitido"
+        integer attempt_count
+        timestamptz next_attempt_at
+        timestamptz claimed_until "NULL permitido"
+        text claimed_by "NULL permitido"
+        text last_error "NULL permitido"
+        uuid request_id "NULL permitido"
+        uuid correlation_id "NULL permitido"
+        timestamptz created_at
+    }
+    systemSettings["system_settings"] {
+        uuid id PK
+        text key
+        integer version_number
+        jsonb value
+        integer value_schema_version
+        timestamptz effective_from
+        timestamptz retired_at "NULL permitido"
+        text reason
+        uuid created_by FK
+        timestamptz created_at
+    }
+    users["users"] {
+        uuid id PK
+    }
+    users |o..o{ auditLogs : "actor_user_id"
+    users |o..o{ businessHours : "created_by"
+    users |o..o{ businessHours : "updated_by"
+    users ||..o{ systemSettings : "created_by"

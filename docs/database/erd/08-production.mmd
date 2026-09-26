@@ -1,0 +1,125 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    aiSessions["ai_sessions"] {
+        uuid id PK
+    }
+    currencies["currencies"] {
+        uuid id PK
+    }
+    inventoryLocations["inventory_locations"] {
+        uuid id PK
+    }
+    inventoryLots["inventory_lots"] {
+        uuid id PK
+    }
+    items["items"] {
+        uuid id PK
+    }
+    productionBatchStatusHistory["production_batch_status_history"] {
+        uuid id PK
+        uuid production_batch_id FK
+        text from_status "NULL permitido"
+        text to_status
+        text reason "NULL permitido"
+        uuid actor_user_id FK "NULL permitido"
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    productionBatches["production_batches"] {
+        uuid id PK
+        uuid production_order_id FK
+        text batch_code UK
+        timestamptz started_at "NULL permitido"
+        timestamptz completed_at "NULL permitido"
+        text status
+        uuid responsible_user_id FK
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    productionConsumptions["production_consumptions"] {
+        uuid id PK
+        uuid production_batch_id FK
+        uuid lot_id FK
+        uuid location_id FK
+        numeric quantity
+        numeric unit_cost
+        timestamptz consumed_at
+        timestamptz created_at
+    }
+    productionOrders["production_orders"] {
+        uuid id PK
+        uuid recipe_version_id FK
+        uuid currency_id FK
+        numeric planned_quantity
+        text status
+        uuid suggested_by_ai_session_id FK "NULL permitido"
+        uuid accepted_by FK "NULL permitido"
+        timestamptz accepted_at "NULL permitido"
+        uuid modified_by FK "NULL permitido"
+        uuid rejected_by FK "NULL permitido"
+        timestamptz rejected_at "NULL permitido"
+        text reason "NULL permitido"
+        timestamptz planned_start_at "NULL permitido"
+        timestamptz planned_end_at "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    productionOutputs["production_outputs"] {
+        uuid id PK
+        uuid production_batch_id FK
+        uuid item_id FK
+        uuid location_id FK
+        numeric quantity
+        numeric unit_cost
+        text output_type
+        timestamptz produced_at
+        timestamptz expires_at "NULL permitido"
+        timestamptz created_at
+    }
+    productionStatusHistory["production_status_history"] {
+        uuid id PK
+        uuid production_order_id FK
+        text from_status "NULL permitido"
+        text to_status
+        text reason "NULL permitido"
+        uuid actor_user_id FK "NULL permitido"
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    recipeVersions["recipe_versions"] {
+        uuid id PK
+    }
+    users["users"] {
+        uuid id PK
+    }
+    productionBatches ||..o{ productionBatchStatusHistory : "production_batch_id"
+    users |o..o{ productionBatchStatusHistory : "actor_user_id"
+    productionOrders ||..o{ productionBatches : "production_order_id"
+    users ||..o{ productionBatches : "responsible_user_id"
+    users |o..o{ productionBatches : "created_by"
+    users |o..o{ productionBatches : "updated_by"
+    productionBatches ||..o{ productionConsumptions : "production_batch_id"
+    inventoryLots ||..o{ productionConsumptions : "lot_id"
+    inventoryLocations ||..o{ productionConsumptions : "location_id"
+    recipeVersions ||..o{ productionOrders : "recipe_version_id"
+    currencies ||..o{ productionOrders : "currency_id"
+    aiSessions |o..o{ productionOrders : "suggested_by_ai_session_id"
+    users |o..o{ productionOrders : "accepted_by"
+    users |o..o{ productionOrders : "modified_by"
+    users |o..o{ productionOrders : "rejected_by"
+    users |o..o{ productionOrders : "created_by"
+    users |o..o{ productionOrders : "updated_by"
+    productionBatches ||..o{ productionOutputs : "production_batch_id"
+    items ||..o{ productionOutputs : "item_id"
+    inventoryLocations ||..o{ productionOutputs : "location_id"
+    productionOrders ||..o{ productionStatusHistory : "production_order_id"
+    users |o..o{ productionStatusHistory : "actor_user_id"

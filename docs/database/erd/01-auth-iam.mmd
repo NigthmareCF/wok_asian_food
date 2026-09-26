@@ -1,0 +1,182 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    accountLockouts["account_lockouts"] {
+        uuid id PK
+        uuid user_id FK
+        timestamptz locked_until
+        text lock_reason
+        timestamptz unlocked_at "NULL permitido"
+        uuid unlocked_by FK "NULL permitido"
+        timestamptz created_at
+    }
+    authIdentities["auth_identities"] {
+        uuid id PK
+        uuid user_id FK
+        text provider
+        text provider_subject
+        text email_at_link "NULL permitido"
+        timestamptz linked_at
+        timestamptz last_login_at "NULL permitido"
+        timestamptz created_at
+    }
+    authSessions["auth_sessions"] {
+        uuid id PK
+        uuid user_id FK
+        text client_type
+        text device_name "NULL permitido"
+        text device_identifier "NULL permitido"
+        inet ip_address "NULL permitido"
+        text user_agent "NULL permitido"
+        timestamptz last_activity_at
+        timestamptz expires_at
+        timestamptz revoked_at "NULL permitido"
+        uuid revoked_by FK "NULL permitido"
+        text revocation_reason "NULL permitido"
+        timestamptz created_at
+    }
+    customerProfiles["customer_profiles"] {
+        uuid id PK
+    }
+    guestAccessTokens["guest_access_tokens"] {
+        uuid id PK
+        uuid customer_id FK "NULL permitido"
+        text scope
+        uuid resource_id
+        text token_hash UK
+        timestamptz expires_at
+        timestamptz consumed_at "NULL permitido"
+        timestamptz revoked_at "NULL permitido"
+        timestamptz created_at
+    }
+    loginAttempts["login_attempts"] {
+        uuid id PK
+        uuid user_id FK "NULL permitido"
+        text identifier_used
+        boolean success
+        text failure_reason "NULL permitido"
+        inet ip_address "NULL permitido"
+        text user_agent "NULL permitido"
+        text client_type
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    permissions["permissions"] {
+        uuid id PK
+        text code UK
+        text description
+        timestamptz created_at
+    }
+    refreshTokens["refresh_tokens"] {
+        uuid id PK
+        uuid session_id FK
+        text token_hash UK
+        uuid parent_token_id FK, UK "NULL permitido"
+        timestamptz expires_at
+        timestamptz used_at "NULL permitido"
+        timestamptz revoked_at "NULL permitido"
+        timestamptz created_at
+    }
+    rolePermissions["role_permissions"] {
+        uuid id PK
+        uuid role_id FK
+        uuid permission_id FK
+        uuid granted_by FK "NULL permitido"
+        timestamptz created_at
+    }
+    roles["roles"] {
+        uuid id PK
+        text code UK
+        text name
+        text description "NULL permitido"
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    securityEvents["security_events"] {
+        uuid id PK
+        uuid actor_user_id FK "NULL permitido"
+        text event_type
+        text severity
+        inet ip_address "NULL permitido"
+        text user_agent "NULL permitido"
+        uuid session_id FK "NULL permitido"
+        uuid request_id "NULL permitido"
+        uuid correlation_id "NULL permitido"
+        jsonb details
+        timestamptz occurred_at
+        timestamptz created_at
+    }
+    userCredentials["user_credentials"] {
+        uuid id PK
+        uuid user_id FK, UK
+        text password_hash
+        timestamptz password_changed_at
+        boolean must_change_password
+        timestamptz credentials_updated_at
+        timestamptz created_at
+    }
+    userRoles["user_roles"] {
+        uuid id PK
+        uuid user_id FK
+        uuid role_id FK
+        uuid granted_by FK "NULL permitido"
+        timestamptz revoked_at "NULL permitido"
+        uuid revoked_by FK "NULL permitido"
+        text reason "NULL permitido"
+        timestamptz created_at
+    }
+    users["users"] {
+        uuid id PK
+        text email UK
+        text phone "NULL permitido"
+        text display_name
+        text status
+        timestamptz email_verified_at "NULL permitido"
+        timestamptz sessions_valid_after
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    verificationChallenges["verification_challenges"] {
+        uuid id PK
+        uuid user_id FK
+        text purpose
+        text code_hash
+        text destination_hash
+        timestamptz expires_at
+        integer attempt_count
+        integer max_attempts
+        timestamptz consumed_at "NULL permitido"
+        timestamptz revoked_at "NULL permitido"
+        timestamptz created_at
+    }
+    users ||..o{ accountLockouts : "user_id"
+    users |o..o{ accountLockouts : "unlocked_by"
+    users ||..o{ authIdentities : "user_id"
+    users ||..o{ authSessions : "user_id"
+    users |o..o{ authSessions : "revoked_by"
+    customerProfiles |o..o{ guestAccessTokens : "customer_id"
+    users |o..o{ loginAttempts : "user_id"
+    authSessions ||..o{ refreshTokens : "session_id"
+    refreshTokens |o..o| refreshTokens : "parent_token_id"
+    roles ||..o{ rolePermissions : "role_id"
+    permissions ||..o{ rolePermissions : "permission_id"
+    users |o..o{ rolePermissions : "granted_by"
+    users |o..o{ roles : "created_by"
+    users |o..o{ roles : "updated_by"
+    users |o..o{ securityEvents : "actor_user_id"
+    authSessions |o..o{ securityEvents : "session_id"
+    users ||..o| userCredentials : "user_id"
+    users ||..o{ userRoles : "user_id"
+    roles ||..o{ userRoles : "role_id"
+    users |o..o{ userRoles : "granted_by"
+    users |o..o{ userRoles : "revoked_by"
+    users |o..o{ users : "created_by"
+    users |o..o{ users : "updated_by"
+    users ||..o{ verificationChallenges : "user_id"

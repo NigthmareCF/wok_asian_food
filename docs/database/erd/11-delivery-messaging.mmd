@@ -1,0 +1,174 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    aiSessions["ai_sessions"] {
+        uuid id PK
+    }
+    conversationAssignments["conversation_assignments"] {
+        uuid id PK
+        uuid conversation_id FK
+        uuid assigned_to FK
+        uuid assigned_by FK "NULL permitido"
+        timestamptz released_at "NULL permitido"
+        text reason "NULL permitido"
+        timestamptz created_at
+    }
+    conversations["conversations"] {
+        uuid id PK
+        uuid customer_id FK "NULL permitido"
+        text channel
+        text external_thread_id "NULL permitido"
+        text status
+        text handling_mode
+        timestamptz closed_at "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    customerProfiles["customer_profiles"] {
+        uuid id PK
+    }
+    deliveries["deliveries"] {
+        uuid id PK
+        uuid order_id FK
+        uuid partner_id FK "NULL permitido"
+        integer attempt_number
+        text status
+        text recipient_name_snapshot
+        text phone_snapshot
+        text address_snapshot
+        text instructions_snapshot "NULL permitido"
+        numeric latitude "NULL permitido"
+        numeric longitude "NULL permitido"
+        numeric fee
+        timestamptz assigned_at "NULL permitido"
+        timestamptz picked_up_at "NULL permitido"
+        timestamptz delivered_at "NULL permitido"
+        text external_reference "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    deliveryPartners["delivery_partners"] {
+        uuid id PK
+        text partner_type
+        uuid employee_id FK "NULL permitido"
+        text name
+        text phone "NULL permitido"
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    deliveryStatusHistory["delivery_status_history"] {
+        uuid id PK
+        uuid deliverie_id FK
+        text from_status "NULL permitido"
+        text to_status
+        text reason "NULL permitido"
+        uuid actor_user_id FK "NULL permitido"
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    employeeProfiles["employee_profiles"] {
+        uuid id PK
+    }
+    externalCustomerIdentities["external_customer_identities"] {
+        uuid id PK
+        uuid customer_id FK
+        text provider
+        text external_subject
+        timestamptz verified_at "NULL permitido"
+        uuid linked_by FK "NULL permitido"
+        timestamptz created_at
+    }
+    messageAttachments["message_attachments"] {
+        uuid id PK
+        uuid message_id FK
+        text storage_key UK
+        text mime_type
+        integer byte_size
+        text checksum_sha256
+        text scan_status
+        timestamptz expires_at "NULL permitido"
+        timestamptz created_at
+    }
+    messageTemplates["message_templates"] {
+        uuid id PK
+        text code
+        integer version_number
+        text channel
+        text locale
+        text body
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    messageTranscriptions["message_transcriptions"] {
+        uuid id PK
+        uuid attachment_id FK, UK
+        text provider
+        text language_code "NULL permitido"
+        text text
+        text status
+        numeric confidence "NULL permitido"
+        timestamptz created_at
+    }
+    messages["messages"] {
+        uuid id PK
+        uuid conversation_id FK
+        text sender_type
+        uuid sender_user_id FK "NULL permitido"
+        uuid ai_session_id FK "NULL permitido"
+        text direction
+        text body "NULL permitido"
+        text attachment_uri "NULL permitido"
+        text external_message_id "NULL permitido"
+        timestamptz sent_at "NULL permitido"
+        timestamptz delivered_at "NULL permitido"
+        timestamptz read_at "NULL permitido"
+        text status
+        uuid reply_to_message_id FK "NULL permitido"
+        timestamptz created_at
+    }
+    orders["orders"] {
+        uuid id PK
+    }
+    users["users"] {
+        uuid id PK
+    }
+    conversations ||..o{ conversationAssignments : "conversation_id"
+    users ||..o{ conversationAssignments : "assigned_to"
+    users |o..o{ conversationAssignments : "assigned_by"
+    customerProfiles |o..o{ conversations : "customer_id"
+    users |o..o{ conversations : "created_by"
+    users |o..o{ conversations : "updated_by"
+    orders ||..o{ deliveries : "order_id"
+    deliveryPartners |o..o{ deliveries : "partner_id"
+    users |o..o{ deliveries : "created_by"
+    users |o..o{ deliveries : "updated_by"
+    employeeProfiles |o..o{ deliveryPartners : "employee_id"
+    users |o..o{ deliveryPartners : "created_by"
+    users |o..o{ deliveryPartners : "updated_by"
+    deliveries ||..o{ deliveryStatusHistory : "deliverie_id"
+    users |o..o{ deliveryStatusHistory : "actor_user_id"
+    customerProfiles ||..o{ externalCustomerIdentities : "customer_id"
+    users |o..o{ externalCustomerIdentities : "linked_by"
+    messages ||..o{ messageAttachments : "message_id"
+    users |o..o{ messageTemplates : "created_by"
+    users |o..o{ messageTemplates : "updated_by"
+    messageAttachments ||..o| messageTranscriptions : "attachment_id"
+    conversations ||..o{ messages : "conversation_id"
+    users |o..o{ messages : "sender_user_id"
+    aiSessions |o..o{ messages : "ai_session_id"
+    messages |o..o{ messages : "reply_to_message_id"

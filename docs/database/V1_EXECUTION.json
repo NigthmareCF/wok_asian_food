@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-25",
+  "database": "postgres:16-alpine",
+  "isolation": "temporary container, network none, no published ports",
+  "commands": [
+    "psql -v ON_ERROR_STOP=1 < database/migrations/V1__identity_and_core.sql",
+    "psql -v ON_ERROR_STOP=1 < database/migrations/V2__reference_data.sql",
+    "psql -v ON_ERROR_STOP=1 < database/tests/V1_constraints.sql"
+  ],
+  "result": "PASS_DB_V1",
+  "limitations": [
+    "Flyway runtime was not exercised by this test",
+    "No concurrent transaction or upgrade-with-data test",
+    "Full 128-table candidate schema was not executed"
+  ]
+}

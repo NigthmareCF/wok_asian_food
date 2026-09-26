@@ -1,0 +1,130 @@
+erDiagram
+    %% Vista fisica: la cardinalidad proviene de NULL y UNIQUE.
+    %% Referencias externas muestran solo PK. Un padre puede tener cero hijos.
+    customerProfiles["customer_profiles"] {
+        uuid id PK
+    }
+    diningSessionTables["dining_session_tables"] {
+        uuid id PK
+        uuid dining_session_id FK
+        uuid table_id FK
+        timestamptz assigned_at
+        timestamptz released_at "NULL permitido"
+        uuid assigned_by FK
+        timestamptz created_at
+    }
+    diningSessions["dining_sessions"] {
+        uuid id PK
+        uuid reservation_id FK "NULL permitido"
+        uuid customer_id FK "NULL permitido"
+        text status
+        integer party_size
+        timestamptz opened_at
+        timestamptz closed_at "NULL permitido"
+        timestamptz estimated_end_at "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    diningTableStatusHistory["dining_table_status_history"] {
+        uuid id PK
+        uuid dining_table_id FK
+        text from_status "NULL permitido"
+        text to_status
+        text reason "NULL permitido"
+        uuid actor_user_id FK "NULL permitido"
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    diningTables["dining_tables"] {
+        uuid id PK
+        text name UK
+        integer capacity
+        text zone
+        boolean active
+        text current_status
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    reservationEvaluations["reservation_evaluations"] {
+        uuid id PK
+        uuid reservation_id FK "NULL permitido"
+        uuid request_id
+        text decision
+        jsonb reason_codes
+        jsonb alternatives
+        jsonb conditions
+        integer estimated_occupancy_minutes
+        timestamptz estimated_ready_at "NULL permitido"
+        text public_message
+        text policy_version
+        timestamptz evaluated_at
+        timestamptz created_at
+    }
+    reservationStatusHistory["reservation_status_history"] {
+        uuid id PK
+        uuid reservation_id FK
+        text from_status "NULL permitido"
+        text to_status
+        text reason "NULL permitido"
+        uuid actor_user_id FK "NULL permitido"
+        timestamptz occurred_at
+        uuid request_id "NULL permitido"
+        timestamptz created_at
+    }
+    reservationTableAssignments["reservation_table_assignments"] {
+        uuid id PK
+        uuid reservation_id FK
+        uuid table_id FK
+        tstzrange occupied_period
+        timestamptz released_at "NULL permitido"
+        uuid assigned_by FK
+        timestamptz created_at
+    }
+    reservations["reservations"] {
+        uuid id PK
+        uuid customer_id FK
+        integer party_size
+        timestamptz reservation_at
+        timestamptz ends_at
+        timestamptz requested_at
+        text status
+        text notes "NULL permitido"
+        timestamptz arrival_at "NULL permitido"
+        timestamptz cancelled_at "NULL permitido"
+        text cancellation_reason "NULL permitido"
+        timestamptz created_at
+        timestamptz updated_at
+        uuid created_by FK "NULL permitido"
+        uuid updated_by FK "NULL permitido"
+        integer row_version
+    }
+    users["users"] {
+        uuid id PK
+    }
+    diningSessions ||..o{ diningSessionTables : "dining_session_id"
+    diningTables ||..o{ diningSessionTables : "table_id"
+    users ||..o{ diningSessionTables : "assigned_by"
+    reservations |o..o{ diningSessions : "reservation_id"
+    customerProfiles |o..o{ diningSessions : "customer_id"
+    users |o..o{ diningSessions : "created_by"
+    users |o..o{ diningSessions : "updated_by"
+    diningTables ||..o{ diningTableStatusHistory : "dining_table_id"
+    users |o..o{ diningTableStatusHistory : "actor_user_id"
+    users |o..o{ diningTables : "created_by"
+    users |o..o{ diningTables : "updated_by"
+    reservations |o..o{ reservationEvaluations : "reservation_id"
+    reservations ||..o{ reservationStatusHistory : "reservation_id"
+    users |o..o{ reservationStatusHistory : "actor_user_id"
+    reservations ||..o{ reservationTableAssignments : "reservation_id"
+    diningTables ||..o{ reservationTableAssignments : "table_id"
+    users ||..o{ reservationTableAssignments : "assigned_by"
+    customerProfiles ||..o{ reservations : "customer_id"
+    users |o..o{ reservations : "created_by"
+    users |o..o{ reservations : "updated_by"
