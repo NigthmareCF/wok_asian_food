@@ -1,5 +1,7 @@
 # Canal Operativo
 
+> **Actualización de alcance 2026-09-25:** además del catálogo visual inicial, el alcance integral exige pagos mixtos/propinas, workspace FEL, handoff IA, salud de integraciones y operaciones persistentes autorizadas. La navegación demo no acredita esos casos de uso. Ver [brechas por canal](../CHANNEL_GAPS.md).
+
 Responsables: Antony y Tomy. Rama de canal disponible: `feature/frontend-operational`.
 
 El canal Operativo está diseñado para trabajo repetitivo y rápido durante el servicio. Debe priorizar densidad legible, tiempos, estados, alertas y acciones según permisos, sin depender de animaciones decorativas.
