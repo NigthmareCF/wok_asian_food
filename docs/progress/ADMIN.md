@@ -4,6 +4,14 @@ Responsables: Edgar y Beto.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-26 — Prueba local de canales y acceso móvil
+
+- El login BFF selecciona destino según autorización confirmada por la API: `ADMIN` → `/admin`, `OPERATIONAL` → `/operation`, cliente → `/client`. Es navegación de interfaz; la API conserva la autorización real de cada operación.
+- Se validó un login web real para cada canal y se dejaron tres cuentas de prueba por rol en una base PostgreSQL local desechable. No se guardaron usuarios ni contraseñas en Git.
+- Web WOK está en `http://10.122.177.24:3003`; Spring está en `http://10.122.177.24:8082`; Expo Go/Metro en `exp://10.122.177.24:8081`. La IP corresponde a la Wi-Fi activa al iniciar y puede cambiar.
+- El runtime del backend se armó temporalmente desde las ramas `feature/backend-foundation`, `feature/backend-auth`, `feature/availability`, `feature/reservations` y `feature/database-migrations`. Compiló Java 21, arrancó PostgreSQL y Flyway aplicó V1–V6; health quedó `UP`. Es una prueba local, no una integración ni merge de esas ramas.
+- Expo usa el código de `feature/mobile-shell` en un checkout temporal; las dependencias se resolvieron offline ahí, sin tocar el lockfile del repositorio.
+
 ## 2026-09-26 — Integración de sesión y roles con backend WOK
 
 - Rama `feature/frontend-admin`. Login Web usa `POST /api/session` en un Route Handler de Next como BFF; el backend es el único emisor de tokens. Access y refresh quedan en cookies `HttpOnly`, `SameSite=Lax`, `Secure` en producción. La renovación rota el refresh token al recibir 401 y las mutaciones comprueban origen del navegador.
@@ -11,8 +19,8 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - `A-02` reconoce `WOK_API_BASE_URL` server-only. En modo conectado muestra cuentas reales y habilita un rol a la vez. No finge creación, edición de identidad, activación/suspensión, permisos efectivos ni una vista de auditoría; esas partes permanecen pendientes. Sin la variable, sigue explícito en modo demo.
 - Archivos: BFF bajo `apps/web/src/app/api`, helper `src/shared/server/wok-backend.ts`, login y gestión de usuarios, `apps/web/.env.example`.
 - Tests nuevos cubren login BFF en frontend, lista real, asignación con motivo/versión y conflicto obsoleto. `typecheck`, `lint` y Vitest pasaron: 223 pruebas. `build:web` también pasó tras fijar el uso de TypeScript API de Next; se conserva la comprobación de tipos.
-- La web está levantada en `0.0.0.0:3000` para revisión en la LAN. En esta laptop la IP Wi-Fi actual es `192.168.1.109`; abrir `http://192.168.1.109:3000` desde un dispositivo conectado a la misma red. El BFF devuelve 503 en esta instancia porque `WOK_API_BASE_URL` todavía no está configurada; la portada responde 200.
-- Pendientes: validar el BFF contra una instancia API + PostgreSQL levantada con `WOK_API_BASE_URL`, hacer prueba navegador/dispositivo, integrar registro/recuperación/logout global, exponer permisos efectivos y añadir alta/cambio de estado al backend antes de habilitar esas acciones.
+- Estado inicial de esa verificación: `SUPERSEDED` por el runtime local del 2026-09-26 documentado arriba; el BFF ya se verificó con la API temporal en los tres roles.
+- Pendientes: integrar y desplegar las ramas API/migraciones requeridas en el flujo principal, revisar la UX en dispositivo físico, integrar registro/recuperación/logout global, exponer permisos efectivos y añadir alta/cambio de estado al backend antes de habilitar esas acciones.
 
 ## 2026-09-26 — Capacidades de servicio desde A-13
 

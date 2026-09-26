@@ -72,6 +72,17 @@ export async function POST(request: NextRequest) {
       },
     ).catch(() => null);
     if (adminCheck?.ok) destination = "/admin";
+    else {
+      const operationalCheck = await fetch(
+        `${baseUrl}/api/v1/operational/reservations/pending`,
+        {
+          cache: "no-store",
+          signal: AbortSignal.timeout(3_000),
+          headers: { Authorization: `Bearer ${tokens.accessToken}` },
+        },
+      ).catch(() => null);
+      if (operationalCheck?.ok) destination = "/operation";
+    }
     return NextResponse.json({ authenticated: true, destination });
   } catch {
     return NextResponse.json(
