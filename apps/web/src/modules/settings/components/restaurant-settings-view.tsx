@@ -11,6 +11,7 @@ import {
   styles,
   useAdminWorkspace,
 } from "@/modules/admin-workspace";
+import { ServiceCapabilityPanel } from "./service-capability-panel";
 export function RestaurantSettingsView() {
   const { state, commit, canManage } = useAdminWorkspace();
   const [draft, setDraft] = useState({ ...state.settings });
@@ -51,7 +52,8 @@ export function RestaurantSettingsView() {
     <Workspace
       id="A-13"
       title="Configuración del restaurante"
-      description="Horarios, reservas y políticas configurables para la demostración."
+      description="Parámetros de operación y capacidades por canal."
+      demoMessage="Los horarios, límites y políticas de esta página siguen siendo datos de demostración; la disponibilidad por servicio se lee y actualiza mediante la API cuando está configurada."
     >
       {message && <Notice>{message}</Notice>}
       {error && <Notice error>{error}</Notice>}
@@ -232,6 +234,7 @@ export function RestaurantSettingsView() {
           </label>
         </details>
       </form>
+      <ServiceCapabilityPanel />
       {confirm && (
         <Confirm
           title="Confirmar configuración"

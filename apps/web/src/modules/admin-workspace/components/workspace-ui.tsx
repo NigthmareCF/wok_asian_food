@@ -138,12 +138,14 @@ export function Workspace({
   title,
   description,
   actions,
+  demoMessage,
   children,
 }: {
   id: string;
   title: string;
   description: string;
   actions?: ReactNode;
+  demoMessage?: string;
   children: ReactNode;
 }) {
   const { canManage, setCanManage } = useAdminWorkspace();
@@ -159,10 +161,7 @@ export function Workspace({
         <div className={styles.actions}>{actions}</div>
       </header>
       <div className={styles.demo}>
-        <span>
-          Datos simulados · Los cambios se conservan al navegar y se reinician
-          al recargar.
-        </span>
+        <span>{demoMessage ?? "Datos simulados · Los cambios se conservan al navegar y se reinician al recargar."}</span>
         <details>
           <summary>Opciones de demostración</summary>
           <div className={styles.toolbar}>

@@ -23,6 +23,10 @@ import { AdminAuditView } from "@/modules/audit";
 import { Dialog } from "./components/workspace-ui";
 import { useState, type ReactNode } from "react";
 
+vi.mock("@/modules/settings/components/service-capability-panel", () => ({
+  ServiceCapabilityPanel: () => null,
+}));
+
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "");

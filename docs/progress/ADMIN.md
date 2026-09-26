@@ -14,6 +14,13 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - La web está levantada en `0.0.0.0:3000` para revisión en la LAN. En esta laptop la IP Wi-Fi actual es `192.168.1.109`; abrir `http://192.168.1.109:3000` desde un dispositivo conectado a la misma red. El BFF devuelve 503 en esta instancia porque `WOK_API_BASE_URL` todavía no está configurada; la portada responde 200.
 - Pendientes: validar el BFF contra una instancia API + PostgreSQL levantada con `WOK_API_BASE_URL`, hacer prueba navegador/dispositivo, integrar registro/recuperación/logout global, exponer permisos efectivos y añadir alta/cambio de estado al backend antes de habilitar esas acciones.
 
+## 2026-09-26 — Capacidades de servicio desde A-13
+
+- A-13 agrega un panel separado para consultar y cambiar las nueve capacidades operativas persistidas por la API: LOCAL, RESERVATIONS, DINE_IN_ONLINE, PICKUP, DELIVERY, ONLINE_ORDERS, MESSAGING, ONLINE_PAYMENTS y PRODUCTION.
+- La UI consume Route Handlers same-origin. Los cambios incluyen motivo, versión esperada y request ID; la API conserva autorización ADMIN, control optimista de versión y auditoría. Horarios, tolerancia, propina y otras opciones del formulario A-13 siguen siendo demostrativas y se identifican aparte.
+- Si falta sesión/API o faltan migraciones/seed, el panel muestra el error y no usa fixtures como si fueran estado real. Requiere `WOK_API_BASE_URL` y que se hayan integrado/desplegado las ramas backend/availability y database/migrations.
+- Verificación añadida: pruebas de componente/BFF cubren lectura API, cambio auditado, validación, bloqueo cross-origin y modo sin API. Pendiente probar contra API+PostgreSQL integrados; la rama web actual no incorpora los endpoints ni migraciones backend.
+
 ## 2026-09-15 — Auditoría de integración de rutas
 
 - Las 16 vistas administrativas tienen rutas y accesos en la sidebar: usuarios, roles, personal, menú, ajustes, recetas, proveedores, compras, producción, reportes, caja, clientes, IA, cámaras y auditoría.
