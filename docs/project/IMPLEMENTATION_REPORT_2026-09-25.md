@@ -1,6 +1,6 @@
 # Reporte de integración — 2026-09-25
 
-Este reporte distingue base ejecutable, mocks, diseño candidato y producto completo. El 2026-09-26 las ramas especializadas se actualizaron mediante fast-forward a `origin/development` `3bbd0ed`, y las entregas se distribuyeron en sus worktrees; no se hizo commit ni push. La web de desarrollo permanece en `0.0.0.0:3000` para revisión local. La matriz de evidencia y el reparto están en [GAP_ANALYSIS.md](GAP_ANALYSIS.md) y [BRANCH_HANDOFF.md](BRANCH_HANDOFF.md).
+Este reporte distingue base ejecutable, mocks, diseño candidato y producto completo. El 2026-09-26 las ramas especializadas se actualizaron mediante fast-forward a `origin/development` `3bbd0ed`; el primer reparto quedó committed/pushed. Los slices posteriores detallados al final permanecen locales hasta concluir su revisión. La web de desarrollo responde en `0.0.0.0:3000`. La matriz de evidencia y el reparto están en [GAP_ANALYSIS.md](GAP_ANALYSIS.md) y [BRANCH_HANDOFF.md](BRANCH_HANDOFF.md).
 
 ## A — Auditoría
 
@@ -60,9 +60,15 @@ El [diagrama del sistema](../architecture/wok-system-architecture.drawio) tiene 
 
 ## O — Tests
 
-Web: 36 archivos y 219 pruebas pasaron en el último ciclo; lint y typecheck pasaron previamente. El puerto 3000 respondió HTTP 200. Backend: imagen Java 21 compilada y 12/12 pruebas JUnit pasaron. Spring arrancó contra PostgreSQL 16 vacío; Flyway validó y aplicó V1–V4. `/actuator/health`, `/api/v1/openapi` y `/api/v1/public/service-capabilities` respondieron 200. `POST /api/v1/auth/register` respondió 202 y persistió una cuenta efímera como `PENDING_VERIFICATION`, el rol `CLIENT` y correo `PENDING` en outbox. V1/V2/V3/V4 y pruebas SQL V1/V3/V4 también se ejecutaron en PostgreSQL 16 efímero. Compose base, dev y TLS parsearon con variables de prueba; Nginx validó sintaxis y Docker construyó la web. El modo local de correo queda mock y el override dev activa SMTP para Mailpit. No se probaron verificación con código, login/refresh/reuse, autorización/ownership A/B, retries reales ni concurrencia del dominio. `npm run format:check` global sigue fallando por archivos previos de web y `SYSTEM_MASTER` sin formato; los archivos nuevos/editados por esta intervención se formatearon de forma dirigida.
+Web: 36 archivos y 219 pruebas pasaron en el último ciclo; lint y typecheck pasaron previamente. El puerto 3000 respondió HTTP 200. Backend: imagen Java 21 compilada y 12/12 pruebas JUnit pasaron. Spring arrancó contra PostgreSQL 16 vacío; Flyway validó y aplicó V1–V4. `/actuator/health`, `/api/v1/openapi` y `/api/v1/public/service-capabilities` respondieron 200. `POST /api/v1/auth/register` respondió 202 y persistió una cuenta efímera como `PENDING_VERIFICATION`, el rol `CLIENT` y correo `PENDING` en outbox. V1/V2/V3/V4 y pruebas SQL V1/V3/V4 también se ejecutaron en PostgreSQL 16 efímero. Compose base, dev y TLS parsearon con variables de prueba; Nginx validó sintaxis y Docker construyó la web. El modo local de correo queda mock y el override dev activa SMTP para Mailpit. En el corte original quedaban sin probar verify/login/refresh/reuse, ownership A/B, retries y concurrencia.
 
 Verificación después de distribuir a worktrees (2026-09-26): `http://127.0.0.1:3000` respondió HTTP 200. El reintento de Vitest desde `feature/frontend-client` no pudo cargar `@vitejs/plugin-react`, ausente en el `node_modules` local compartido; no se instalaron dependencias. La validación previa de 219 pruebas corresponde al ciclo de implementación combinado antes de su separación por ramas.
+
+## Validación funcional posterior — 2026-09-26
+
+El backend combinado se compiló y probó con `mvn verify` en Docker sobre Java 21: 12/12 tests. En PostgreSQL 18 vacía, Spring aplicó Flyway V1–V5; el test SQL V5 pasó. Smoke HTTP: register 202, verify 200, login 200, creación de reserva 202, replay idéntico devuelve el mismo ID, mismo `Idempotency-Key` con otro payload devuelve 409, reserva bajo 3 h devuelve decisión `REJECT`, solicitud pendiente visible para Operativo/Admin, confirmación manual 200 con motivo, repetición obsoleta 409, historial y audit log persistidos. Cambio de capacidad Admin persistió evento y audit log; expectedVersion viejo devolvió 409. Todo se ejecutó con usuarios sintéticos en DB temporal.
+
+Los cambios que habilitaron este recorrido están sin commit todavía en `feature/reservations`, `feature/availability`, `feature/backend-auth`, `feature/database-migrations`, `docs/database`, `docs/api` y `feature/project-foundation`. No se probó refresh/reuse HTTP, ownership A/B, concurrencia, browser UI conectada ni infraestructura física. Los tokens/secrets usados fueron de prueba y no se guardaron en el repo.
 
 ## P — Blockers reales
 

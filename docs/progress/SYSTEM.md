@@ -2,10 +2,10 @@
 
 ## 2026-09-26 — Distribución por ramas especializada
 
-- Las referencias locales de Cliente, Operativo, Admin y ramas de plataforma se adelantaron fast-forward a `origin/development` `3bbd0ed`, tras comprobar que no tenían commits exclusivos. No hubo rebase, force, commit ni push.
-- Cada conjunto está en el worktree listado en [BRANCH_HANDOFF.md](../project/BRANCH_HANDOFF.md); el workspace Admin principal sólo conserva la actualización de su guía. El contenido original transferido quedó en `/tmp/wok-worktrees-before-ff-20260926.tgz` como respaldo local temporal.
-- Las pruebas web/backend y DB de la sesión anterior cubren la versión integrada antes de la separación; Cliente se está verificando de nuevo en su worktree sobre la base actual.
-- `development` sigue siendo el destino PR; no se mergearon cambios funcionales.
+- Las referencias locales especializadas se adelantaron fast-forward a `origin/development` `3bbd0ed`; después se hicieron 18 commits/push normales con la distribución inicial. No hubo force ni merge a `development`.
+- El mapa de commits, ramas y dependencias está en [BRANCH_HANDOFF.md](../project/BRANCH_HANDOFF.md). Los worktrees permanecen bajo `/tmp/wok-worktrees/`; el workspace Admin conserva sólo su guía.
+- El siguiente slice local añade persistencia/idempotencia/decisión auditada de reservas, administración versionada de capacidades y Flyway V5. Maven verify combinado: 12/12; Flyway V1–V5 en PostgreSQL 18 efímero y smoke HTTP de registro, reserva, replay y decisión Operativa/Admin.
+- Los cambios nuevos posteriores al primer push siguen sin commit en las ramas documentadas en el handoff. `development` continúa sin cambios funcionales de este trabajo.
 
 ## 2026-09-25 — Base maestra ejecutable y handoff
 
