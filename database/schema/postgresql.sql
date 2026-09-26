@@ -444,16 +444,19 @@ CREATE TABLE reservations (
  );
 COMMENT ON TABLE reservations IS 'Reserva sin obligación de elegir mesa física.';
 
--- Resultado histórico de capacidad y condiciones evaluadas por backend.
+-- Resultado histórico de capacidad, vinculado al cliente solicitante y a un request idempotente.
 CREATE TABLE reservation_evaluations (
     id UUID CONSTRAINT nn_reservation_evaluations_id NOT NULL DEFAULT gen_random_uuid(),
     reservation_id UUID,
+    requester_user_id UUID,
     request_id UUID CONSTRAINT nn_reservation_evaluations_request_id NOT NULL,
+    request_payload_hash TEXT,
     decision TEXT CONSTRAINT nn_reservation_evaluations_decision NOT NULL,
     reason_codes JSONB CONSTRAINT nn_reservation_evaluations_reason_codes NOT NULL,
     alternatives JSONB CONSTRAINT nn_reservation_evaluations_alternatives NOT NULL DEFAULT '[]'::jsonb,
     conditions JSONB CONSTRAINT nn_reservation_evaluations_conditions NOT NULL DEFAULT '[]'::jsonb,
     estimated_occupancy_minutes INTEGER CONSTRAINT nn_reservation_evaluations_estimated_occupancy_minutes NOT NULL,
+    minimum_occupancy_minutes INTEGER,
     estimated_ready_at TIMESTAMPTZ,
     public_message TEXT CONSTRAINT nn_reservation_evaluations_public_message NOT NULL,
     policy_version TEXT CONSTRAINT nn_reservation_evaluations_policy_version NOT NULL,
@@ -461,9 +464,11 @@ CREATE TABLE reservation_evaluations (
     created_at TIMESTAMPTZ CONSTRAINT nn_reservation_evaluations_created_at NOT NULL DEFAULT now(),
     CONSTRAINT pk_reservation_evaluations PRIMARY KEY (id),
     CONSTRAINT ck_reservation_evaluations_1 CHECK (decision IN ('ACCEPT', 'ACCEPT_WITH_CONDITIONS', 'SUGGEST_OTHER_TIME', 'REQUIRES_HUMAN_APPROVAL', 'REJECT')),
-    CONSTRAINT ck_reservation_evaluations_2 CHECK (estimated_occupancy_minutes > 0)
+    CONSTRAINT ck_reservation_evaluations_2 CHECK (estimated_occupancy_minutes > 0),
+    CONSTRAINT ck_reservation_evaluations_3 CHECK (minimum_occupancy_minutes IS NULL OR (minimum_occupancy_minutes > 0 AND minimum_occupancy_minutes <= estimated_occupancy_minutes)),
+    CONSTRAINT ck_reservation_evaluations_4 CHECK (request_payload_hash IS NULL OR request_payload_hash ~ '^[0-9a-f]{64}$')
  );
-COMMENT ON TABLE reservation_evaluations IS 'Resultado histórico de capacidad y condiciones evaluadas por backend.';
+COMMENT ON TABLE reservation_evaluations IS 'Resultado histórico de capacidad, vinculado al cliente solicitante y a un request idempotente.';
 
 -- Historial de transiciones con responsable y motivo.
 CREATE TABLE reservation_status_history (
@@ -2589,6 +2594,7 @@ ALTER TABLE reservations ADD CONSTRAINT fk_reservations_customer_id FOREIGN KEY 
 ALTER TABLE reservations ADD CONSTRAINT fk_reservations_created_by FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT;
 ALTER TABLE reservations ADD CONSTRAINT fk_reservations_updated_by FOREIGN KEY (updated_by) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT;
 ALTER TABLE reservation_evaluations ADD CONSTRAINT fk_reservation_evaluations_reservation_id FOREIGN KEY (reservation_id) REFERENCES reservations (id) ON DELETE RESTRICT ON UPDATE RESTRICT;
+ALTER TABLE reservation_evaluations ADD CONSTRAINT fk_reservation_evaluations_requester_user_id FOREIGN KEY (requester_user_id) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT;
 ALTER TABLE reservation_status_history ADD CONSTRAINT fk_reservation_status_history_reservation_id FOREIGN KEY (reservation_id) REFERENCES reservations (id) ON DELETE RESTRICT ON UPDATE RESTRICT;
 ALTER TABLE reservation_status_history ADD CONSTRAINT fk_reservation_status_history_actor_user_id FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT;
 ALTER TABLE reservation_table_assignments ADD CONSTRAINT fk_reservation_table_assignments_reservation_id FOREIGN KEY (reservation_id) REFERENCES reservations (id) ON DELETE RESTRICT ON UPDATE RESTRICT;
@@ -2906,7 +2912,9 @@ CREATE INDEX ix_schedule_exceptions_2 ON schedule_exceptions (schedule_id);
 CREATE INDEX ix_dining_table_status_history_1 ON dining_table_status_history (dining_table_id);
 CREATE INDEX ix_reservations_1 ON reservations (status, reservation_at, id);
 CREATE INDEX ix_reservations_2 ON reservations (customer_id);
-CREATE INDEX ix_reservation_evaluations_1 ON reservation_evaluations (reservation_id);
+CREATE UNIQUE INDEX ux_reservation_evaluations_1 ON reservation_evaluations (request_id);
+CREATE INDEX ix_reservation_evaluations_2 ON reservation_evaluations (requester_user_id, evaluated_at);
+CREATE INDEX ix_reservation_evaluations_3 ON reservation_evaluations (reservation_id);
 CREATE INDEX ix_reservation_status_history_1 ON reservation_status_history (reservation_id);
 CREATE INDEX ix_reservation_table_assignments_1 ON reservation_table_assignments (reservation_id);
 CREATE INDEX ix_reservation_table_assignments_2 ON reservation_table_assignments (table_id);

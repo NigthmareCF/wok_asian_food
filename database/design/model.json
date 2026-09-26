@@ -2237,7 +2237,7 @@
     "reservation_evaluations": {
       "name": "reservation_evaluations",
       "page": 3,
-      "purpose": "Resultado histórico de capacidad y condiciones evaluadas por backend.",
+      "purpose": "Resultado histórico de capacidad, vinculado al cliente solicitante y a un request idempotente.",
       "columns": [
         {
           "name": "id",
@@ -2254,9 +2254,23 @@
           "ref": "reservations"
         },
         {
+          "name": "requester_user_id",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "ref": "users"
+        },
+        {
           "name": "request_id",
           "type": "UUID",
           "nullable": false,
+          "default": null,
+          "ref": null
+        },
+        {
+          "name": "request_payload_hash",
+          "type": "TEXT",
+          "nullable": true,
           "default": null,
           "ref": null
         },
@@ -2292,6 +2306,13 @@
           "name": "estimated_occupancy_minutes",
           "type": "INTEGER",
           "nullable": false,
+          "default": null,
+          "ref": null
+        },
+        {
+          "name": "minimum_occupancy_minutes",
+          "type": "INTEGER",
+          "nullable": true,
           "default": null,
           "ref": null
         },
@@ -2334,14 +2355,28 @@
       "unique": [],
       "checks": [
         "decision IN ('ACCEPT', 'ACCEPT_WITH_CONDITIONS', 'SUGGEST_OTHER_TIME', 'REQUIRES_HUMAN_APPROVAL', 'REJECT')",
-        "estimated_occupancy_minutes > 0"
+        "estimated_occupancy_minutes > 0",
+        "minimum_occupancy_minutes IS NULL OR (minimum_occupancy_minutes > 0 AND minimum_occupancy_minutes <= estimated_occupancy_minutes)",
+        "request_payload_hash IS NULL OR request_payload_hash ~ '^[0-9a-f]{64}$'"
       ],
       "indexes": [
+        {
+          "columns": "request_id",
+          "where": null,
+          "unique": true,
+          "name": "ux_reservation_evaluations_1"
+        },
+        {
+          "columns": "requester_user_id, evaluated_at",
+          "where": null,
+          "unique": false,
+          "name": "ix_reservation_evaluations_2"
+        },
         {
           "columns": "reservation_id",
           "where": null,
           "unique": false,
-          "name": "ix_reservation_evaluations_1"
+          "name": "ix_reservation_evaluations_3"
         }
       ],
       "notes": "",
