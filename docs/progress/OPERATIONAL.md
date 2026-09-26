@@ -1,5 +1,14 @@
 # Progreso del canal Operativo
 
+## 2026-09-26 — Caja persistente: sesión, ledger y conciliación
+
+- Rama backend: `feature/payments`; requiere migración `V6__cash_sessions_and_movements.sql` de `feature/database-migrations`.
+- Implementado en API: apertura de sesión por registro, lectura de saldo esperado, ingresos/egresos/retiros, repetición idempotente con rechazo de clave/payload distinto, arqueo final y cierre con control de versión.
+- El ledger es append-only para el API y cada mutación genera auditoría. El efectivo inicial queda como movimiento `OPENING`, no como venta. No permite cargar ventas/propinas manualmente: se conectarán cuando pedidos/pagos publiquen eventos contables.
+- Rutas: `POST/GET /api/v1/operational/cash-sessions`, `POST /{id}/movements`, `POST /{id}/close`; acceso OPERATIVO/ADMIN.
+- Validación: `mvn verify` combinado (12/12); PostgreSQL temporal aplicó V1–V6 y pasó el test SQL V6; smoke HTTP con sesión sintética verificó saldo Q108.00, replay con mismo ID, payload distinto 409, cierre con diferencia -Q3.00, cierre obsoleto y movimiento post-cierre 409.
+- Pendiente: conectar UI Operativa; registrar `SALE` y `TIP_PAYOUT` desde pedidos/cobros; arqueos intermedios; permisos granulares por acción; imprimir y probar con caja física.
+
 Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
