@@ -2,6 +2,10 @@
 
 > **Plan vigente desde 2026-09-25.** El plan de pickup conservado más abajo queda `SUPERSEDED` como alcance total. La app cubre todo el canal Cliente. Se implementará por slices integrados con la API WOK; una pantalla Expo o un mock no acredita un caso de uso.
 
+## Estado verificado al 2026-09-26
+
+`feature/mobile-shell` ya contiene APP-01 básico, APP-02 parcial y APP-04 parcial: Expo SDK 57 / React Native 0.86, navegación Cliente, registro/verificación/login/refresh/logout y solicitud de reservas conectados a los endpoints existentes. El catálogo oficial, pedidos, checkout, pagos, seguimiento, mensajería e historial siguen sin contrato backend utilizable desde móvil. Consultar [progreso móvil](../progress/MOBILE.md) para evidencias y límites. Esto no equivale a completar la app Cliente.
+
 ## Arquitectura vigente
 
 React Native + Expo + TypeScript + Expo Router. TanStack Query administra datos del servidor; React Hook Form y Zod validan entrada; un cliente tipado desde OpenAPI comparte contrato con la web, no entidades JPA ni componentes DOM. Access JWT breve en memoria, refresh revocable en almacenamiento seguro; la app nunca contiene secretos del servidor, backend ni modelo IA. Usa `https://api.<dominio>/api/v1` dentro y fuera del local mediante DNS dividido, sin detectar Wi-Fi por código. Carrito, caché y borradores pueden sobrevivir offline; pedidos, reservas, disponibilidad y pagos requieren confirmación online y revalidación.
