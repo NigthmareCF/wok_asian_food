@@ -36,10 +36,9 @@ Si dos fuentes se contradicen, usar el orden indicado en la guía común de cana
 
 ## Estado actual
 
-- La fundación Web fue integrada en `development` mediante el PR #2.
-- Las vistas actuales usan datos simulados; no prueban correo, autenticación, pagos, persistencia ni permisos reales.
-- Existen implementaciones iniciales de `auth` y `menu`. Los demás módulos documentados se crean únicamente al iniciar una tarea concreta.
-- Mobile, Desktop, contratos backend y repositorio único frente a repositorios separados continúan pendientes de decisión.
+- La fundación Web y vistas de los tres canales existen en `apps/web` con fixtures; no prueban correo, autenticación, pagos, persistencia ni permisos reales.
+- La instrucción del propietario de 2026-09-25 confirma monolito modular Spring/PostgreSQL local y app Cliente Expo en este workspace. El antiguo corte pickup de los planes queda `SUPERSEDED` como alcance total.
+- Consultar [matriz de brechas](../project/GAP_ANALYSIS.md), [decisiones vigentes](../project/TECH_DECISIONS.md) y [brechas por canal](CHANNEL_GAPS.md) antes de integrar APIs. Toda migración de fixture a dato real debe tener contrato y prueba cruzada.
 
 ## Estructura de trabajo
 

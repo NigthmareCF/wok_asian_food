@@ -12,7 +12,7 @@ apps/web/src/
   config/     Entorno y navegacion.
 ```
 
-La decision entre monorepo y repositorios separados sigue pendiente. Web se mantiene autocontenida para admitir ambas opciones.
+La arquitectura vigente usa este workspace integrado para Web, API, DB y futura app Cliente. Web conserva módulos autocontenidos y consume la misma API WOK; el cambio de la antigua decisión pendiente se registra como `SUPERSEDED` en `docs/project/TECH_DECISIONS.md`.
 
 ## Sistema visual
 
