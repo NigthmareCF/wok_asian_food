@@ -8,9 +8,15 @@
 
 ## 2026-09-26 — Reparto por ramas de modelo y migraciones
 
-- `feature/database-schema` mantiene generador/modelo/SQL candidato; `feature/database-migrations` tiene V1–V5 y pruebas; `docs/database` contiene diccionario, ERD, requisitos y validación. El primer reparto está pushed; V5 y las notas posteriores siguen sin commit.
+- `feature/database-schema` mantiene generador/modelo/SQL candidato; `feature/database-migrations` tiene V1–V6 y pruebas; `docs/database` contiene diccionario, ERD, requisitos y validación. Las entregas previas y slices de reservas/caja están publicados por separado.
 - Flyway V1–V5 pasó desde cero en PostgreSQL 18 temporal. El modelo completo continúa siendo candidato, no migración aplicada.
 - Integrar DB primero, luego backend foundation/slices. Ver [handoff](../project/BRANCH_HANDOFF.md) en `feature/project-foundation`.
+
+## 2026-09-26 — V6 caja
+
+- `feature/database-migrations` agrega V6 con registros de caja, sesiones, libro de movimientos y conciliaciones finales, alineados con el modelo candidato existente; la semilla `MAIN` usa GTQ.
+- PostgreSQL 18 temporal aplicó V1–V6 desde cero y el test SQL V6 validó ledger (Q200 apertura + Q50 ingreso − Q12.50 egreso = Q237.50), sesión única por caja abierta y diferencia de conciliación.
+- Aún no se agrega FK desde `payment_id`/`refund_id` en caja: las tablas de pagos/reembolsos no forman parte del corte de migraciones. No hay ventas ni propinas registradas por API todavía.
 
 ## 2026-09-25 — Candidato más cortes Flyway ejecutables
 
