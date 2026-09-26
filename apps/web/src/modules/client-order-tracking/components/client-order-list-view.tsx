@@ -55,8 +55,8 @@ export function ClientOrderListView() {
           <ClipboardList aria-hidden="true" size={30} />
           <h2 id="empty-orders-title">Todavía no hay pedidos en esta sesión</h2>
           <p>
-            Aquí aparecerán las solicitudes locales cuando esté disponible su
-            creación.
+            Aquí aparecerán las solicitudes locales que confirmes desde el
+            carrito.
           </p>
           <Link className="button button--primary" href="/menu">
             Ver menú

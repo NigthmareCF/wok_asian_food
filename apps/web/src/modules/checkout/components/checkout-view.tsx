@@ -83,8 +83,11 @@ export function CheckoutView({
         </p>
       ) : null}
       <p className={styles.notice} id="checkout-confirm-help">
-        La creación de solicitudes todavía no está disponible. Tus artículos
-        siguen en el carrito; no se ha enviado un pedido.
+        {confirmationBlocked
+          ? "Revalida la solicitud antes de confirmar. "
+          : ""}
+        Confirmar guarda un pedido pendiente solamente en esta sesión y vacía el
+        carrito. No envía ni confirma un pedido con el restaurante.
       </p>
       <Button
         fullWidth

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useClientSession } from "@/modules/clients/client-session-provider";
 import { menuFixtures, type MenuProduct } from "@/data/fixtures/menu";
 import { useCart } from "@/modules/cart";
 import { getCartRows, getCartSubtotal } from "@/modules/cart/lib/cart";
@@ -12,10 +14,15 @@ export function ClientCheckout({
 }: {
   products?: readonly MenuProduct[];
 }) {
-  const { items, service } = useCart();
+  const { items, service, clearCart } = useCart();
+  const { createOrder } = useClientSession();
+  const router = useRouter();
+  const confirmed = useRef(false);
+  const [error, setError] = useState<string>();
   const [review, setReview] = useState<{
     signature: string;
     message: string;
+    valid: boolean;
   } | null>(null);
   const rows = getCartRows(items, products);
   const subtotal = getCartSubtotal(rows);
@@ -23,21 +30,22 @@ export function ClientCheckout({
   const hasConflict =
     rows.some((row) => row.conflict) ||
     !Number.isSafeInteger(Math.round(subtotal * 100));
-  const snapshot = service
-    ? {
-        service,
-        lines: rows.map((row) => ({
-          id: row.id,
-          quantity: row.quantity,
-          title: row.product?.name ?? "Producto no disponible",
-          detail:
-            row.choices.map((choice) => choice.name).join(" · ") || undefined,
-          unitPriceCents: Math.round(row.unitPrice * 100),
-          subtotalCents: Math.round(row.subtotal * 100),
-        })),
-        subtotalCents: Math.round(subtotal * 100),
-      }
-    : null;
+  const snapshot =
+    service && ["table", "pickup", "delivery"].includes(service)
+      ? {
+          service,
+          lines: rows.map((row) => ({
+            id: row.id,
+            quantity: row.quantity,
+            title: row.product?.name ?? "Producto no disponible",
+            detail:
+              row.choices.map((choice) => choice.name).join(" · ") || undefined,
+            unitPriceCents: Math.round(row.unitPrice * 100),
+            subtotalCents: Math.round(row.subtotal * 100),
+          })),
+          subtotalCents: Math.round(subtotal * 100),
+        }
+      : null;
 
   return (
     <div>
@@ -80,25 +88,74 @@ export function ClientCheckout({
       ) : (
         <CheckoutView
           snapshot={snapshot}
-          confirmationBlocked
+          confirmationBlocked={review?.signature !== signature || !review.valid}
           revalidationMessage={
-            review?.signature === signature ? review.message : undefined
+            error ??
+            (review?.signature === signature ? review.message : undefined)
           }
           actions={{
             onRevalidate: () => {
+              setError(undefined);
               const checkedRows = getCartRows(items, products);
               const valid =
                 checkedRows.length > 0 &&
-                !checkedRows.some((row) => row.conflict);
+                !checkedRows.some((row) => row.conflict) &&
+                !hasConflict;
               setReview({
                 signature,
+                valid,
                 message: valid
                   ? "Datos locales revisados. La disponibilidad real sigue pendiente de confirmación; no se ha enviado una solicitud."
                   : "Hay artículos que requieren revisión. Vuelve al carrito.",
               });
             },
-            // Pendiente de clearCart en C-05: no crear un pedido que no pueda completar el flujo.
-            onConfirm: () => {},
+            onConfirm: () => {
+              if (
+                confirmed.current ||
+                review?.signature !== signature ||
+                !review.valid
+              )
+                return;
+              const checkedRows = getCartRows(items, products);
+              if (
+                !checkedRows.length ||
+                checkedRows.some((row) => row.conflict) ||
+                hasConflict
+              ) {
+                setReview(null);
+                return;
+              }
+              confirmed.current = true;
+              let order;
+              try {
+                order = createOrder({
+                  fulfillment: snapshot.service,
+                  subtotalCents: Math.round(getCartSubtotal(checkedRows) * 100),
+                  lines: checkedRows.map((row) => ({
+                    id: row.id,
+                    productId: row.productId,
+                    title: row.product!.name,
+                    quantity: row.quantity,
+                    selectedOptions: row.selectedOptions,
+                    detail:
+                      row.choices.map((choice) => choice.name).join(" · ") ||
+                      undefined,
+                    unitPriceCents: Math.round(row.unitPrice * 100),
+                  })),
+                });
+              } catch {
+                order = null;
+              }
+              if (!order) {
+                confirmed.current = false;
+                setError(
+                  "No se pudo guardar la solicitud local. Tus artículos siguen en el carrito; intenta de nuevo.",
+                );
+                return;
+              }
+              clearCart();
+              router.push(`/client/orders/${order.id}`);
+            },
           }}
         />
       )}

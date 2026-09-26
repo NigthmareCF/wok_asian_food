@@ -1,5 +1,25 @@
 # Progreso del canal Cliente
 
+## 2026-09-25 — Corrección del bloqueo al revalidar carrito
+
+- Causa: `CartView` activaba siempre el fixture `degradedService` después de una revisión válida. El reintento terminaba en `pendingConfirmation`, pero la vista de espera no ofrecía salida a checkout.
+- Corrección limitada a `cart-view.tsx` y `pending-request-view.tsx`: revisión local válida habilita el enlace Next.js «Continuar al checkout»; el escenario limitado requiere inyección explícita para pruebas (se conserva desconexión). Esperar anuncia «Revalidando disponibilidad…» y al terminar permite continuar si los artículos siguen válidos. Cancelar conserva productos y opciones; los cambios del carrito invalidan la revisión.
+- Pruebas en `cart-view.test.tsx`: éxito normal y desde escenario limitado, destino de checkout, conservación de cantidad/opciones/subtotal, cancelación e invalidación al modificar. Sin cambios en precios, agrupación, menú, opciones, reglas de disponibilidad, API ni persistencia.
+- Verificaciones: 28 pruebas enfocadas aprobadas; lint, typecheck, suite completa (247 pruebas, 38 archivos) y build aprobados. Edge headless contra build: `/menu` → Panko → Solo atún × 2 → carrito Q150 → revalidar → checkout → confirmar → seguimiento pendiente; mismo documento conservado por SPA, pedido presente en lista y carrito vacío al regresar. Seguimiento sin overflow a 390, 768, 1280 y 1440 px.
+- Cambios locales previos y hash de `package-lock.json` conservados; archivo generado `next-env.d.ts` restaurado. Sin commit ni push.
+
+## 2026-09-25 — PR #16: cierre local de checkout y seguimiento
+
+- Rama `fix/client-c07-c12-polish`, confirmada antes de editar. Se conserva el cambio previo de `package-lock.json` (SHA256 sin cambios). Sin commit, push ni merge.
+- Flujo conectado: carrito → checkout → revalidar → confirmar → pedido Cliente pendiente → vaciar carrito → `/client/orders/[orderId]`. Lista y detalle usan la sesión Cliente existente; no se reutilizan módulos ni providers Operativos.
+- Confirmación bloqueada ante carrito vacío, productos/opciones/cantidades inválidos, servicio ausente o inválido y revisión local desactualizada. Se comprueban nuevamente los artículos al confirmar. Los requisitos actuales son productos configurados y servicio; datos de entrega, métodos de pago y tarifas siguen pendientes de definición y no se inventan.
+- Pedido: UUID local, fecha/hora del navegador (ISO, presentada en hora local), snapshot independiente de productos, cantidades y opciones, servicio y estado `pending`. Mesa no almacena importes; Para recoger y Delivery conservan precios de productos y subtotal, sin cargos externos ficticios.
+- `CartProvider.clearCart` vacía en una actualización y cancela la espera/reintento pendiente; es idempotente y conserva el servicio seleccionado. Se llama solamente tras crear el pedido. Doble confirmación protegida; fallo de creación conserva carrito y permite reintentar.
+- Archivos: `modules/cart/cart-provider.tsx`, `modules/checkout/checkout-snapshot.ts`, componentes y pruebas de checkout, `modules/clients/client-session.ts` y texto vacío de la lista Cliente.
+- Validación: lint, typecheck y build aprobados; suite completa con 245 pruebas en 38 archivos aprobada, incluidas 14 de checkout (tres servicios, opciones/cantidades, conflictos, revisión invalidada, doble clic, lista/detalle, fallo/reintento y limpieza de espera). Se regeneró el archivo local truncado `.next/dev/types/routes.d.ts` a partir de los tipos del build; `next-env.d.ts` restaurado a su contenido previo.
+- Formato global: falla por 274 archivos preexistentes; los archivos modificados se formatearon de forma específica. No se ejecutó una nueva revisión visual responsive en navegador; se conservan los layouts y estilos existentes. Todo permanece en memoria y se reinicia al recargar; no hay envío ni aceptación real del restaurante.
+
+
 ## 2026-09-22 — Límites de reservas y acceso a mensajes de delivery
 
 - Rama actual `fix/client-c07-c12-polish`; cambios previos conservados, sin commit, push, merge, cambio de rama ni dependencias nuevas. `package-lock.json` conserva su hash previo y no forma parte de esta intervención.

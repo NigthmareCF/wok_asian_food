@@ -17,6 +17,7 @@ type CartContextValue = ReturnType<typeof usePendingRequest> & {
   addItem: (input: CartInput) => void;
   setQuantity: (id: string, quantity: number) => void;
   removeItem: (id: string) => void;
+  clearCart: () => void;
   setService: (service: OrderChannel | "") => void;
 };
 const CartContext = createContext<CartContextValue | null>(null);
@@ -31,6 +32,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         items,
         service,
         ...pending,
+        clearCart: () => {
+          pending.cancelPendingRequest();
+          setItems([]);
+        },
         addItem: (input) => {
           pending.cancelPendingRequest();
           setItems((current) => addCartItem(current, input, menuFixtures));

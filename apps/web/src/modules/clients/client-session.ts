@@ -7,18 +7,19 @@ export type ClientOrderLine = Readonly<{
   quantity: number;
   selectedOptions: Readonly<Record<string, string>>;
   detail?: string;
-  unitPriceCents: number;
+  unitPriceCents?: number;
 }>;
 export type ClientOrder = ClientOrderTrackingSnapshot &
   Readonly<{
     createdAt: string;
     lines: readonly ClientOrderLine[];
-    subtotalCents: number;
+    subtotalCents?: number;
   }>;
-export type CreateClientOrderInput = Pick<
-  ClientOrder,
-  "fulfillment" | "lines" | "subtotalCents"
->;
+export type CreateClientOrderInput = {
+  fulfillment: ClientOrder["fulfillment"];
+  lines: readonly (ClientOrderLine & { unitPriceCents: number })[];
+  subtotalCents: number;
+};
 export type ReservationDraft = {
   date: string;
   time: string;
@@ -113,20 +114,29 @@ export function createClientSessionStore(
       const lines = Object.freeze(
         input.lines.map((line) =>
           Object.freeze({
-            ...line,
+            id: line.id,
+            productId: line.productId,
+            title: line.title,
+            quantity: line.quantity,
+            detail: line.detail,
+            ...(input.fulfillment !== "table"
+              ? { unitPriceCents: line.unitPriceCents }
+              : {}),
             selectedOptions: Object.freeze({ ...line.selectedOptions }),
           }),
         ),
       );
       const order: ClientOrder = Object.freeze({
-        id: `local-order-${++sequence}`,
+        id: `local-order-${crypto.randomUUID()}`,
         createdAt: new Date().toISOString(),
         summary: lines
           .map((line) => `${line.quantity} × ${line.title}`)
           .join(" · "),
         fulfillment: input.fulfillment,
         lines,
-        subtotalCents: input.subtotalCents,
+        ...(input.fulfillment !== "table"
+          ? { subtotalCents: input.subtotalCents }
+          : {}),
         status: "pending",
         restaurantStage: "pending",
         changes: Object.freeze([]),

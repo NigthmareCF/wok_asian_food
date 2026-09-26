@@ -20,7 +20,7 @@ export type CheckoutActions = Readonly<{
   onConfirm: () => void;
 }>;
 
-/** Contrato solicitado a C-05; no está implementado ni conectado. */
+/** Limpieza local después de crear satisfactoriamente el pedido Cliente. */
 export type CheckoutCartCompletion = Readonly<{
   clearCart: () => void;
 }>;

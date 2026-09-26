@@ -12,25 +12,81 @@ import { ProductConfigurator } from "@/modules/menu/components/product-configura
 import { CartProvider } from "../cart-provider";
 import { CartView } from "./cart-view";
 import { CartLink } from "./cart-link";
+import type { PendingRequestStatus } from "@/data/fixtures/pending-request";
 
 afterEach(cleanup);
 const panko = menuFixtures.find((p) => p.id === "panko")!;
 
 function Harness({
   products = menuFixtures,
+  initialPendingStatus,
 }: {
   products?: readonly MenuProduct[];
+  initialPendingStatus?: PendingRequestStatus;
 }) {
   return (
     <CartProvider>
       <ProductConfigurator product={panko} />
       <CartLink />
-      <CartView products={products} />
+      <CartView
+        products={products}
+        initialPendingStatus={initialPendingStatus}
+      />
     </CartProvider>
   );
 }
 
 describe("Client cart", () => {
+  it.each([undefined, "degradedService"] as const)(
+    "revalidates %s and exposes checkout without losing configuration",
+    async (initialPendingStatus) => {
+      const user = userEvent.setup();
+      render(<Harness initialPendingStatus={initialPendingStatus} />);
+      await user.click(screen.getByRole("radio", { name: /Solo atún/ }));
+      await user.click(
+        screen.getByRole("button", { name: "Aumentar cantidad" }),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Agregar al pedido · Q150" }),
+      );
+      await user.click(screen.getByRole("radio", { name: "Para recoger" }));
+      expect(
+        screen.queryByRole("link", { name: "Continuar al checkout" }),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Continuar" }));
+      expect(
+        screen.getByRole("button", { name: "Revalidando disponibilidad…" }),
+      ).toBeDisabled();
+      if (initialPendingStatus) {
+        await user.click(
+          await screen.findByRole("button", { name: "Esperar" }),
+        );
+        expect(
+          screen.getByRole("button", { name: "Revalidando disponibilidad…" }),
+        ).toBeDisabled();
+      }
+      expect(
+        await screen.findByRole("link", { name: "Continuar al checkout" }),
+      ).toHaveAttribute("href", "/client/checkout");
+      expect(
+        screen.getByRole("link", { name: "Tu pedido, 2 artículos" }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText(/Q150/).length).toBeGreaterThan(0);
+      if (initialPendingStatus) {
+        await user.click(screen.getByRole("button", { name: "Cancelar" }));
+      } else {
+        await user.click(
+          screen.getByRole("button", { name: "Aumentar cantidad de Panko" }),
+        );
+      }
+      expect(
+        screen.queryByRole("link", { name: "Continuar al checkout" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("article", { name: "Panko" })).toHaveTextContent(
+        "Solo atún",
+      );
+    },
+  );
   it("starts empty with a route to the menu", () => {
     render(
       <CartProvider>
@@ -78,9 +134,9 @@ describe("Client cart", () => {
     expect(screen.getByRole("heading", { name: "Tu pedido" })).toHaveFocus();
   });
 
-  it("revalidates locally and stops before checkout or confirmation", async () => {
+  it("preserves explicit limited scenarios and cancellation without losing products", async () => {
     const user = userEvent.setup();
-    render(<Harness />);
+    render(<Harness initialPendingStatus="degradedService" />);
     await user.click(
       screen.getByRole("button", { name: "Agregar al pedido · Q70" }),
     );
