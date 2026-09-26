@@ -1,8 +1,8 @@
 # Estado actual del sistema
 
-Actualizado: 2026-09-26. Rama principal `feature/frontend-admin` tiene el primer reparto committed/pushed. Las ramas especializadas parten del fast-forward a `origin/development` `3bbd0ed`; el segundo slice de reservas/servicios/auth/DB sigue local y sin commit según [BRANCH_HANDOFF.md](BRANCH_HANDOFF.md). La web corre en `0.0.0.0:3000` y respondió HTTP 200.
+Actualizado: 2026-09-26. Rama principal `feature/frontend-admin` tiene el primer reparto committed/pushed. Las ramas especializadas parten del fast-forward a `origin/development` `3bbd0ed`; el segundo slice de reservas/servicios/auth/DB quedó committed y pushed según [BRANCH_HANDOFF.md](BRANCH_HANDOFF.md). La web corre en `0.0.0.0:3000` y respondió HTTP 200.
 
-La web Next.js tiene rutas y flujos interactivos con fixtures para Cliente, Operativo y Administrativo. Esto permite revisar UX, pero no prueba auth, pedidos, pagos, FEL, permisos ni persistencia. El modelo PostgreSQL de 128 tablas es candidato generado; el corte Flyway V1–V4 sí fue ejecutado en una base desechable. La app móvil sigue documentada, no ejecutable.
+La web Next.js tiene rutas y flujos interactivos con fixtures para Cliente, Operativo y Administrativo. Esto permite revisar UX, pero no prueba auth, pedidos, pagos, FEL, permisos ni persistencia. El modelo PostgreSQL de 128 tablas es candidato generado; el corte Flyway V1–V5 sí fue ejecutado en una base desechable. La app móvil sigue documentada, no ejecutable.
 
 La instrucción vigente reemplaza el recorte de los planes antiguos: se construye una base modular para el alcance integral, por slices verificables. Spring Boot Java 21 ofrece auth inicial, health/OpenAPI, reserva autenticada con idempotencia y revisión humana, capacidades de servicio públicas y cambio Admin auditado, y puertos mock de pagos/FEL/IA/email. Flyway V1–V5 arranca desde DB vacía; Compose/Nginx separan redes y servicios. La web sigue usando fixtures para la mayoría de flujos. La matriz [GAP_ANALYSIS.md](GAP_ANALYSIS.md) y el [handoff por ramas](BRANCH_HANDOFF.md) distinguen lo ejecutado del alcance pendiente y dónde continúa cada slice.
 

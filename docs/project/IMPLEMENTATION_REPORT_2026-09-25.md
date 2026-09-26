@@ -66,9 +66,9 @@ Verificación después de distribuir a worktrees (2026-09-26): `http://127.0.0.1
 
 ## Validación funcional posterior — 2026-09-26
 
-El backend combinado se compiló y probó con `mvn verify` en Docker sobre Java 21: 12/12 tests. En PostgreSQL 18 vacía, Spring aplicó Flyway V1–V5; el test SQL V5 pasó. Smoke HTTP: register 202, verify 200, login 200, creación de reserva 202, replay idéntico devuelve el mismo ID, mismo `Idempotency-Key` con otro payload devuelve 409, reserva bajo 3 h devuelve decisión `REJECT`, solicitud pendiente visible para Operativo/Admin, confirmación manual 200 con motivo, repetición obsoleta 409, historial y audit log persistidos. Cambio de capacidad Admin persistió evento y audit log; expectedVersion viejo devolvió 409. Todo se ejecutó con usuarios sintéticos en DB temporal.
+El backend combinado se compiló y probó con `mvn verify` en Docker sobre Java 21: 12/12 tests. En PostgreSQL 18 vacía, Spring aplicó Flyway V1–V5; la prueba SQL V5 pasó. Smoke HTTP: register 202, verify 200, login 200, creación de reserva 202, replay idéntico devuelve el mismo ID, mismo `Idempotency-Key` con otro payload devuelve 409, reserva bajo 3 h devuelve decisión `REJECT`, solicitud pendiente visible para Operativo/Admin, confirmación manual 200 con motivo, repetición obsoleta 409, historial y audit log persistidos. Cambio de capacidad Admin persistió evento y audit log; expectedVersion viejo devolvió 409. Todo se ejecutó con usuarios sintéticos en DB temporal.
 
-Los cambios que habilitaron este recorrido están sin commit todavía en `feature/reservations`, `feature/availability`, `feature/backend-auth`, `feature/database-migrations`, `docs/database`, `docs/api` y `feature/project-foundation`. No se probó refresh/reuse HTTP, ownership A/B, concurrencia, browser UI conectada ni infraestructura física. Los tokens/secrets usados fueron de prueba y no se guardaron en el repo.
+Los cambios que habilitaron este recorrido se publicaron en commits separados en las ramas enumeradas en [BRANCH_HANDOFF.md](BRANCH_HANDOFF.md). No se probó refresh/reuse HTTP, ownership A/B, concurrencia, browser UI conectada ni infraestructura física. Los tokens/secrets usados fueron de prueba y no se guardaron en el repo.
 
 ## P — Blockers reales
 

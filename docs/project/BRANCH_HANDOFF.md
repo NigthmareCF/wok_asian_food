@@ -4,7 +4,7 @@ Fecha: 2026-09-26. Este documento organiza el trabajo que sigue al corte integra
 
 ## Distribución actual de archivos
 
-El primer reparto ya está committed y pushed en sus ramas respectivas. La validación posterior añadió un segundo slice de reservas, administración de servicios y migración V5; esos cambios y sus notas se encuentran todavía sin commit en `feature/reservations`, `feature/availability`, `feature/backend-auth`, `feature/database-migrations`, `docs/database`, `docs/api` y `feature/project-foundation`. Las copias de entrega se retiraron del workspace Admin; allí sólo permanece su guía. Los worktrees están en `/tmp/wok-worktrees/` y deben mantenerse mientras haya cambios locales pendientes.
+El primer reparto ya está committed y pushed en sus ramas respectivas. La validación posterior añadió un segundo slice de reservas, administración de servicios y migración V5; sus commits también están publicados en `feature/reservations`, `feature/availability`, `feature/backend-auth`, `feature/database-migrations`, `feature/database-schema`, `docs/database`, `docs/api`, `feature/frontend-client`, `feature/backend-foundation` y `feature/project-foundation`. Las copias de entrega se retiraron del workspace Admin; allí sólo permanece su guía. Los worktrees de trabajo están en `/tmp/wok-worktrees/`.
 
 | Rama                           | Worktree                                | Contenido asignado                                                                          |
 | ------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------- |
