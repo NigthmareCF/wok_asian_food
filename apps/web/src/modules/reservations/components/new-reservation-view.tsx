@@ -13,6 +13,7 @@ import {
 import { operationalTables } from "@/data/fixtures/operation";
 import type { ReservationSource } from "@/data/fixtures/reservations";
 import { useTableSession } from "@/modules/tables";
+import { checkReservationNotice } from "../reservation-time";
 import { useReservationSession } from "../reservation-session-provider";
 import styles from "./reservations.module.css";
 
@@ -27,7 +28,7 @@ export function NewReservationView() {
   const { updateTable } = useTableSession();
   const [guest, setGuest] = useState("");
   const [phone, setPhone] = useState("");
-  const [date, setDate] = useState("2026-09-11");
+  const [date, setDate] = useState("");
   const [time, setTime] = useState("14:00");
   const [people, setPeople] = useState(2);
   const [tableNumber, setTableNumber] = useState("");
@@ -56,11 +57,13 @@ export function NewReservationView() {
       Math.abs(timeToMinutes(reservation.time) - timeToMinutes(time)) < 90,
   );
   const isLate = timeToMinutes(time) > timeToMinutes("21:15");
+  const noticeCheck = checkReservationNotice(date, time);
   const canSave =
     guest.trim().length >= 2 &&
     phone.trim().length >= 8 &&
     Boolean(date && time && tableNumber) &&
     people > 0 &&
+    noticeCheck.valid &&
     !conflict &&
     (!isLate || preorder) &&
     humanConfirmed;
@@ -140,7 +143,6 @@ export function NewReservationView() {
             <label className="order-field">
               <span>Fecha</span>
               <input
-                min="2026-09-11"
                 onChange={(event) => setDate(event.target.value)}
                 type="date"
                 value={date}
@@ -242,6 +244,14 @@ export function NewReservationView() {
             <div className={styles.validation} role="alert">
               <Clock3 aria-hidden="true" size={17} />
               <span>Después de las 21:15 se requiere preorden.</span>
+            </div>
+          ) : null}
+          {!noticeCheck.valid && date && time ? (
+            <div className={styles.validation} role="alert">
+              <Clock3 aria-hidden="true" size={17} />
+              <span>
+                Las reservaciones requieren al menos 3 horas de anticipación.
+              </span>
             </div>
           ) : null}
 

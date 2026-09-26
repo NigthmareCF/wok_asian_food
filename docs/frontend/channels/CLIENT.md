@@ -1,5 +1,7 @@
 # Canal Cliente
 
+> **Actualización de alcance 2026-09-25:** esta guía describe las vistas y el trabajo con fixtures de la etapa inicial. La instrucción integral del propietario añade auth WOK/Google, guest, reserva y mesa digital con 3 h, pickup, delivery, pagos seguros, FEL, mensajes y servicio degradado. La frase histórica «auth visual» queda `SUPERSEDED` como estado objetivo; sigue describiendo el estado previo de la web. Ver [brechas por canal](../CHANNEL_GAPS.md).
+
 Responsables: Barrera y Carlos Chan. Rama de canal disponible: `feature/frontend-client`.
 
 El canal Cliente prioriza una experiencia simple para consultar disponibilidad, solicitar pedidos, reservar y seguir estados. La información de inventario debe ser menos detallada que la mostrada al personal.

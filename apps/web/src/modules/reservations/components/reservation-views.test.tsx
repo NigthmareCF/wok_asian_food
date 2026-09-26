@@ -38,9 +38,10 @@ describe("ReservationFormView", () => {
 
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Indica si deseas incluir preorden.",
-    );
+    expect(screen.getByText("Selecciona una fecha.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Indica si deseas incluir preorden."),
+    ).toBeInTheDocument();
   });
 
   it("sends the preorder choice to the temporary menu access", () => {
@@ -59,6 +60,9 @@ describe("ReservationFormView", () => {
     const user = userEvent.setup();
     render(<ReservationFormView />);
 
+    fireEvent.change(screen.getByLabelText("FECHA"), {
+      target: { value: "2099-01-01" },
+    });
     await user.click(screen.getByRole("button", { name: "Ahora no" }));
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
@@ -107,12 +111,10 @@ describe("ReservationFormView", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Para esta hora se requiere preorden completa y confirmación del restaurante.",
-      ),
+      screen.getByText(/Para llegar a las 21:15 puede requerirse preorden/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("El preorden es obligatorio para esta hora."),
+      screen.getByText(/Para este horario elige una llegada hasta las 21:15/),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "USAR 21:15" }));
@@ -142,6 +144,23 @@ describe("ReservationFormView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("does not present a late digital request as a valid reservation", async () => {
+    const user = userEvent.setup();
+    render(<ReservationFormView initialTime="22:00" />);
+    fireEvent.change(screen.getByLabelText("FECHA"), {
+      target: { value: "2099-01-01" },
+    });
+    await user.click(screen.getByRole("button", { name: "Ahora no" }));
+    await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
+
+    expect(
+      screen.getByText(/El último ingreso normal es a las 21:15/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Solicitud pendiente de confirmación"),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not show C-08 for a time before 21:15", () => {
     render(<ReservationFormView />);
 
@@ -158,6 +177,9 @@ describe("ReservationFormView", () => {
     const user = userEvent.setup();
     render(<ReservationFormView />);
 
+    fireEvent.change(screen.getByLabelText("FECHA"), {
+      target: { value: "2099-01-01" },
+    });
     await user.click(screen.getByRole("button", { name: "Ahora no" }));
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
@@ -192,6 +214,9 @@ describe("Reservation views", () => {
 
     await user.type(screen.getByLabelText("Nombre del cliente"), "Luis Pérez");
     await user.type(screen.getByLabelText("Teléfono"), "55550000");
+    fireEvent.change(screen.getByLabelText("Fecha"), {
+      target: { value: "2099-01-01" },
+    });
     await user.clear(screen.getByLabelText("Hora"));
     await user.type(screen.getByLabelText("Hora"), "21:30");
     await user.selectOptions(screen.getByLabelText("Mesa sugerida"), "1");

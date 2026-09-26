@@ -7,6 +7,7 @@ import { clientReservationFixture } from "@/data/fixtures/client-reservations";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { StatusBadge } from "@/shared/components/ui/status-badge";
+import { checkReservationNotice } from "../reservation-time";
 import styles from "./reservation.module.css";
 
 type ReservationErrors = Partial<{
@@ -37,7 +38,7 @@ function isLateReservation(time: string) {
 }
 
 export function ReservationFormView({ initialTime }: { initialTime?: string }) {
-  const [date, setDate] = useState(clientReservationFixture.defaultDate);
+  const [date, setDate] = useState("");
   const [time, setTime] = useState(
     initialTime ?? clientReservationFixture.defaultTime,
   );
@@ -61,7 +62,7 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
 
   function useLastNormalTime() {
     setTime(clientReservationFixture.lastNormalEntryTime);
-    setIncludesPreorder(true);
+    setIncludesPreorder(null);
     setIsLateNoticeDismissed(false);
     setErrors((current) => ({
       ...current,
@@ -81,13 +82,22 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
 
     if (!date) nextErrors.date = "Selecciona una fecha.";
     if (!time) nextErrors.time = "Selecciona una hora.";
+    if (date && time) {
+      const notice = checkReservationNotice(date, time);
+      if (!notice.valid) {
+        nextErrors.time =
+          notice.reason === "TOO_SOON"
+            ? "Solicita la reservación con al menos 3 horas de anticipación."
+            : "Selecciona una fecha y hora válidas.";
+      }
+    }
     if (people < 1) nextErrors.people = "Selecciona al menos una persona.";
     if (includesPreorder === null) {
       nextErrors.preorder = "Indica si deseas incluir preorden.";
     }
-    if (lateReservation && includesPreorder !== true) {
-      nextErrors.preorder =
-        "Después de las 21:15 se requiere preorden completa.";
+    if (lateReservation) {
+      nextErrors.time =
+        "El último ingreso normal es a las 21:15. Elige otra hora.";
     }
 
     setErrors(nextErrors);
@@ -110,7 +120,8 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
       </header>
 
       <p className={styles.simulationNotice}>
-        Datos de disponibilidad simulados. La solicitud no confirma una mesa.
+        Solicita con al menos 3 horas de anticipación. Datos de disponibilidad
+        simulados: la solicitud no confirma una mesa.
       </p>
 
       {isPendingConfirmation ? (
@@ -143,8 +154,8 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
           </h2>
           <div className={styles.dateTimeGrid}>
             <FormField
-              aria-invalid={Boolean(errors.date)}
               className={styles.control}
+              error={errors.date}
               id="reservation-date"
               label="FECHA"
               onChange={(event) => {
@@ -242,7 +253,8 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
           </div>
           {lateReservation ? (
             <p className={styles.requiredPreorder}>
-              El preorden es obligatorio para esta hora.
+              Para este horario elige una llegada hasta las 21:15; puede
+              requerirse preorden y revisión humana.
             </p>
           ) : null}
           {errors.preorder ? (
@@ -309,13 +321,15 @@ function LateReservationNotice({
             La última hora disponible para ingreso es <strong>21:15</strong>.
           </h2>
           <p>
-            Para esta hora se requiere preorden completa y confirmación del
-            restaurante.
+            Para llegar a las 21:15 puede requerirse preorden y revisión del
+            restaurante según el tamaño del grupo y la carga.
           </p>
         </div>
         <div className={styles.conditionBlock}>
           <h2>Condición requerida</h2>
-          <p>El preorden queda marcado como obligatorio al usar 21:15.</p>
+          <p>
+            La disponibilidad final depende de la evaluación del restaurante.
+          </p>
         </div>
       </div>
       <Button fullWidth onClick={onUseLastNormalTime} type="button">
