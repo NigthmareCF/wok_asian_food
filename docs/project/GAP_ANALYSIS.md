@@ -76,5 +76,5 @@ App Cliente — 2026-09-26: commit `bda29e1` publicado en `feature/mobile-shell`
 
 - `feature/frontend-admin` (`f729d83`) añade a A-13 el panel Admin para leer las capacidades del backend y cambiar estado con motivo, `expectedVersion` y request ID. El API conserva `ADMIN`, control de versión y auditoría.
 - `feature/frontend-client` (`2f7ee1a`) conecta el resumen C-02 con `GET /api/v1/public/service-capabilities` mediante BFF same-origin; sanitiza a código/estado y no reutiliza un estado demo si el API falla.
-- Cliente: 7 pruebas focalizadas, lint, typecheck y build Webpack aprobados. La corrida completa dio 226/227 por una aserción temporal preexistente de `staff-schedule.test.tsx`; esa suite aislada pasó 12/12. Admin: 228/228, lint y typecheck aprobados.
+- Cliente: 7 pruebas focalizadas, lint, typecheck y build Webpack aprobados. La corrida completa dio 226/227 por una aserción temporal preexistente de `staff-schedule.test.tsx`; esa suite aislada pasó 12/12. Admin: 228/228, lint, typecheck y build Webpack en worktree aislado aprobados.
 - Ambos BFF requieren `WOK_API_BASE_URL`. El Admin local devolvió 503 sin esa variable; no se probó E2E contra una API/Postgres vivos. Deben integrarse/desplegarse `feature/database-migrations` antes de `feature/availability`, y después los portales. La interfaz no afirma integración productiva.
