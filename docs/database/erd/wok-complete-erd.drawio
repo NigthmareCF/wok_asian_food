@@ -798,7 +798,7 @@
           <mxGeometry as="geometry" x="0" y="460" width="620" height="28" />
         </mxCell>
         <mxCell id="reservation_evaluations" value="reservation_evaluations" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="2450" y="3752" width="620" height="424" />
+          <mxGeometry as="geometry" x="2450" y="3752" width="620" height="508" />
         </mxCell>
         <mxCell id="reservation_evaluations__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -806,38 +806,47 @@
         <mxCell id="reservation_evaluations__reservation_id" value="FK reservation_id : UUID ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#88caff;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="68" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__request_id" value="   request_id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__requester_user_id" value="FK requester_user_id : UUID ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#88caff;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="96" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__decision" value="   decision : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__request_id" value="   request_id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="124" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__reason_codes" value="   reason_codes : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__request_payload_hash" value="   request_payload_hash : TEXT ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="152" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__alternatives" value="   alternatives : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__decision" value="   decision : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="180" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__conditions" value="   conditions : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__reason_codes" value="   reason_codes : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="208" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__estimated_occupancy_minutes" value="   estimated_occupancy_minutes : INTEGER" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__alternatives" value="   alternatives : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="236" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__estimated_ready_at" value="   estimated_ready_at : TIMESTAMPTZ ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__conditions" value="   conditions : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="264" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__public_message" value="   public_message : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__estimated_occupancy_minutes" value="   estimated_occupancy_minutes : INTEGER" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="292" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__policy_version" value="   policy_version : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__minimum_occupancy_minutes" value="   minimum_occupancy_minutes : INTEGER ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="320" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__evaluated_at" value="   evaluated_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__estimated_ready_at" value="   estimated_ready_at : TIMESTAMPTZ ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="348" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__created_at" value="   created_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__public_message" value="   public_message : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="376" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__policy_version" value="   policy_version : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="404" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__evaluated_at" value="   evaluated_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="432" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__created_at" value="   created_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="460" width="620" height="28" />
         </mxCell>
         <mxCell id="reservation_status_history" value="reservation_status_history" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
           <mxGeometry as="geometry" x="20" y="4270" width="620" height="312" />
@@ -936,7 +945,7 @@
           <mxGeometry as="geometry" x="0" y="376" width="620" height="28" />
         </mxCell>
         <mxCell id="dining_session_tables" value="dining_session_tables" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="2450" y="4326" width="620" height="256" />
+          <mxGeometry as="geometry" x="2450" y="4410" width="620" height="256" />
         </mxCell>
         <mxCell id="dining_session_tables__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="dining_session_tables" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -4637,6 +4646,9 @@
         <mxCell id="edge-reservation_evaluations-reservation_id" value="0..N hijos / 0..1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERzeroToOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_evaluations__reservation_id" target="reservations__id">
           <mxGeometry as="geometry" relative="1" />
         </mxCell>
+        <mxCell id="edge-reservation_evaluations-requester_user_id" value="0..N hijos / 0..1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERzeroToOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_evaluations__requester_user_id" target="users__id">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
         <mxCell id="edge-reservation_status_history-reservation_id" value="0..N hijos / 1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERmandOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_status_history__reservation_id" target="reservations__id">
           <mxGeometry as="geometry" relative="1" />
         </mxCell>
@@ -6495,7 +6507,7 @@
           <mxGeometry as="geometry" x="0" y="460" width="620" height="28" />
         </mxCell>
         <mxCell id="reservation_evaluations" value="reservation_evaluations" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="2450" y="230" width="620" height="424" />
+          <mxGeometry as="geometry" x="2450" y="230" width="620" height="508" />
         </mxCell>
         <mxCell id="reservation_evaluations__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -6503,38 +6515,47 @@
         <mxCell id="reservation_evaluations__reservation_id" value="FK reservation_id : UUID ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#88caff;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="68" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__request_id" value="   request_id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__requester_user_id" value="FK requester_user_id : UUID ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#88caff;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="96" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__decision" value="   decision : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__request_id" value="   request_id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="124" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__reason_codes" value="   reason_codes : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__request_payload_hash" value="   request_payload_hash : TEXT ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="152" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__alternatives" value="   alternatives : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__decision" value="   decision : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="180" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__conditions" value="   conditions : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__reason_codes" value="   reason_codes : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="208" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__estimated_occupancy_minutes" value="   estimated_occupancy_minutes : INTEGER" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__alternatives" value="   alternatives : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="236" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__estimated_ready_at" value="   estimated_ready_at : TIMESTAMPTZ ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__conditions" value="   conditions : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="264" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__public_message" value="   public_message : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__estimated_occupancy_minutes" value="   estimated_occupancy_minutes : INTEGER" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="292" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__policy_version" value="   policy_version : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__minimum_occupancy_minutes" value="   minimum_occupancy_minutes : INTEGER ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="320" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__evaluated_at" value="   evaluated_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__estimated_ready_at" value="   estimated_ready_at : TIMESTAMPTZ ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="348" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__created_at" value="   created_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__public_message" value="   public_message : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="376" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__policy_version" value="   policy_version : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="404" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__evaluated_at" value="   evaluated_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="432" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__created_at" value="   created_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="460" width="620" height="28" />
         </mxCell>
         <mxCell id="reservation_status_history" value="reservation_status_history" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
           <mxGeometry as="geometry" x="20" y="748" width="620" height="312" />
@@ -6633,7 +6654,7 @@
           <mxGeometry as="geometry" x="0" y="376" width="620" height="28" />
         </mxCell>
         <mxCell id="dining_session_tables" value="dining_session_tables" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="2450" y="804" width="620" height="256" />
+          <mxGeometry as="geometry" x="2450" y="888" width="620" height="256" />
         </mxCell>
         <mxCell id="dining_session_tables__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="dining_session_tables" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -6696,6 +6717,9 @@
           <mxGeometry as="geometry" relative="1" />
         </mxCell>
         <mxCell id="edge-reservation_evaluations-reservation_id" value="0..N hijos / 0..1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERzeroToOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_evaluations__reservation_id" target="reservations__id">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="edge-reservation_evaluations-requester_user_id" value="0..N hijos / 0..1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERzeroToOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_evaluations__requester_user_id" target="users__id">
           <mxGeometry as="geometry" relative="1" />
         </mxCell>
         <mxCell id="edge-reservation_status_history-reservation_id" value="0..N hijos / 1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERmandOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_status_history__reservation_id" target="reservations__id">
@@ -12602,7 +12626,7 @@
           <mxGeometry as="geometry" x="0" y="460" width="620" height="28" />
         </mxCell>
         <mxCell id="reservation_evaluations" value="reservation_evaluations" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="1062" width="620" height="424" />
+          <mxGeometry as="geometry" x="3420" y="1062" width="620" height="508" />
         </mxCell>
         <mxCell id="reservation_evaluations__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -12610,38 +12634,47 @@
         <mxCell id="reservation_evaluations__reservation_id" value="FK reservation_id : UUID ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#88caff;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="68" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__request_id" value="   request_id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__requester_user_id" value="FK requester_user_id : UUID ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#88caff;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="96" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__decision" value="   decision : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__request_id" value="   request_id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="124" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__reason_codes" value="   reason_codes : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__request_payload_hash" value="   request_payload_hash : TEXT ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="152" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__alternatives" value="   alternatives : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__decision" value="   decision : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="180" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__conditions" value="   conditions : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__reason_codes" value="   reason_codes : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="208" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__estimated_occupancy_minutes" value="   estimated_occupancy_minutes : INTEGER" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__alternatives" value="   alternatives : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="236" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__estimated_ready_at" value="   estimated_ready_at : TIMESTAMPTZ ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__conditions" value="   conditions : JSONB" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="264" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__public_message" value="   public_message : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__estimated_occupancy_minutes" value="   estimated_occupancy_minutes : INTEGER" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="292" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__policy_version" value="   policy_version : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__minimum_occupancy_minutes" value="   minimum_occupancy_minutes : INTEGER ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="320" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__evaluated_at" value="   evaluated_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__estimated_ready_at" value="   estimated_ready_at : TIMESTAMPTZ ?" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="348" width="620" height="28" />
         </mxCell>
-        <mxCell id="reservation_evaluations__created_at" value="   created_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+        <mxCell id="reservation_evaluations__public_message" value="   public_message : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
           <mxGeometry as="geometry" x="0" y="376" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__policy_version" value="   policy_version : TEXT" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="404" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__evaluated_at" value="   evaluated_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="432" width="620" height="28" />
+        </mxCell>
+        <mxCell id="reservation_evaluations__created_at" value="   created_at : TIMESTAMPTZ" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#111c29;strokeColor=#314254;fontColor=#d6e0eb;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="reservation_evaluations" vertex="1">
+          <mxGeometry as="geometry" x="0" y="460" width="620" height="28" />
         </mxCell>
         <mxCell id="reservation_status_history" value="reservation_status_history" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
           <mxGeometry as="geometry" x="4270" y="1202" width="620" height="312" />
@@ -12905,7 +12938,7 @@
           <mxGeometry as="geometry" x="0" y="264" width="620" height="28" />
         </mxCell>
         <mxCell id="recipe_versions" value="recipe_versions" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="1646" width="620" height="312" />
+          <mxGeometry as="geometry" x="3420" y="1730" width="620" height="312" />
         </mxCell>
         <mxCell id="recipe_versions__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="recipe_versions" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -13217,7 +13250,7 @@
           <mxGeometry as="geometry" x="0" y="264" width="620" height="28" />
         </mxCell>
         <mxCell id="inventory_lots" value="inventory_lots" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="2118" width="620" height="368" />
+          <mxGeometry as="geometry" x="3420" y="2202" width="620" height="368" />
         </mxCell>
         <mxCell id="inventory_lots__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="inventory_lots" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -13580,7 +13613,7 @@
           <mxGeometry as="geometry" x="0" y="376" width="620" height="28" />
         </mxCell>
         <mxCell id="purchase_order_items" value="purchase_order_items" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="2646" width="620" height="396" />
+          <mxGeometry as="geometry" x="3420" y="2730" width="620" height="396" />
         </mxCell>
         <mxCell id="purchase_order_items__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="purchase_order_items" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -13943,7 +13976,7 @@
           <mxGeometry as="geometry" x="0" y="292" width="620" height="28" />
         </mxCell>
         <mxCell id="service_status" value="service_status" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="3202" width="620" height="452" />
+          <mxGeometry as="geometry" x="3420" y="3286" width="620" height="452" />
         </mxCell>
         <mxCell id="service_status__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="service_status" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -14324,7 +14357,7 @@
           <mxGeometry as="geometry" x="0" y="264" width="620" height="28" />
         </mxCell>
         <mxCell id="order_item_status_history" value="order_item_status_history" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="3814" width="620" height="312" />
+          <mxGeometry as="geometry" x="3420" y="3898" width="620" height="312" />
         </mxCell>
         <mxCell id="order_item_status_history__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="order_item_status_history" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -14720,7 +14753,7 @@
           <mxGeometry as="geometry" x="0" y="208" width="620" height="28" />
         </mxCell>
         <mxCell id="message_attachments" value="message_attachments" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="4286" width="620" height="312" />
+          <mxGeometry as="geometry" x="3420" y="4370" width="620" height="312" />
         </mxCell>
         <mxCell id="message_attachments__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="message_attachments" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -15047,7 +15080,7 @@
           <mxGeometry as="geometry" x="0" y="488" width="620" height="28" />
         </mxCell>
         <mxCell id="payment_intents" value="payment_intents" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="4758" width="620" height="508" />
+          <mxGeometry as="geometry" x="3420" y="4842" width="620" height="508" />
         </mxCell>
         <mxCell id="payment_intents__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="payment_intents" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -15368,7 +15401,7 @@
           <mxGeometry as="geometry" x="0" y="348" width="620" height="28" />
         </mxCell>
         <mxCell id="cash_movements" value="cash_movements" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="5426" width="620" height="396" />
+          <mxGeometry as="geometry" x="3420" y="5510" width="620" height="396" />
         </mxCell>
         <mxCell id="cash_movements__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="cash_movements" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -15725,7 +15758,7 @@
           <mxGeometry as="geometry" x="0" y="264" width="620" height="28" />
         </mxCell>
         <mxCell id="ai_feedback" value="ai_feedback" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="5982" width="620" height="396" />
+          <mxGeometry as="geometry" x="3420" y="6066" width="620" height="396" />
         </mxCell>
         <mxCell id="ai_feedback__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="ai_feedback" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -16094,7 +16127,7 @@
           <mxGeometry as="geometry" x="0" y="460" width="620" height="28" />
         </mxCell>
         <mxCell id="email_outbox" value="email_outbox" style="swimlane;html=0;startSize=40;horizontal=1;collapsible=0;container=1;recursiveResize=0;rounded=0;fillColor=#223b55;swimlaneFillColor=#111c29;strokeColor=#7693b1;fontColor=#ffffff;fontSize=16;fontStyle=1;align=left;spacingLeft=12;" parent="1" vertex="1">
-          <mxGeometry as="geometry" x="3420" y="6538" width="620" height="396" />
+          <mxGeometry as="geometry" x="3420" y="6622" width="620" height="396" />
         </mxCell>
         <mxCell id="email_outbox__id" value="PK id : UUID" style="html=0;whiteSpace=wrap;rounded=0;fillColor=#172638;strokeColor=#314254;fontColor=#ffd479;fontFamily=monospace;fontSize=13;align=left;spacingLeft=10;verticalAlign=middle;resizable=0;" parent="email_outbox" vertex="1">
           <mxGeometry as="geometry" x="0" y="40" width="620" height="28" />
@@ -16406,6 +16439,9 @@
           <mxGeometry as="geometry" relative="1" />
         </mxCell>
         <mxCell id="edge-reservation_evaluations-reservation_id" value="0..N hijos / 0..1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERzeroToOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_evaluations__reservation_id" target="reservations__id">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+        <mxCell id="edge-reservation_evaluations-requester_user_id" value="0..N hijos / 0..1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERzeroToOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_evaluations__requester_user_id" target="users__id">
           <mxGeometry as="geometry" relative="1" />
         </mxCell>
         <mxCell id="edge-reservation_status_history-reservation_id" value="0..N hijos / 1 padre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeWidth=1.3;strokeColor=#69b9e8;fontColor=#d3e9fa;fontSize=10;labelBackgroundColor=#0d1117;startArrow=ERzeroToMany;endArrow=ERmandOne;startFill=0;endFill=0;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" edge="1" source="reservation_status_history__reservation_id" target="reservations__id">

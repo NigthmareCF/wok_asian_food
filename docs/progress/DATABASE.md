@@ -1,9 +1,15 @@
 # Progreso de diseño de datos
 
+## 2026-09-26 — Solicitudes idempotentes de reserva
+
+- `feature/database-migrations` amplió el corte Flyway a V1–V5: el quinto cambio conserva usuario solicitante, hash de payload, duración mínima estimada y unicidad de `request_id` para proteger el replay.
+- V1–V5 se aplicaron desde base vacía en PostgreSQL 18. El test SQL V5 pasó; no se tocó ninguna base persistente.
+- El modelo general sigue siendo candidato de 128 tablas; V1–V5 implementan sólo identidad/core, referencias, mesas/reservas y horario.
+
 ## 2026-09-26 — Reparto por ramas de modelo y migraciones
 
-- `feature/database-schema` mantiene generador/modelo/SQL candidato; `feature/database-migrations` tiene V1–V4 y pruebas; `docs/database` contiene diccionario, ERD, requisitos y validación. Los tres worktrees parten de `3bbd0ed` y quedan sin commit.
-- Flyway V1–V4 sigue probado desde cero en PostgreSQL 16. El modelo completo continúa siendo candidato, no migración aplicada.
+- `feature/database-schema` mantiene generador/modelo/SQL candidato; `feature/database-migrations` tiene V1–V5 y pruebas; `docs/database` contiene diccionario, ERD, requisitos y validación. El primer reparto está pushed; V5 y las notas posteriores siguen sin commit.
+- Flyway V1–V5 pasó desde cero en PostgreSQL 18 temporal. El modelo completo continúa siendo candidato, no migración aplicada.
 - Integrar DB primero, luego backend foundation/slices. Ver [handoff](../project/BRANCH_HANDOFF.md) en `feature/project-foundation`.
 
 ## 2026-09-25 — Candidato más cortes Flyway ejecutables

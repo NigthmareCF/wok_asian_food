@@ -947,7 +947,7 @@ Entidad mutable: actualizar row_version y marcas de edición atómicamente; audi
 
 ## reservation_evaluations
 
-Resultado histórico de capacidad y condiciones evaluadas por backend.
+Resultado histórico de capacidad, vinculado al cliente solicitante y a un request idempotente.
 
 Dominio: 03 - Tables Reservations.
 
@@ -955,12 +955,15 @@ Dominio: 03 - Tables Reservations.
 |---|---|---|---|---|---|---|
 | id | UUID | No | gen_random_uuid() | Sí | — | — |
 | reservation_id | UUID | Sí | — | — | reservations.id; fk_reservation_evaluations_reservation_id | — |
+| requester_user_id | UUID | Sí | — | — | users.id; fk_reservation_evaluations_requester_user_id | — |
 | request_id | UUID | No | — | — | — | — |
+| request_payload_hash | TEXT | Sí | — | — | — | — |
 | decision | TEXT | No | — | — | — | — |
 | reason_codes | JSONB | No | — | — | — | — |
 | alternatives | JSONB | No | '[]'::jsonb | — | — | — |
 | conditions | JSONB | No | '[]'::jsonb | — | — | — |
 | estimated_occupancy_minutes | INTEGER | No | — | — | — | — |
+| minimum_occupancy_minutes | INTEGER | Sí | — | — | — | — |
 | estimated_ready_at | TIMESTAMPTZ | Sí | — | — | — | — |
 | public_message | TEXT | No | — | — | — | — |
 | policy_version | TEXT | No | — | — | — | — |
@@ -972,14 +975,19 @@ Dominio: 03 - Tables Reservations.
 - `pk_reservation_evaluations`: `PRIMARY KEY (id)`.
 - `ck_reservation_evaluations_1`: `CHECK (decision IN ('ACCEPT', 'ACCEPT_WITH_CONDITIONS', 'SUGGEST_OTHER_TIME', 'REQUIRES_HUMAN_APPROVAL', 'REJECT'))`.
 - `ck_reservation_evaluations_2`: `CHECK (estimated_occupancy_minutes > 0)`.
+- `ck_reservation_evaluations_3`: `CHECK (minimum_occupancy_minutes IS NULL OR (minimum_occupancy_minutes > 0 AND minimum_occupancy_minutes <= estimated_occupancy_minutes))`.
+- `ck_reservation_evaluations_4`: `CHECK (request_payload_hash IS NULL OR request_payload_hash ~ '^[0-9a-f]{64}$')`.
 
 **Índices adicionales**
 
-- `ix_reservation_evaluations_1`: `(reservation_id)`.
+- `ux_reservation_evaluations_1`: UNIQUE `(request_id)`.
+- `ix_reservation_evaluations_2`: `(requester_user_id, evaluated_at)`.
+- `ix_reservation_evaluations_3`: `(reservation_id)`.
 
 **Relaciones**
 
 - `reservation_evaluations.reservation_id` → `reservations.id`: cada fila referencia 0..1 padre; cada padre tiene 0..N filas. Borrado/actualización: RESTRICT.
+- `reservation_evaluations.requester_user_id` → `users.id`: cada fila referencia 0..1 padre; cada padre tiene 0..N filas. Borrado/actualización: RESTRICT.
 
 **Notas**
 
