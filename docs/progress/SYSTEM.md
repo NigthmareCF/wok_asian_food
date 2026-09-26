@@ -4,8 +4,9 @@
 
 - Las referencias locales especializadas se adelantaron fast-forward a `origin/development` `3bbd0ed`; después se hicieron 18 commits/push normales con la distribución inicial. No hubo force ni merge a `development`.
 - El mapa de commits, ramas y dependencias está en [BRANCH_HANDOFF.md](../project/BRANCH_HANDOFF.md). Los worktrees permanecen bajo `/tmp/wok-worktrees/`; el workspace Admin conserva sólo su guía.
-- El siguiente slice local añade persistencia/idempotencia/decisión auditada de reservas, administración versionada de capacidades y Flyway V5. Maven verify combinado: 12/12; Flyway V1–V5 en PostgreSQL 18 efímero y smoke HTTP de registro, reserva, replay y decisión Operativa/Admin.
-- Los cambios nuevos posteriores al primer push siguen sin commit en las ramas documentadas en el handoff. `development` continúa sin cambios funcionales de este trabajo.
+- Slices publicados en ramas especializadas: reservas autenticadas/idempotentes con revisión auditada; capacidades de servicio con versionado; y caja con apertura, ledger, arqueo/cierre, claves idempotentes y auditoría. Flyway V5 cubre reservas y V6 caja.
+- Validación de caja: `mvn verify` combinado 12/12; PostgreSQL 18 aplicó V1–V6 y pasó test SQL; smoke HTTP verificó ledger Q108, replay, rechazo 409 de cambios, diferencia −Q3 y protección de sesión cerrada.
+- Los últimos commits de caja están en `feature/payments`, `feature/database-migrations`, `docs/database`, `docs/api` y `feature/project-foundation`; `development` continúa sin merges.
 
 ## 2026-09-25 — Base maestra ejecutable y handoff
 

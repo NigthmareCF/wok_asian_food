@@ -66,7 +66,7 @@ Verificación después de distribuir a worktrees (2026-09-26): `http://127.0.0.1
 
 ## Validación funcional posterior — 2026-09-26
 
-El backend combinado se compiló y probó con `mvn verify` en Docker sobre Java 21: 12/12 tests. En PostgreSQL 18 vacía, Spring aplicó Flyway V1–V5; la prueba SQL V5 pasó. Smoke HTTP: register 202, verify 200, login 200, creación de reserva 202, replay idéntico devuelve el mismo ID, mismo `Idempotency-Key` con otro payload devuelve 409, reserva bajo 3 h devuelve decisión `REJECT`, solicitud pendiente visible para Operativo/Admin, confirmación manual 200 con motivo, repetición obsoleta 409, historial y audit log persistidos. Cambio de capacidad Admin persistió evento y audit log; expectedVersion viejo devolvió 409. Todo se ejecutó con usuarios sintéticos en DB temporal.
+El backend combinado se compiló y probó con `mvn verify` en Docker sobre Java 21: 12/12 tests. En PostgreSQL 18 vacía, Spring aplicó Flyway V1–V5; la prueba SQL V5 pasó. El slice de caja posterior aplicó V1–V6 y probó API/ledger/cierre en ambiente efímero. Smoke HTTP: register 202, verify 200, login 200, creación de reserva 202, replay idéntico devuelve el mismo ID, mismo `Idempotency-Key` con otro payload devuelve 409, reserva bajo 3 h devuelve decisión `REJECT`, solicitud pendiente visible para Operativo/Admin, confirmación manual 200 con motivo, repetición obsoleta 409, historial y audit log persistidos. Cambio de capacidad Admin persistió evento y audit log; expectedVersion viejo devolvió 409. Todo se ejecutó con usuarios sintéticos en DB temporal.
 
 Los cambios que habilitaron este recorrido se publicaron en commits separados en las ramas enumeradas en [BRANCH_HANDOFF.md](BRANCH_HANDOFF.md). No se probó refresh/reuse HTTP, ownership A/B, concurrencia, browser UI conectada ni infraestructura física. Los tokens/secrets usados fueron de prueba y no se guardaron en el repo.
 
@@ -80,5 +80,5 @@ Menú/recetario real; dominio y método de exposición pública; proveedor de pa
 2. Conectar estado de servicio y evaluación de reservas a UI sin fallback silencioso a fixtures; implementar confirmación con snapshot de carga y transacción.
 3. Recibir menú real, crear seed de categorías/productos/modificadores y validar precios/stock en backend.
 4. Entregar solicitudes pickup/delivery, KDS, inventario/producción y seguimiento entre web/app.
-5. Implementar cuenta/pagos mixtos/caja, FEL, Meta/correo y AI Tool Broker por puertos con pruebas de idempotencia y seguridad.
+5. Conectar ventas/propinas del pedido al ledger de caja; después implementar pagos mixtos, FEL, Meta/correo y AI Tool Broker por puertos con pruebas de idempotencia y seguridad.
 6. Ejecutar trabajo según [BRANCH_HANDOFF.md](BRANCH_HANDOFF.md): canal por rama y slices de backend/DB/infra coordinados desde `development`; levantar stack en LAN, practicar corte WAN, restauración y reconciliación; después decidir exposición WAN/proveedores/hardware con evidencia.

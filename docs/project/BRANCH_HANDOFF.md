@@ -4,7 +4,7 @@ Fecha: 2026-09-26. Este documento organiza el trabajo que sigue al corte integra
 
 ## Distribución actual de archivos
 
-El primer reparto ya está committed y pushed en sus ramas respectivas. La validación posterior añadió un segundo slice de reservas, administración de servicios y migración V5; sus commits también están publicados en `feature/reservations`, `feature/availability`, `feature/backend-auth`, `feature/database-migrations`, `feature/database-schema`, `docs/database`, `docs/api`, `feature/frontend-client`, `feature/backend-foundation` y `feature/project-foundation`. Las copias de entrega se retiraron del workspace Admin; allí sólo permanece su guía. Los worktrees de trabajo están en `/tmp/wok-worktrees/`.
+El primer reparto ya está committed y pushed en sus ramas respectivas. La validación posterior añadió slices de reservas, administración de servicios, migración V5 y ahora módulo de caja/V6; sus commits también están publicados en `feature/reservations`, `feature/availability`, `feature/backend-auth`, `feature/database-migrations`, `feature/database-schema`, `docs/database`, `docs/api`, `feature/frontend-client`, `feature/backend-foundation` y `feature/project-foundation`. Las copias de entrega se retiraron del workspace Admin; allí sólo permanece su guía. Los worktrees de trabajo están en `/tmp/wok-worktrees/`.
 
 | Rama                           | Worktree                                | Contenido asignado                                                                          |
 | ------------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -18,9 +18,9 @@ El primer reparto ya está committed y pushed en sus ramas respectivas. La valid
 | `feature/reservations`         | `/tmp/wok-worktrees/reservations`       | Estimador, evaluación preliminar de capacidad y pruebas de reservas.                        |
 | `feature/availability`         | `/tmp/wok-worktrees/availability`       | Lectura de capacidades de servicio desde DB.                                                |
 | `feature/ai`                   | `/tmp/wok-worktrees/ai`                 | Gateway/mock, broker inicial, pruebas y arquitectura IA.                                    |
-| `feature/payments`             | `/tmp/wok-worktrees/payments`           | Puertos/adapters mock de pago y FEL, con pruebas.                                           |
+| `feature/payments`             | `/tmp/wok-worktrees/payments`           | Puertos/adapters mock de pago/FEL y API persistente de sesión/ledger/arqueo/cierre de caja. |
 | `feature/database-schema`      | `/tmp/wok-worktrees/db-schema`          | Generador y modelo candidato, SQL PostgreSQL regenerado.                                    |
-| `feature/database-migrations`  | `/tmp/wok-worktrees/db-migrations`      | Flyway V1–V4 y pruebas SQL.                                                                 |
+| `feature/database-migrations`  | `/tmp/wok-worktrees/db-migrations`      | Flyway V1–V6 y pruebas SQL; V6 cubre registro/sesión/movimientos/arqueo de caja.            |
 | `docs/database`                | `/tmp/wok-worktrees/db-docs`            | Mapeo, ERD, validación, decisiones y progreso DB.                                           |
 | `feature/project-foundation`   | `/tmp/wok-worktrees/project-foundation` | GAP/estado/decisiones/reporte maestro, README y progreso del sistema.                       |
 | `docs/architecture`            | `/tmp/wok-worktrees/architecture-docs`  | Diagramas Draw.io y su generador.                                                           |
@@ -57,7 +57,7 @@ Las ramas especializadas ya existen y contienen los cambios iniciales listados a
 | `feature/backend-foundation` | Completar health de dependencias, credenciales separadas, backups/restauración, observabilidad y pruebas de WAN/LAN. | Mantener DB y Spring sin puertos públicos; LAN operativa durante falla WAN. |
 | `feature/backend-auth` y `feature/backend-api` | Endurecer verify/login/refresh/reuse, ownership/RBAC, límites y contrato HTTP; preparar Google OIDC cuando existan credenciales. | Pruebas HTTP con DB, linking sin fusión automática y revocación comprobada. |
 | `feature/reservations` y `feature/availability` | Evaluación y creación transaccional, capacidad, horarios, ocupación, alternativas y aprobación humana. | Persistencia, mínimo 3 h, no solape y pruebas concurrentes. |
-| `feature/payments` | Pedidos de pago, pagos mixtos/caja, outbox y reconciliación detrás de ports/adapters. | Probar duplicados y estados desconocidos; separar dinero y propina; no declarar integración bancaria/FEL real. |
+| `feature/payments` | Conectar `SALE`/`TIP_PAYOUT` desde pedidos/cobros al ledger; pagos mixtos y adapters/outbox/reconciliación externos. | Verificar totales desde servidor; separar dinero y propina; no declarar integración bancaria/FEL real. |
 | `feature/ai` | Mensajería asistida, autorización de tools, handoff, feedback y revisión de comprobantes. | Firma/ownership/minimización/límites; runtime sin DB y sin autorizar acciones críticas. |
 | `feature/mobile-shell` | App Expo Cliente sobre API tipada, SecureStore, cache/borradores offline y recorridos Cliente. | Depende de identidad/API estable; ninguna confirmación offline; pruebas con red degradada. |
 | `feature/frontend-client`, `feature/frontend-operational`, `feature/frontend-admin` | Continuar los flujos de cada canal conectándolos al contrato aprobado. | No reportar éxito sin persistencia; validar permisos y ownership del lado API. |
