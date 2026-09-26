@@ -12,7 +12,8 @@
 | RES-01  | NOW    | reserva y mesa digital: 3 h, horarios, 20 min, preorden/condiciones y autorización humana       | CAP-01, IAM-01                            |
 | CAT-01  | NEXT   | menú real, opciones, precios y disponibilidad calculados por backend                            | Menú real `BLOCKED` para seed             |
 | ORD-01  | NEXT   | pickup/delivery/local: solicitud idempotente, aceptación, cambios con revisión y KDS            | CAT-01, CAP-01, inventario                |
-| FIN-01  | NEXT   | pagos mixtos, propina, caja y conciliación; `PaymentGateway` mock                               | ORD-01; proveedor real `BLOCKED`          |
+| FIN-01  | NOW    | Caja interna: apertura/ledger/arqueo/cierre persistentes; conectar ventas desde ORD-01           | V6; `feature/payments` cash slice parcial |
+| FIN-02  | NEXT   | Pagos mixtos, propina y conciliación; `PaymentGateway` mock                                      | ORD-01; proveedor real `BLOCKED`          |
 | FEL-01  | NEXT   | pool por atención, múltiples drafts, emisión individual, outbox y mock                          | FIN-01; certificador real `BLOCKED`       |
 | MSG-01  | NEXT   | conversaciones por canal, webhooks dedup, identidad externa, STT y handoff                      | IAM-01; Meta real `BLOCKED`               |
 | AI-01   | NOW    | Gateway/tool broker, mock, scope guard, fallback y aislamiento sin DB                           | CORE-01; GPU/modelo real `BLOCKED`        |
