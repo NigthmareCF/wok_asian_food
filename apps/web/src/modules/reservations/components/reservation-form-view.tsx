@@ -10,7 +10,6 @@ import {
 } from "@/modules/clients/client-session";
 import {
   isLateReservation,
-  isRejectedReservation,
   validateReservation,
   type ReservationErrors,
 } from "../client-reservation";
@@ -51,7 +50,6 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
   useEffect(() => {
     if (isPendingConfirmation) summaryRef.current?.focus();
   }, [isPendingConfirmation]);
-  const rejectedReservation = isRejectedReservation(time);
   const lateReservation = isLateReservation(time);
   const showLateNotice = lateReservation && !isLateNoticeDismissed;
 
@@ -131,11 +129,11 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
           <Clock3 aria-hidden="true" size={28} />
           <div>
             <h2 ref={summaryRef} tabIndex={-1}>
-              Solicitud pendiente de confirmación
+              Solicitud de reserva pendiente de validación
             </h2>
             <p>
-              Guardada localmente; todavía no enviada. Pendiente de confirmación
-              del restaurante.
+              Guardada localmente; todavía no enviada. Sujeta a disponibilidad y
+              validación del restaurante, que decide su aceptación.
             </p>
           </div>
           <dl>
@@ -223,17 +221,6 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
             </div>
           </section>
 
-          {rejectedReservation ? (
-            <section className={styles.lateNotice} role="alert">
-              <p>
-                No se aceptan reservas después de las 21:30, incluso con
-                preorden.
-              </p>
-              <Button type="button" onClick={chooseOtherTime}>
-                ELEGIR OTRA HORA
-              </Button>
-            </section>
-          ) : null}
           {showLateNotice ? (
             <LateReservationNotice
               onChooseOtherTime={chooseOtherTime}
@@ -294,7 +281,9 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
             </div>
             {lateReservation ? (
               <p className={styles.requiredPreorder}>
-                El preorden es obligatorio para esta hora.
+                La solicitud tardía requiere preorden para la validación del
+                restaurante. Puedes registrar la solicitud aunque esté
+                pendiente; incluirla no garantiza aceptación.
               </p>
             ) : null}
             {errors.preorder ? (
@@ -345,11 +334,7 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
             />
           </section>
 
-          <Button
-            fullWidth
-            type="submit"
-            disabled={!today || rejectedReservation}
-          >
+          <Button fullWidth type="submit" disabled={!today}>
             CONTINUAR
           </Button>
         </form>
@@ -374,16 +359,19 @@ function LateReservationNotice({
       <div className={styles.lateNoticeContent}>
         <div className={styles.warningBlock}>
           <h2 id="late-reservation-title">
-            La última hora normal de ingreso es <strong>21:15</strong>.
+            Solicitud tardía: después de las <strong>21:15</strong>.
           </h2>
           <p>
-            Después de las 21:15 y hasta las 21:30 se requiere preorden completa
-            y confirmación del restaurante.
+            Las solicitudes tardías están sujetas a disponibilidad y validación
+            del restaurante. Registrar la solicitud no garantiza su aceptación.
           </p>
         </div>
         <div className={styles.conditionBlock}>
-          <h2>Condición requerida</h2>
-          <p>A las 21:15 puedes reservar sin preorden.</p>
+          <h2>Validación pendiente</h2>
+          <p>
+            Las 21:15 son una referencia para el aviso de solicitud tardía, no
+            una garantía de disponibilidad.
+          </p>
         </div>
       </div>
       <Button fullWidth onClick={onUseLastNormalTime} type="button">

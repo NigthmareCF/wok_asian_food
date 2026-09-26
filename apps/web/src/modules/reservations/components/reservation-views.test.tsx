@@ -36,7 +36,7 @@ describe("ReservationFormView", () => {
     expect(screen.getByLabelText("HORA")).toHaveValue("21:30");
     expect(
       screen.getByRole("heading", {
-        name: "La última hora normal de ingreso es 21:15.",
+        name: "Solicitud tardía: después de las 21:15.",
       }),
     ).toBeInTheDocument();
   });
@@ -72,7 +72,7 @@ describe("ReservationFormView", () => {
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
     expect(
-      screen.getByText("Solicitud pendiente de confirmación"),
+      screen.getByText("Solicitud de reserva pendiente de validación"),
     ).toBeInTheDocument();
   });
 
@@ -99,11 +99,11 @@ describe("ReservationFormView", () => {
     });
 
     expect(
-      screen.queryByText(/La última hora normal de ingreso/),
+      screen.queryByText(/Solicitud tardía: después de las/),
     ).not.toBeInTheDocument();
   });
 
-  it("shows C-08 for a time after 21:15 and uses 21:15 with preorder", async () => {
+  it("shows C-08 after 21:15 and allows choosing 21:15", async () => {
     const user = userEvent.setup();
     renderClient(<ReservationFormView />);
 
@@ -112,16 +112,18 @@ describe("ReservationFormView", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "La última hora normal de ingreso es 21:15.",
+        name: "Solicitud tardía: después de las 21:15.",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Después de las 21:15 y hasta las 21:30 se requiere preorden completa y confirmación del restaurante.",
+        "Las solicitudes tardías están sujetas a disponibilidad y validación del restaurante. Registrar la solicitud no garantiza su aceptación.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("El preorden es obligatorio para esta hora."),
+      screen.getByText(
+        "La solicitud tardía requiere preorden para la validación del restaurante. Puedes registrar la solicitud aunque esté pendiente; incluirla no garantiza aceptación.",
+      ),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "USAR 21:15" }));
@@ -132,7 +134,7 @@ describe("ReservationFormView", () => {
       "/menu",
     );
     expect(
-      screen.queryByText(/La última hora normal de ingreso/),
+      screen.queryByText(/Solicitud tardía: después de las/),
     ).not.toBeInTheDocument();
   });
 
@@ -147,7 +149,7 @@ describe("ReservationFormView", () => {
 
     expect(screen.getByLabelText("HORA")).toHaveFocus();
     expect(
-      screen.queryByText(/La última hora normal de ingreso/),
+      screen.queryByText(/Solicitud tardía: después de las/),
     ).not.toBeInTheDocument();
   });
 
@@ -159,7 +161,7 @@ describe("ReservationFormView", () => {
     });
 
     expect(
-      screen.queryByText(/La última hora normal de ingreso/),
+      screen.queryByText(/Solicitud tardía: después de las/),
     ).not.toBeInTheDocument();
   });
 
@@ -171,7 +173,7 @@ describe("ReservationFormView", () => {
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
     const pendingConfirmation = screen.getByText(
-      "Solicitud pendiente de confirmación",
+      "Solicitud de reserva pendiente de validación",
     );
     expect(pendingConfirmation).toBeInTheDocument();
     expect(pendingConfirmation.parentElement?.parentElement).toHaveTextContent(

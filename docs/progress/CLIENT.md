@@ -1,5 +1,15 @@
 # Progreso del canal Cliente
 
+## 2026-09-26 — PR #16: solicitudes de reserva pendientes de validación
+
+- Coordinación confirma que el frontend recopila fecha, hora, personas, intención de preorden y notas; la disponibilidad y la aceptación o rechazo corresponden al restaurante. No existe un límite fijo de 21:30 ni se inventan horarios oficiales o respuestas.
+- Las 21:15 se conservan exclusivamente como referencia del aviso C-08. Después se informa que la solicitud está sujeta a disponibilidad y validación del restaurante. El requisito documentado de preorden es visual: no bloquea registrar una solicitud sin preorden y tampoco garantiza aceptación. Se mantiene la validación de datos y la elección explícita de preorden.
+- Confirmación local exacta: «Solicitud de reserva pendiente de validación». Se aclara que está guardada localmente y todavía no enviada. Preorden sigue siendo intención con productos pendientes de vincular.
+- Archivos: `modules/reservations/client-reservation.ts`, `components/reservation-form-view.tsx`, `components/client-reservation.test.tsx`, `components/reservation-views.test.tsx` y este registro. Sin cambios en carrito, checkout, pedidos, mensajería, Operativo o Administración.
+- Regresiones: 21:15, 21:16, 21:30, 21:31 y 22:00, con/sin preorden, clic y submit directo; datos conservados y estado `pending`.
+- Verificaciones aprobadas: Prettier solo en los cinco archivos modificados, 19 pruebas enfocadas, lint, typecheck, suite completa (247 pruebas en 38 archivos), build y `git diff --check`. Tras tiempos de espera en ejecución concurrente, las pruebas enfocadas y la suite completa pasaron con `--maxWorkers=1`, sin cambiar configuración ni tiempos de espera. `next-env.d.ts` regenerado por build se restauró a su contenido previo. Sin nueva revisión visual en navegador; foco y acciones cubiertos por las pruebas de componentes.
+- Sin commit ni push.
+
 ## 2026-09-25 — Corrección del bloqueo al revalidar carrito
 
 - Causa: `CartView` activaba siempre el fixture `degradedService` después de una revisión válida. El reintento terminaba en `pendingConfirmation`, pero la vista de espera no ofrecía salida a checkout.
@@ -19,11 +29,10 @@
 - Validación: lint, typecheck y build aprobados; suite completa con 245 pruebas en 38 archivos aprobada, incluidas 14 de checkout (tres servicios, opciones/cantidades, conflictos, revisión invalidada, doble clic, lista/detalle, fallo/reintento y limpieza de espera). Se regeneró el archivo local truncado `.next/dev/types/routes.d.ts` a partir de los tipos del build; `next-env.d.ts` restaurado a su contenido previo.
 - Formato global: falla por 274 archivos preexistentes; los archivos modificados se formatearon de forma específica. No se ejecutó una nueva revisión visual responsive en navegador; se conservan los layouts y estilos existentes. Todo permanece en memoria y se reinicia al recargar; no hay envío ni aceptación real del restaurante.
 
-
 ## 2026-09-22 — Límites de reservas y acceso a mensajes de delivery
 
 - Rama actual `fix/client-c07-c12-polish`; cambios previos conservados, sin commit, push, merge, cambio de rama ni dependencias nuevas. `package-lock.json` conserva su hash previo y no forma parte de esta intervención.
-- Reservas Cliente: comparación numérica en minutos. Hasta 21:15 normal; después y hasta 21:30 requiere preorden; después de 21:30 bloquea continuar y también el submit directo, incluso con preorden. Aviso inmediato y acción para elegir otra hora. USAR 21:15 ya no impone preorden. Esta regla confirmada sustituye la ambigüedad histórica registrada abajo.
+- Reservas Cliente (corregido por coordinación el 2026-09-26): sin límite fijo de hora ni decisión de aceptación en el frontend. Después de 21:15 se muestra aviso de solicitud tardía y requisito visual de preorden, sin bloquear el registro. La disponibilidad y aceptación corresponden al restaurante. USAR 21:15 conserva la elección de preorden y tampoco garantiza disponibilidad.
 - Mensajes: usa el pedido de la sesión Cliente; escritura, adjuntos locales y respuestas rápidas habilitados solo con `deliveryStage: in-transit` y pedido no entregado. Antes informa cuándo se habilita; entregado queda en solo lectura; sin delivery enlaza `/client/orders`. Conserva las cinco respuestas editables, historial por pedido y aviso de guardado local sin envío real.
 - Carrito: fallo no reproducido. Edge headless sobre el servidor local existente: Panko + Solo atún, cantidad 2, contador 2, Q150 en `/client/cart`, conservado al visitar `/menu` y regresar por SPA (mismo documento). Submit de agregar cancela el comportamiento nativo; botones de cantidad son `type=button`. Sin cambios en carrito, provider, menú ni texto Tu pedido.
 - Archivos: `modules/reservations/client-reservation.ts`, `components/reservation-form-view.tsx`, `client-reservation.test.tsx`, `reservation-views.test.tsx`; `modules/messaging/components/client-messaging-view.tsx` y su prueba; este registro. Sin modificaciones a módulos Operativos/Administrativos, AppShell o navegación.
@@ -44,7 +53,7 @@
 | Solicitud pendiente no equivale a aceptación                                 | CLIENT: Reglas que no se pueden omitir                           | Confirmado                               |
 | Mesa sin importes, métodos de pago ni propina                                | Progreso: Correcciones PR #8 C-07, C-09 y C-10                   | Confirmado                               |
 | Preparación y traslado externo separados; sin tarifa ficticia                | CLIENT: Reglas que no se pueden omitir; contexto central 7.7–7.9 | Confirmado                               |
-| C-08 conserva aviso después de 21:15 y acción existente USAR 21:15           | CLIENT: Catálogo C-08; progreso C-07 y C-08                      | Conservado; límite exacto pendiente      |
+| C-08 conserva aviso después de 21:15 y acción existente USAR 21:15           | CLIENT: Catálogo C-08; progreso C-07 y C-08                      | Aviso visual; aceptación del restaurante |
 | Fecha inicial local, validaciones y solicitud pendiente                      | CLIENT: Catálogo C-07; autorización de mejora de C-07            | Confirmado                               |
 | Conversaciones, comprobante local y estados de mensajería                    | CLIENT: Catálogo C-12; progreso C-11 y C-12                      | Confirmado                               |
 | Dirección, horario y URL no se inventan                                      | CLIENT: Catálogo C-11; progreso C-11 y C-12                      | Confirmado; datos oficiales no definidos |
