@@ -19,7 +19,7 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - A-13 agrega un panel separado para consultar y cambiar las nueve capacidades operativas persistidas por la API: LOCAL, RESERVATIONS, DINE_IN_ONLINE, PICKUP, DELIVERY, ONLINE_ORDERS, MESSAGING, ONLINE_PAYMENTS y PRODUCTION.
 - La UI consume Route Handlers same-origin. Los cambios incluyen motivo, versión esperada y request ID; la API conserva autorización ADMIN, control optimista de versión y auditoría. Horarios, tolerancia, propina y otras opciones del formulario A-13 siguen siendo demostrativas y se identifican aparte.
 - Si falta sesión/API o faltan migraciones/seed, el panel muestra el error y no usa fixtures como si fueran estado real. Requiere `WOK_API_BASE_URL` y que se hayan integrado/desplegado las ramas backend/availability y database/migrations.
-- Verificación añadida: pruebas de componente/BFF cubren lectura API, cambio auditado, validación, bloqueo cross-origin y modo sin API. Pendiente probar contra API+PostgreSQL integrados; la rama web actual no incorpora los endpoints ni migraciones backend.
+- Verificación añadida: pruebas de componente/BFF cubren lectura API, cambio auditado, validación, bloqueo cross-origin y modo sin API. `typecheck`, `lint`, 228/228 Vitest y build de producción con Webpack en checkout aislado aprobaron. Pendiente probar contra API+PostgreSQL integrados; la rama web actual no incorpora los endpoints ni migraciones backend.
 
 ## 2026-09-15 — Auditoría de integración de rutas
 
