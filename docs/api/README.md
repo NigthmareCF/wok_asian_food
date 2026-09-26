@@ -33,9 +33,13 @@ La web y app usan la misma API a través de Nginx. Desconexión no confirma oper
 | `GET` | `/api/v1/operational/reservations/pending` | OPERACIONAL o ADMIN | Lista solicitudes aún no revisadas. |
 | `PUT` | `/api/v1/operational/reservations/{id}/decision` | OPERACIONAL o ADMIN | Confirma/rechaza con motivo, versión esperada, historial y auditoría. |
 | `GET` | `/actuator/health` | público | Health mínimo de la API. |
+| `POST` | `/api/v1/operational/cash-sessions` | OPERATIVO o ADMIN | Requiere `Idempotency-Key`; abre turno en caja configurada y registra el fondo como `OPENING`, nunca como venta. |
+| `GET` | `/api/v1/operational/cash-sessions/{id}` | OPERATIVO o ADMIN | Devuelve movimientos y saldo esperado; incluye diferencia cuando la sesión está cerrada. |
+| `POST` | `/api/v1/operational/cash-sessions/{id}/movements` | OPERATIVO o ADMIN | Requiere `Idempotency-Key`; registra ingreso, gasto o retiro con motivo. Rechaza replay con datos distintos. |
+| `POST` | `/api/v1/operational/cash-sessions/{id}/close` | OPERATIVO o ADMIN | Calcula el esperado desde el libro; `expectedVersion` protege arqueo final y cierre concurrentes. |
 
 Las solicitudes de reserva aplican tres horas mínimas. Una evaluación válida aún puede requerir aprobación humana; no se asigna mesa ni se declara disponibilidad real. El cambio de servicio y la decisión de reserva tienen control de versión para evitar actualizaciones obsoletas.
 
 ## Pendiente de implementación
 
-Catálogo/pedidos/KDS/caja/inventario/producción, flujos completos de roles/usuarios, ownership por cada recurso, provider Google OIDC real, payment/FEL real, webhooks Meta, app móvil y operación WAN siguen en slices posteriores. Revisar `docs/project/GAP_ANALYSIS.md` y `docs/backend/BACKLOG.md` para estados y dependencias.
+Catálogo/pedidos/KDS/inventario/producción, ventas y propinas en caja, arqueos intermedios, flujos completos de roles/usuarios, ownership por cada recurso, provider Google OIDC real, payment/FEL real, webhooks Meta, app móvil y operación WAN siguen en slices posteriores. Revisar `docs/project/GAP_ANALYSIS.md` y `docs/backend/BACKLOG.md` para estados y dependencias.
