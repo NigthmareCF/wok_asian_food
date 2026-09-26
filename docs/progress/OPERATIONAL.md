@@ -4,6 +4,15 @@ Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
 
+## 2026-09-26 — Solicitudes de reserva persistentes y revisión humana
+
+- Rama backend: `feature/reservations`. El portal Cliente puede crear solicitudes autenticadas; la API evalúa la anticipación/capacidad y nunca las confirma automáticamente.
+- Requiere `Idempotency-Key`; la misma clave y payload devuelve la solicitud existente. Si la clave se reutiliza con otro payload responde 409.
+- Operativo/Admin pueden listar pendientes y confirmar o rechazar con motivo, versión esperada, historial de estado y auditoría transaccional.
+- Regla mínima de 3 h aplicada al crear; resultados de evaluación quedan persistidos. Estados fuera de horario siguen requiriendo decisión explícita y capacidad en vivo aún no está conectada.
+- Pruebas: Maven `verify` combinado 12/12; Flyway V1–V5 aplicado a PostgreSQL 18 vacío; recorrido HTTP registro/verificación/login, reserva, replay/mismatch 409, aprobación, conflicto de versión y auditoría pasó en DB temporal.
+- No se hicieron cambios en las vistas operativas de datos simulados; integrar UI con API requiere conectar la sesión WOK y el contrato aprobado.
+
 ## 2026-09-15 — Auditoría de integración de rutas
 
 - Operación, Mesas, Pedidos, Cocina, Reservas, Mensajes, Solicitudes, Delivery, Caja, Pagos, Inventario, Producción y Estado del servicio tienen rutas y accesos en la sidebar.
