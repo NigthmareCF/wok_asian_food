@@ -15,7 +15,7 @@
 
 - Mi cuenta muestra las sesiones Cliente activas con tipo de dispositivo y última actividad; permite cerrar otras sesiones y actualizar el listado.
 - La sesión actual se identifica y se cierra mediante el flujo de cierre existente. No se muestra IP ni agente de usuario.
-- Depende de `GET/DELETE /api/v1/client/sessions` en `feature/backend-auth`; requiere integrar esa rama con la base backend antes de ejecutarlo end-to-end.
+- Depende de `GET/DELETE /api/v1/client/sessions` en `feature/backend-auth`; smoke HTTP/DB comprobó ownership y cierre remoto, además de invalidación de refresh.
 
 ## 2026-09-29 — Historial de solicitudes de reserva
 
