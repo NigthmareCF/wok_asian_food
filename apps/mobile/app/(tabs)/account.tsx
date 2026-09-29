@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ApiError, ClientProfile } from "@/lib/api";
+import { ApiError, ClientProfile, ClientSession } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
@@ -19,6 +19,8 @@ export default function AccountScreen() {
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [profileName, setProfileName] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
+  const [sessions, setSessions] = useState<ClientSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -33,6 +35,26 @@ export default function AccountScreen() {
       });
     return () => { active = false; };
   }, [request, session]);
+
+  useEffect(() => {
+    let active = true;
+    if (!session) return () => { active = false; };
+    void Promise.resolve().then(() => {
+      if (active) setSessionsLoading(true);
+      return request<ClientSession[]>("/api/v1/client/sessions");
+    })
+      .then((result) => { if (active) setSessions(result); })
+      .catch((reason) => { if (active) setError(reason instanceof ApiError ? reason.message : "No se pudieron cargar tus sesiones."); })
+      .finally(() => { if (active) setSessionsLoading(false); });
+    return () => { active = false; };
+  }, [request, session]);
+
+  async function refreshSessions() {
+    setSessionsLoading(true);
+    try { setSessions(await request<ClientSession[]>("/api/v1/client/sessions")); }
+    catch (reason) { setError(reason instanceof ApiError ? reason.message : "No se pudieron cargar tus sesiones."); }
+    finally { setSessionsLoading(false); }
+  }
 
   async function run(action: () => Promise<void>) {
     setBusy(true); setError(""); setMessage("");
@@ -89,8 +111,24 @@ export default function AccountScreen() {
         })} />
       </> : null}
       <Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice>
+      <View style={{ gap: 10 }}>
+        <Text style={{ fontSize: 18, fontWeight: "800", color: palette.ink }}>Sesiones activas</Text>
+        <Text style={ui.body}>Revisa dónde está abierta tu cuenta y cierra sesiones que no reconozcas.</Text>
+        {sessionsLoading && sessions.length === 0 ? <Notice>Cargando sesiones…</Notice> : null}
+        {!sessionsLoading && sessions.length === 0 ? <Notice>No hay sesiones activas disponibles.</Notice> : null}
+        {sessions.map((item) => <View key={item.sessionId} style={{ borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 12, gap: 6 }}>
+          <Text style={{ color: palette.ink, fontWeight: "800" }}>{item.deviceName || sessionTypeLabel(item.clientType)}{item.current ? " · Este dispositivo" : ""}</Text>
+          <Text style={ui.body}>Última actividad: {formatSessionDate(item.lastActivityAt)}</Text>
+          {!item.current ? <Button title="Cerrar sesión" secondary busy={busy} onPress={() => void run(async () => {
+            await request<void>(`/api/v1/client/sessions/${item.sessionId}`, { method: "DELETE" });
+            setSessions((current) => current.filter((candidate) => candidate.sessionId !== item.sessionId));
+            setMessage("La sesión se cerró correctamente.");
+          })} /> : null}
+        </View>)}
+        <Button title="Actualizar sesiones" secondary busy={sessionsLoading} onPress={() => void refreshSessions()} />
+      </View>
       <Button title="Cerrar sesión" secondary onPress={() => void run(async () => {
-        await logout(); setProfile(null); setProfileName(""); setProfilePhone(""); setMessage("");
+        await logout(); setProfile(null); setProfileName(""); setProfilePhone(""); setSessions([]); setMessage("");
       })} busy={busy} /></Card>
   </Page></ScrollView>;
 
@@ -114,4 +152,15 @@ export default function AccountScreen() {
       {mode === "login" || mode === "verify" ? <Text accessibilityRole="link" onPress={() => { setMode("register"); setError(""); setMessage(""); }} style={ui.link}>Crear cuenta Cliente</Text> : null}
     </View>
   </Page></ScrollView>;
+}
+
+function sessionTypeLabel(clientType: ClientSession["clientType"]) {
+  if (clientType === "MOBILE") return "Aplicación móvil";
+  if (clientType === "WEB") return "Navegador web";
+  return "Dispositivo de escritorio";
+}
+
+function formatSessionDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "No disponible" : date.toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" });
 }

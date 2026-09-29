@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-09-29 — Sesiones activas
+
+- Mi cuenta muestra las sesiones Cliente activas con tipo de dispositivo y última actividad; permite cerrar otras sesiones y actualizar el listado.
+- La sesión actual se identifica y se cierra mediante el flujo de cierre existente. No se muestra IP ni agente de usuario.
+- Depende de `GET/DELETE /api/v1/client/sessions` en `feature/backend-auth`; requiere integrar esa rama con la base backend antes de ejecutarlo end-to-end.
+
 ## 2026-09-29 — Historial de solicitudes de reserva
 
 - La pantalla de reservas consulta `GET /api/v1/client/reservations` y presenta las solicitudes propias con horario, tamaño del grupo, decisión, estado de la reserva y mensaje del equipo; soporta carga, reintento, error y lista vacía.
