@@ -98,11 +98,27 @@ export function SessionProvider({ children }: PropsWithChildren) {
         if (!(error instanceof ApiError) || error.status !== 401) throw error;
         const refreshToken = await SecureStore.getItemAsync(refreshKey);
         if (!refreshToken) { setSession(null); throw error; }
-        const rotated = await rotateRefreshToken(refreshToken);
+        let rotated: TokenPair;
+        try {
+          rotated = await rotateRefreshToken(refreshToken);
+        } catch (refreshError) {
+          if (refreshError instanceof ApiError && refreshError.status === 401) {
+            setSession(null);
+            await SecureStore.deleteItemAsync(refreshKey);
+          }
+          throw refreshError;
+        }
         await SecureStore.setItemAsync(refreshKey, rotated.refreshToken);
         const nextSession = { accessToken: rotated.accessToken, email: session.email };
         setSession(nextSession);
-        return apiRequest<T>(path, options, nextSession.accessToken);
+        try { return await apiRequest<T>(path, options, nextSession.accessToken); }
+        catch (retryError) {
+          if (retryError instanceof ApiError && retryError.status === 401) {
+            setSession(null);
+            await SecureStore.deleteItemAsync(refreshKey);
+          }
+          throw retryError;
+        }
       }
     },
     async logout() {

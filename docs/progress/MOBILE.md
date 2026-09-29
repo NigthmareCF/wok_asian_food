@@ -1,5 +1,10 @@
 # Progreso de planificación móvil
 
+## 2026-09-29 — Limpieza de sesión rechazada
+
+- Si el access token falla y el backend rechaza el refresh con `401`, la app ahora elimina el refresh token seguro y limpia la sesión en memoria. También limpia la sesión si el access token recién renovado vuelve a recibir `401`.
+- Los fallos de conectividad no borran el refresh token, de modo que se puede reintentar al recuperar red.
+
 ## 2026-09-29 — Reenvío del código de cuenta
 
 - La verificación ofrece un botón para solicitar un nuevo código sin salir del flujo de registro; conserva la respuesta neutral del servidor.
