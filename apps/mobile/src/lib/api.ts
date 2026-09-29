@@ -101,3 +101,7 @@ export type PickupRequestReceipt = {
   message: string;
 };
 export type PickupRequestState = PickupRequestReceipt;
+export type PickupRequestDetails = PickupRequestState & {
+  customerNote: string | null;
+  items: { name: string; quantity: number; unitPrice: number; lineTotal: number; currencyId: string }[];
+};

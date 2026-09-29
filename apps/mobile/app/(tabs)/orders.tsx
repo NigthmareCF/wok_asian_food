@@ -2,7 +2,7 @@ import { Link } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { PickupRequestState } from "@/lib/api";
+import { PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
@@ -27,6 +27,8 @@ export default function PickupRequestsScreen() {
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [details, setDetails] = useState<Record<string, PickupRequestDetails>>({});
+  const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!session) { setRequests([]); setError(""); return; }
@@ -48,6 +50,19 @@ export default function PickupRequestsScreen() {
     finally { setCancelling(null); }
   }
 
+  async function toggleDetails(requestId: string) {
+    if (details[requestId]) {
+      setDetails((current) => { const next = { ...current }; delete next[requestId]; return next; });
+      return;
+    }
+    setLoadingDetails(requestId); setError("");
+    try {
+      const result = await request<PickupRequestDetails>(`/api/v1/client/order-requests/${requestId}`);
+      setDetails((current) => ({ ...current, [requestId]: result }));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No pudimos cargar el detalle."); }
+    finally { setLoadingDetails(null); }
+  }
+
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
     <Heading eyebrow="Pickup">Mis solicitudes</Heading>
     <Text style={ui.body}>Consulta el estado de las solicitudes para recoger y cancela las que aún esperan revisión.</Text>
@@ -65,6 +80,14 @@ export default function PickupRequestsScreen() {
         <Text style={ui.body}>Hora solicitada: {formatDate(item.requestedFor)}</Text>
         <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>Subtotal informado: {formatMoney(item.subtotal, item.currency)}</Text>
         <Text style={ui.body}>{item.message}</Text>
+        <Button title={details[item.requestId] ? "Ocultar productos" : "Ver productos"} secondary busy={loadingDetails === item.requestId} onPress={() => void toggleDetails(item.requestId)} />
+        {details[item.requestId] ? <View style={ui.section}>
+          {details[item.requestId].customerNote ? <Text style={ui.body}>Comentario: {details[item.requestId].customerNote}</Text> : null}
+          {details[item.requestId].items.map((line, index) => <View key={`${item.requestId}-${index}`} style={ui.row}>
+            <Text style={[ui.body, { flex: 1 }]}>{line.quantity} × {line.name}</Text>
+            <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>{formatMoney(line.lineTotal, item.currency)}</Text>
+          </View>)}
+        </View> : null}
         {item.status === "PENDING_REVIEW" ? <>
           <Notice>Esta solicitud todavía no es un pedido aceptado y no se ha cobrado.</Notice>
           <Button title="Cancelar solicitud" secondary busy={cancelling === item.requestId} disabled={Boolean(cancelling)} onPress={() => void cancel(item.requestId)} />

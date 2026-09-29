@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-09-29 — Detalle de solicitudes pickup
+
+- En la pestaña Solicitudes, el Cliente puede abrir detalle desde `GET /api/v1/client/order-requests/{requestId}` y revisar los productos, cantidades, precio de línea y comentario que se guardaron al enviar; la API entrega snapshots, no los datos actuales del menú.
+- La pantalla conserva carga/error por separado del estado de cancelación y no muestra datos personales de otros clientes.
+- Verificación después del cambio: lint/typecheck y export Expo Android/web; exports son bundles, no build instalable ni validación física.
+
 ## 2026-09-29 — Historial y cancelación de pickup
 
 - Nueva pestaña Solicitudes consulta el historial autenticado de pickup, muestra estado/horario/subtotal del servidor y distingue una solicitud pendiente de un pedido confirmado.
