@@ -41,6 +41,8 @@ export default function ReservationsScreen() {
             }
           } else if (draft && Date.now() - draft.savedAt >= reservationDraftLifetimeMs) {
             await SecureStore.deleteItemAsync(reservationDraftKey);
+          } else if (!draft) {
+            await SecureStore.deleteItemAsync(reservationDraftKey);
           }
         }
       }
