@@ -47,3 +47,13 @@ export type ReservationResult = {
   maximumOccupancyMinutes: number;
   message: string;
 };
+export type ReservationHistoryItem = {
+  requestId: string;
+  reservationId?: string | null;
+  requestedAt?: string | null;
+  guests?: number | null;
+  decision: ReservationResult["decision"];
+  reservationStatus?: string | null;
+  message: string;
+  submittedAt: string;
+};
