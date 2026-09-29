@@ -4,7 +4,7 @@
 
 - La verificación ofrece un botón para solicitar un nuevo código sin salir del flujo de registro; conserva la respuesta neutral del servidor.
 - Usa `POST /api/v1/auth/verify/resend`; el backend aplica cooldown y límite por hora, y los códigos se envían mediante email outbox.
-- La app depende de `feature/backend-auth`; la entrega efectiva del correo requiere configurar un proveedor SMTP.
+- La app depende de `feature/backend-auth`; smoke HTTP/API/DB confirmó respuesta neutral y cooldown. La entrega efectiva del correo requiere configurar un proveedor SMTP.
 
 ## 2026-09-29 — Sesiones activas
 
