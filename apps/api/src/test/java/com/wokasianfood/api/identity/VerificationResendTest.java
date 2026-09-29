@@ -7,6 +7,10 @@ import static org.mockito.Mockito.*;
 import com.wokasianfood.api.identity.AuthDtos.ResetRequest;
 import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,6 +56,54 @@ class VerificationResendTest {
         assertEquals(202, response.getStatusCode().value());
         assertTrue(response.getBody().message().contains("Si la cuenta está pendiente"));
         verify(service).resendVerification(new ResetRequest("person@example.test"));
+    }
+
+    @Test
+    void cooldownDoesNotQueueAnotherMessage() throws Exception {
+        UUID userId = UUID.randomUUID();
+        stubPendingUser("pending@example.test", userId);
+        stubResendWindow(userId, 1, Instant.now().minusSeconds(20));
+
+        auth.resendVerification(new ResetRequest("pending@example.test"));
+
+        verify(jdbc, never()).update(startsWith("INSERT INTO wok.email_outbox"), any(Object[].class));
+    }
+
+    @Test
+    void hourlyLimitDoesNotQueueAnotherMessage() throws Exception {
+        UUID userId = UUID.randomUUID();
+        stubPendingUser("pending@example.test", userId);
+        stubResendWindow(userId, 5, Instant.now().minusSeconds(120));
+
+        auth.resendVerification(new ResetRequest("pending@example.test"));
+
+        verify(jdbc, never()).update(startsWith("INSERT INTO wok.email_outbox"), any(Object[].class));
+    }
+
+    @Test
+    void eligiblePendingUserReceivesAnotherChallengeThroughOutbox() throws Exception {
+        UUID userId = UUID.randomUUID();
+        stubPendingUser("pending@example.test", userId);
+        stubResendWindow(userId, 1, Instant.now().minusSeconds(120));
+
+        auth.resendVerification(new ResetRequest("pending@example.test"));
+
+        verify(jdbc).update(startsWith("INSERT INTO wok.email_outbox"), any(Object[].class));
+        verify(jdbc).update(contains("UPDATE wok.verification_challenges"), eq(userId), eq("ACCOUNT_VERIFICATION"));
+    }
+
+    private void stubPendingUser(String email, UUID userId) {
+        when(jdbc.query(anyString(), anyRowMapper(), eq(email))).thenReturn(List.of(userId));
+    }
+
+    private void stubResendWindow(UUID userId, int sentCount, Instant latestSentAt) throws Exception {
+        when(jdbc.queryForObject(anyString(), any(RowMapper.class), eq(userId))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = mock(ResultSet.class);
+            when(rs.getInt("sent_count")).thenReturn(sentCount);
+            when(rs.getTimestamp("latest_sent_at")).thenReturn(Timestamp.from(latestSentAt));
+            return mapper.mapRow(rs, 0);
+        });
     }
 
     @SuppressWarnings("unchecked")
