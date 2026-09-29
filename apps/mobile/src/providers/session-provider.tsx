@@ -10,6 +10,7 @@ type SessionContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, displayName: string, password: string) => Promise<string>;
   verify: (email: string, code: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<string>;
   requestPasswordReset: (email: string) => Promise<string>;
   completePasswordReset: (email: string, code: string, newPassword: string) => Promise<string>;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
@@ -71,6 +72,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
     },
     async verify(email, code) {
       await apiRequest("/api/v1/auth/verify", { method: "POST", body: JSON.stringify({ email, code }) });
+    },
+    async resendVerification(email) {
+      const result = await apiRequest<{ message: string }>("/api/v1/auth/verify/resend", {
+        method: "POST", body: JSON.stringify({ email }),
+      });
+      return result.message;
     },
     async requestPasswordReset(email) {
       const result = await apiRequest<{ message: string }>("/api/v1/auth/reset/request", {

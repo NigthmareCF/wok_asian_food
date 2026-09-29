@@ -7,7 +7,7 @@ import { useSession } from "@/providers/session-provider";
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
 
 export default function AccountScreen() {
-  const { session, login, register, verify, requestPasswordReset, completePasswordReset, request, logout } = useSession();
+  const { session, login, register, verify, resendVerification, requestPasswordReset, completePasswordReset, request, logout } = useSession();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -145,6 +145,9 @@ export default function AccountScreen() {
       {error ? <Notice tone="error">{error}</Notice> : null}
       {mode === "register" || mode === "reset-complete" ? <Text style={ui.body}>La contraseña debe tener al menos 12 caracteres.</Text> : null}
       <Button title={submitTitle[mode]} onPress={() => void submit()} busy={busy} />
+      {mode === "verify" ? <Button title="Reenviar código" secondary busy={busy} onPress={() => void run(async () => {
+        setMessage(await resendVerification(email.trim()));
+      })} /> : null}
     </Card>
     <View style={{ gap: 10 }}>
       {mode !== "login" ? <Text accessibilityRole="link" onPress={() => { setMode("login"); setError(""); setMessage(""); }} style={ui.link}>Ya tengo cuenta · Iniciar sesión</Text> : null}
