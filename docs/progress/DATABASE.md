@@ -25,3 +25,10 @@
 - Verificación real: PostgreSQL 18 desechable, base vacía y aplicación secuencial de V1–V8; prueba V8 completada y transacción revertida. No se incorporaron productos, recetas ni credenciales de demostración.
 - Alcance: es un primer corte ejecutable, no una reconciliación del modelo candidato de 128 tablas. No incluye `recipe_version_id` en `menu_items` porque las migraciones V1–V7 aún no definen `recipe_versions`; resolver esa divergencia al integrar `feature/database-schema` y la porción de recetas.
 - Próximo dependiente: desarrollar lectura pública de menú en `feature/backend-api` usando sólo elementos `PUBLIC`/`ACTIVE` y sin afirmar disponibilidad de inventario hasta que exista el slice de disponibilidad.
+
+## 2026-09-29 — Solicitudes de pickup separadas de órdenes
+
+- V9 agrega `order_requests`, `order_request_items` y `order_request_events`. Una solicitud nace `PENDING_REVIEW`, tiene idempotencia por cliente/clave, fingerprint, precios/nombres congelados por línea y cola para decisión operativa.
+- La estructura no crea una orden aceptada ni reserva inventario; el personal debe revalidar horario, capacidad, stock y precio antes de aceptar, siguiendo la regla del mega prompt. En esta primera migración sólo se habilita modalidad `PICKUP`; no implica delivery, mesa ni pago.
+- Prueba V9 valida líneas/huella, unicidad de idempotencia y rechaza cantidad cero. Flyway V1–V9 ejecutó sobre PostgreSQL 18 recién inicializado; V8 y V9 SQL tests aprobaron.
+- La tabla candidate `orders` no expresa suficientemente la solicitud pendiente separada. Esta decisión sigue la jerarquía nueva del requisito explícito; reconciliar `database/design/model.json`, ERD y diccionario antes de presentar el modelo completo como definitivo.
