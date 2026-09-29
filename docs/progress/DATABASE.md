@@ -16,3 +16,12 @@
 - Executed `V1_constraints.sql`, `V3_reservations.sql`, `V4_hours.sql`, `V5_reservation_request_idempotency.sql`, and `V6_cash_sessions_and_movements.sql`; all completed successfully and rolled back their test data where applicable.
 - Removed the temporary container after validation. No project database, credentials, or repository secrets were used.
 - This verifies migration execution and the available SQL checks only. The model/SQL/dictionary/ERD reconciliation, full business-rule coverage, and migration upgrade-path testing remain open.
+# Progreso de base de datos
+
+## 2026-09-29 — Fundamento ejecutable de catálogo
+
+- `V8__catalog_foundation.sql` agrega tablas de tipos de artículo, unidades, artículos, áreas de preparación, categorías, grupos/opciones de modificadores y ofertas del menú; incluye llaves foráneas, checks e índices para lectura ordenada.
+- `V8_catalog.sql` valida inserción relacionada y rechaza precio negativo y límites de selección inválidos.
+- Verificación real: PostgreSQL 18 desechable, base vacía y aplicación secuencial de V1–V8; prueba V8 completada y transacción revertida. No se incorporaron productos, recetas ni credenciales de demostración.
+- Alcance: es un primer corte ejecutable, no una reconciliación del modelo candidato de 128 tablas. No incluye `recipe_version_id` en `menu_items` porque las migraciones V1–V7 aún no definen `recipe_versions`; resolver esa divergencia al integrar `feature/database-schema` y la porción de recetas.
+- Próximo dependiente: desarrollar lectura pública de menú en `feature/backend-api` usando sólo elementos `PUBLIC`/`ACTIVE` y sin afirmar disponibilidad de inventario hasta que exista el slice de disponibilidad.
