@@ -10,6 +10,8 @@ type SessionContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, displayName: string, password: string) => Promise<string>;
   verify: (email: string, code: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<string>;
+  completePasswordReset: (email: string, code: string, newPassword: string) => Promise<string>;
   request: <T>(path: string, options?: RequestInit) => Promise<T>;
   logout: () => Promise<void>;
 };
@@ -69,6 +71,18 @@ export function SessionProvider({ children }: PropsWithChildren) {
     },
     async verify(email, code) {
       await apiRequest("/api/v1/auth/verify", { method: "POST", body: JSON.stringify({ email, code }) });
+    },
+    async requestPasswordReset(email) {
+      const result = await apiRequest<{ message: string }>("/api/v1/auth/reset/request", {
+        method: "POST", body: JSON.stringify({ email }),
+      });
+      return result.message;
+    },
+    async completePasswordReset(email, code, newPassword) {
+      const result = await apiRequest<{ message: string }>("/api/v1/auth/reset/complete", {
+        method: "POST", body: JSON.stringify({ email, code, newPassword }),
+      });
+      return result.message;
     },
     async request<T>(path: string, options: RequestInit = {}) {
       if (!session) throw new ApiError("Inicia sesión para continuar.", 401);
