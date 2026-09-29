@@ -1,5 +1,11 @@
 # Progreso del canal Cliente
 
+## 2026-09-28 — Lista pública de capacidades
+
+- `GET /api/v1/public/service-capabilities` limita su respuesta en servidor a capacidades entendibles por Cliente. La capacidad interna `PRODUCTION` ya no se incluye aunque esté activa en la tabla.
+- La app también aplica una lista permitida al presentar esos datos, para evitar revelar códigos internos futuros.
+- Verificación local: `git diff --check` aprobó. No se pudo ejecutar Maven en este entorno porque no está instalado; este worktree no incluye `pom.xml`. Ejecutar pruebas de compilación/integración al componer `feature/availability` con `feature/backend-foundation`.
+
 ## 2026-09-15 — Flujo unificado por canal
 
 - Se retiraron las barras de navegación de demostración de las rutas Cliente para que el `AppShell` sea la navegación única.
