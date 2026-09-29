@@ -100,3 +100,4 @@ export type PickupRequestReceipt = {
   idempotentReplay: boolean;
   message: string;
 };
+export type PickupRequestState = PickupRequestReceipt;

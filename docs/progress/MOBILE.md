@@ -1,5 +1,12 @@
 # Progreso de planificación móvil
 
+## 2026-09-29 — Historial y cancelación de pickup
+
+- Nueva pestaña Solicitudes consulta el historial autenticado de pickup, muestra estado/horario/subtotal del servidor y distingue una solicitud pendiente de un pedido confirmado.
+- Permite cancelar solicitudes pendientes mediante `DELETE /api/v1/client/order-requests/{requestId}`; la API limita la operación al Cliente propietario, registra evento y rechaza estados no cancelables.
+- Verificación: lint, typecheck y export Expo Android/web aprobados. Son bundles estáticos; falta validar en dispositivo instalado.
+- Dependencia: endpoint de cancelación en `feature/backend-api`.
+
 ## 2026-09-29 — Menú conectado a catálogo público
 
 - La pantalla Menú consulta `GET /api/v1/public/menu`; presenta categorías, platillos y precios recibidos del backend, con estados de carga, error y reintento.
