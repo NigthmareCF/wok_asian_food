@@ -90,6 +90,62 @@ class AuthServiceRefreshTest {
         verify(tokens, never()).refresh();
     }
 
+    @Test
+    void passwordResetChangesCredentialAndRevokesEverySessionAndRefreshToken() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID challengeId = UUID.randomUUID();
+        String code = "482193";
+        String codeHash = new ChallengeService(new AuthSecrets(Base64.getEncoder().encodeToString(new byte[32]),
+                Base64.getEncoder().encodeToString(new byte[32]))).hash("PASSWORD_RESET", code);
+        when(jdbc.query(anyString(), anyRowMapper(), eq("client@example.com"))).thenReturn(List.of(userId));
+        when(jdbc.query(anyString(), anyRowMapper(), eq(userId), eq("PASSWORD_RESET"))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = mock(ResultSet.class);
+            when(rs.getObject("id", UUID.class)).thenReturn(challengeId);
+            when(rs.getString("code_hash")).thenReturn(codeHash);
+            when(rs.getInt("attempt_count")).thenReturn(0);
+            when(rs.getInt("max_attempts")).thenReturn(5);
+            when(rs.getTimestamp("expires_at")).thenReturn(Timestamp.from(Instant.now().plusSeconds(300)));
+            return List.of(mapper.mapRow(rs, 0));
+        });
+        when(passwords.encode("new-long-password")).thenReturn("new-adaptive-hash");
+
+        auth.completeReset(new com.wokasianfood.api.identity.AuthDtos.ResetComplete(
+                "client@example.com", code, "new-long-password"));
+
+        verify(jdbc).update(contains("SET consumed_at = now()"), eq(challengeId));
+        verify(jdbc).update(contains("password_changed_at = now()"), eq("new-adaptive-hash"), eq(userId));
+        verify(jdbc).update(contains("sessions_valid_after = now()"), eq(userId));
+        verify(jdbc).update(contains("revocation_reason = 'PASSWORD_RESET'"), eq(userId));
+        verify(jdbc).update(contains("UPDATE wok.refresh_tokens SET revoked_at"), eq(userId));
+    }
+
+    @Test
+    void invalidPasswordResetCodeDoesNotChangePasswordOrRevokeSessions() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID challengeId = UUID.randomUUID();
+        when(jdbc.query(anyString(), anyRowMapper(), eq("client@example.com"))).thenReturn(List.of(userId));
+        when(jdbc.query(anyString(), anyRowMapper(), eq(userId), eq("PASSWORD_RESET"))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = mock(ResultSet.class);
+            when(rs.getObject("id", UUID.class)).thenReturn(challengeId);
+            when(rs.getString("code_hash")).thenReturn("different-code-hash");
+            when(rs.getInt("attempt_count")).thenReturn(0);
+            when(rs.getInt("max_attempts")).thenReturn(5);
+            when(rs.getTimestamp("expires_at")).thenReturn(Timestamp.from(Instant.now().plusSeconds(300)));
+            return List.of(mapper.mapRow(rs, 0));
+        });
+
+        AuthException error = assertThrows(AuthException.class, () -> auth.completeReset(
+                new com.wokasianfood.api.identity.AuthDtos.ResetComplete(
+                        "client@example.com", "482193", "new-long-password")));
+
+        assertEquals(400, error.status());
+        verify(jdbc).update(contains("attempt_count = attempt_count + 1"), eq(challengeId));
+        verify(jdbc, never()).update(contains("password_changed_at = now()"), any(Object[].class));
+        verify(jdbc, never()).update(contains("revocation_reason = 'PASSWORD_RESET'"), any(Object[].class));
+    }
+
     private void stubRefreshToken(UUID tokenId, UUID sessionId, UUID userId, Instant usedAt,
                                   Instant revokedAt, Instant sessionRevokedAt, String userStatus) throws Exception {
         Instant now = Instant.now();
