@@ -2,6 +2,7 @@ package com.wokasianfood.api.identity;
 
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -27,6 +28,8 @@ public class TokenService {
                         @Value("${wok.auth.access-minutes}") long accessMinutes,
                         @Value("${wok.auth.refresh-days}") long refreshDays) {
         if (accessMinutes < 1 || accessMinutes > 15) throw new IllegalArgumentException("Access token lifetime must be 1–15 minutes");
+        if (refreshDays < 1) throw new IllegalArgumentException("Refresh token lifetime must be at least one day");
+        if (!isHttpsIssuer(issuer)) throw new IllegalArgumentException("JWT issuer must be an absolute HTTPS URL");
         this.encoder = encoder;
         this.issuer = issuer;
         this.accessLifetime = Duration.ofMinutes(accessMinutes);
@@ -58,4 +61,13 @@ public class TokenService {
 
     public Instant refreshExpiry() { return Instant.now().plus(refreshLifetime); }
     public long accessSeconds() { return accessLifetime.toSeconds(); }
+
+    private boolean isHttpsIssuer(String value) {
+        try {
+            URI uri = URI.create(value);
+            return uri.isAbsolute() && "https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null;
+        } catch (IllegalArgumentException | NullPointerException invalidUri) {
+            return false;
+        }
+    }
 }

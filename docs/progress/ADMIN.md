@@ -64,3 +64,9 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Rama `feature/backend-auth`: `GET /api/v1/admin/users` paginado/buscable y `PUT /{id}/roles/{roleCode}` para conceder/revocar `OPERATIONAL` o `ADMIN`. `CLIENT` permanece reservado al registro público.
 - Los cambios requieren motivo y versión esperada; se conserva historial de roles, aumenta `users.row_version` y se escribe `audit_logs`. El último administrador activo no se puede retirar.
 - Validación: API combinada compiló en Docker Java 21 (`mvn verify`, 12/12); PostgreSQL 18 con V1–V6; smoke HTTP comprobó 401 anónimo, listado, grant/revoke, conflicto por versión vieja, último ADMIN 409 y rol CLIENT 400. Falta automatizar RBAC en CI y conectar la pantalla Admin.
+
+## 2026-09-28 — Límites y pruebas de tokens de identidad
+
+- `TokenService` ahora rechaza `refresh-days` menor a 1 al arrancar, igual que ya validaba la ventana del access token.
+- Se agregaron pruebas para verificar firma/claims mínimos del JWT, issuer URI, límite de expiración, opacidad/entropía del refresh token y configuraciones inválidas.
+- Validación ejecutada sobre una composición descartable de `feature/backend-foundation` + `feature/backend-auth`: Maven compiló Java 21 y pasó 5 pruebas unitarias (2 de challenges, 3 de tokens). La rama `feature/backend-auth` aún depende de que se integre primero la base Spring/Maven.
