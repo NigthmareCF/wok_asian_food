@@ -70,3 +70,9 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - `TokenService` ahora rechaza `refresh-days` menor a 1 al arrancar, igual que ya validaba la ventana del access token.
 - Se agregaron pruebas para verificar firma/claims mínimos del JWT, issuer URI, límite de expiración, opacidad/entropía del refresh token y configuraciones inválidas.
 - Validación ejecutada sobre una composición descartable de `feature/backend-foundation` + `feature/backend-auth`: Maven compiló Java 21 y pasó 5 pruebas unitarias (2 de challenges, 3 de tokens). La rama `feature/backend-auth` aún depende de que se integre primero la base Spring/Maven.
+
+## 2026-09-28 — Perfil Cliente privado
+
+- Se agregó `GET/PUT /api/v1/client/profile`, protegido con rol `CLIENT` y sujeto tomado del JWT. La edición actualiza `users` y `customer_profiles` en una transacción, controla `expectedVersion` y audita los campos sin guardar el teléfono en el evento.
+- La prueba verifica rechazo por versión obsoleta sin escrituras y persistencia coordinada de ambas representaciones; la edición no permite cambiar correo ni acceder a otro perfil.
+- Validación en composición temporal con foundation + auth: Maven pasó 7/7 pruebas unitarias. El smoke HTTP/DB también pasó en PostgreSQL 18 temporal: login CLIENT, perfil GET/PUT, conflicto de versión, validación de teléfono y 403 para ADMIN; DB confirmó sincronización/auditoría. Falta integrar las ramas oficialmente y repetirlo en CI.

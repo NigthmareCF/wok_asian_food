@@ -1,8 +1,8 @@
 package com.wokasianfood.api.identity;
 
+import java.net.URI;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
-import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
