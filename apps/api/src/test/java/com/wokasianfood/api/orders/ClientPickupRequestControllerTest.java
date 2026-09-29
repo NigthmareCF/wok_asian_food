@@ -100,6 +100,52 @@ class ClientPickupRequestControllerTest {
         verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 
+    @Test
+    void detailsReturnTheSavedProductSnapshotForOwner() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID currencyId = UUID.randomUUID();
+        Instant requestedFor = Instant.now().plusSeconds(3600);
+        doAnswer(invocation -> {
+            String sql = invocation.getArgument(0);
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = mock(ResultSet.class);
+            if (sql.contains("order_request_items")) {
+                when(rs.getString("name_snapshot")).thenReturn("Pad Thai");
+                when(rs.getInt("quantity")).thenReturn(2);
+                when(rs.getBigDecimal("unit_price")).thenReturn(new BigDecimal("10.25"));
+                when(rs.getBigDecimal("line_total")).thenReturn(new BigDecimal("20.50"));
+                when(rs.getObject("currency_id", UUID.class)).thenReturn(currencyId);
+            } else {
+                when(rs.getObject("id", UUID.class)).thenReturn(requestId);
+                when(rs.getString("status")).thenReturn("PENDING_REVIEW");
+                when(rs.getTimestamp("requested_for")).thenReturn(Timestamp.from(requestedFor));
+                when(rs.getBigDecimal("subtotal")).thenReturn(new BigDecimal("20.50"));
+                when(rs.getObject("currency_id", UUID.class)).thenReturn(currencyId);
+                when(rs.getString("currency_code")).thenReturn("GTQ");
+                when(rs.getString("customer_note")).thenReturn("Sin cebolla");
+            }
+            return List.of(mapper.mapRow(rs, 0));
+        }).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
+
+        var result = new ClientPickupRequestController(jdbc).details(jwt(userId), requestId);
+
+        assertEquals("Sin cebolla", result.customerNote());
+        assertEquals("Pad Thai", result.items().getFirst().name());
+        assertEquals(new BigDecimal("20.50"), result.items().getFirst().lineTotal());
+    }
+
+    @Test
+    void detailsHideRequestsOwnedByAnotherCustomer() {
+        doAnswer(invocation -> List.of()).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
+
+        AuthException error = assertThrows(AuthException.class, () ->
+                new ClientPickupRequestController(jdbc).details(jwt(UUID.randomUUID()), UUID.randomUUID()));
+
+        assertEquals(404, error.status());
+        verify(jdbc, times(1)).query(anyString(), any(RowMapper.class), any(Object[].class));
+    }
+
     private void stubRequestStatus(String status) {
         doAnswer(invocation -> {
             if (status == null) return List.of();

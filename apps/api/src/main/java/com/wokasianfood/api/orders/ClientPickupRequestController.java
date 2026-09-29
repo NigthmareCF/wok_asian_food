@@ -120,6 +120,29 @@ public class ClientPickupRequestController {
             """, ClientPickupRequestController::receiptFromJoinedCurrency, customerId);
     }
 
+    @GetMapping("/{requestId}")
+    public PickupRequestDetails details(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId) {
+        UUID customerId = UUID.fromString(jwt.getSubject());
+        List<PickupRequestDetails> found = jdbc.query("""
+            SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code,
+                   r.customer_note
+            FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            WHERE r.id = ? AND r.customer_user_id = ?
+            """, (rs, row) -> new PickupRequestDetails(rs.getObject("id", UUID.class), rs.getString("status"),
+                rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
+                rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
+                rs.getString("customer_note"), List.of()), requestId, customerId);
+        if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
+        List<PickupRequestLine> items = jdbc.query("""
+            SELECT name_snapshot, quantity, unit_price, line_total, currency_id
+            FROM wok.order_request_items WHERE order_request_id = ? ORDER BY created_at, id
+            """, (rs, row) -> new PickupRequestLine(rs.getString("name_snapshot"), rs.getInt("quantity"),
+                rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"), rs.getObject("currency_id", UUID.class)), requestId);
+        PickupRequestDetails request = found.getFirst();
+        return new PickupRequestDetails(request.requestId(), request.status(), request.requestedFor(),
+                request.subtotal(), request.currencyId(), request.currency(), request.customerNote(), items);
+    }
+
     @DeleteMapping("/{requestId}")
     @Transactional
     public OrderRequestState cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId) {
@@ -212,6 +235,9 @@ public class ClientPickupRequestController {
     public record PickupRequestReceipt(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
             UUID currencyId, String currency, boolean idempotentReplay, String message) {}
     public record OrderRequestState(UUID requestId, String status) {}
+    public record PickupRequestDetails(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
+            UUID currencyId, String currency, String customerNote, List<PickupRequestLine> items) {}
+    public record PickupRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal, UUID currencyId) {}
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currencyCode,
             int preparationSeconds) {}
 }

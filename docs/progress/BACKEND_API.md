@@ -1,5 +1,10 @@
 # Progreso de API backend
 
+## 2026-09-29 — Detalle propio de solicitudes pickup
+
+- `GET /api/v1/client/order-requests/{requestId}` devuelve la solicitud sólo si pertenece al CLIENT autenticado, junto con comentario y líneas basadas en snapshots del nombre, cantidad, precio unitario y total. Un id ajeno/no existente responde 404; no consulta las líneas hasta verificar ownership.
+- Pruebas compuestas de API + auth + reservas: 30 pruebas, 0 fallos/errores. Incluye propiedad y snapshot de productos.
+
 ## 2026-09-29 — Cancelación de solicitudes pickup
 
 - `DELETE /api/v1/client/order-requests/{requestId}` deja que el Cliente cancele sólo su propia solicitud `PENDING_REVIEW`. La fila se bloquea durante la decisión; recursos inexistentes o ajenos responden 404, estados que ya avanzaron responden 409.
