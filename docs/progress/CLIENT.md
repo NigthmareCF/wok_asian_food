@@ -1,5 +1,11 @@
 # Progreso del canal Cliente
 
+## 2026-09-29 — Reenvío de verificación
+
+- `POST /api/v1/auth/verify/resend` devuelve siempre una respuesta `202` neutral y sólo emite un nuevo código si la cuenta sigue pendiente.
+- La emisión serializa por fila de usuario, revoca el challenge anterior y limita a 60 segundos entre códigos y cinco por hora. El código conserva hash HMAC, TTL y entrega por email outbox cifrado.
+- Pruebas unitarias cubren respuesta neutral y dirección inexistente sin envío. Falta validar cooldown/límite y flujo HTTP/DB en integración.
+
 ## 2026-09-29 — Gestión de sesiones Cliente
 
 - `GET /api/v1/client/sessions` enumera únicamente sesiones activas del usuario autenticado, prioriza la sesión actual y limita el resultado a 20.

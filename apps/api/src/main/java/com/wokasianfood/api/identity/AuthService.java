@@ -71,6 +71,26 @@ public class AuthService {
     }
 
     @Transactional
+    public void resendVerification(ResetRequest request) {
+        String email = normalize(request.email());
+        List<UUID> ids = jdbc.query("""
+            SELECT id FROM wok.users WHERE email = ? AND status = 'PENDING_VERIFICATION' FOR UPDATE
+            """, (rs, row) -> rs.getObject(1, UUID.class), email);
+        if (ids.isEmpty()) return;
+        UUID userId = ids.getFirst();
+        ResendWindow window = jdbc.queryForObject("""
+            SELECT count(*) AS sent_count, max(created_at) AS latest_sent_at
+            FROM wok.verification_challenges
+            WHERE user_id = ? AND purpose = 'ACCOUNT_VERIFICATION'
+              AND created_at > now() - interval '1 hour'
+            """, (rs, row) -> new ResendWindow(rs.getInt("sent_count"),
+                rs.getTimestamp("latest_sent_at") == null ? null : rs.getTimestamp("latest_sent_at").toInstant()), userId);
+        Instant cooldownBoundary = Instant.now().minusSeconds(60);
+        if (window.sentCount >= 5 || (window.latestSentAt != null && window.latestSentAt.isAfter(cooldownBoundary))) return;
+        issueChallenge(userId, email, "ACCOUNT_VERIFICATION");
+    }
+
+    @Transactional
     public void requestReset(ResetRequest request) {
         String email = normalize(request.email());
         List<UUID> ids = jdbc.query("SELECT id FROM wok.users WHERE email = ? AND status = 'ACTIVE'",
@@ -263,6 +283,7 @@ public class AuthService {
     private record UserCredential(UUID id, String status, String passwordHash) {}
     private record ChallengeRow(UUID id, String codeHash, int attempts, int maxAttempts, Instant expiresAt) {}
     private record EncryptedCode(String nonce, String ciphertext) {}
+    private record ResendWindow(int sentCount, Instant latestSentAt) {}
     private record RefreshRow(UUID id, UUID sessionId, UUID userId, Instant usedAt, Instant revokedAt,
                               Instant expiresAt, Instant sessionRevokedAt, Instant sessionExpiresAt,
                               String status, Instant sessionsValidAfter, Instant sessionCreatedAt) {}

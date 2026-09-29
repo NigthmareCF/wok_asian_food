@@ -25,6 +25,12 @@ public class AuthController {
         auth.verify(request); return new Message("Cuenta verificada.");
     }
 
+    @PostMapping("/verify/resend")
+    public ResponseEntity<Message> resendVerification(@Valid @RequestBody ResetRequest request) {
+        auth.resendVerification(request);
+        return ResponseEntity.accepted().body(new Message("Si la cuenta está pendiente de verificación, recibirás un código cuando pueda enviarse."));
+    }
+
     @PostMapping("/login")
     public TokenPair login(@Valid @RequestBody Login request) { return auth.login(request); }
 
