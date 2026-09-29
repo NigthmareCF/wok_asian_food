@@ -29,7 +29,9 @@ springdoc:
     path: /api/v1/openapi
 wok:
   auth:
-    issuer: wok-asian-food
+    # JWT iss must be a valid URI for Spring's JwtClaimAccessor/JwtIssuerValidator.
+    # Override this reserved non-production URI with the canonical WOK identity URL per environment.
+    issuer: ${WOK_AUTH_ISSUER:https://identity.wok.invalid}
     jwt-secret-base64: ${WOK_AUTH_JWT_SECRET_BASE64:}
     challenge-pepper-base64: ${WOK_AUTH_CHALLENGE_PEPPER_BASE64:}
     access-minutes: 15

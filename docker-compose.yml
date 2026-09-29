@@ -37,6 +37,7 @@ services:
       SPRING_DATASOURCE_USERNAME: ${WOK_DB_USER:-wok_app}
       SPRING_DATASOURCE_PASSWORD: ${WOK_DB_PASSWORD:?Set WOK_DB_PASSWORD in an ignored .env file}
       SPRING_FLYWAY_LOCATIONS: filesystem:/database/migrations
+      WOK_AUTH_ISSUER: ${WOK_AUTH_ISSUER:-https://identity.wok.invalid}
       WOK_AUTH_JWT_SECRET_BASE64: ${WOK_AUTH_JWT_SECRET_BASE64:?Set WOK_AUTH_JWT_SECRET_BASE64 in an ignored .env file}
       WOK_AUTH_CHALLENGE_PEPPER_BASE64: ${WOK_AUTH_CHALLENGE_PEPPER_BASE64:?Set WOK_AUTH_CHALLENGE_PEPPER_BASE64 in an ignored .env file}
       WOK_AI_MODE: ${WOK_AI_MODE:-disabled}
