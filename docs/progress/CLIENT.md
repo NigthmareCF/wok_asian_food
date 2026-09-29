@@ -4,7 +4,7 @@
 
 - `POST /api/v1/auth/verify/resend` devuelve siempre una respuesta `202` neutral y sólo emite un nuevo código si la cuenta sigue pendiente.
 - La emisión serializa por fila de usuario, revoca el challenge anterior y limita a 60 segundos entre códigos y cinco por hora. El código conserva hash HMAC, TTL y entrega por email outbox cifrado.
-- Pruebas unitarias cubren respuesta neutral y dirección inexistente sin envío. Falta validar cooldown/límite y flujo HTTP/DB en integración.
+- Pruebas unitarias cubren respuesta neutral y dirección inexistente sin envío. Smoke con API + PostgreSQL 18 y V1–V7 confirmó envío inicial, respuesta neutral para dirección desconocida y cooldown (segunda solicitud no añadió otro email outbox). El límite horario está cubierto por la regla server-side, pero sigue pendiente una prueba específica automatizada.
 
 ## 2026-09-29 — Gestión de sesiones Cliente
 
