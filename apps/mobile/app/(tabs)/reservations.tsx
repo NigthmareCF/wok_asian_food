@@ -1,5 +1,6 @@
+import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ReservationHistoryItem, ReservationResult } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
@@ -17,7 +18,49 @@ export default function ReservationsScreen() {
   const [history, setHistory] = useState<ReservationHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftError, setDraftError] = useState("");
   const pendingRequest = useRef<{ body: string; key: string } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!session?.email) return () => { active = false; };
+    void Promise.resolve().then(async () => {
+      if (Platform.OS !== "web") {
+        const raw = await SecureStore.getItemAsync(reservationDraftKey);
+        if (raw) {
+          const draft = parseReservationDraft(raw);
+          if (draft && draft.ownerEmail === session.email && Date.now() - draft.savedAt < reservationDraftLifetimeMs) {
+            if (active) {
+              setGuests(draft.guests);
+              setRequestedAt(draft.requestedAt);
+              setNotes(draft.notes);
+              setPreorder(draft.preorder);
+              setDraftRestored(true);
+            }
+          } else if (draft && Date.now() - draft.savedAt >= reservationDraftLifetimeMs) {
+            await SecureStore.deleteItemAsync(reservationDraftKey);
+          }
+        }
+      }
+    }).catch(() => { if (active) setDraftError("No se pudo leer el borrador guardado en este dispositivo."); })
+      .finally(() => { if (active) setDraftReady(true); });
+    return () => { active = false; };
+  }, [session?.email]);
+
+  useEffect(() => {
+    if (!session?.email || !draftReady || Platform.OS === "web" || !hasReservationDraft(guests, requestedAt, notes, preorder)) return;
+    const draft: ReservationDraft = {
+      ownerEmail: session.email, guests, requestedAt, notes, preorder, savedAt: Date.now(),
+    };
+    const timer = setTimeout(() => {
+      void SecureStore.setItemAsync(reservationDraftKey, JSON.stringify(draft))
+        .then(() => setDraftError(""))
+        .catch(() => setDraftError("No se pudo guardar el borrador en este dispositivo."));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [session?.email, draftReady, guests, requestedAt, notes, preorder]);
 
   const refreshHistory = useCallback(async () => {
     if (!session) { setHistory([]); return; }
@@ -45,6 +88,12 @@ export default function ReservationsScreen() {
         method: "POST", headers: { "Idempotency-Key": pendingRequest.current.key }, body,
       });
       pendingRequest.current = null;
+      if (Platform.OS !== "web") {
+        try { await SecureStore.deleteItemAsync(reservationDraftKey); }
+        catch { setDraftError("La solicitud se envió, pero no pudimos borrar el borrador local."); }
+      }
+      setDraftRestored(false);
+      setGuests("2"); setRequestedAt(""); setNotes(""); setPreorder(false);
       setMessageTone(result.submitted ? "success" : "info");
       setMessage(result.message || (result.submitted
         ? "Solicitud enviada; el equipo debe revisarla y confirmarla."
@@ -56,11 +105,15 @@ export default function ReservationsScreen() {
 
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Planifica tu visita">Solicitar reserva</Heading>
     <Text style={ui.body}>El restaurante revisará capacidad y horario. Enviar una solicitud no confirma la reserva.</Text>
+    {session?.offline ? <Notice>Sin conexión al restaurante. Puedes revisar tu borrador; enviar requiere conexión y confirmación del servidor.</Notice> : null}
+    {draftRestored ? <Notice tone="success">Restauramos tu borrador guardado en este dispositivo.</Notice> : null}
+    {session && Platform.OS !== "web" ? <Notice>El borrador se guarda en este dispositivo. Nunca se envía automáticamente al recuperar conexión.</Notice> : null}
+    {draftError ? <Notice tone="error">{draftError}</Notice> : null}
     <Card>
       <Field label="Personas" keyboardType="number-pad" value={guests} onChangeText={setGuests} placeholder="2" />
       <Field label="Fecha y hora" value={requestedAt} onChangeText={setRequestedAt} placeholder="2026-10-05T18:30" autoCapitalize="none" />
       <Text style={{ color: "#746e67", fontSize: 13 }}>Formato local: AAAA-MM-DDTHH:mm. Solicita con al menos 3 horas de anticipación.</Text>
-      <Field label="Solicitudes especiales (opcional)" value={notes} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} textAlignVertical="top" />
+      <Field label="Solicitudes especiales (opcional)" value={notes} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} maxLength={500} textAlignVertical="top" />
       <Button title={preorder ? "Preorden requerida: sí (tocar para cambiar)" : "¿Requieres preorden? No"} secondary onPress={() => setPreorder(!preorder)} />
       {preorder ? <Text style={{ color: "#746e67", fontSize: 13 }}>Esto avisa al equipo para evaluar la solicitud; aún no agrega productos.</Text> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
@@ -84,6 +137,33 @@ export default function ReservationsScreen() {
     </Card> : null}
     {!session ? <Notice>Necesitas una cuenta Cliente verificada. Puedes crearla desde Mi cuenta.</Notice> : null}
   </Page></ScrollView>;
+}
+
+type ReservationDraft = {
+  ownerEmail: string;
+  guests: string;
+  requestedAt: string;
+  notes: string;
+  preorder: boolean;
+  savedAt: number;
+};
+
+const reservationDraftKey = "wok.client.reservation-draft.v1";
+const reservationDraftLifetimeMs = 30 * 24 * 60 * 60 * 1000;
+
+function parseReservationDraft(raw: string): ReservationDraft | null {
+  if (raw.length > 1800) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<ReservationDraft>;
+    if (typeof value.ownerEmail !== "string" || typeof value.guests !== "string" ||
+        typeof value.requestedAt !== "string" || typeof value.notes !== "string" ||
+        typeof value.preorder !== "boolean" || typeof value.savedAt !== "number") return null;
+    return value as ReservationDraft;
+  } catch { return null; }
+}
+
+function hasReservationDraft(guests: string, requestedAt: string, notes: string, preorder: boolean) {
+  return guests !== "2" || requestedAt.length > 0 || notes.length > 0 || preorder;
 }
 
 function formatDate(value: string) {

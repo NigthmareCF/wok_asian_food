@@ -111,6 +111,7 @@ export default function AccountScreen() {
         })} />
       </> : null}
       <Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice>
+      {session.offline ? <Notice>Sin conexión: conservamos tu sesión y tus borradores en este dispositivo. Podrás reintentar las acciones del servidor cuando recuperes conexión.</Notice> : null}
       <View style={{ gap: 10 }}>
         <Text style={{ fontSize: 18, fontWeight: "800", color: palette.ink }}>Sesiones activas</Text>
         <Text style={ui.body}>Revisa dónde está abierta tu cuenta y cierra sesiones que no reconozcas.</Text>
