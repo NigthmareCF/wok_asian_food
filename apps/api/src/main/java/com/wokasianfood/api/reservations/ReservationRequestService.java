@@ -68,14 +68,34 @@ public class ReservationRequestService {
         jdbc.update("""
             INSERT INTO wok.reservation_evaluations
                 (reservation_id, requester_user_id, request_id, request_payload_hash, decision, reason_codes, alternatives, conditions,
-                 estimated_occupancy_minutes, minimum_occupancy_minutes, public_message, policy_version)
-            VALUES (?, ?, ?, ?, ?, ?::jsonb, '[]'::jsonb, ?::jsonb, ?, ?, ?, 'capacity-v1')
+                 estimated_occupancy_minutes, minimum_occupancy_minutes, public_message, policy_version,
+                 requested_for_at, party_size)
+            VALUES (?, ?, ?, ?, ?, ?::jsonb, '[]'::jsonb, ?::jsonb, ?, ?, ?, 'capacity-v1', ?, ?)
             """, reservationId, userId, requestId, payloadHash, assessment.decision().name(), encodeStrings(assessment.reasonCodes()),
             encodeStrings(List.of("PREORDER=" + request.preorder())), estimate.maximumMinutes(),
-            estimate.minimumMinutes(), assessment.publicMessage());
+            estimate.minimumMinutes(), assessment.publicMessage(), Timestamp.from(request.requestedAt()), request.guests());
         return new Result(requestId, reservationId, reservationId != null, assessment.decision(),
                 assessment.reasonCodes(), estimate.minimumMinutes(), estimate.maximumMinutes(), assessment.publicMessage());
     }
+
+    public List<HistoryItem> history(UUID userId) {
+        return jdbc.query("""
+            SELECT e.request_id, e.reservation_id, e.requested_for_at, e.party_size, e.decision,
+                   e.public_message, e.evaluated_at, r.status AS reservation_status
+            FROM wok.reservation_evaluations e
+            LEFT JOIN wok.reservations r ON r.id = e.reservation_id
+            WHERE e.requester_user_id = ?
+            ORDER BY e.evaluated_at DESC, e.request_id DESC
+            LIMIT 50
+            """, (rs, row) -> new HistoryItem(
+                rs.getObject("request_id", UUID.class), rs.getObject("reservation_id", UUID.class),
+                instantOrNull(rs.getTimestamp("requested_for_at")),
+                (Integer) rs.getObject("party_size"), OperationalCapacityService.Decision.valueOf(rs.getString("decision")),
+                rs.getString("reservation_status"), rs.getString("public_message"),
+                rs.getTimestamp("evaluated_at").toInstant()), userId);
+    }
+
+    private Instant instantOrNull(Timestamp value) { return value == null ? null : value.toInstant(); }
 
     private void lockRequest(UUID requestId) {
         jdbc.execute((org.springframework.jdbc.core.ConnectionCallback<Void>) connection -> {
@@ -140,4 +160,7 @@ public class ReservationRequestService {
     public record Result(UUID requestId, UUID reservationId, boolean submitted,
                          OperationalCapacityService.Decision decision, List<String> reasonCodes,
                          int minimumOccupancyMinutes, int maximumOccupancyMinutes, String message) {}
+    public record HistoryItem(UUID requestId, UUID reservationId, Instant requestedAt, Integer guests,
+                              OperationalCapacityService.Decision decision, String reservationStatus,
+                              String message, Instant submittedAt) {}
 }

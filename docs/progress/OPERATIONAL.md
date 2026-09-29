@@ -1,5 +1,12 @@
 # Progreso del canal Operativo
 
+## 2026-09-29 — Historial de reservas propio para Cliente
+
+- `GET /api/v1/client/reservations` devuelve las 50 evaluaciones más recientes ligadas exclusivamente al `requester_user_id` autenticado; no admite un ID de cliente enviado por el consumidor.
+- `POST /api/v1/client/reservations` conserva `requested_for_at` y `party_size` también cuando una evaluación no crea una reserva, para que decisiones rechazadas/sugeridas aparezcan en el historial. Aplicar V7 de `feature/database-migrations` antes de desplegar este cambio.
+- Las filas con reserva enlazan el estado público actual; las solicitudes pendientes/rechazadas conservan decisión y mensaje evaluado. No se exponen notas ni campos operativos.
+- Evidencia: composición temporal de `feature/backend-foundation`, `feature/backend-auth`, `feature/availability`, `feature/reservations` y DB migrations compiló y pasó 8/8 tests Maven con Java 21. Smoke HTTP autenticado mostró la solicitud propia y excluyó la de otro usuario; el endpoint público tampoco incluyó `PRODUCTION`. PostgreSQL vacío aplicó V1–V7 y el test V7 pasó.
+
 Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
