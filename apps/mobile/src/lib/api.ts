@@ -85,3 +85,18 @@ export type PublicMenuItem = {
   estimatedPreparationSeconds: number;
   displayOrder: number;
 };
+export type PickupRequestBody = {
+  requestedFor: string;
+  customerNote?: string;
+  items: { menuItemId: string; quantity: number }[];
+};
+export type PickupRequestReceipt = {
+  requestId: string;
+  status: "PENDING_REVIEW" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+  requestedFor: string;
+  subtotal: number;
+  currencyId: string;
+  currency: string;
+  idempotentReplay: boolean;
+  message: string;
+};
