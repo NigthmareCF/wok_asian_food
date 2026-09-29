@@ -65,3 +65,23 @@ export type ReservationHistoryItem = {
   message: string;
   submittedAt: string;
 };
+export type PublicMenu = {
+  categories: PublicMenuCategory[];
+  asOf: string;
+};
+export type PublicMenuCategory = {
+  id: string;
+  name: string;
+  displayOrder: number;
+  items: PublicMenuItem[];
+};
+export type PublicMenuItem = {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  currency: string;
+  imageReference?: string | null;
+  estimatedPreparationSeconds: number;
+  displayOrder: number;
+};

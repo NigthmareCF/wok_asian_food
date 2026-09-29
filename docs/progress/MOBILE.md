@@ -1,5 +1,12 @@
 # Progreso de planificación móvil
 
+## 2026-09-29 — Menú conectado a catálogo público
+
+- La pantalla Menú consulta `GET /api/v1/public/menu`; presenta categorías, platillos y precios recibidos del backend, con estados de carga, error y reintento.
+- El menú vacío explica que aún faltan productos oficiales. No se usan fixtures ni se muestra disponibilidad de stock no calculada.
+- Depende de `feature/backend-api` y `feature/database-migrations` V8. La API aún requiere integrarse con la base de Spring/Flyway para el smoke HTTP.
+- Verificación móvil: `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile`, export Expo Android y web aprobados. Los exports no sustituyen APK/IPA ni prueba física.
+
 ## 2026-09-29 — Borrador local de reserva
 
 - La app restaura y guarda en SecureStore del dispositivo el borrador de reserva de la cuenta autenticada, con expiración de 30 días. El dato queda vinculado al correo guardado en SecureStore y nunca se envía automáticamente.
