@@ -1,5 +1,11 @@
 # Progreso del canal Cliente
 
+## 2026-09-29 — Gestión de sesiones Cliente
+
+- `GET /api/v1/client/sessions` enumera únicamente sesiones activas del usuario autenticado, prioriza la sesión actual y limita el resultado a 20.
+- `DELETE /api/v1/client/sessions/{sessionId}` revoca sólo sesiones propias, invalida refresh tokens y registra `CLIENT_SESSION_REVOKED` en eventos de seguridad. Una sesión ajena o inexistente devuelve 404 sin revelar propiedad.
+- Evidencia y límite: pruebas unitarias del servicio cubren el scope por usuario, límite, revocación, invalidación de refresh y auditoría. La prueba HTTP/DB integrada queda pendiente de ejecutar en la composición con PostgreSQL.
+
 ## 2026-09-15 — Flujo unificado por canal
 
 - Se retiraron las barras de navegación de demostración de las rutas Cliente para que el `AppShell` sea la navegación única.
