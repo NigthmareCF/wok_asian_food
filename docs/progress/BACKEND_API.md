@@ -1,5 +1,11 @@
 # Progreso de API backend
 
+## 2026-09-29 — Cancelación de solicitudes pickup
+
+- `DELETE /api/v1/client/order-requests/{requestId}` deja que el Cliente cancele sólo su propia solicitud `PENDING_REVIEW`. La fila se bloquea durante la decisión; recursos inexistentes o ajenos responden 404, estados que ya avanzaron responden 409.
+- La transición a `CANCELLED` registra actor, hora, motivo y evento transaccional. Repetir una cancelación ya completada devuelve el estado sin duplicar el evento; no se altera inventario ni pago.
+- Pruebas Maven del compuesto API + auth + reservas: 28 pruebas, 0 fallos, 0 errores. La validación fue sobre la composición temporal de ramas, no un merge publicado.
+
 ## 2026-09-29 — Lectura pública del menú
 
 - Se creó `GET /api/v1/public/menu`, que entrega categorías activas y elementos `PUBLIC`/`ACTIVE` cuyo artículo asociado también está activo.

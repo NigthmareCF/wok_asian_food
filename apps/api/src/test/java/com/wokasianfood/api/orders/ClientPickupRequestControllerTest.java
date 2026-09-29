@@ -62,6 +62,54 @@ class ClientPickupRequestControllerTest {
         verify(jdbc, never()).update(contains("order_request_events"), any(Object[].class));
     }
 
+    @Test
+    void clientCanCancelOwnPendingRequestAndCancellationIsRecorded() {
+        UUID userId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        stubRequestStatus("PENDING_REVIEW");
+        when(jdbc.update(contains("SET status = 'CANCELLED'"), any(Object[].class))).thenReturn(1);
+
+        var result = new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId);
+
+        assertEquals(new ClientPickupRequestController.OrderRequestState(requestId, "CANCELLED"), result);
+        verify(jdbc).update(contains("order_request_events"), eq(requestId), eq(userId));
+    }
+
+    @Test
+    void cannotCancelAnotherCustomersRequest() {
+        UUID userId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        stubRequestStatus(null);
+
+        AuthException error = assertThrows(AuthException.class, () ->
+                new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId));
+
+        assertEquals(404, error.status());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void cancellationRetryIsIdempotentAndDoesNotDuplicateEvent() {
+        UUID userId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        stubRequestStatus("CANCELLED");
+
+        var result = new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId);
+
+        assertEquals("CANCELLED", result.status());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    private void stubRequestStatus(String status) {
+        doAnswer(invocation -> {
+            if (status == null) return List.of();
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = mock(ResultSet.class);
+            when(rs.getString("status")).thenReturn(status);
+            return List.of(mapper.mapRow(rs, 0));
+        }).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
+    }
+
     private void stubRequestFlow(UUID menuItemId, UUID currencyId, UUID requestId, boolean conflict) throws Exception {
         doAnswer(invocation -> {
             String sql = invocation.getArgument(0);
