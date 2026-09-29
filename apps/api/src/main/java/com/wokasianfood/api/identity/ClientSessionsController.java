@@ -49,10 +49,12 @@ class ClientSessionsService {
 
     public List<ClientSessionsController.ClientSession> list(UUID userId, UUID currentSessionId) {
         return jdbc.query("""
-            SELECT id, client_type, device_name, created_at, last_activity_at
-            FROM wok.auth_sessions
-            WHERE user_id = ? AND revoked_at IS NULL AND expires_at > now()
-            ORDER BY (id = ?) DESC, last_activity_at DESC
+            SELECT s.id, s.client_type, s.device_name, s.created_at, s.last_activity_at
+            FROM wok.auth_sessions s
+            JOIN wok.users u ON u.id = s.user_id
+            WHERE s.user_id = ? AND s.revoked_at IS NULL AND s.expires_at > now()
+              AND s.created_at >= u.sessions_valid_after AND u.status = 'ACTIVE'
+            ORDER BY (s.id = ?) DESC, s.last_activity_at DESC
             LIMIT 20
             """, (rs, row) -> new ClientSessionsController.ClientSession(
                 rs.getObject("id", UUID.class), rs.getString("client_type"), rs.getString("device_name"),

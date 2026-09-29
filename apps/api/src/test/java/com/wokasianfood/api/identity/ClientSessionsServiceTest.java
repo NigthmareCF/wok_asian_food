@@ -31,7 +31,9 @@ class ClientSessionsServiceTest {
 
         assertTrue(sessions.list(userId, currentSessionId).isEmpty());
 
-        verify(jdbc).query(contains("WHERE user_id = ? AND revoked_at IS NULL AND expires_at > now()"),
+        verify(jdbc).query(contains("WHERE s.user_id = ? AND s.revoked_at IS NULL AND s.expires_at > now()"),
+                anyRowMapper(), eq(userId), eq(currentSessionId));
+        verify(jdbc).query(contains("s.created_at >= u.sessions_valid_after AND u.status = 'ACTIVE'"),
                 anyRowMapper(), eq(userId), eq(currentSessionId));
         verify(jdbc).query(contains("LIMIT 20"), anyRowMapper(), eq(userId), eq(currentSessionId));
     }
