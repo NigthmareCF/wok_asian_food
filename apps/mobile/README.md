@@ -15,6 +15,7 @@ La URL y los flags `EXPO_PUBLIC_*` son visibles en el paquete de la app y nunca 
 - Navegación Cliente: Inicio, Menú, Reservas y Mi cuenta.
 - Registro, verificación por código, login y logout contra `/api/v1/auth/*`.
 - Recuperación de contraseña con solicitud neutral de código y actualización con código de un solo uso; al completar, el backend revoca las sesiones anteriores.
+- Consulta y edición del perfil propio (nombre y teléfono opcional) mediante la API autenticada; el servidor usa control de versión para evitar sobrescribir cambios recientes.
 - Refresh rotativo al restaurar la app: access token en memoria y refresh token con Expo SecureStore.
 - Solicitud real de reserva en `/api/v1/client/reservations`, con clave idempotente reusada tras errores de transporte, límite local de 3 horas y texto explícito de revisión humana.
 - Errores de conexión no confirman ni reenvían solicitudes automáticamente.

@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ApiError } from "@/lib/api";
+import { ApiError, ClientProfile } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
 
 export default function AccountScreen() {
-  const { session, login, register, verify, requestPasswordReset, completePasswordReset, logout } = useSession();
+  const { session, login, register, verify, requestPasswordReset, completePasswordReset, request, logout } = useSession();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -16,6 +16,23 @@ export default function AccountScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [profile, setProfile] = useState<ClientProfile | null>(null);
+  const [profileName, setProfileName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    if (!session) return () => { active = false; };
+    void request<ClientProfile>("/api/v1/client/profile")
+      .then((result) => {
+        if (!active) return;
+        setProfile(result); setProfileName(result.displayName); setProfilePhone(result.phone ?? ""); setError("");
+      })
+      .catch((reason) => {
+        if (active) setError(reason instanceof ApiError ? reason.message : "No se pudo cargar tu perfil.");
+      });
+    return () => { active = false; };
+  }, [request, session]);
 
   async function run(action: () => Promise<void>) {
     setBusy(true); setError(""); setMessage("");
@@ -53,7 +70,28 @@ export default function AccountScreen() {
   };
 
   if (session) return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Tu perfil">Mi cuenta</Heading>
-    <Card><Text style={{ fontSize: 18, fontWeight: "800", color: palette.ink }}>Sesión activa</Text><Text style={ui.body}>{session.email}</Text><Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice><Button title="Cerrar sesión" secondary onPress={() => void run(logout)} busy={busy} /></Card>
+    <Card><Text style={{ fontSize: 18, fontWeight: "800", color: palette.ink }}>Perfil Cliente</Text>
+      <Text style={ui.body}>{profile?.email ?? session.email}</Text>
+      {!profile && !error ? <Notice>Cargando tu perfil…</Notice> : null}
+      {profile ? <>
+        <Field label="Nombre" value={profileName} onChangeText={setProfileName} autoComplete="name" />
+        <Field label="Teléfono (opcional)" value={profilePhone} onChangeText={setProfilePhone} keyboardType="phone-pad" autoComplete="tel" />
+        {message ? <Notice tone="success">{message}</Notice> : null}
+        {error ? <Notice tone="error">{error}</Notice> : null}
+        <Button title="Guardar perfil" secondary busy={busy} onPress={() => void run(async () => {
+          setMessage("");
+          const updated = await request<ClientProfile>("/api/v1/client/profile", {
+            method: "PUT",
+            body: JSON.stringify({ displayName: profileName.trim(), phone: profilePhone.trim(), expectedVersion: profile.version }),
+          });
+          setProfile(updated); setProfileName(updated.displayName); setProfilePhone(updated.phone ?? "");
+          setMessage("Tus datos se guardaron correctamente.");
+        })} />
+      </> : null}
+      <Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice>
+      <Button title="Cerrar sesión" secondary onPress={() => void run(async () => {
+        await logout(); setProfile(null); setProfileName(""); setProfilePhone(""); setMessage("");
+      })} busy={busy} /></Card>
   </Page></ScrollView>;
 
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Acceso Cliente">{title[mode]}</Heading>

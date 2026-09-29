@@ -36,6 +36,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, acc
 }
 
 export type TokenPair = { accessToken: string; refreshToken: string; expiresInSeconds: number };
+export type ClientProfile = { userId: string; email: string; displayName: string; phone?: string | null; version: number };
 export type ReservationResult = {
   requestId: string;
   reservationId: string | null;
