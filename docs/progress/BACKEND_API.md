@@ -27,3 +27,11 @@
 - La misma clave y cuerpo devuelve el mismo resultado; cambiar datos bajo la misma clave responde `409`. Productos ocultos/inactivos o solicitud demasiado temprana responden `422`.
 - Pruebas Java unitarias y smoke HTTP/PostgreSQL sobre V1–V9 completados: 202 de primera solicitud, retry replay idempotente, conflicto 409 con cuerpo distinto e historial propio de una solicitud. El usuario y menú fueron datos sintéticos en DB desechable.
 - Fuera del slice: revisión/aceptación por Operativo (no se puede aceptar con seguridad hasta conectar capacidad/stock), delivery, pago, factura y dirección. La app no presenta esta solicitud como pedido.
+# Backend API progress
+
+## 2026-09-30 — Customer delivery request
+
+- Added `POST /api/v1/client/delivery-requests` for CLIENT sessions, with address, optional reference, contact phone, requested time, menu items, and a payment preference. Server recalculates item prices/subtotal, validates menu eligibility and prep lead time, checks DELIVERY service state, and uses per-customer idempotency with a request fingerprint.
+- Added owner-filtered `GET /api/v1/client/delivery-requests`. The pickup history/details queries now filter `fulfillment_type='PICKUP'` so delivery requests cannot be mislabeled as pickup. Cancellation continues through the shared owner-scoped order request endpoint while the row is `PENDING_REVIEW`.
+- All submissions stay `202 PENDING_REVIEW`; this slice does not accept an order, calculate coverage/route fee, reserve stock, charge, or expose payment credentials. `ONLINE_PAYMENT_REQUESTED` records preference only. Depends on V11 in `feature/database-migrations`; PII retention policy remains open.
+- Java 21 composite with foundation/auth/reservations/availability/API/messaging and V1–V11 passed 41/41 tests, including successful repricing, paused-service rejection, and ownership/cancellation/messaging regressions. The composite is for verification only; branches remain separate.

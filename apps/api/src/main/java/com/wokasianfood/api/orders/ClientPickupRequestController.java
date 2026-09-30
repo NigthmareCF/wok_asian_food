@@ -115,7 +115,7 @@ public class ClientPickupRequestController {
         return jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
-            WHERE r.customer_user_id = ?
+            WHERE r.customer_user_id = ? AND r.fulfillment_type = 'PICKUP'
             ORDER BY r.created_at DESC, r.id DESC LIMIT 50
             """, ClientPickupRequestController::receiptFromJoinedCurrency, customerId);
     }
@@ -127,7 +127,7 @@ public class ClientPickupRequestController {
             SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code,
                    r.customer_note
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
-            WHERE r.id = ? AND r.customer_user_id = ?
+            WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'PICKUP'
             """, (rs, row) -> new PickupRequestDetails(rs.getObject("id", UUID.class), rs.getString("status"),
                 rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                 rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
