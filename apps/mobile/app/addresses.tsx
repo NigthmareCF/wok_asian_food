@@ -9,6 +9,12 @@ const emptyDraft: AddressDraft = { label: "", address: "", reference: "", contac
 
 export default function AddressesScreen() {
   const { session, request } = useSession();
+  return <AddressBook key={session?.email ?? "guest"} session={session} request={request} />;
+}
+
+type AddressBookProps = Pick<ReturnType<typeof useSession>, "session" | "request">;
+
+function AddressBook({ session, request }: AddressBookProps) {
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
