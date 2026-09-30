@@ -39,7 +39,7 @@
 
 - Added owner-scoped `GET /api/v1/client/delivery-requests/{requestId}`. It first queries a delivery request by both ID and authenticated customer ID, then reads only item snapshots; pickup IDs and other customers' requests return the same 404.
 - The DTO returns state, requested time, subtotal/currency, payment preference, customer note, and immutable item name/quantity/unit/line totals. It does not expose delivery address/contact data or imply order acceptance/payment.
-- Added focused controller tests for owner-scope rejection before line lookup and snapshot detail mapping. Tests require composing this branch with `feature/backend-foundation`'s Maven project, auth/reservation code, and V11 migrations. This environment has no `mvn` executable, so new Java tests could not be executed in this turn; prior 41-test composite evidence predates this endpoint.
+- Added focused controller tests for owner-scope rejection before line lookup and snapshot detail mapping. Maven 3.9.11 was run against a fresh temporary composite containing this branch's API sources and the backend foundation/auth/reservation sources; 41 tests passed, 0 failures/errors/skips. This is a unit-test composite, not an HTTP/PostgreSQL E2E test; the V11 runtime schema and real auth wiring still require integrated validation.
 
 ## 2026-09-30 — Customer delivery request
 
