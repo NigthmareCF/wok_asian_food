@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, apiRequest } from "@/lib/api";
+import { useSession } from "@/providers/session-provider";
 
 type Capability = { code: string; status: "ENABLED" | "MANUAL_APPROVAL" | "PAUSED" | "DISABLED" };
 const serviceNames: Record<string, string> = {
@@ -16,6 +17,7 @@ const statusNames: Record<Capability["status"], string> = {
 };
 
 export default function HomeScreen() {
+  const { session } = useSession();
   const [capabilities, setCapabilities] = useState<Capability[] | null>(null);
   const [statusError, setStatusError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -57,7 +59,7 @@ export default function HomeScreen() {
       <Button title="Actualizar estado" secondary busy={refreshing} onPress={() => void refreshStatus()} />
       <Text style={{ color: palette.muted, fontSize: 12 }}>Una solicitud de reserva requiere confirmación del equipo.</Text>
     </Card>
-    <Card><Text style={{ fontSize: 20, fontWeight: "800", color: palette.ink }}>¿Qué te gustaría hacer?</Text><Button title="Explorar menú" onPress={() => router.push("/(tabs)/menu")} /><Button title="Solicitar una reserva" secondary onPress={() => router.push("/(tabs)/reservations")} /></Card>
+    <Card><Text style={{ fontSize: 20, fontWeight: "800", color: palette.ink }}>¿Qué te gustaría hacer?</Text><Button title="Explorar menú" onPress={() => router.push("/(tabs)/menu")} /><Button title="Solicitar una reserva" secondary onPress={() => router.push("/(tabs)/reservations")} /><Button title={session ? "Contactar al equipo WOK" : "Mensajes y atención"} secondary onPress={() => router.push("/messages")} /></Card>
     <Text style={[ui.body, { fontSize: 12 }]}>Aplicación Cliente · versión inicial conectada a servicios disponibles.</Text>
   </Page></ScrollView>;
 }
