@@ -125,3 +125,12 @@ export type DeliveryRequestReceipt = {
   idempotentReplay: boolean;
   message: string;
 };
+export type CustomerAddress = {
+  addressId: string;
+  label: string;
+  address: string;
+  reference: string | null;
+  contactPhone: string;
+  isDefault: boolean;
+  version: number;
+};

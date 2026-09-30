@@ -17,6 +17,12 @@ const statusLabels: Record<Conversation["status"], string> = {
 
 export default function MessagesScreen() {
   const { session, request } = useSession();
+  return <ConversationScreen key={session?.email ?? "guest"} session={session} request={request} />;
+}
+
+type ConversationScreenProps = Pick<ReturnType<typeof useSession>, "session" | "request">;
+
+function ConversationScreen({ session, request }: ConversationScreenProps) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");

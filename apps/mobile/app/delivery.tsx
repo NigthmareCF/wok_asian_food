@@ -3,7 +3,7 @@ import * as Crypto from "expo-crypto";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ApiError, apiRequest, DeliveryRequestBody, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { ApiError, apiRequest, CustomerAddress, DeliveryRequestBody, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
@@ -16,12 +16,26 @@ function localDateTime(value: Date) {
 
 export default function DeliveryScreen() {
   const { session, request } = useSession();
+  return <DeliveryRequestScreen key={session?.email ?? "guest"} session={session} request={request} />;
+}
+
+type DeliveryRequestProps = Pick<ReturnType<typeof useSession>, "session" | "request">;
+
+function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [menu, setMenu] = useState<PublicMenu | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [requestedFor, setRequestedFor] = useState("");
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [addressLabel, setAddressLabel] = useState("Casa");
+  const [saveAsDefault, setSaveAsDefault] = useState(true);
+  const [selectedAddress, setSelectedAddress] = useState<CustomerAddress | null>(null);
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [addressOwner, setAddressOwner] = useState("");
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [addressNotice, setAddressNotice] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [paymentPreference, setPaymentPreference] = useState<DeliveryRequestBody["paymentPreference"]>("CASH_ON_DELIVERY");
   const [pending, setPending] = useState<PendingAttempt | null>(null);
@@ -62,6 +76,19 @@ export default function DeliveryScreen() {
     void request<DeliveryRequestReceipt[]>("/api/v1/client/delivery-requests")
       .then((items) => { if (active) { setHistory(items); setHistoryOwner(session.email); setHistoryLoaded(true); setHistoryError(""); } })
       .catch((cause: unknown) => { if (active) { setHistoryError(cause instanceof ApiError ? cause.message : "No pudimos cargar tus solicitudes delivery."); setHistoryLoaded(true); } });
+    return () => { active = false; };
+  }, [request, session]);
+
+  useEffect(() => {
+    let active = true;
+    if (!session) return () => { active = false; };
+    void request<CustomerAddress[]>("/api/v1/client/addresses")
+      .then((items) => {
+        if (!active) return;
+        setSavedAddresses(items); setAddressOwner(session.email);
+        if (items.length) setSaveAsDefault(items.every((item) => !item.isDefault));
+      })
+      .catch((cause: unknown) => { if (active) setAddressError(cause instanceof ApiError ? cause.message : "No pudimos cargar tus direcciones guardadas."); });
     return () => { active = false; };
   }, [request, session]);
 
@@ -138,6 +165,27 @@ export default function DeliveryScreen() {
     finally { setHistoryLoading(false); }
   }
 
+  async function saveAddress() {
+    if (!session) { setAddressError("Inicia sesión para guardar una dirección."); return; }
+    if (!addressLabel.trim() || address.trim().length < 5 || !contactPhone.trim()) {
+      setAddressError("Completa un nombre, dirección y teléfono válidos antes de guardar."); return;
+    }
+    setSavingAddress(true); setAddressError(""); setAddressNotice("");
+    try {
+      const body = { label: addressLabel.trim(), address: address.trim(), reference: reference.trim() || null,
+        contactPhone: contactPhone.trim(), isDefault: saveAsDefault };
+      const saved = selectedAddress
+        ? await request<CustomerAddress>(`/api/v1/client/addresses/${selectedAddress.addressId}`, {
+            method: "PUT", body: JSON.stringify({ ...body, expectedVersion: selectedAddress.version }),
+          })
+        : await request<CustomerAddress>("/api/v1/client/addresses", { method: "POST", body: JSON.stringify(body) });
+      setSavedAddresses((current) => [saved, ...current.filter((item) => item.addressId !== saved.addressId)
+        .map((item) => saveAsDefault ? { ...item, isDefault: false } : item)]);
+      setSelectedAddress(saved); setAddressOwner(session.email); setAddressNotice("Guardamos la dirección en tu cuenta Cliente.");
+    } catch (cause) { setAddressError(cause instanceof ApiError ? cause.message : "No pudimos guardar la dirección."); }
+    finally { setSavingAddress(false); }
+  }
+
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
     <Heading eyebrow="Entrega a domicilio">Solicitar delivery</Heading>
     <Notice>El equipo debe confirmar cobertura, productos y horario. Esta solicitud no es un pedido aceptado, no reserva inventario y todavía no genera un cobro.</Notice>
@@ -168,9 +216,23 @@ export default function DeliveryScreen() {
     </Card>)}
     {!pending ? <Card>
       <Heading eyebrow="Datos de entrega">¿A dónde lo llevamos?</Heading>
+      {session && addressOwner === session.email && savedAddresses.length ? <View style={ui.section}>
+        <Text style={{ color: palette.ink, fontWeight: "800" }}>Usar una dirección guardada</Text>
+        {savedAddresses.map((item) => <Button key={item.addressId} title={`${item.label}${item.isDefault ? " · Predeterminada" : ""}`} secondary={selectedAddress?.addressId !== item.addressId} onPress={() => {
+          setSelectedAddress(item); setAddressLabel(item.label); setAddress(item.address); setReference(item.reference ?? "");
+          setContactPhone(item.contactPhone); setSaveAsDefault(item.isDefault);
+        }} />)}
+      </View> : null}
       <Field label="Dirección completa" value={address} onChangeText={setAddress} multiline maxLength={500} placeholder="Zona, calle/avenida, número o referencias de ubicación" />
       <Field label="Referencia para encontrar el lugar (opcional)" value={reference} onChangeText={setReference} maxLength={300} placeholder="Color de portón, nivel, local…" />
       <Field label="Teléfono de contacto" value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" maxLength={32} placeholder="+502 0000-0000" />
+      {session ? <View style={ui.section}>
+        <Field label="Nombre para guardar la dirección" value={addressLabel} onChangeText={setAddressLabel} maxLength={80} />
+        <Button title={saveAsDefault ? "Predeterminada para delivery · Cambiar" : "Usar como dirección predeterminada"} secondary onPress={() => setSaveAsDefault((current) => !current)} />
+        {addressError ? <Notice tone="error">{addressError}</Notice> : null}
+        {addressNotice ? <Notice tone="success">{addressNotice}</Notice> : null}
+        <Button title={selectedAddress ? "Actualizar dirección guardada" : "Guardar dirección en mi cuenta"} secondary busy={savingAddress} disabled={!address.trim() || !contactPhone.trim()} onPress={() => void saveAddress()} />
+      </View> : null}
       <Button title="Efectivo al recibir" secondary={paymentPreference !== "CASH_ON_DELIVERY"} onPress={() => setPaymentPreference("CASH_ON_DELIVERY")} />
       <Button title="Solicitar pago en línea" secondary={paymentPreference !== "ONLINE_PAYMENT_REQUESTED"} onPress={() => setPaymentPreference("ONLINE_PAYMENT_REQUESTED")} />
       {paymentPreference === "ONLINE_PAYMENT_REQUESTED" ? <Notice>Esta opción sólo registra tu preferencia. El cobro en línea no está habilitado aquí.</Notice> : null}
