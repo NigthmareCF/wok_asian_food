@@ -1,8 +1,24 @@
 # Progreso del canal Operativo
 
+## 2026-09-29 — Historial de reservas propio para Cliente
+
+- `GET /api/v1/client/reservations` devuelve las 50 evaluaciones más recientes ligadas exclusivamente al `requester_user_id` autenticado; no admite un ID de cliente enviado por el consumidor.
+- `POST /api/v1/client/reservations` conserva `requested_for_at` y `party_size` también cuando una evaluación no crea una reserva, para que decisiones rechazadas/sugeridas aparezcan en el historial. Aplicar V7 de `feature/database-migrations` antes de desplegar este cambio.
+- Las filas con reserva enlazan el estado público actual; las solicitudes pendientes/rechazadas conservan decisión y mensaje evaluado. No se exponen notas ni campos operativos.
+- Evidencia: composición temporal de `feature/backend-foundation`, `feature/backend-auth`, `feature/availability`, `feature/reservations` y DB migrations compiló y pasó 8/8 tests Maven con Java 21. Smoke HTTP autenticado mostró la solicitud propia y excluyó la de otro usuario; el endpoint público tampoco incluyó `PRODUCTION`. PostgreSQL vacío aplicó V1–V7 y el test V7 pasó.
+
 Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
+
+## 2026-09-26 — Solicitudes de reserva persistentes y revisión humana
+
+- Rama backend: `feature/reservations`. El portal Cliente puede crear solicitudes autenticadas; la API evalúa la anticipación/capacidad y nunca las confirma automáticamente.
+- Requiere `Idempotency-Key`; la misma clave y payload devuelve la solicitud existente. Si la clave se reutiliza con otro payload responde 409.
+- Operativo/Admin pueden listar pendientes y confirmar o rechazar con motivo, versión esperada, historial de estado y auditoría transaccional.
+- Regla mínima de 3 h aplicada al crear; resultados de evaluación quedan persistidos. Estados fuera de horario siguen requiriendo decisión explícita y capacidad en vivo aún no está conectada.
+- Pruebas: Maven `verify` combinado 12/12; Flyway V1–V5 aplicado a PostgreSQL 18 vacío; recorrido HTTP registro/verificación/login, reserva, replay/mismatch 409, aprobación, conflicto de versión y auditoría pasó en DB temporal.
+- No se hicieron cambios en las vistas operativas de datos simulados; integrar UI con API requiere conectar la sesión WOK y el contrato aprobado.
 
 ## 2026-09-15 — Auditoría de integración de rutas
 
