@@ -3,7 +3,7 @@ import * as Crypto from "expo-crypto";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ApiError, apiRequest, CustomerAddress, DeliveryRequestBody, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { ApiError, apiRequest, CustomerAddress, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
@@ -46,6 +46,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [details, setDetails] = useState<DeliveryRequestDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -165,6 +167,14 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     finally { setHistoryLoading(false); }
   }
 
+  async function toggleDetails(requestId: string) {
+    if (details?.requestId === requestId) { setDetails(null); return; }
+    setDetailsLoading(requestId); setHistoryError("");
+    try { setDetails(await request<DeliveryRequestDetails>(`/api/v1/client/delivery-requests/${requestId}`)); }
+    catch (cause) { setHistoryError(cause instanceof ApiError ? cause.message : "No pudimos cargar el detalle de esta solicitud."); }
+    finally { setDetailsLoading(null); }
+  }
+
   async function saveAddress() {
     if (!session) { setAddressError("Inicia sesión para guardar una dirección."); return; }
     if (!addressLabel.trim() || address.trim().length < 5 || !contactPhone.trim()) {
@@ -201,6 +211,14 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       {visibleHistory.map((item) => <View key={item.requestId} style={{ borderTopWidth: 1, borderTopColor: palette.line, paddingTop: 12, gap: 8 }}>
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud {item.requestId.slice(0, 8)} · {requestStatus(item.status)}</Text>
         <Text style={ui.body}>{formatMoney(item.subtotal, item.currency)} · {paymentLabel(item.paymentPreference)}</Text>
+        <Button title={details?.requestId === item.requestId ? "Ocultar detalle" : "Ver detalle"} secondary busy={detailsLoading === item.requestId} onPress={() => void toggleDetails(item.requestId)} />
+        {details?.requestId === item.requestId ? <View style={ui.section}>
+          <Text style={ui.body}>Horario solicitado: {new Date(details.requestedFor).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })}</Text>
+          {details.customerNote ? <Text style={ui.body}>Comentario: {details.customerNote}</Text> : null}
+          {details.items.map((line, index) => <Text key={`${line.name}-${index}`} style={ui.body}>{line.quantity} × {line.name} · {formatMoney(line.lineTotal, item.currency)}</Text>)}
+          <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal: {formatMoney(details.subtotal, details.currency)}</Text>
+          <Notice>Los precios mostrados son la captura de tu solicitud. El equipo debe revisar cobertura y confirmar antes de que exista un pedido aceptado.</Notice>
+        </View> : null}
         {item.status === "PENDING_REVIEW" ? <Button title="Cancelar solicitud" secondary busy={cancelling === item.requestId} disabled={Boolean(cancelling)} onPress={() => void cancelRequest(item.requestId)} /> : null}
       </View>)}
       <Button title="Actualizar historial" secondary busy={historyLoading} onPress={() => void refreshHistory()} />

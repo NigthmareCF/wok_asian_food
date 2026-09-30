@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
+import { router } from "expo-router";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, ClientProfile, ClientSession } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
@@ -110,6 +111,7 @@ export default function AccountScreen() {
           setMessage("Tus datos se guardaron correctamente.");
         })} />
       </> : null}
+      <Button title="Administrar direcciones guardadas" secondary onPress={() => router.push("/addresses")} />
       <Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice>
       {session.offline ? <Notice>Sin conexión: conservamos tu sesión y tus borradores en este dispositivo. Podrás reintentar las acciones del servidor cuando recuperes conexión.</Notice> : null}
       <View style={{ gap: 10 }}>

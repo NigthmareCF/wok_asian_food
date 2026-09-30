@@ -125,6 +125,10 @@ export type DeliveryRequestReceipt = {
   idempotentReplay: boolean;
   message: string;
 };
+export type DeliveryRequestDetails = DeliveryRequestReceipt & {
+  customerNote: string | null;
+  items: { name: string; quantity: number; unitPrice: number; lineTotal: number }[];
+};
 export type CustomerAddress = {
   addressId: string;
   label: string;
