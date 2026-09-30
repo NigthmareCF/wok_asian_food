@@ -27,6 +27,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -133,6 +134,30 @@ public class ClientDeliveryRequestController {
                 "El equipo debe confirmar cobertura, disponibilidad y horario."), userId);
     }
 
+    @GetMapping("/{requestId}")
+    public DeliveryRequestDetails details(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId) {
+        UUID userId = UUID.fromString(jwt.getSubject());
+        List<DeliveryRequestDetails> found = jdbc.query("""
+            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code,
+                   r.payment_preference, r.customer_note
+            FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
+            """, (rs, row) -> new DeliveryRequestDetails(rs.getObject("id", UUID.class), "DELIVERY",
+                rs.getString("status"), rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
+                rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")),
+                rs.getString("customer_note"), List.of()), requestId, userId);
+        if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
+        List<DeliveryRequestLine> items = jdbc.query("""
+            SELECT name_snapshot, quantity, unit_price, line_total
+            FROM wok.order_request_items WHERE order_request_id = ? ORDER BY created_at, id
+            """, (rs, row) -> new DeliveryRequestLine(rs.getString("name_snapshot"), rs.getInt("quantity"),
+                rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total")), requestId);
+        DeliveryRequestDetails request = found.getFirst();
+        return new DeliveryRequestDetails(request.requestId(), request.fulfillmentType(), request.status(),
+                request.requestedFor(), request.subtotal(), request.currency(), request.paymentPreference(),
+                request.customerNote(), items);
+    }
+
     private List<Product> loadProducts(List<RequestedItem> lines) {
         List<Product> products = new ArrayList<>();
         for (RequestedItem line : lines) {
@@ -192,6 +217,10 @@ public class ClientDeliveryRequestController {
     public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
     public record DeliveryRequestReceipt(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean idempotentReplay, String message) {}
+    public record DeliveryRequestDetails(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
+            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, String customerNote,
+            List<DeliveryRequestLine> items) {}
+    public record DeliveryRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
     public enum PaymentPreference { CASH_ON_DELIVERY, ONLINE_PAYMENT_REQUESTED }
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currency, int preparationSeconds) {}
 }

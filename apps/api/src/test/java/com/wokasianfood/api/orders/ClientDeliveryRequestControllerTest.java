@@ -29,6 +29,59 @@ class ClientDeliveryRequestControllerTest {
     @Mock JdbcTemplate jdbc;
 
     @Test
+    void deliveryDetailsAreScopedToTheAuthenticatedCustomerAndFulfillmentType() {
+        UUID requestId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        doReturn(List.of()).when(jdbc).query(contains("r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'"),
+                any(RowMapper.class), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+        var controller = new ClientDeliveryRequestController(jdbc);
+
+        AuthException error = assertThrows(AuthException.class, () -> controller.details(jwt(customerId), requestId));
+
+        assertEquals(404, error.status());
+        verify(jdbc).query(contains("r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'"),
+                any(RowMapper.class), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+        verify(jdbc, never()).query(contains("FROM wok.order_request_items"), any(RowMapper.class), any(Object[].class));
+    }
+
+    @Test
+    void customerCanReadOnlyTheSnapshotOfTheirDeliveryRequest() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        var requestedFor = Instant.now().plusSeconds(3600);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            String sql = invocation.getArgument(0);
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = org.mockito.Mockito.mock(ResultSet.class);
+            if (sql.contains("FROM wok.order_requests")) {
+                when(rs.getObject("id", UUID.class)).thenReturn(requestId);
+                when(rs.getString("status")).thenReturn("PENDING_REVIEW");
+                when(rs.getTimestamp("requested_for")).thenReturn(Timestamp.from(requestedFor));
+                when(rs.getBigDecimal("subtotal")).thenReturn(new BigDecimal("96.00"));
+                when(rs.getString("currency_code")).thenReturn("GTQ");
+                when(rs.getString("payment_preference")).thenReturn("CASH_ON_DELIVERY");
+                when(rs.getString("customer_note")).thenReturn("Llamar al llegar");
+            } else {
+                when(rs.getString("name_snapshot")).thenReturn("Pad Thai");
+                when(rs.getInt("quantity")).thenReturn(2);
+                when(rs.getBigDecimal("unit_price")).thenReturn(new BigDecimal("48.00"));
+                when(rs.getBigDecimal("line_total")).thenReturn(new BigDecimal("96.00"));
+            }
+            return List.of(mapper.mapRow(rs, 0));
+        }).when(jdbc).query(org.mockito.ArgumentMatchers.anyString(), any(RowMapper.class), any(Object[].class));
+
+        var details = new ClientDeliveryRequestController(jdbc).details(jwt(customerId), requestId);
+
+        assertEquals("PENDING_REVIEW", details.status());
+        assertEquals(requestedFor, details.requestedFor());
+        assertEquals("Llamar al llegar", details.customerNote());
+        assertEquals(new BigDecimal("96.00"), details.items().getFirst().lineTotal());
+        verify(jdbc).query(contains("r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'"),
+                any(RowMapper.class), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+        verify(jdbc).query(contains("FROM wok.order_request_items"), any(RowMapper.class), org.mockito.ArgumentMatchers.eq(requestId));
+    }
+
+    @Test
     void pausedDeliveryServiceRejectsTheRequestBeforeProductLookupOrPersistence() {
         doReturn(List.of()).when(jdbc).query(contains("request_fingerprint"), any(RowMapper.class), any(Object[].class));
         doReturn(List.of("PAUSED")).when(jdbc).query(contains("code = 'DELIVERY'"), any(RowMapper.class));

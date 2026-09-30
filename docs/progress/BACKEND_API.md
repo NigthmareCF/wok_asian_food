@@ -35,6 +35,12 @@
 - Fuera del slice: revisión/aceptación por Operativo (no se puede aceptar con seguridad hasta conectar capacidad/stock), delivery, pago, factura y dirección. La app no presenta esta solicitud como pedido.
 # Backend API progress
 
+## 2026-09-30 — Delivery request details
+
+- Added owner-scoped `GET /api/v1/client/delivery-requests/{requestId}`. It first queries a delivery request by both ID and authenticated customer ID, then reads only item snapshots; pickup IDs and other customers' requests return the same 404.
+- The DTO returns state, requested time, subtotal/currency, payment preference, customer note, and immutable item name/quantity/unit/line totals. It does not expose delivery address/contact data or imply order acceptance/payment.
+- Added focused controller tests for owner-scope rejection before line lookup and snapshot detail mapping. Tests require composing this branch with `feature/backend-foundation`'s Maven project, auth/reservation code, and V11 migrations. This environment has no `mvn` executable, so new Java tests could not be executed in this turn; prior 41-test composite evidence predates this endpoint.
+
 ## 2026-09-30 — Customer delivery request
 
 - Added `POST /api/v1/client/delivery-requests` for CLIENT sessions, with address, optional reference, contact phone, requested time, menu items, and a payment preference. Server recalculates item prices/subtotal, validates menu eligibility and prep lead time, checks DELIVERY service state, and uses per-customer idempotency with a request fingerprint.
