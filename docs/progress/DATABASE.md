@@ -25,6 +25,19 @@
 - This verifies migration execution and the available SQL checks only. The model/SQL/dictionary/ERD reconciliation, full business-rule coverage, and migration upgrade-path testing remain open.
 # Progreso de base de datos
 
+## 2026-09-30 — Solicitudes de delivery
+
+- V11 permite `fulfillment_type=DELIVERY` en la bandeja común de solicitudes y persiste dirección, referencia, teléfono y preferencia de pago. Checks requieren dirección/contacto/preferencia para delivery y prohíben dichos campos en pickup.
+- `ONLINE_PAYMENT_REQUESTED` no representa autorización/captura. Solicitud sigue `PENDING_REVIEW`; aún faltan cobertura geográfica, tarifa, regla de retención de PII y aceptación operacional.
+- PostgreSQL 18 aplicó V1–V11 desde cero y pasó el test V11 que acepta delivery válido y rechaza falta de datos (incluida la preferencia) o delivery fields en pickup; el contenedor se retiró. Maven backend compuesto con los tres slices pasó 41/41.
+
+## 2026-09-30 — Campos seguros de solicitudes delivery pendientes
+
+- V11 extiende `order_requests` para `DELIVERY` con dirección, referencia, contacto telefónico y preferencia (`CASH_ON_DELIVERY` o `ONLINE_PAYMENT_REQUESTED`). Las restricciones exigen datos de entrega y prohíben que pickup guarde esos campos.
+- `ONLINE_PAYMENT_REQUESTED` sólo expresa una preferencia, no crea intención ni confirma pago. Todas las solicitudes siguen `PENDING_REVIEW`; cobertura, horario, carga, existencia de orden, tarifa y pago requieren implementación/verificación posterior.
+- `V11_delivery_requests.sql` prueba una solicitud válida y rechaza datos ausentes y contaminación de pickup. Requiere PostgreSQL V1–V11 en orden.
+- Pendiente: política de retención de dirección/teléfono y contrato de decisión Operativo antes de aceptar entrega.
+
 ## 2026-09-29 — Fundamento ejecutable de catálogo
 
 - `V8__catalog_foundation.sql` agrega tablas de tipos de artículo, unidades, artículos, áreas de preparación, categorías, grupos/opciones de modificadores y ofertas del menú; incluye llaves foráneas, checks e índices para lectura ordenada.
