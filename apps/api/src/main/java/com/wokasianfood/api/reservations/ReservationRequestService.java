@@ -95,6 +95,31 @@ public class ReservationRequestService {
                 rs.getTimestamp("evaluated_at").toInstant()), userId);
     }
 
+    @Transactional
+    public CancellationResult cancelPending(UUID userId, UUID reservationId) {
+        List<String> statuses = jdbc.query("""
+            SELECT r.status FROM wok.reservations r
+            JOIN wok.customer_profiles cp ON cp.id = r.customer_id
+            WHERE r.id = ? AND cp.user_id = ? FOR UPDATE OF r
+            """, (rs, row) -> rs.getString("status"), reservationId, userId);
+        if (statuses.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Reservation not found");
+        String status = statuses.getFirst();
+        if ("CANCELLED".equals(status)) return new CancellationResult(reservationId, status);
+        if (!"REQUESTED".equals(status))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only pending reservation requests can be cancelled by the client");
+        int updated = jdbc.update("""
+            UPDATE wok.reservations SET status = 'CANCELLED', cancelled_at = now(),
+                cancellation_reason = 'CANCELLED_BY_CLIENT', updated_at = now(), updated_by = ?, row_version = row_version + 1
+            WHERE id = ? AND status = 'REQUESTED'
+            """, userId, reservationId);
+        if (updated != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "Reservation state changed");
+        jdbc.update("""
+            INSERT INTO wok.reservation_status_history(reservation_id, from_status, to_status, reason, actor_user_id)
+            VALUES (?, 'REQUESTED', 'CANCELLED', 'CANCELLED_BY_CLIENT', ?)
+            """, reservationId, userId);
+        return new CancellationResult(reservationId, "CANCELLED");
+    }
+
     private Instant instantOrNull(Timestamp value) { return value == null ? null : value.toInstant(); }
 
     private void lockRequest(UUID requestId) {
@@ -163,4 +188,5 @@ public class ReservationRequestService {
     public record HistoryItem(UUID requestId, UUID reservationId, Instant requestedAt, Integer guests,
                               OperationalCapacityService.Decision decision, String reservationStatus,
                               String message, Instant submittedAt) {}
+    public record CancellationResult(UUID reservationId, String status) {}
 }

@@ -13,6 +13,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -41,6 +43,13 @@ public class ClientReservationController {
         var result = requests.submit(UUID.fromString(jwt.getSubject()), requestId,
                 new ReservationRequestService.Request(request.guests(), request.requestedAt(), request.preorder(), request.notes()));
         return result.submitted() ? ResponseEntity.accepted().body(result) : ResponseEntity.ok(result);
+    }
+
+    @DeleteMapping("/{reservationId}")
+    @PreAuthorize("hasRole('CLIENT')")
+    public ReservationRequestService.CancellationResult cancel(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID reservationId) {
+        return requests.cancelPending(UUID.fromString(jwt.getSubject()), reservationId);
     }
 
     public record Submission(@Min(1) @Max(50) int guests, @NotNull Instant requestedAt,
