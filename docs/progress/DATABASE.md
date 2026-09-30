@@ -25,6 +25,18 @@
 - This verifies migration execution and the available SQL checks only. The model/SQL/dictionary/ERD reconciliation, full business-rule coverage, and migration upgrade-path testing remain open.
 # Progreso de base de datos
 
+## 2026-09-30 — Libreta de direcciones Cliente
+
+- V12 crea `customer_addresses` asociada al usuario Cliente, con etiqueta única por cuenta, referencia/teléfono validados, versión de actualización y máximo un registro default por cuenta.
+- PostgreSQL 18 aplicó V1–V12 desde cero y pasó `V12_customer_delivery_addresses.sql`: inserción válida, segundo default/etiqueta duplicada y teléfono inválido rechazados. Contenedor temporal eliminado.
+- No incluye geocoding, tarifa, share entre personas ni política de retención/eliminación de PII.
+
+## 2026-09-30 — Direcciones guardadas por Cliente
+
+- V12 agrega `customer_addresses`, con ownership explícito por `customer_user_id`, etiqueta única por cliente, validación de dirección/contacto/referencia y máximo una dirección marcada por defecto.
+- La tabla no integra acceso de staff, geocoding, navegación ni uso compartido entre perfiles. Requiere política de retención/eliminación de PII antes de producción.
+- Test SQL cubre inserción válida, único default, etiqueta duplicada y teléfono inválido; ejecutar sobre V1–V12.
+
 ## 2026-09-30 — Solicitudes de delivery
 
 - V11 permite `fulfillment_type=DELIVERY` en la bandeja común de solicitudes y persiste dirección, referencia, teléfono y preferencia de pago. Checks requieren dirección/contacto/preferencia para delivery y prohíben dichos campos en pickup.
