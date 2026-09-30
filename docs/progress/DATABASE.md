@@ -1,5 +1,12 @@
 # Database progress
 
+## 2026-09-30 — Customer App messaging foundation
+
+- V10 adds persistent `conversations` and `messages` following the messaging candidate: owner customer, APP channel, human handling mode, message direction/status, timestamps, and external-thread fields for later provider adapters.
+- Local app conversations enforce one active thread per customer; message idempotency keys prevent duplicate submissions. Checks reject blank/oversized bodies, invalid direction, and inconsistent sender identity. No Meta/AI provider or automatic reply is claimed.
+- PostgreSQL 18 empty-database run applied V1–V10 in numeric order; `V10_app_messaging.sql` passed duplicate-thread, duplicate-idempotency-key and direction checks and rolled back fixture rows. Temporary DB was removed.
+- The 128-table candidate model remains unreconciled. In particular, reconcile the new APP channel and idempotency field before treating candidate ERD/DDL as final.
+
 ## 2026-09-29 — Client reservation history snapshot
 
 - V7 adds `requested_for_at` and `party_size` to `reservation_evaluations`, backfills them from reservations that already exist, and adds a size constraint plus an index for recent per-user history.
