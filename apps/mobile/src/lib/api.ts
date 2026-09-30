@@ -105,3 +105,23 @@ export type PickupRequestDetails = PickupRequestState & {
   customerNote: string | null;
   items: { name: string; quantity: number; unitPrice: number; lineTotal: number; currencyId: string }[];
 };
+export type DeliveryRequestBody = {
+  requestedFor: string;
+  customerNote?: string;
+  address: string;
+  reference?: string;
+  contactPhone: string;
+  paymentPreference: "CASH_ON_DELIVERY" | "ONLINE_PAYMENT_REQUESTED";
+  items: { menuItemId: string; quantity: number }[];
+};
+export type DeliveryRequestReceipt = {
+  requestId: string;
+  fulfillmentType: "DELIVERY";
+  status: "PENDING_REVIEW" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "EXPIRED";
+  requestedFor: string;
+  subtotal: number;
+  currency: string;
+  paymentPreference: DeliveryRequestBody["paymentPreference"];
+  idempotentReplay: boolean;
+  message: string;
+};

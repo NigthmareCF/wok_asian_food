@@ -59,7 +59,7 @@ export default function HomeScreen() {
       <Button title="Actualizar estado" secondary busy={refreshing} onPress={() => void refreshStatus()} />
       <Text style={{ color: palette.muted, fontSize: 12 }}>Una solicitud de reserva requiere confirmación del equipo.</Text>
     </Card>
-    <Card><Text style={{ fontSize: 20, fontWeight: "800", color: palette.ink }}>¿Qué te gustaría hacer?</Text><Button title="Explorar menú" onPress={() => router.push("/(tabs)/menu")} /><Button title="Solicitar una reserva" secondary onPress={() => router.push("/(tabs)/reservations")} /><Button title={session ? "Contactar al equipo WOK" : "Mensajes y atención"} secondary onPress={() => router.push("/messages")} /></Card>
+    <Card><Text style={{ fontSize: 20, fontWeight: "800", color: palette.ink }}>¿Qué te gustaría hacer?</Text><Button title="Explorar menú" onPress={() => router.push("/(tabs)/menu")} /><Button title="Solicitar una reserva" secondary onPress={() => router.push("/(tabs)/reservations")} /><Button title="Solicitar delivery" secondary onPress={() => router.push("/delivery")} /><Button title={session ? "Contactar al equipo WOK" : "Mensajes y atención"} secondary onPress={() => router.push("/messages")} /></Card>
     <Text style={[ui.body, { fontSize: 12 }]}>Aplicación Cliente · versión inicial conectada a servicios disponibles.</Text>
   </Page></ScrollView>;
 }

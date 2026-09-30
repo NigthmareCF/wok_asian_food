@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
@@ -121,10 +122,7 @@ export default function MessagesScreen() {
 }
 
 function createIdempotencyKey() {
-  if (typeof crypto === "undefined" || typeof crypto.randomUUID !== "function") {
-    throw new Error("Este dispositivo no puede generar una clave segura para enviar mensajes.");
-  }
-  return crypto.randomUUID();
+  return Crypto.randomUUID();
 }
 
 function formatDate(value: string) {
