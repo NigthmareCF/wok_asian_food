@@ -18,6 +18,9 @@ export default function ReservationsScreen() {
   const [history, setHistory] = useState<ReservationHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
+  const [cancellingReservationId, setCancellingReservationId] = useState<string | null>(null);
+  const [cancellationError, setCancellationError] = useState("");
+  const [cancellationNotice, setCancellationNotice] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftError, setDraftError] = useState("");
@@ -105,6 +108,16 @@ export default function ReservationsScreen() {
     finally { setBusy(false); }
   }
 
+  async function cancelRequest(reservationId: string) {
+    setCancellingReservationId(reservationId); setCancellationError(""); setCancellationNotice("");
+    try {
+      await request<{ reservationId: string; status: string }>(`/api/v1/client/reservations/${reservationId}`, { method: "DELETE" });
+      setCancellationNotice("Cancelamos tu solicitud pendiente.");
+      await refreshHistory();
+    } catch (cause) { setCancellationError(cause instanceof Error ? cause.message : "No pudimos cancelar la solicitud."); }
+    finally { setCancellingReservationId(null); }
+  }
+
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Planifica tu visita">Solicitar reserva</Heading>
     <Text style={ui.body}>El restaurante revisará capacidad y horario. Enviar una solicitud no confirma la reserva.</Text>
     {session?.offline ? <Notice>Sin conexión al restaurante. Puedes revisar tu borrador; enviar requiere conexión y confirmación del servidor.</Notice> : null}
@@ -128,12 +141,19 @@ export default function ReservationsScreen() {
         {historyLoading ? <ActivityIndicator accessibilityLabel="Cargando solicitudes" color={palette.red} /> : null}
       </View>
       {historyError ? <Notice tone="error">{historyError}</Notice> : null}
+      {cancellationError ? <Notice tone="error">{cancellationError}</Notice> : null}
+      {cancellationNotice ? <Notice tone="success">{cancellationNotice}</Notice> : null}
       {!historyLoading && !historyError && history.length === 0 ? <Notice>Aún no tienes solicitudes de reserva.</Notice> : null}
       {history.map((item) => <View key={item.requestId} style={{ borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 14, gap: 6 }}>
         <Text style={{ color: palette.ink, fontWeight: "800" }}>{item.requestedAt ? formatDate(item.requestedAt) : "Horario no disponible"}</Text>
         <Text style={ui.body}>{item.guests ? `${item.guests} ${item.guests === 1 ? "persona" : "personas"}` : "Tamaño de grupo no disponible"}</Text>
         <Text style={ui.pill}>{decisionLabel(item.decision, item.reservationStatus)}</Text>
         <Text style={ui.body}>{item.message}</Text>
+        {item.reservationStatus === "REQUESTED" && item.reservationId ? <>
+          <Notice>Esta solicitud aún espera revisión. Sólo se pueden cancelar solicitudes pendientes; las reservas confirmadas requieren contactar al restaurante.</Notice>
+          <Button title="Cancelar solicitud pendiente" secondary busy={cancellingReservationId === item.reservationId}
+            disabled={Boolean(cancellingReservationId)} onPress={() => item.reservationId ? void cancelRequest(item.reservationId) : undefined} />
+        </> : null}
       </View>)}
       <Button title="Actualizar solicitudes" secondary busy={historyLoading} onPress={() => void refreshHistory()} />
     </Card> : null}
