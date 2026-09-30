@@ -1,5 +1,11 @@
 # Progreso de API backend
 
+## 2026-09-30 — Direcciones guardadas y protegidas por propietario
+
+- `GET/POST /api/v1/client/addresses`, `PUT/DELETE /api/v1/client/addresses/{addressId}` ofrecen una libreta privada para Cliente. Cada operación exige rol CLIENT y todas las lecturas/cambios incluyen `customer_user_id` del token.
+- Creación/edición serializa los cambios por cliente, admite un único default, usa versión optimista para evitar sobrescribir ediciones y responde 404 para direcciones ajenas/no existentes. El API sólo persiste, no geocodifica ni verifica zona/tarifa.
+- Requiere V12 (`customer_addresses`) de `feature/database-migrations`; PII retention y derecho de eliminación deben definirse antes de producción. Pruebas focales: ownership de borrado y rechazo de versión desactualizada.
+
 ## 2026-09-29 — Detalle propio de solicitudes pickup
 
 - `GET /api/v1/client/order-requests/{requestId}` devuelve la solicitud sólo si pertenece al CLIENT autenticado, junto con comentario y líneas basadas en snapshots del nombre, cantidad, precio unitario y total. Un id ajeno/no existente responde 404; no consulta las líneas hasta verificar ownership.
