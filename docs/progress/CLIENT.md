@@ -16,6 +16,11 @@
 
 - Se añadieron pruebas de `AuthService` para rotación one-time con relación padre, detección de reuse con revocación de toda la familia y evento crítico, y rechazo de cuenta suspendida.
 - La composición temporal foundation+auth+availability+reservations y DB V1–V7 pasó 19/19 pruebas Java. Esta suite prueba lógica de servicio con JDBC simulado; el smoke DB/HTTP separado sigue aportando evidencia real para sesiones y reenvío.
+## 2026-09-28 — Lista pública de capacidades
+
+- `GET /api/v1/public/service-capabilities` limita su respuesta en servidor a capacidades entendibles por Cliente. La capacidad interna `PRODUCTION` ya no se incluye aunque esté activa en la tabla.
+- La app también aplica una lista permitida al presentar esos datos, para evitar revelar códigos internos futuros.
+- Verificación local: `git diff --check` aprobó. No se pudo ejecutar Maven en este entorno porque no está instalado; este worktree no incluye `pom.xml`. Ejecutar pruebas de compilación/integración al componer `feature/availability` con `feature/backend-foundation`.
 
 ## 2026-09-15 — Flujo unificado por canal
 
