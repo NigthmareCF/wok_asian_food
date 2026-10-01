@@ -116,6 +116,9 @@ jobs:
               --set ON_ERROR_STOP=1 < "$test_file"
           done
 
+      - name: Probar flujo operativo por HTTP y PostgreSQL
+        run: bash .github/scripts/operational-flow-smoke.sh
+
       - name: Mostrar diagnostico en caso de fallo
         if: failure()
         run: docker compose logs
