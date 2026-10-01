@@ -1,5 +1,13 @@
 # Progreso de planificación móvil
 
+## 2026-10-01 — Aislamiento de refresh tokens al cambiar de sesión
+
+- La coordinación de renovaciones ahora comparte una solicitud sólo cuando usa el mismo refresh token; dos cuentas/sesiones distintas ya no pueden recibir entre sí el resultado de la renovación en vuelo.
+- Las operaciones de lectura autenticada capturan una generación de sesión. Si el Cliente cierra sesión o inicia otra, una respuesta atrasada no puede reactivar la sesión anterior ni devolver datos al flujo nuevo.
+- Las escrituras y borrados de refresh token/correo en Expo SecureStore se serializan y se descartan si pertenecen a una generación obsoleta. Logout también queda protegido contra una finalización tardía que borre una sesión iniciada después.
+- Se agregaron pruebas unitarias del coordinador de refresh (misma cuenta comparte renovación, tokens de cuentas distintas no se cruzan, caché se invalida al cerrar sesión) y de la cola de SecureStore (orden serial, recuperación tras rechazo). Vitest queda declarado en el workspace móvil.
+- Verificación: 3/3 pruebas unitarias, ESLint móvil y TypeScript pasaron; `npx expo export --platform android` y `--platform web` pasaron. La exportación confirma bundles y rutas, no reemplaza pruebas instaladas en dispositivo.
+
 ## 2026-09-30 — Libreta de direcciones y detalle delivery
 
 - Mi cuenta permite listar, crear, editar y eliminar las direcciones propias mediante `/api/v1/client/addresses`; se puede establecer la predeterminada. Ediciones envían `expectedVersion`; conflictos y errores se muestran sin ocultar el estado de servidor. La pantalla confirma antes de borrar.
