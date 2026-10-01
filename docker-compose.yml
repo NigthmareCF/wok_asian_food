@@ -1,0 +1,95 @@
+name: wok
+
+services:
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    ports:
+      - "${WOK_HTTP_BIND_ADDRESS:-0.0.0.0}:${WOK_HTTP_PORT:-80}:80"
+    volumes:
+      - ./infra/nginx/http.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
+      - api
+    networks:
+      - app_net
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/web.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    networks:
+      - app_net
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${WOK_DB_NAME:-wok}
+      SPRING_DATASOURCE_USERNAME: ${WOK_DB_USER:-wok_app}
+      SPRING_DATASOURCE_PASSWORD: ${WOK_DB_PASSWORD:?Set WOK_DB_PASSWORD in an ignored .env file}
+      SPRING_FLYWAY_LOCATIONS: filesystem:/database/migrations
+      WOK_AUTH_ISSUER: ${WOK_AUTH_ISSUER:-https://identity.wok.invalid}
+      WOK_AUTH_JWT_SECRET_BASE64: ${WOK_AUTH_JWT_SECRET_BASE64:?Set WOK_AUTH_JWT_SECRET_BASE64 in an ignored .env file}
+      WOK_AUTH_CHALLENGE_PEPPER_BASE64: ${WOK_AUTH_CHALLENGE_PEPPER_BASE64:?Set WOK_AUTH_CHALLENGE_PEPPER_BASE64 in an ignored .env file}
+      WOK_AI_MODE: ${WOK_AI_MODE:-disabled}
+      WOK_EMAIL_MODE: ${WOK_EMAIL_MODE:-mock}
+      WOK_EMAIL_HEALTH_ENABLED: ${WOK_EMAIL_HEALTH_ENABLED:-false}
+      SPRING_MAIL_HOST: ${WOK_SMTP_HOST:-}
+      SPRING_MAIL_PORT: ${WOK_SMTP_PORT:-587}
+      SPRING_MAIL_USERNAME: ${WOK_SMTP_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${WOK_SMTP_PASSWORD:-}
+    volumes:
+      - ./database/migrations:/database/migrations:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_net
+      - data_net
+      - ai_net
+
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    shm_size: 128mb
+    environment:
+      POSTGRES_DB: ${WOK_DB_NAME:-wok}
+      POSTGRES_USER: ${WOK_DB_USER:-wok_app}
+      POSTGRES_PASSWORD: ${WOK_DB_PASSWORD:?Set WOK_DB_PASSWORD in an ignored .env file}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - data_net
+
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: [dev]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WOK_MAILPIT_UI_PORT:-8025}:8025"
+    networks:
+      - app_net
+
+networks:
+  app_net:
+  data_net:
+    internal: true
+  ai_net:
+    internal: true
+
+volumes:
+  postgres_data:

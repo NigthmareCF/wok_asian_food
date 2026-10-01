@@ -5,7 +5,7 @@ export function StatusBadge({
   tone,
 }: {
   label: string;
-  tone: "success" | "info" | "warning";
+  tone: "success" | "info" | "warning" | "error";
 }) {
   return (
     <span className={`status-badge status-badge--${tone}`}>

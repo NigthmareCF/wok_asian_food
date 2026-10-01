@@ -1,0 +1,202 @@
+.messaging {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto;
+  max-width: 72rem;
+}
+.header {
+  display: grid;
+  gap: 0.35rem;
+}
+.kicker {
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.header h1 {
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  margin: 0;
+}
+.header p,
+.threadHeader h2 + p,
+.stateDescription,
+.empty {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.workspace {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+}
+.list {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+.list h2,
+.threadHeader h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+.list button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  font-weight: 700;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  width: 100%;
+}
+.list button:hover,
+.list button.selected {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+  color: var(--text);
+}
+.thread {
+  display: grid;
+  min-width: 0;
+  min-height: 30rem;
+  grid-template-rows: auto auto minmax(12rem, 1fr) auto;
+}
+.threadHeader {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
+}
+.state {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  margin-top: 0.25rem !important;
+}
+.state-ready {
+  color: #82d7a0 !important;
+}
+.state-connecting {
+  color: #9cc8ff !important;
+}
+.state-error {
+  color: #ffaaaa !important;
+}
+.state-human-attention-required {
+  color: #f7d98f !important;
+}
+.demo {
+  color: var(--text-subtle);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.stateDescription {
+  background: rgb(53 132 228 / 12%);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+  padding: 0.75rem 1rem;
+}
+.messageList {
+  align-content: start;
+  display: grid;
+  gap: 0.75rem;
+  overflow-y: auto;
+  padding: 1rem;
+}
+.message-system,
+.message-client {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 0;
+  max-width: min(100%, 32rem);
+  padding: 0.75rem;
+}
+.message-system {
+  background: var(--surface-elevated);
+}
+.message-client {
+  background: var(--primary);
+  border-color: var(--primary);
+  justify-self: end;
+}
+.composer {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+}
+.fileLabel {
+  align-items: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  width: fit-content;
+}
+.composer input[type="file"] {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+.fileNotice {
+  color: #f7d98f;
+  font-size: 0.75rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.sendRow {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.sendRow input {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  min-height: 3rem;
+  min-width: 0;
+  padding: 0.7rem;
+}
+.sendRow .button {
+  min-width: 3rem;
+  padding-inline: 0.75rem;
+}
+.sendLabel {
+  display: none;
+}
+.empty {
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .workspace {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
+  .list {
+    border-bottom: 0;
+    border-right: 1px solid var(--border);
+  }
+  .thread {
+    min-height: 36rem;
+  }
+  .sendLabel {
+    display: inline;
+  }
+}

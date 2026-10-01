@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRef, useState } from "react";
+import { Button } from "@/shared/components/ui/button";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 import {
+  Activity,
   Bike,
   CalendarDays,
   ChefHat,
   CircleAlert,
   CircleDollarSign,
+  CreditCard,
   Factory,
   LayoutDashboard,
   LayoutGrid,
@@ -40,10 +43,12 @@ const icons: Record<NavigationIcon, typeof LayoutDashboard> = {
   menu: UtensilsCrossed,
   messages: MessagesSquare,
   orders: ReceiptText,
+  payments: CreditCard,
   people: UsersRound,
   production: Factory,
   requests: CircleAlert,
   settings: Settings,
+  status: Activity,
   tables: LayoutGrid,
 };
 
@@ -57,8 +62,10 @@ const mockPermissions: Record<NavigationContext, Permission[]> = {
     "messages.read",
     "delivery.read",
     "cash.read",
+    "payments.read",
     "inventory.read",
     "production.read",
+    "status.read",
   ],
   admin: [
     "users.read",
@@ -66,17 +73,31 @@ const mockPermissions: Record<NavigationContext, Permission[]> = {
     "staff.read",
     "menu.read",
     "settings.read",
+    "recipes.read",
+    "suppliers.read",
+    "purchases.read",
+    "production.read",
+    "reports.read",
+    "cash.read",
+    "clients.read",
+    "ai.read",
+    "vision.read",
+    "audit.read",
   ],
 };
 
 export function AppShell({
   children,
   context,
+  contextualActions,
 }: {
   children: React.ReactNode;
   context: NavigationContext;
+  contextualActions?: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const demoDialog = useRef<HTMLDialogElement>(null);
+  const [demoContent, setDemoContent] = useState({ title: "", message: "" });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const contextRoot = {
     admin: "/admin",
@@ -97,7 +118,7 @@ export function AppShell({
       <aside className="sidebar">
         <div className="sidebar__header">
           <Link
-            aria-label="WOK ASIAN FOOD"
+            aria-label="WOK Asian Food"
             className="brand"
             href={contextRoot}
           >
@@ -119,19 +140,59 @@ export function AppShell({
             )}
           </button>
         </div>
-        <nav className="navigation" aria-label={`Navegación ${context}`}>
+        <nav
+          className="navigation"
+          aria-label={
+            context === "client"
+              ? "Navegación de cliente"
+              : `Navegación ${context}`
+          }
+        >
           {visibleItems.map((item) => {
             const Icon = icons[item.icon];
             const active =
               pathname === item.route ||
               (item.route !== contextRoot &&
                 pathname.startsWith(`${item.route}/`));
+            if (item.demoNotice) {
+              return (
+                <button
+                  key={item.route}
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-label={item.label}
+                  title={
+                    sidebarCollapsed && context !== "client"
+                      ? `${item.label} (Demo)`
+                      : undefined
+                  }
+                  onClick={() => {
+                    setDemoContent({
+                      title: item.label,
+                      message: item.demoNotice ?? "",
+                    });
+                    demoDialog.current?.showModal();
+                  }}
+                >
+                  <Icon aria-hidden="true" size={19} />
+                  <span>
+                    {item.label}
+                    <small>Demo</small>
+                  </span>
+                </button>
+              );
+            }
             return (
               <Link
+                aria-label={item.label}
                 aria-current={active ? "page" : undefined}
                 href={item.route}
                 key={item.route}
-                title={sidebarCollapsed ? item.label : undefined}
+                title={
+                  sidebarCollapsed && context !== "client"
+                    ? item.label
+                    : undefined
+                }
               >
                 <Icon aria-hidden="true" size={19} />
                 <span>{item.label}</span>
@@ -149,7 +210,25 @@ export function AppShell({
           </div>
         ) : null}
       </aside>
-      <main className="app-shell__main">{children}</main>
+      <main className="app-shell__main">
+        {contextualActions}
+        {children}
+      </main>
+      {context === "client" ? (
+        <dialog
+          className="client-demo-dialog"
+          ref={demoDialog}
+          aria-labelledby="client-demo-title"
+          aria-describedby="client-demo-description"
+        >
+          <span className="eyebrow">DEMOSTRATIVO</span>
+          <h2 id="client-demo-title">{demoContent.title}</h2>
+          <p id="client-demo-description">{demoContent.message}</p>
+          <Button type="button" onClick={() => demoDialog.current?.close()}>
+            Entendido
+          </Button>
+        </dialog>
+      ) : null}
     </div>
   );
 }

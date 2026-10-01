@@ -60,6 +60,7 @@ export type OrderItem = {
 export type OrderAccount = {
   id: string;
   name: string;
+  status?: "open" | "pending-payment";
 };
 
 export type OrderRecord = {

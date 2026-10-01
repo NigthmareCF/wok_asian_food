@@ -23,7 +23,7 @@ describe("TableDetailView", () => {
       </TableSessionProvider>,
     );
 
-  it("blocks release until the pending balance is paid", async () => {
+  it("blocks release until the payment is registered in payments", async () => {
     const user = userEvent.setup();
     const table = operationalTables.find((item) => item.id === "table-9");
 
@@ -39,12 +39,18 @@ describe("TableDetailView", () => {
 
     await user.click(screen.getByRole("button", { name: "Cobrar" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Confirmar cobro" }));
+    await user.click(screen.getByRole("button", { name: "Marcar para cobro" }));
 
-    expect(releaseButton).toBeEnabled();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "La mesa ya puede liberarse",
+      "Mesa marcada como pendiente de cobro. Registra el pago en el módulo de pagos.",
     );
+    expect(
+      screen.getAllByText("Pendiente de cobro").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/no se liberará hasta registrar el pago/),
+    ).toBeInTheDocument();
+    expect(releaseButton).toBeDisabled();
   });
 
   it("assigns a free table to the user who opens it", async () => {
@@ -217,7 +223,7 @@ describe("TableDetailView", () => {
     expect(screen.getByText("Pepito")).toBeInTheDocument();
     expect(screen.getByText("María")).toBeInTheDocument();
     expect(
-      screen.getAllByRole("link", { name: "Agregar productos" }),
+      screen.getAllByRole("link", { name: /Agregar productos a la cuenta/ }),
     ).toHaveLength(2);
     expect(
       screen.getByRole("button", { name: /Dividir cuenta/ }),

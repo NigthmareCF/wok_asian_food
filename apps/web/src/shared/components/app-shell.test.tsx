@@ -5,6 +5,63 @@ import { AppShell } from "./app-shell";
 
 const pathState = vi.hoisted(() => ({ pathname: "/operation" }));
 
+const expectedNavigationRoutes = {
+  admin: {
+    Ajustes: "/admin/settings",
+    Auditoría: "/admin/audit",
+    "Cierres de caja": "/admin/cash-closings",
+    Clientes: "/admin/clients",
+    Compras: "/admin/purchases",
+    "IA y mensajería": "/admin/ai",
+    Menu: "/admin/menu",
+    "Personal y horarios": "/admin/staff",
+    Producción: "/admin/production",
+    Proveedores: "/admin/suppliers",
+    Recetas: "/admin/recipes",
+    Reportes: "/admin/reports",
+    Resumen: "/admin",
+    "Roles y permisos": "/admin/roles",
+    Usuarios: "/admin/users",
+    Cámaras: "/admin/vision",
+  },
+  client: {
+    Inicio: "/client",
+    Mensajes: "/client/messages",
+    Menú: "/menu",
+    Pedidos: "/client/orders",
+    Reservas: "/client/reservations/new",
+    Ubicación: "/location",
+  },
+  operational: {
+    Caja: "/operation/cash",
+    Cocina: "/operation/kitchen",
+    Delivery: "/operation/delivery",
+    "Estado del servicio": "/operation/status",
+    Inventario: "/operation/inventory",
+    Mesas: "/operation/tables",
+    Mensajes: "/operation/messages",
+    Operacion: "/operation",
+    Pagos: "/operation/payments",
+    Pedidos: "/operation/orders",
+    Produccion: "/operation/production",
+    Reservas: "/operation/reservations",
+    Solicitudes: "/operation/online-requests",
+  },
+} as const;
+
+function expectNavigationRoutes(
+  context: keyof typeof expectedNavigationRoutes,
+) {
+  for (const [label, route] of Object.entries(
+    expectedNavigationRoutes[context],
+  )) {
+    expect(screen.getByRole("link", { name: label })).toHaveAttribute(
+      "href",
+      route,
+    );
+  }
+}
+
 vi.mock("next/navigation", () => ({
   usePathname: () => pathState.pathname,
 }));
@@ -15,6 +72,52 @@ afterEach(() => {
 });
 
 describe("AppShell", () => {
+  it("preserves client links and demo dialogs when the sidebar is collapsed", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <AppShell context="client">
+        <div>Contenido cliente</div>
+      </AppShell>,
+    );
+    const dialog = container.querySelector("dialog")!;
+    const showModal = vi.fn(() => dialog.setAttribute("open", ""));
+    const close = vi.fn(() => dialog.removeAttribute("open"));
+    Object.defineProperties(dialog, {
+      showModal: { value: showModal, configurable: true },
+      close: { value: close, configurable: true },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Contraer menú" }));
+    expect(
+      screen.getByRole("navigation", { name: "Navegación de cliente" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Inicio" })).toHaveAttribute(
+      "href",
+      "/client",
+    );
+    expect(
+      screen.getByRole("link", { name: "WOK Asian Food" }),
+    ).toHaveAttribute("href", "/client");
+    expect(screen.getByRole("link", { name: "Menú" })).toHaveAttribute(
+      "href",
+      "/menu",
+    );
+    expect(screen.getByRole("link", { name: "Pedidos" })).toHaveAttribute(
+      "href",
+      "/client/orders",
+    );
+    expectNavigationRoutes("client");
+    await user.click(screen.getByRole("button", { name: "Perfil" }));
+    expect(screen.getByRole("dialog", { name: "Perfil" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Entendido" }));
+    expect(dialog).not.toHaveAttribute("open");
+    expect(showModal).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Expandir menú" }));
+    expect(container.firstChild).not.toHaveClass(
+      "app-shell--sidebar-collapsed",
+    );
+  });
+
   it("collapses and restores the operational navigation", async () => {
     const user = userEvent.setup();
     const { container } = render(
@@ -29,6 +132,10 @@ describe("AppShell", () => {
       "title",
       "Mesas",
     );
+    expect(
+      screen.getByRole("link", { name: "WOK Asian Food" }),
+    ).toHaveAttribute("href", "/operation");
+    expectNavigationRoutes("operational");
 
     await user.click(screen.getByRole("button", { name: "Expandir menú" }));
     expect(container.firstChild).not.toHaveClass(
@@ -50,6 +157,10 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("link", { name: "Personal y horarios" }),
     ).toHaveAttribute("href", "/admin/staff");
+    expect(
+      screen.getByRole("link", { name: "WOK Asian Food" }),
+    ).toHaveAttribute("href", "/admin");
+    expectNavigationRoutes("admin");
 
     pathState.pathname = "/operation";
     rerender(
@@ -78,7 +189,7 @@ describe("AppShell", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "WOK ASIAN FOOD" }),
+      screen.getByRole("link", { name: "WOK Asian Food" }),
     ).toHaveAttribute("href", route);
   });
 });

@@ -12,10 +12,12 @@ export type NavigationIcon =
   | "menu"
   | "messages"
   | "orders"
+  | "payments"
   | "people"
   | "production"
   | "requests"
   | "settings"
+  | "status"
   | "tables";
 export type NavigationItem = {
   label: string;
@@ -23,25 +25,40 @@ export type NavigationItem = {
   icon: NavigationIcon;
   requiredPermission?: Permission;
   featureFlag?: boolean;
+  demoNotice?: string;
 };
 
 export const navigation: Record<NavigationContext, NavigationItem[]> = {
   client: [
     { label: "Inicio", route: "/client", icon: "dashboard" },
-    { label: "Menu", route: "/menu", icon: "menu" },
-    { label: "Ubicacion", route: "/location", icon: "location" },
+    { label: "Menú", route: "/menu", icon: "menu" },
     {
       label: "Pedidos",
       route: "/client/orders",
       icon: "orders",
       requiredPermission: "orders.read",
-      featureFlag: false,
+    },
+    {
+      label: "Reservas",
+      route: "/client/reservations/new",
+      icon: "calendar",
+    },
+    {
+      label: "Mensajes",
+      route: "/client/messages",
+      icon: "messages",
+    },
+    {
+      label: "Ubicación",
+      route: "/location",
+      icon: "location",
     },
     {
       label: "Perfil",
       route: "/client/profile",
       icon: "people",
-      featureFlag: false,
+      demoNotice:
+        "El perfil aún no está habilitado. Este acceso es demostrativo y no consulta ni modifica datos personales.",
     },
   ],
   operational: [
@@ -95,6 +112,12 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       requiredPermission: "cash.read",
     },
     {
+      label: "Pagos",
+      route: "/operation/payments",
+      icon: "payments",
+      requiredPermission: "payments.read",
+    },
+    {
       label: "Inventario",
       route: "/operation/inventory",
       icon: "inventory",
@@ -106,6 +129,12 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       icon: "production",
       requiredPermission: "production.read",
     },
+    {
+      label: "Estado del servicio",
+      route: "/operation/status",
+      icon: "status",
+      requiredPermission: "status.read",
+    },
   ],
   admin: [
     { label: "Resumen", route: "/admin", icon: "dashboard" },
@@ -116,6 +145,7 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       requiredPermission: "users.read",
     },
     {
+
       label: "Roles y permisos",
       route: "/admin/roles",
       icon: "settings",
@@ -132,14 +162,72 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       route: "/admin/menu",
       icon: "menu",
       requiredPermission: "menu.read",
-      featureFlag: false,
     },
     {
       label: "Ajustes",
       route: "/admin/settings",
       icon: "settings",
       requiredPermission: "settings.read",
-      featureFlag: false,
+    },
+    {
+      label: "Recetas",
+      route: "/admin/recipes",
+      icon: "menu",
+      requiredPermission: "recipes.read",
+    },
+    {
+      label: "Proveedores",
+      route: "/admin/suppliers",
+      icon: "delivery",
+      requiredPermission: "suppliers.read",
+    },
+    {
+      label: "Compras",
+      route: "/admin/purchases",
+      icon: "orders",
+      requiredPermission: "purchases.read",
+    },
+    {
+      label: "Producción",
+      route: "/admin/production",
+      icon: "production",
+      requiredPermission: "production.read",
+    },
+    {
+      label: "Reportes",
+      route: "/admin/reports",
+      icon: "dashboard",
+      requiredPermission: "reports.read",
+    },
+    {
+      label: "Cierres de caja",
+      route: "/admin/cash-closings",
+      icon: "cash",
+      requiredPermission: "cash.read",
+    },
+    {
+      label: "Clientes",
+      route: "/admin/clients",
+      icon: "people",
+      requiredPermission: "clients.read",
+    },
+    {
+      label: "IA y mensajería",
+      route: "/admin/ai",
+      icon: "messages",
+      requiredPermission: "ai.read",
+    },
+    {
+      label: "Cámaras",
+      route: "/admin/vision",
+      icon: "requests",
+      requiredPermission: "vision.read",
+    },
+    {
+      label: "Auditoría",
+      route: "/admin/audit",
+      icon: "orders",
+      requiredPermission: "audit.read",
     },
   ],
 };

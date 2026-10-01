@@ -1,8 +1,48 @@
 # Progreso del canal Operativo
 
+## 2026-09-29 — Historial de reservas propio para Cliente
+
+- `GET /api/v1/client/reservations` devuelve las 50 evaluaciones más recientes ligadas exclusivamente al `requester_user_id` autenticado; no admite un ID de cliente enviado por el consumidor.
+- `POST /api/v1/client/reservations` conserva `requested_for_at` y `party_size` también cuando una evaluación no crea una reserva, para que decisiones rechazadas/sugeridas aparezcan en el historial. Aplicar V7 de `feature/database-migrations` antes de desplegar este cambio.
+- Las filas con reserva enlazan el estado público actual; las solicitudes pendientes/rechazadas conservan decisión y mensaje evaluado. No se exponen notas ni campos operativos.
+- Evidencia: composición temporal de `feature/backend-foundation`, `feature/backend-auth`, `feature/availability`, `feature/reservations` y DB migrations compiló y pasó 8/8 tests Maven con Java 21. Smoke HTTP autenticado mostró la solicitud propia y excluyó la de otro usuario; el endpoint público tampoco incluyó `PRODUCTION`. PostgreSQL vacío aplicó V1–V7 y el test V7 pasó.
+
 Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
+
+## 2026-09-26 — Solicitudes de reserva persistentes y revisión humana
+
+- Rama backend: `feature/reservations`. El portal Cliente puede crear solicitudes autenticadas; la API evalúa la anticipación/capacidad y nunca las confirma automáticamente.
+- Requiere `Idempotency-Key`; la misma clave y payload devuelve la solicitud existente. Si la clave se reutiliza con otro payload responde 409.
+- Operativo/Admin pueden listar pendientes y confirmar o rechazar con motivo, versión esperada, historial de estado y auditoría transaccional.
+- Regla mínima de 3 h aplicada al crear; resultados de evaluación quedan persistidos. Estados fuera de horario siguen requiriendo decisión explícita y capacidad en vivo aún no está conectada.
+- Pruebas: Maven `verify` combinado 12/12; Flyway V1–V5 aplicado a PostgreSQL 18 vacío; recorrido HTTP registro/verificación/login, reserva, replay/mismatch 409, aprobación, conflicto de versión y auditoría pasó en DB temporal.
+- No se hicieron cambios en las vistas operativas de datos simulados; integrar UI con API requiere conectar la sesión WOK y el contrato aprobado.
+
+## 2026-09-15 — Auditoría de integración de rutas
+
+- Operación, Mesas, Pedidos, Cocina, Reservas, Mensajes, Solicitudes, Delivery, Caja, Pagos, Inventario, Producción y Estado del servicio tienen rutas y accesos en la sidebar.
+- Los formularios operativos se conservan como pendientes de ampliación.
+
+## 2026-09-12 — Ajustes de revisión del PR #10
+
+- Rama: `feature/operational-delivery-payments`
+- Responsables: Antony y Tomy
+- Asistencia: IA
+- Vistas: O-03 `/operation/tables/[tableId]`; O-04 `/operation/orders/new`; O-10 `/operation/online-requests`; O-11 `/operation/delivery`; O-12 `/operation/payments`; O-16 `/operation/production`
+- Completado:
+  - **Cobro en mesa**: estado «Pendiente de cobro» en cuentas y mesas; modal Cobrar por cuenta o mesa completa para marcarlas y librar el flujo a Pagos; precuenta imprimible desde la mesa con desglose, propina y total; cuentas expandibles con detalle de productos y badge de cobro; la mesa no se libera hasta registrar el pago en O-12
+  - **Delivery**: `createDeliveryOrder` con IDs secuenciales compartidos con Pagos; botón «Probar flujo desde cero» en el listado que crea un pedido demo y navega al detalle con su banner
+  - **Nuevo pedido**: aviso desechable al cambiar el origen (canal o mesa) que vincula el restablecimiento del carrito con la desvinculación de la mesa
+  - **Solicitudes en línea**: rediseño con modalidades (Delivery, Para recoger, Comer en sala, Reservación), filtros con contadores, productos solicitados, reglas de negocio locales (horario 11:00–22:00, estado del servicio y disponibilidad de mesas) con panel «No procede según las reglas actuales», aceptación por modalidad que crea pedido/delivery/reservación con vínculos visibles, revalidación de solicitudes desactualizadas, rechazo con motivo obligatorio o por reglas
+  - **Pagos**: etiqueta «Exceso» ajustada a «Cambio»
+  - **Producción**: sugerencias colapsables y filas con color/icono según su estado
+- Archivos principales: `apps/web/src/modules/tables`, `apps/web/src/modules/orders`, `apps/web/src/modules/delivery`, `apps/web/src/modules/messaging` (incluye `online-request-rules.ts`), `apps/web/src/modules/payments`, `apps/web/src/modules/production`, `apps/web/src/data/fixtures` y estilos globales/operativos
+- Pruebas: lint, TypeScript, 67 pruebas unitarias y build aprobados; reglas de solicitudes y flujos Cobrar/Precuenta/Delivery cubiertos por pruebas
+- Decisiones: el cobro ya no marca como pagado en mesa: deja la mesa en «Pendiente de cobro» y el registro efectivo ocurre en O-12; cambiar el origen de un pedido vacía el carrito con aviso; las reglas de solicitudes remotas se evalúan en el cliente con datos simulados hasta el backend
+- Pendiente: persistencia y autorización reales; evaluación de reglas y conflictos desde backend; realtime en solicitudes, delivery y mesas
+- PR: `https://github.com/NigthmareCF/wok_asian_food/pull/10`
 
 ## 2026-09-11 — Navegación adaptable y pedidos con varias cuentas
 
@@ -54,7 +94,49 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Pruebas: lint, TypeScript, 28 pruebas unitarias y build del frontend web
 - Decisiones: Cocina controla los estados de preparación y listo; Pedidos únicamente envía la comanda inicial o sus actualizaciones; cada actualización conserva un lote diferencial en memoria
 - Pendiente: persistencia, permisos reales, aceptación o rechazo individual de cambios, impresión y sincronización realtime
-- PR: Pendiente
+
+## 2026-09-11 — Inventario, Producción y Estado del servicio
+
+- Rama: `feature/operational-inventory-production`
+- Responsable: Tomy
+- Vistas: O-15 `/operation/inventory` (listado y detalle); O-16 `/operation/production` (listado, detalle de batch y revisión de sugerencias) y `/operation/production/suggestion/[suggestionId]`; O-17 Disponibilidad integrada en inventario/producción; O-18 `/operation/status` (estado del servicio)
+- Completado:
+  - **Inventario**: listado con búsqueda, filtros por estado (disponible, bajo, crítico, reservado, caducado) y categoría, resumen con contadores y filas navegables; detalle con estado, resumen de stock disponible/reservado, barra de nivel con referencia al mínimo, lotes con vencimiento (próximos a vencer y vencidos), registro de entradas (cantidad, vencimiento, proveedor, costo, código de lote) y ajustes de stock (positivos o negativos con motivo).
+  - **Producción**: listado con filtros por estado y categoría, resumen por estado, sugerencias pendientes con prioridad y enlace a revisión; detalle de batch con trazabilidad, resumen, reposo, completado con cantidad real y rendimiento calculado, descarte con motivo obligatorio y resumen del lote; sugerencias con aceptar/rechazar y estado visible.
+  - **Estado del servicio**: selector de estado (normal, alta demanda, solo recoger, suspendidos) con motivo obligatorio y confirmación, estado actual destacado, historial de cambios y trazabilidad local.
+- Archivos principales:
+  - `apps/web/src/modules/inventory` (provider, listado, detalle)
+  - `apps/web/src/modules/production` (provider, listado, detalle de batch, sugerencias)
+  - `apps/web/src/modules/service-status` (provider, vista)
+  - `apps/web/src/data/fixtures/inventory.ts`, `production.ts`
+  - `apps/web/src/app/(private)/(operational)/operation/inventory`, `production`, `status`
+  - `apps/web/src/app/operational-views.css` (estilos nuevos de inventario, producción y estado del servicio)
+- Pruebas: lint, TypeScript, 55 pruebas unitarias conjuntas y build aprobados; rutas de detalle dinámicas (`inventory/[itemId]`, `production/[batchId]`, `production/suggestion/[suggestionId]`) compiladas; responsive por breakpoints 960/720/440px según los patrones existentes.
+- Decisiones: datos simulados en memoria que se reinician al recargar; fechas de caducidad se comparan contra una referencia fija para mantener renders deterministas; O-17 no tiene página propia y se resuelve con disponible, reservado, mínimo y rendimiento; las entradas de stock se registran únicamente desde el detalle del producto (se retiró el botón "Nueva entrada" del listado, cuyo destino no existe).
+- Pendiente: persistencia real, permisos backend, sincronización con pedidos/cocina, impresión, alertas por mínimos y caducidad.
+- PR: `https://github.com/NigthmareCF/wok_asian_food/pull/10`
+
+## 2026-09-10 — Delivery, Pagos, Precuenta y Caja (Bloque 1 Tomy)
+
+- Rama: `feature/operational-delivery-payments`
+- Responsable: Tomy
+- Asistencia: Codex
+- Vistas: O-11 `/operation/delivery` (listado y detalle); O-12 `/operation/payments` (listado, detalle y precuenta); O-13 Precuenta integrada en `/operation/payments/[recordId]/prebill`; O-14 `/operation/cash`
+- Completado:
+  - **Delivery**: listado con filtros por estado (esperando, asignado, en camino, entregado, reprogramado, cancelado), búsqueda, resumen de pendientes de pago; detalle con asignación de repartidor, avance de estado (recogido, entregado), reprogramación, cancelación, trazabilidad y datos de conductor/vehículo.
+  - **Pagos**: listado con filtros por estado (pendiente, parcial, pagado, diferencia), búsqueda, resumen de montos pendientes; detalle con registro de pagos por método (efectivo, tarjeta, transferencia, online), aplicación de propinas y descuentos, historial de cobros y trazabilidad.
+  - **Precuenta**: vista dedicada con desglose de productos, subtotal, propina sugerida (checkbox), descuentos, total, desglose por método de pago y confirmación de impresión.
+  - **Caja**: resumen de turno (fondo inicial, ingresos, gastos, retiros, depósitos, esperado vs contado, diferencia); registro de movimientos por tipo (ingreso, gasto, retiro, depósito) con categorías; cierre de caja con conteo físico, diferencia calculada y observaciones; confirmaciones visibles para acciones financieras.
+- Archivos principales:
+  - `apps/web/src/modules/delivery` (provider, listado, detalle, fixtures)
+  - `apps/web/src/modules/payments` (provider, listado, detalle, precuenta, fixtures)
+  - `apps/web/src/modules/cash` (provider, vista, fixtures)
+  - `apps/web/src/data/fixtures/delivery.ts`, `payments.ts`, `cash.ts`
+  - `apps/web/src/app/(private)/(operational)/operation/delivery`, `payments`, `cash`
+- Pruebas: lint, TypeScript, 55 pruebas unitarias conjuntas y build aprobados; revisión visual en escritorio (1440px) y móvil (390px); sin desbordamiento horizontal; estados vacío, carga y error cubiertos.
+- Decisiones: datos y permisos simulados en memoria; repartidores y movimientos de caja se reinician al recargar; precuenta no es documento fiscal; pagos y delivery integrados con pedidos existentes mediante IDs compartidos.
+- Pendiente: persistencia real, permisos backend, sincronización con cocina/inventario, impresión real, notificaciones push a repartidor, conciliación bancaria.
+- PR: `https://github.com/NigthmareCF/wok_asian_food/pull/10`
 
 ## 2026-09-10 — Creación y gestión de pedidos
 
@@ -133,3 +215,9 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Decisiones: permisos, ETA, pedidos y realtime son únicamente conceptos visuales
 - Pendiente: seleccionar IDs del sprint e implementar vistas asignadas
 - PR: `https://github.com/NigthmareCF/wok_asian_food/pull/2`
+# Progreso del canal Operativo
+
+## 2026-09-15 — Auditoría de integración de rutas
+
+- Se verificó la cobertura de navegación del canal: Operación, Mesas, Pedidos, Cocina, Reservas, Mensajes, Solicitudes, Delivery, Caja, Pagos, Inventario, Producción y Estado del servicio tienen rutas y accesos en la sidebar.
+- Se conservaron los formularios operativos como pendientes de ampliación.

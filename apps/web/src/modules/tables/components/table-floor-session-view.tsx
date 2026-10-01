@@ -7,6 +7,7 @@ import {
   ArrowRight,
   CalendarClock,
   CircleCheck,
+  CreditCard,
   Link2,
   Sparkles,
   Unlink,
@@ -29,6 +30,11 @@ const tableStatus = {
   occupied: { icon: UsersRound, label: "Ocupada", tone: "danger" },
   reserved: { icon: CalendarClock, label: "Reservada", tone: "warning" },
   preparing: { icon: Sparkles, label: "Preparación", tone: "info" },
+  "pending-payment": {
+    icon: CreditCard,
+    label: "Pendiente de cobro",
+    tone: "info",
+  },
   "out-of-service": {
     icon: Wrench,
     label: "Fuera de servicio",
@@ -51,6 +57,7 @@ const filters: { value: TableFilter; label: string }[] = [
   { value: "occupied", label: "Ocupadas" },
   { value: "reserved", label: "Reservadas" },
   { value: "preparing", label: "Preparación" },
+  { value: "pending-payment", label: "Pendiente de cobro" },
   { value: "out-of-service", label: "Fuera de servicio" },
 ];
 

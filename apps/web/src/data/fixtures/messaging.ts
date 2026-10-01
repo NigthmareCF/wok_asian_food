@@ -24,6 +24,16 @@ export type ConversationRecord = {
 export type OnlineRequestStatus =
   "pending" | "outdated" | "accepted" | "rejected";
 
+export type OnlineRequestKind = "delivery" | "pickup" | "dine-in" | "reservation";
+
+export type OnlineRequestItem = {
+  id: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  modifiers?: string[];
+};
+
 export type OnlineRequestRecord = {
   id: string;
   customer: string;
@@ -37,6 +47,10 @@ export type OnlineRequestRecord = {
   status: OnlineRequestStatus;
   lastValidatedAt: string;
   rejectionReason?: string;
+  kind: OnlineRequestKind;
+  items?: OnlineRequestItem[];
+  total?: number;
+  address?: string;
 };
 
 export const initialConversations: ConversationRecord[] = [
@@ -162,6 +176,63 @@ export const initialOnlineRequests: OnlineRequestRecord[] = [
     preorder: false,
     status: "pending",
     lastValidatedAt: "13:21",
+    kind: "reservation",
+  },
+  {
+    id: "SOL-082",
+    customer: "Camila Reyes",
+    phone: "+502 5555 0156",
+    requestedAt: "Hace 6 min",
+    date: "2026-09-11",
+    time: "21:15",
+    people: 0,
+    note: "Envío a la oficina.",
+    preorder: false,
+    status: "pending",
+    lastValidatedAt: "13:19",
+    kind: "delivery",
+    address: "Zona 10, Edificio Comercio 8, oficina 412",
+    items: [
+      { id: "sol-82-1", name: "Wok teriyaki", quantity: 2, unitPrice: 112, modifiers: ["Pollo", "Picante medio"] },
+      { id: "sol-82-2", name: "Edamame picante", quantity: 1, unitPrice: 48 },
+      { id: "sol-82-3", name: "Agua de Jamaica", quantity: 2, unitPrice: 28 },
+    ],
+    total: 328,
+  },
+  {
+    id: "SOL-083",
+    customer: "Luis Mendoza",
+    phone: "+502 5555 0194",
+    requestedAt: "Hace 9 min",
+    date: "2026-09-11",
+    time: "20:45",
+    people: 0,
+    preorder: false,
+    status: "pending",
+    lastValidatedAt: "13:16",
+    kind: "pickup",
+    items: [
+      { id: "sol-83-1", name: "Gyozas de cerdo", quantity: 1, unitPrice: 68 },
+      { id: "sol-83-2", name: "Salmón asado", quantity: 1, unitPrice: 148 },
+    ],
+    total: 216,
+  },
+  {
+    id: "SOL-084",
+    customer: "Mario Estrada",
+    phone: "+502 5555 0140",
+    requestedAt: "Hace 12 min",
+    date: "2026-09-11",
+    time: "19:30",
+    people: 2,
+    preorder: false,
+    status: "pending",
+    lastValidatedAt: "13:13",
+    kind: "dine-in",
+    items: [
+      { id: "sol-84-1", name: "Sushi mix", quantity: 1, unitPrice: 188 },
+    ],
+    total: 188,
   },
   {
     id: "SOL-079",
@@ -170,11 +241,12 @@ export const initialOnlineRequests: OnlineRequestRecord[] = [
     requestedAt: "Hace 26 min",
     date: "2026-09-11",
     time: "20:00",
-    people: 6,
+    people: 4,
     note: "Celebración familiar.",
     preorder: false,
     status: "outdated",
     lastValidatedAt: "12:59",
+    kind: "reservation",
   },
   {
     id: "SOL-076",
@@ -187,5 +259,6 @@ export const initialOnlineRequests: OnlineRequestRecord[] = [
     preorder: true,
     status: "accepted",
     lastValidatedAt: "12:31",
+    kind: "reservation",
   },
 ];

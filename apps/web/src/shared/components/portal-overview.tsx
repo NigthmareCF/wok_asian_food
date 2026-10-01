@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowRight, MapPin, UtensilsCrossed } from "lucide-react";
 import { StatusBadge } from "@/shared/components/ui/status-badge";
 
 const content = {
@@ -38,6 +40,7 @@ const content = {
 
 export function PortalOverview({ context }: { context: keyof typeof content }) {
   const page = content[context];
+  const isClient = context === "client";
   return (
     <>
       <header className="page-header">
@@ -55,6 +58,39 @@ export function PortalOverview({ context }: { context: keyof typeof content }) {
           </article>
         ))}
       </section>
+      {isClient ? (
+        <section className="client-overview" aria-label="Accesos del cliente">
+          <div className="client-overview__heading">
+            <div>
+              <span className="eyebrow">EXPERIENCIA DEMOSTRATIVA</span>
+              <h2>¿Qué te gustaría hacer?</h2>
+              <p>Consulta el menú o encuentra la ubicación del restaurante.</p>
+            </div>
+          </div>
+          <div className="client-overview__actions">
+            <Link className="client-action-card" href="/menu">
+              <UtensilsCrossed aria-hidden="true" size={26} />
+              <div>
+                <strong>Explorar menú</strong>
+                <span>Revisa platillos y disponibilidad.</span>
+              </div>
+              <ArrowRight aria-hidden="true" size={20} />
+            </Link>
+            <Link className="client-action-card" href="/location">
+              <MapPin aria-hidden="true" size={26} />
+              <div>
+                <strong>Ver ubicación</strong>
+                <span>Consulta cómo llegar a WOK Asian Food.</span>
+              </div>
+              <ArrowRight aria-hidden="true" size={20} />
+            </Link>
+          </div>
+          <p className="client-overview__notice">
+            Los datos y acciones de esta pantalla son demostrativos; no
+            representan una orden confirmada.
+          </p>
+        </section>
+      ) : null}
     </>
   );
 }
