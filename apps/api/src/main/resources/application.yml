@@ -1,0 +1,46 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: wok-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/wok}
+    username: ${SPRING_DATASOURCE_USERNAME:wok}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  flyway:
+    enabled: true
+    locations: ${FLYWAY_LOCATIONS:filesystem:../../database/migrations}
+    default-schema: public
+    create-schemas: false
+  jackson:
+    default-property-inclusion: non_null
+management:
+  health:
+    mail:
+      # Email is an external integration and must not make the local core unavailable.
+      enabled: ${WOK_EMAIL_HEALTH_ENABLED:false}
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+springdoc:
+  api-docs:
+    path: /api/v1/openapi
+wok:
+  auth:
+    # JWT iss must be a valid URI for Spring's JwtClaimAccessor/JwtIssuerValidator.
+    # Override this reserved non-production URI with the canonical WOK identity URL per environment.
+    issuer: ${WOK_AUTH_ISSUER:https://identity.wok.invalid}
+    jwt-secret-base64: ${WOK_AUTH_JWT_SECRET_BASE64:}
+    challenge-pepper-base64: ${WOK_AUTH_CHALLENGE_PEPPER_BASE64:}
+    access-minutes: 15
+    refresh-days: 30
+  ai:
+    mode: ${WOK_AI_MODE:disabled}
+  email:
+    mode: ${WOK_EMAIL_MODE:mock}
