@@ -235,3 +235,9 @@
 - Se integró de forma compatible el fix remoto de estado entre cuentas: Mi cuenta e Historial de pedidos ahora remontan su contenido cuando cambia el correo autenticado, evitando mostrar temporalmente datos locales de una sesión anterior.
 - Conserva el historial unificado actual de pickup y delivery, estados de despacho, ETA y acciones existentes.
 - Verificación: Vitest 8/8, ESLint, TypeScript `--noEmit` y export Expo para Android/Web completados.
+
+## 2026-10-04 — Coordinación de rotación de sesión segura
+
+- Se integró el fix remoto para evitar carreras entre refresh simultáneo, cierre de sesión y cambio de cuenta. Las rotaciones se comparten sólo por token; las escrituras a SecureStore se serializan y cada mutación confirma que pertenece a la generación de sesión vigente.
+- Pruebas de coordinación cubren refresh concurrente por token, aislamiento entre tokens, limpieza de caché y escrituras ordenadas aun cuando una falle.
+- Verificación focal y suite completa de app pendientes tras incorporar el cambio.
