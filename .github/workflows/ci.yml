@@ -1,0 +1,125 @@
+name: Verificacion
+
+on:
+  pull_request:
+    branches: [development, production]
+  push:
+    branches: [development, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  javascript:
+    name: Web y movil
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v6
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Bloquear alertas altas o criticas
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Revisar frontend web
+        run: |
+          npm run lint --workspace @wok/web
+          npm run typecheck --workspace @wok/web
+          npm run test --workspace @wok/web
+          npm run build --workspace @wok/web
+
+      - name: Revisar aplicacion movil
+        run: |
+          npm run lint --workspace mobile
+          npm run typecheck --workspace mobile
+
+  backend:
+    name: API Spring Boot
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v6
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Compilar y ejecutar pruebas
+        run: mvn --batch-mode --no-transfer-progress verify
+
+  integration:
+    name: Docker, API y migraciones
+    runs-on: ubuntu-latest
+    env:
+      WOK_DB_NAME: wok_ci
+      WOK_DB_USER: wok_ci
+      WOK_DB_PASSWORD: ci-only-database-password
+      WOK_AUTH_JWT_SECRET_BASE64: Y2ktb25seS1qd3Qtc2VjcmV0LTMyaGFyYWN0ZXJzLWxvbmc=
+      WOK_AUTH_CHALLENGE_PEPPER_BASE64: Y2ktb25seS1jaGFsbGVuZ2UtcGVwcGVyLTMyLWJ5dGVz
+      # CI-only issuer: the API refuses to boot on the reserved .invalid placeholder.
+      WOK_AUTH_ISSUER: https://identity.wok.ci
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v6
+
+      - name: Construir y levantar API
+        run: docker compose up --build --detach db api
+
+      - name: Esperar API
+        run: |
+          for attempt in {1..30}; do
+            if docker run --rm --network wok_app_net curlimages/curl:8.16.0 \
+              --fail --silent http://api:8080/actuator/health > /dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose logs api
+          exit 1
+
+      - name: Verificar todas las migraciones Flyway
+        run: |
+          expected_count=$(find database/migrations -maxdepth 1 -name 'V*.sql' | wc -l)
+          migration_result=$(docker compose exec -T db psql \
+            --username "$WOK_DB_USER" \
+            --dbname "$WOK_DB_NAME" \
+            --set ON_ERROR_STOP=1 \
+            --tuples-only --no-align \
+            --command "SELECT count(*) || ':' || bool_and(success) FROM public.flyway_schema_history;")
+          test "$migration_result" = "$expected_count:true"
+
+      - name: Ejecutar pruebas SQL
+        run: |
+          for test_file in database/tests/V*.sql; do
+            echo "Ejecutando $test_file"
+            docker compose exec -T db psql \
+              --username "$WOK_DB_USER" \
+              --dbname "$WOK_DB_NAME" \
+              --set ON_ERROR_STOP=1 < "$test_file"
+          done
+
+      - name: Mostrar diagnostico en caso de fallo
+        if: failure()
+        run: docker compose logs
+
+      - name: Detener servicios
+        if: always()
+        run: docker compose down --volumes --remove-orphans

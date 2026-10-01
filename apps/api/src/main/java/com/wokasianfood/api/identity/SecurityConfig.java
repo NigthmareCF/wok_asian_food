@@ -103,7 +103,6 @@ public class SecurityConfig {
     }
 
     @Bean
-    @org.springframework.core.annotation.Order(2)
     SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder decoder, JdbcTemplate jdbc,
                                      @Qualifier("corsConfigurationSource") CorsConfigurationSource cors) throws Exception {
         return http
@@ -111,7 +110,12 @@ public class SecurityConfig {
             .cors(corsCustomizer -> corsCustomizer.configurationSource(cors))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health/**", "/api/v1/openapi/**", "/swagger-ui/**").permitAll()
+                .requestMatchers(
+                    "/actuator/health/**",
+                    "/actuator/info",
+                    "/api/v1/openapi/**",
+                    "/swagger-ui.html",
+                    "/swagger-ui/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/verify", "/api/v1/auth/verify/resend", "/api/v1/auth/login",
                     "/api/v1/auth/refresh", "/api/v1/auth/reset/request", "/api/v1/auth/reset/complete", "/api/v1/auth/google").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/public/**").permitAll()

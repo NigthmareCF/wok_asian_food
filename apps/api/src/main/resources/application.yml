@@ -15,6 +15,10 @@ spring:
   jackson:
     default-property-inclusion: non_null
 management:
+  health:
+    mail:
+      # Email is an external integration and must not make the local core unavailable.
+      enabled: ${WOK_EMAIL_HEALTH_ENABLED:false}
   endpoints:
     web:
       exposure:
