@@ -1,0 +1,15 @@
+.git
+.agents
+.codex
+.env
+.env.*
+node_modules
+**/node_modules
+**/.next
+database
+docs
+local-context-vault
+scripts
+infra/diagrams
+*.zip
+*.log

@@ -1,0 +1,10 @@
+# Optional local-only email delivery: never use Mailpit as a production relay.
+services:
+  api:
+    environment:
+      WOK_EMAIL_MODE: smtp
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+    depends_on:
+      mailpit:
+        condition: service_started
