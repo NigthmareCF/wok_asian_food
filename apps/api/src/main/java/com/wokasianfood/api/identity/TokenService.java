@@ -24,14 +24,14 @@ public class TokenService {
     private final Duration accessLifetime;
     private final Duration refreshLifetime;
 
-    public TokenService(JwtEncoder encoder, @Value("${wok.auth.issuer}") String issuer,
+    public TokenService(JwtEncoder encoder, AuthIssuer issuer,
                         @Value("${wok.auth.access-minutes}") long accessMinutes,
                         @Value("${wok.auth.refresh-days}") long refreshDays) {
-        if (accessMinutes < 1 || accessMinutes > 15) throw new IllegalArgumentException("Access token lifetime must be 1–15 minutes");
+        if (accessMinutes < 1 || accessMinutes > 15) throw new IllegalArgumentException("Access token lifetime must be 1-15 minutes");
         if (refreshDays < 1) throw new IllegalArgumentException("Refresh token lifetime must be at least one day");
-        if (!isHttpsIssuer(issuer)) throw new IllegalArgumentException("JWT issuer must be an absolute HTTPS URL");
+        if (!isHttpsIssuer(issuer.value())) throw new IllegalArgumentException("JWT issuer must be an absolute HTTPS URL");
         this.encoder = encoder;
-        this.issuer = issuer;
+        this.issuer = issuer.value();
         this.accessLifetime = Duration.ofMinutes(accessMinutes);
         this.refreshLifetime = Duration.ofDays(refreshDays);
     }

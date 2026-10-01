@@ -24,6 +24,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Shared staff queue for reservation review.
+ *
+ * <p>Deliberate model decision: reservations are reviewed by whoever picks them up, not by an assigned
+ * host. The schema has no reservation assignee, so any active OPERATIONAL or ADMIN staff may confirm or
+ * reject any pending reservation. Single-site host stands share the queue, and the decision is
+ * serialized by the row lock plus {@code expectedVersion} on the decision call, so two staff racing on
+ * the same reservation cannot both win. Adding per-host ownership would need an {@code assigned_to}
+ * column and a claim endpoint; see {@code docs/frontend/channels/OPERATIVO.md}.
+ */
 @RestController
 @RequestMapping("/api/v1/operational/reservations")
 @PreAuthorize("hasAnyRole('OPERATIONAL', 'ADMIN')")

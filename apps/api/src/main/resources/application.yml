@@ -28,6 +28,9 @@ springdoc:
   api-docs:
     path: /api/v1/openapi
 wok:
+  cors:
+    # Solo origenes de desarrollo local; en produccion se sobrescribe con dominios reales.
+    allowed-origins: ${WOK_CORS_ALLOWED_ORIGINS:http://localhost:3000}
   auth:
     # JWT iss must be a valid URI for Spring's JwtClaimAccessor/JwtIssuerValidator.
     # Override this reserved non-production URI with the canonical WOK identity URL per environment.

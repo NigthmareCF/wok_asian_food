@@ -4,6 +4,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
+import java.util.UUID;
 
 public final class AuthDtos {
     private AuthDtos() {}
@@ -19,5 +21,7 @@ public final class AuthDtos {
                                 @NotBlank @Size(min = 12, max = 128) String newPassword) {}
     public record GoogleLogin(@NotBlank String idToken) {}
     public record TokenPair(String accessToken, String refreshToken, String tokenType, long expiresInSeconds) {}
+    public record CurrentUser(UUID userId, String email, String displayName, String status,
+                              List<String> roles, List<String> permissions) {}
     public record Message(String message) {}
 }
