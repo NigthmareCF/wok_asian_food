@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
@@ -208,8 +209,5 @@ function decisionLabel(decision: ReservationResult["decision"], status?: string 
 }
 
 function createRequestKey() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
-    const random = Math.floor(Math.random() * 16);
-    return (character === "x" ? random : (random & 0x3) | 0x8).toString(16);
-  });
+  return Crypto.randomUUID();
 }

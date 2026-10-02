@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import * as Crypto from "expo-crypto";
 import { Link } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
@@ -20,10 +21,7 @@ function localDateTime(value: Date) {
 }
 
 function createIdempotencyKey() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
-    const value = Math.floor(Math.random() * 16);
-    return (character === "x" ? value : (value & 0x3) | 0x8).toString(16);
-  });
+  return Crypto.randomUUID();
 }
 
 function validCart(value: unknown): Record<string, number> {
