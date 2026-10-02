@@ -56,6 +56,17 @@ public class ClientMessagingController {
     public record MessageSubmission(@NotBlank @Size(max = 4000) String body) {}
 }
 
+/**
+ * Shared staff queue for APP conversations.
+ *
+ * <p>Deliberate model decision: conversations are a shared inbox, not per-agent ownership. Neither
+ * {@code conversations} nor the schema defines an assignee, so any active OPERATIONAL or ADMIN staff
+ * may read and answer any conversation, and the first reply moves it out of {@code WAITING}. This
+ * matches single-site counter service, where whoever is free takes the next conversation. Access is
+ * still bounded to active staff by {@code @PreAuthorize} and by the {@code channel = 'APP'} checks
+ * below, which keep staff out of other channels. Switching to per-agent ownership requires an
+ * {@code assigned_to} column plus a claim endpoint; see {@code docs/frontend/channels/OPERATIVO.md}.
+ */
 @RestController
 @RequestMapping("/api/v1/operational/conversations")
 @PreAuthorize("hasAnyRole('OPERATIONAL', 'ADMIN')")

@@ -11,6 +11,16 @@ This is the initial single-server deployment contract, not evidence that WAN-fai
 
 The plain HTTP configuration is for a trusted development LAN only. For authenticated pilot or production traffic, obtain a domain and certificate outside the repository, set `WOK_TLS_CERT_PATH` and `WOK_TLS_KEY_PATH` to host file paths, and run `docker compose -f docker-compose.yml -f infra/compose.tls.yml up --build -d`. The TLS override redirects port 80 to 443. Configure a firewall to allow only the intended LAN clients and public 443 ingress. Do not forward 5432 or 8080. Review HSTS duration after the hostname and certificate are operational.
 
+## Optional local demo data
+
+`database/seeds/dev_demo.sql` contains fixed demonstration accounts and sample tables/menu data. It is not part of Flyway and is never loaded by normal startup. Apply it only to a disposable local database after migrations complete, from the repository root:
+
+```bash
+docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < database/seeds/dev_demo.sql
+```
+
+The demo accounts use known passwords. Do not apply this seed to production or a database with real users. Existing local databases that already applied the old `V13__dev_seed_demo.sql` need a fresh development volume before using the renumbered migrations; never reset a database containing data you need to keep.
+
 ## Network and DNS
 
 The preferred API URL is one hostname, for example `https://api.example.com/api/v1`. Internal DNS resolves it to the server's private address. Public DNS resolves it to the selected direct ingress or tunnel. The mobile app and web clients do not detect Wi-Fi or switch API hosts themselves. A public hostname and exposure method remain coordination decisions. If the ISP uses CGNAT, direct inbound NAT is unlikely to work; compare tunnel cost, security and independence before choosing. A tunnel must not be on the critical path for staff LAN access.
