@@ -1,5 +1,12 @@
 # Progreso de API backend
 
+## 2026-10-02 — Cola operativa de solicitudes Cliente y rechazo auditable
+
+- Se agregó `GET /api/v1/operational/order-requests` para listar hasta 100 solicitudes pendientes FIFO y `GET /{requestId}` para revisar sus líneas snapshot y datos necesarios de entrega. La clase exige `OPERATIONAL` o `ADMIN`; el detalle sólo expone PII mientras la solicitud siga pendiente.
+- `POST /{requestId}/reject` bloquea la fila con `FOR UPDATE`, valida motivo y estado, persiste actor/hora/motivo y añade un evento en la misma transacción. Repetir el mismo rechazo por el mismo actor y motivo es idempotente; otros estados devuelven conflicto.
+- Aceptación sigue sin endpoint: marcar una solicitud como aceptada sin crear una orden válida, revalidar capacidad y dejarla visible a cocina sería engañoso. El próximo slice requiere un modelo/migración de orders y transición operativa real. Esta API tampoco decide cobertura de delivery.
+- Suite Maven temporal de API+auth pasó 46/46 pruebas Java (incluye 5 pruebas nuevas); compilación y pruebas JUnit verificadas sobre copias compuestas, no HTTP/PostgreSQL E2E. No se fusionaron ramas.
+
 ## 2026-09-30 — Direcciones guardadas y protegidas por propietario
 
 - `GET/POST /api/v1/client/addresses`, `PUT/DELETE /api/v1/client/addresses/{addressId}` ofrecen una libreta privada para Cliente. Cada operación exige rol CLIENT y todas las lecturas/cambios incluyen `customer_user_id` del token.
