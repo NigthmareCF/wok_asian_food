@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { navigation } from "@/config/navigation";
 import { UserManagementView } from "./user-management-view";
 
@@ -141,7 +141,7 @@ describe("UserManagementView", () => {
     await waitFor(() => expect(createButton).toHaveFocus());
   });
 
-  it("closes the form with Escape without saving and restores focus", async () => {
+  it("closes an unchanged form with Escape and restores focus", async () => {
     const user = userEvent.setup();
     render(<UserManagementView />);
 
@@ -149,14 +149,65 @@ describe("UserManagementView", () => {
       name: "Crear usuario",
     });
     await user.click(createButton);
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    await user.type(within(dialog).getByLabelText("Nombre"), "Sin Guardar");
+    screen.getByRole("dialog", { name: "Crear usuario" });
     await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.queryByText("Sin Guardar")).not.toBeInTheDocument();
     await waitFor(() => expect(createButton).toHaveFocus());
   });
+
+  it("protects a dirty draft on Escape and preserves it when discard is canceled", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    const nameField = within(dialog).getByLabelText("Nombre");
+    await user.type(nameField, "Borrador pendiente");
+    await user.keyboard("{Escape}");
+
+    const confirmation = screen.getByRole("dialog", {
+      name: "Descartar cambios",
+    });
+    expect(
+      within(confirmation).getByRole("button", { name: "Cancelar" }),
+    ).toHaveFocus();
+    await user.click(
+      within(confirmation).getByRole("button", { name: "Cancelar" }),
+    );
+
+    expect(screen.getByRole("dialog", { name: "Crear usuario" })).toBeVisible();
+    expect(nameField).toHaveValue("Borrador pendiente");
+    await waitFor(() => expect(nameField).toHaveFocus());
+  });
+
+  it.each(["Cerrar formulario", "Cancelar"])(
+    "confirms dirty changes from %s and restores the opener after discard",
+    async (actionName) => {
+      const user = userEvent.setup();
+      render(<UserManagementView />);
+
+      const opener = screen.getByRole("button", { name: "Crear usuario" });
+      await user.click(opener);
+      const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+      await user.type(within(dialog).getByLabelText("Nombre"), "Sin guardar");
+      await user.click(
+        within(dialog).getByRole("button", { name: actionName }),
+      );
+
+      const confirmation = screen.getByRole("dialog", {
+        name: "Descartar cambios",
+      });
+      await user.click(
+        within(confirmation).getByRole("button", {
+          name: "Descartar cambios",
+        }),
+      );
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      await waitFor(() => expect(opener).toHaveFocus());
+    },
+  );
 
   it("traps Tab and Shift+Tab inside the form dialog", async () => {
     const user = userEvent.setup();
@@ -205,6 +256,103 @@ describe("UserManagementView", () => {
       "admin-user-email-help",
     );
     await waitFor(() => expect(nameField).toHaveFocus());
+  });
+
+  it("rejects an invalid email with a perceptible error and focuses it", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    await user.type(within(dialog).getByLabelText("Nombre"), "Correo inválido");
+    const emailField = within(dialog).getByLabelText("Correo");
+    await user.type(emailField, "correo-invalido");
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+
+    expect(within(dialog).getByText("Ingresa un correo válido.")).toBeVisible();
+    expect(emailField).toHaveAttribute("aria-invalid", "true");
+    expect(emailField).toHaveAttribute(
+      "aria-describedby",
+      "admin-user-email-help",
+    );
+    await waitFor(() => expect(emailField).toHaveFocus());
+  });
+
+  it("rejects an invalid email while editing and accepts a valid replacement", async () => {
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    const row = screen.getByRole("row", { name: /Mariana López/ });
+    await user.click(within(row).getByRole("button", { name: "Editar" }));
+    const dialog = screen.getByRole("dialog", { name: "Editar usuario" });
+    const emailField = within(dialog).getByLabelText("Correo");
+    await user.clear(emailField);
+    await user.type(emailField, "correo@invalido");
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+
+    expect(within(dialog).getByText("Ingresa un correo válido.")).toBeVisible();
+    await user.clear(emailField);
+    await user.type(emailField, "mariana.actualizada@example.com");
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+
+    expect(
+      screen.getByRole("row", { name: /mariana.actualizada@example.com/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("registers beforeunload only while dirty and removes it after saving", async () => {
+    const addSpy = vi.spyOn(window, "addEventListener");
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    expect(
+      addSpy.mock.calls.some(([eventName]) => eventName === "beforeunload"),
+    ).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    await user.type(within(dialog).getByLabelText("Nombre"), "Con protección");
+
+    const listener = addSpy.mock.calls.find(
+      ([eventName]) => eventName === "beforeunload",
+    )?.[1] as (event: BeforeUnloadEvent) => void;
+    const event = {
+      preventDefault: vi.fn(),
+      returnValue: undefined,
+    } as unknown as BeforeUnloadEvent;
+    listener(event);
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(event.returnValue).toBe("");
+
+    await user.type(
+      within(dialog).getByLabelText("Correo"),
+      "proteccion@example.com",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
+    expect(
+      removeSpy.mock.calls.some(([eventName]) => eventName === "beforeunload"),
+    ).toBe(true);
+  });
+
+  it("removes beforeunload after confirmed discard", async () => {
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+    const user = userEvent.setup();
+    render(<UserManagementView />);
+
+    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
+    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
+    await user.type(within(dialog).getByLabelText("Nombre"), "Descartable");
+    await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+    await user.click(
+      within(
+        screen.getByRole("dialog", { name: "Descartar cambios" }),
+      ).getByRole("button", { name: "Descartar cambios" }),
+    );
+
+    expect(
+      removeSpy.mock.calls.some(([eventName]) => eventName === "beforeunload"),
+    ).toBe(true);
   });
 
   it("does not require roles when creating a user", async () => {
