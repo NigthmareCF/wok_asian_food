@@ -78,3 +78,52 @@ App Cliente — 2026-09-26: commit `bda29e1` publicado en `feature/mobile-shell`
 - `feature/frontend-client` (`2f7ee1a`) conecta el resumen C-02 con `GET /api/v1/public/service-capabilities` mediante BFF same-origin; sanitiza a código/estado y no reutiliza un estado demo si el API falla.
 - Cliente: 7 pruebas focalizadas, lint, typecheck y build Webpack aprobados. La corrida completa dio 226/227 por una aserción temporal preexistente de `staff-schedule.test.tsx`; esa suite aislada pasó 12/12. Admin: 228/228, lint, typecheck y build Webpack en worktree aislado aprobados.
 - Ambos BFF requieren `WOK_API_BASE_URL`. El Admin local devolvió 503 sin esa variable; no se probó E2E contra una API/Postgres vivos. Deben integrarse/desplegarse `feature/database-migrations` antes de `feature/availability`, y después los portales. La interfaz no afirma integración productiva.
+
+## Auditoría del checkout y referencias remotas — 2026-09-28
+
+### Evidencia directa del workspace
+
+- Rama: `feature/frontend-admin`, HEAD `1b6f146`, upstream `origin/feature/frontend-admin`. `git status` estaba limpio al comenzar. No se cambió de rama ni se editaron ramas protegidas.
+- Web declara Next.js 16.3.4, React 19.2.8, TypeScript 6.0.3. Inventario medido: 266 archivos TS/TSX en `apps/web/src`, 23 fixtures y 6 handlers API/BFF. Una ruta o un componente interactivo no se marca implementado por ese conteo.
+- Funciones conectadas observables: BFF same-origin de login/logout, cookies de sesión y renovación; búsqueda de usuarios/grants de roles; lectura/modificación administrativa de capacidades de servicio. La lista de usuarios es lectura y algunos canales/capacidades dependen de backend alojado en otra rama. No se ejecutó E2E Web → API → PostgreSQL en esta revisión.
+- Las demás áreas Web consumen fixtures/providers de estado. Ejemplos: catálogo, checkout, órdenes, mesas, reserva, cocina, delivery, pago/caja, inventario, producción, compras, mensajería, IA/visión y reportes. Mostrar mocks de forma explícita.
+- Pruebas actuales ejecutadas: `npm run test` 39 archivos/228 pruebas; `npm run typecheck`, `npm run lint` y `npm run build:web` aprobados. `next build` reescribió `apps/web/next-env.d.ts`; se restituyó a HEAD. Estas pruebas son Web aislada, no integración completa.
+- No están en el árbol `apps/api`, `apps/mobile`, `database/` ni `infra/` al iniciar auditoría. `apps/web/src/shared/lib/api-client.ts` y `realtime-client.ts` son transportes/contratos; no implican que flujos de negocio estén conectados.
+
+### Referencias especializadas revisadas sin checkout
+
+| Ref observada | Artefactos hallados | Evidencia y límite |
+|---|---|---|
+| `origin/feature/backend-foundation` (`655a512`) | `apps/api` Spring Java 21, pom Docker/config; Compose, Nginx, `infra/README.md`, red | Foundation/configuración candidata; build previo citado en informe. No incluida en esta rama. |
+| `origin/feature/backend-auth` (`8266abe`) | Auth JDBC, challenges, tokens, roles Admin, email outbox/adapters | Código parcial. Google verifier es unavailable; requiere migraciones integradas; tests HTTP seguridad/ownership y refresh reuse incompletos. |
+| `origin/feature/backend-api` (`fb97b35`) | Formato de error y OpenAPI base | Contrato inicial; integrar con API real. |
+| `origin/feature/reservations` (`e173913`) | Estimador/capacidad, reserva request idempotente/revisión manual | Slice parcial; evaluación usa supuestos estáticos, sin inventario/cocina/personal/mesas vivas. |
+| `origin/feature/availability` (`19c5c98`) | Lectura pública y control Admin de capacidades con audit/version | JDBC requiere migración y tests integrados. UI Client/Admin vive en ramas distintas. |
+| `origin/feature/payments` (`c7903a0`) | Sesiones/ledger/conciliación de caja, `PaymentGateway`/`FelGateway` y mocks | Caja con código parcial; venta/tips aún no conectados; los gateways no son proveedores reales. `feature/cash` es una referencia anterior. |
+| `origin/feature/database-schema` (`46e61e3`) | Generador, modelo y DDL candidato de 128 tablas/17 páginas | Diseño generado; distinta cobertura a migraciones; tabla no equivale a función. |
+| `origin/feature/database-migrations` (`f06673d`) | Flyway V1–V6, 35 tablas en corte inicial, tests SQL | Migraciones versionadas disponibles en ref; no se ejecutaron en esta revisión. Historial del proyecto reporta ejecuciones temporales previas. |
+| `origin/docs/database` (`4675af8`) | Diccionario, ERD, reglas, matriz, hallazgos y validación | Reincorporado como documentación. `VALIDATION.json` es corte estático y puede no reflejar ejecución reportada en README/MD; revisar consistencia de evidencia. |
+| `origin/feature/mobile-shell` (`bda29e1`) | Expo 57, navegación, auth/register/verify/login/refresh, reserva | Menú placeholder; no carrito, pedidos/checkout/pagos/FEL/chat/historial completos. No pruebas físicas; export bundle no es APK. No está en rama actual. |
+| `origin/feature/ai` (`884c86e`) | AI Gateway/Provider/Mock/ToolBroker y unit tests | Mock únicamente. Broker inicial consulta capacidades/horarios directamente mediante JDBC; revisar frontera de use case/ownership antes de confiar tools. Sin runtime/GPU. |
+| `origin/docs/architecture` (`1c680bf`) | `docs/architecture/wok-system-architecture.drawio`, generador; informe refiere 38 páginas | Diagrama editable explicativo; no prueba el sistema. Su fuente se recuperó a la carpeta docs actual. |
+| `origin/feature/project-foundation` (`f5d07b4`) | GAP, plan/handoff, decisiones, reporte, SYSTEM_MASTER | Documentación histórica preservada; no se trata como código desplegado. |
+
+Las pruebas remotas detalladas de Maven, JUnit, PostgreSQL/Flyway, HTTP y Expo en los reportes `2026-09-25/26` son evidencia documental de una integración efímera pasada. En esta auditoría no se reejecutaron desde una composición limpia. Java 21 está disponible; Maven y `psql` nativo no. Docker CLI falla al acceder a daemon con permiso denegado. Las migraciones/tests de PostgreSQL requieren un entorno Docker accesible.
+
+### Ajuste de estados y del plan
+
+1. Web se mantiene `IMPLEMENTED_PARTIAL`: 228 pruebas y build acreditan calidad de parte de la UI; BFF users/roles/capabilities son integración parcial; otros flujos mayormente `MOCK_ONLY`.
+2. Móvil permanece `IMPLEMENTED_PARTIAL` únicamente en la ref Expo; dentro de `feature/frontend-admin` está ausente. Contar cada HU aplicable, no el shell.
+3. Backend, migraciones, infraestructura e IA están repartidos entre refs. Estado del producto combinado: `IMPLEMENTED_PARTIAL`; archivos sólo remotos no pasan a implementados en este checkout.
+4. Pagos/FEL reales, Meta, Google OAuth activo, SMTP productivo, runtime IA/GPU, cámara y proveedor real: `MOCK_ONLY`/`BLOCKED_EXTERNAL` según exista contrato/mock; nunca proveedor productivo.
+5. El diseño objetivo de 128 tablas y Flyway V1–V6 (35 tablas) son distintas coberturas. SQL completo es candidato; no se aplica al servidor. La matriz no certifica reglas de negocio.
+6. Los planes de pickup/app reducida quedan `SUPERSEDED` como alcance total. El [plan integral vigente](INTEGRAL_DELIVERY_PLAN.md) persigue ≥90 % de historias end-to-end y 100 % de reglas críticas; se calcula sólo tras evidencia, no ahora.
+
+### Bloqueos de verificación presentes
+
+- Docker daemon/PostgreSQL no accesibles desde sandbox para revalidar Flyway y suites SQL/HTTP.
+- No existe una branch compuesta limpia para backend + migraciones + Web + Expo; integrar mediante PR y smoke reproducible.
+- Sin proveedor/credenciales: pagos, FEL, OAuth Google, correo productivo y Meta; sin datos reales aprobados: menú/recetas; sin benchmark: runtime/GPU; sin política/dispositivo: cámaras.
+- Aún sin prueba física de WAN corte manteniendo LAN, impresora/KDS real, otro dispositivo de red o instalación Android/iOS. Health multi-integración no verificado desde el entorno integrado.
+
+Un requisito se marca `IMPLEMENTED_VERIFIED` sólo después de que el caso de uso opere sobre API y PostgreSQL integrados, se autorice correctamente, pase pruebas requeridas, conecte sus superficies aplicables y tenga evidencia en el commit/entorno indicado. Ver [estado actual](CURRENT_STATE.md), [reporte de auditoría actual](IMPLEMENTATION_REPORT_2026-09-28.md), [decisiones vigentes](TECH_DECISIONS.md), [reporte histórico](IMPLEMENTATION_REPORT_2026-09-25.md), [handoff por ramas](BRANCH_HANDOFF.md) y [decisiones pendientes](DECISIONS_REQUIRED.md).

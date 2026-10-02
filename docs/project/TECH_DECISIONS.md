@@ -1,30 +1,41 @@
 # Decisiones técnicas vigentes
 
-Fecha: 2026-09-25. Autoridad: instrucción maestra del propietario. `CONFIRMED` no significa implementado; la evidencia de ejecución está en [GAP_ANALYSIS.md](GAP_ANALYSIS.md).
+Actualizado el 2026-09-28 a partir de la instrucción maestra del propietario. Una decisión de arquitectura no demuestra implementación. Ver [GAP_ANALYSIS.md](GAP_ANALYSIS.md) y [INTEGRAL_DELIVERY_PLAN.md](INTEGRAL_DELIVERY_PLAN.md) para estado y trabajo necesario.
 
-| ID    | Decisión                                                                         | Estado    | Consecuencia                                                                                   |
-| ----- | -------------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------- |
-| TD-01 | Monolito modular Java 21/Spring Boot/PostgreSQL como core transaccional          | CONFIRMED | Un escritor principal local; módulos por dominio y transacciones explícitas.                   |
-| TD-02 | Servidor central on-premise; LAN sigue operando sin WAN                          | CONFIRMED | Nginx, API, DB y storage locales; servicios externos degradables.                              |
-| TD-03 | Una API `/api/v1` para web y app; Nginx es ingreso                               | CONFIRMED | Spring y PostgreSQL privados; mismo hostname mediante split-horizon DNS cuando exista dominio. |
-| TD-04 | WOK emite identidad y permisos propios                                           | CONFIRMED | JWT corto, refresh opaco rotativo, Google como proveedor de identidad solamente.               |
-| TD-05 | Regla de 3 h para reserva formal y mesa web/app; 20 min de tolerancia            | CONFIRMED | Motor de capacidad aún decide aceptación; cierre restringe internamente.                       |
-| TD-06 | Capacidades de servicio independientes y overrides auditados                     | CONFIRMED | No derivar pickup/delivery/reservas de un único booleano global.                               |
-| TD-07 | Pagos, FEL, Meta, email, STT e IA tras puertos/adapters                          | CONFIRMED | Mock explícito mientras falte proveedor; red externa fuera de la transacción SQL.              |
-| TD-08 | IA en runtime aislado, sin acceso directo a DB ni autoridad de acciones críticas | CONFIRMED | Backend valida tools, ownership y datos mínimos; fallback humano.                              |
-| TD-09 | Web Next.js/React/TypeScript; app Cliente React Native/Expo/TypeScript           | CONFIRMED | El plan móvil cubre todo Cliente; componentes DOM no se comparten.                             |
-| TD-10 | `database/design/generate.py` es fuente declarativa del modelo candidato         | CONFIRMED | Regenerar JSON/SQL/ERD/diccionario; Flyway representa cambios ejecutables.                     |
-| TD-11 | PostgreSQL Outbox para eventos externos iniciales                                | CONFIRMED | No introducir Kafka ni microservicios por defecto.                                             |
-| TD-12 | `APPLE_LOGIN = LATER / DECISION_REQUIRED`                                        | OPEN      | Mantener identidad externa multi-provider sin flujo Apple activo.                              |
+| ID | Decisión | Estado | Consecuencia / evidencia |
+|---|---|---|---|
+| TD-01 | Core en monolito modular Java/Spring y PostgreSQL | CONFIRMED | No dividir en microservicios por defecto. Backend actual se encuentra en ramas especializadas, usa JDBC; definir JDBC/JPA antes de extenderlo. |
+| TD-02 | Servidor principal on-premise; la operación interna sigue con WAN caída | CONFIRMED | Nginx, app, DB y storage local; el ensayo físico LAN/WAN todavía no se ha demostrado desde este checkout. |
+| TD-03 | Web y app consumen una API común `/api/v1`; Nginx como ingreso | CONFIRMED | Spring y PostgreSQL sin exposición pública directa. DNS split-horizon propuesto para mismo host LAN/WAN. |
+| TD-04 | WOK es la autoridad de usuarios, sesiones, roles y permisos | CONFIRMED | Google OIDC es proveedor de identidad solamente; no concede roles WOK ni fusiona cuentas por coincidencia de correo. |
+| TD-05 | Expo/React Native, TypeScript, aplicación móvil exclusiva de Cliente | CONFIRMED | `feature/mobile-shell` contiene base parcial; app no está integrada en `feature/frontend-admin`. |
+| TD-06 | Reservación formal y solicitud digital de mesa requieren mínimo 3 h; 20 min tolerancia normal | CONFIRMED | Cumplir 3 h no supone aceptación; evaluar capacidad y reservar sólo al confirmar conforme al flujo aprobado. |
+| TD-07 | Las capacidades de servicio son independientes y admiten overrides auditados | CONFIRMED | No sustituir por un booleano global. Vistas de Admin/Cliente conectadas sólo en ramas distintas. |
+| TD-08 | Spring/Postgres son la autoridad de importes, disponibilidad, ETA, permisos y transacciones | CONFIRMED | Web/app nunca son fuente de precio, descuento, stock, totales, impuestos o cobro. |
+| TD-09 | Adaptadores para email, pago, FEL, Meta, voz, storage y proveedores IA | CONFIRMED | Mock identificado hasta integrar/validar proveedor; ningún mock equivale a producción. |
+| TD-10 | Runtime IA aislado; sin conexión ni credenciales directas PostgreSQL | CONFIRMED | Backend valida tools/ownership y acciones. Gateway/broker mock está en branch, runtime GPU no. |
+| TD-11 | Outbox PostgreSQL para efectos externos iniciales | CONFIRMED | Persistir y confirmar dentro de transacción; workers reintentan fuera y concilian resultados inciertos. |
+| TD-12 | `database/design/model.json` y generador son fuente candidata del ERD/SQL; Flyway es esquema instalado | CONFIRMED | No editar artefactos generados como fuente ni reescribir migraciones aplicadas; reconciliar objetivo 128 tablas vs V1–V6. |
+| TD-13 | Estados WAN: core local continúa; externo puede quedar degradado | CONFIRMED | Solicitudes no recibidas no se convierten en pedidos; al reconectar revalidar antes de aceptar. |
+| TD-14 | Permanencia mesa modelada por `OccupancyEstimator` configurable y observaciones real/estimada | CONFIRMED | Rangos iniciales del prompt son hipótesis de configuración/calibración; no multiplicar linealmente por comensales. |
+| TD-15 | Horizonte de producto es el alcance funcional completo y meta de planeación ≥90 % | CONFIRMED | El 90 % requiere matriz por HU y evidencia end-to-end; los cortes MVP anteriores están SUPERSEDED como definición total. No hay fecha/capacidad nueva aprobada. |
+| TD-16 | Facturación incluye dominio FEL propio, drafts/pool, certificación independiente y reconciliación | CONFIRMED | Proveedor, reglas fiscales y modalidad productiva permanecen decisiones externas. Refund ≠ nota de crédito. |
+| TD-17 | Realtime puede elegirse entre SSE/WebSocket/polling según requisitos y ensayo | OPEN | Definir snapshot/reconexión/latencia de LAN y pruebas antes de fijar tecnología. |
+| TD-18 | Proveedor/direct ingress o tunnel, dominio, correo, pasarela, certificador, modelo/GPU, cámaras | OPEN | Implementar contratos/adapters/mocks mientras se acuerdan insumos reales. |
+| TD-19 | JDBC frente a Spring Data JPA para módulos nuevos | OPEN | Los controllers/services observados usan JDBC; el mega prompt lista JPA candidato. Comparar coste de integración, locking y `row_version` antes de adoptar. |
+| TD-20 | Apple Login | LATER / DECISION_REQUIRED | Mantener identidad multi-provider; no implementar como requisito de este corte. |
 
 ## Decisiones anteriores sustituidas
 
-| Tema                                     | Estado anterior      | Estado actual              | Motivo                                                                         |
-| ---------------------------------------- | -------------------- | -------------------------- | ------------------------------------------------------------------------------ |
-| Monorepo o repos separados               | PENDING_CONFIRMATION | SUPERSEDED por TD-01/03/09 | El trabajo actual integra API, web, DB y futuro móvil en este repositorio.     |
-| React Native/Expo                        | PENDING_CONFIRMATION | SUPERSEDED por TD-09       | El propietario seleccionó app Cliente Expo como arquitectura objetivo.         |
-| Backend de pickup como alcance total     | Plan de corte        | SUPERSEDED                 | El producto incluye reservas, delivery, pagos, FEL, Meta, IA y demás dominios. |
-| ERD/SQL candidato como cierre del diseño | Candidato histórico  | SUPERSEDED por TD-10       | Requiere revisión y migraciones verificadas antes de uso real.                 |
-| Estado operativo global único            | Fixture de web       | SUPERSEDED por TD-06       | Cada capacidad puede pausar o exigir aprobación por separado.                  |
+| Decisión anterior | Estado | Reemplazo |
+|---|---|---|
+| Plan de pickup de cinco/seis semanas como alcance completo | SUPERSEDED | Producto integral por etapas y meta verificable ≥90 %; la ventana/calendario requiere confirmación del equipo. |
+| App Cliente limitada a pickup/seguimiento | SUPERSEDED | App Cliente completa alineada con todos sus casos de uso. |
+| Expo sin decidir | SUPERSEDED | Expo/React Native/TypeScript confirmado; implementación observada aún parcial y aislada en otra rama. |
+| Nube como única fuente del core | SUPERSEDED | Servidor local del restaurante y degradación WAN externa. |
+| ERD/DDL candidato como esquema aprobado | SUPERSEDED | Modelo objetivo revisable; migraciones Flyway son la secuencia ejecutable, con cobertura inicial parcial. |
+| Estado operativo global único | SUPERSEDED | Capacidad y override independiente por servicio/canal. |
+| Cumplir horario basta para aceptar reserva | SUPERSEDED | Mínimo 3 horas más evaluación de capacidad y decisión aplicable. |
+| Google identidad = permisos internos | SUPERSEDED | Google verifica proveedor; WOK asigna identidad/roles/permisos internos tras linking validado. |
 
-Ver [DECISIONS_REQUIRED.md](DECISIONS_REQUIRED.md) para proveedores y datos que sí requieren decisión externa. Los detalles de implementación se registran en la documentación de cada dominio y en pruebas, no en la existencia de una pantalla.
+No se documenta el prompt completo aquí; se registra cada decisión necesaria en forma resumida para conservar trazabilidad sin guardar conversaciones completas.

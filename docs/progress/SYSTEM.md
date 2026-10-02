@@ -1,28 +1,12 @@
-# Expediente integral del sistema
+# Progreso del sistema
 
-## 2026-09-26 — Distribución por ramas especializada
+## 2026-09-28 — Auditoría y planificación integral
 
-- Las referencias locales especializadas se adelantaron fast-forward a `origin/development` `3bbd0ed`; después se hicieron 18 commits/push normales con la distribución inicial. No hubo force ni merge a `development`.
-- El mapa de commits, ramas y dependencias está en [BRANCH_HANDOFF.md](../project/BRANCH_HANDOFF.md). Los worktrees permanecen bajo `/tmp/wok-worktrees/`; el workspace Admin conserva sólo su guía.
-- Slices publicados o validados en ramas especializadas: reservas autenticadas/idempotentes con revisión auditada; capacidades de servicio con versionado; caja con apertura, ledger, arqueo/cierre, claves idempotentes y auditoría; RBAC Admin para buscar cuentas y gestionar roles con control de versión y protección del último administrador. Flyway V5 cubre reservas y V6 caja.
-- Validación de caja: `mvn verify` combinado 12/12; PostgreSQL 18 aplicó V1–V6 y pasó test SQL; smoke HTTP verificó ledger Q108, replay, rechazo 409 de cambios, diferencia −Q3 y protección de sesión cerrada.
-- Caja está publicada en `feature/payments`/`feature/database-migrations` y su documentación; RBAC se encuentra validado en `feature/backend-auth` con smoke HTTP y pendiente de commit al cierre de esta nota. `development` continúa sin merges.
-
-## 2026-09-25 — Base maestra ejecutable y handoff
-
-- Rama observada `feature/frontend-admin`. No hubo cambio de rama, commit, push ni merge. El port 3000 está ocupado por `next-server` de WOK; HTML con título WOK y HTTP 200.
-- Se amplió la auditoría a los tres canales, móvil, backend, DB, seguridad, IA, correo, infraestructura y diagramas. Estado observado frente a meta: [GAP_ANALYSIS.md](../project/GAP_ANALYSIS.md); report [IMPLEMENTATION_REPORT_2026-09-25.md](../project/IMPLEMENTATION_REPORT_2026-09-25.md); reparto por PR/ramas [BRANCH_HANDOFF.md](../project/BRANCH_HANDOFF.md).
-- Evidencia: 219 pruebas web, 12 pruebas JUnit, API Spring compilada y arrancada contra PostgreSQL 16 desde cero; Flyway V1–V4 aplicó las cuatro migraciones; health/OpenAPI/service capabilities HTTP 200. SQL constraints V1/V3/V4 aprobaron. `docker compose config -q` validó con variables de prueba.
-- Slices reales aún parciales: auth sin pruebas HTTP/DB completas, reservas sólo evaluación preliminar, catálogo/pedidos/finanzas/kitchen/inventory no implementados en backend, Google deshabilitado, integraciones externas mock, app móvil sólo plan, LAN/WAN sin ensayo físico.
-- Para retomar: seleccionar ramas de [BRANCH_HANDOFF.md](../project/BRANCH_HANDOFF.md), mantener los contratos compartidos y comenzar por auth/RBAC/ownership, reservas transaccionales y catálogo real cuando llegue el menú. Las dependencias externas no bloquean sus mocks/puertos.
-- Formato: no guardar prompts/chat completos ni razonamiento privado; vault personal sigue ignorado.
-
-## 2026-09-18 — Consolidación para nueva planificación
-
-- Se creó `docs/project/SYSTEM_MASTER.md` y su lector HTML: interpretación transversal, jornada operativa, ciclos conceptuales, discrepancias y ficha de planificación; incorpora 55 fuentes documentales/técnicas completas sin recortar contenido.
-- Se creó `docs/project/SYSTEM_SOURCE_PATHS.md` con rutas absolutas y distinción entre originales externos previamente recuperados, copias locales y adjuntos.
-- `docs/project/SYSTEM_MASTER_MANIFEST.json` identifica 62 fuentes por ruta, tamaño y SHA-256. El ZIP `WOK_SYSTEM_MASTER_2026-09-18.zip` incluye las 62 fuentes originales, maestro, lector HTML, inventario, manifiesto y generador.
-- Validación: integridad ZIP y hashes de todas las fuentes incluidos; cobertura de identificadores originales 308 HU, 145 RN y 76 RT. No se ejecutó SQL ni se auditó nuevamente toda la implementación.
-- El contenido distingue producto completo, interpretación propuesta, diseño candidato, planes previos de alcance reducido y reportes históricos. No se incluyeron notas privadas del vault ni se afirmó nueva lectura del disco externo.
-- Reproducción opcional: `python3 scripts/docs/build-system-master.py`; requiere `markdown-it-py`, disponible en el entorno usado. El generador no instala dependencias ni debe confundirse con una tarea de la aplicación.
-- Pendiente: validar expectativas y decisiones con responsables, auditar avance real del equipo y producir el nuevo plan por flujos completos.
+- Rama inspeccionada: `feature/frontend-admin` (`1b6f146`), limpia al inicio. Sin cambio de rama ni operaciones Git de publicación.
+- Web verificó: Vitest 39 archivos/228 tests, typecheck, lint y build aprobados. La mayoría de flujos sigue en fixtures. Backend Spring/DB/infra y Expo viven en refs separados, no integrados en esta rama.
+- Revisadas read-only las refs especializadas de foundation/auth/API/reservas/availability/payments/schema/migrations/Expo/AI/arquitectura. Se registraron rutas, commits, evidencia y límites en `docs/project/GAP_ANALYSIS.md` y `IMPLEMENTATION_REPORT_2026-09-28.md`.
+- Recuperado material documental de esas refs para que el siguiente ciclo tenga fuentes locales: `docs/project/SYSTEM_MASTER.*`, docs database/backend/mobile/AI/security/email/infra, modelo PostgreSQL 128-table candidato y Flyway V1–V6. Esto incorpora documentación/artefactos, no integra sus servicios.
+- Creado `docs/project/INTEGRAL_DELIVERY_PLAN.md`: secuencia por dependencias para producto completo, definición de 90 % verificable, workstreams de seis personas y límites de mocks/proveedores.
+- `TECH_DECISIONS.md`, `CURRENT_STATE.md`, `DECISIONS_REQUIRED.md`, `BRANCH_HANDOFF.md`, `GAP_ANALYSIS.md`, README y enlaces backend/móvil/DB actualizados con snapshot actual.
+- No se ejecutaron JUnit/Flyway/SQL/Expo/Nginx/Compose por Docker daemon inaccesible y ausencia de Maven/psql. El acceso Docker fue solicitado por escalación; pendiente respuesta. Reportes 25–26 Sep son históricos.
+- Próximo: integrar los branches vía PR ordenado desde `development`, recuperar Docker/PostgreSQL de prueba, resolver JDBC/JPA, ejecutar V1–V6 y automatizar auth/ownership/refresh, luego avanzar flujos Cliente/Operativo/Admin/app. Sin afirmar cobertura 90 % todavía.

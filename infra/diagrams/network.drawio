@@ -1,0 +1,56 @@
+<mxfile host="app.diagrams.net" modified="2026-09-25T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="physical-lan" name="Physical LAN and WAN">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="wan" value="Internet / WAN&#xa;external services" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1"><mxGeometry x="60" y="70" width="190" height="80" as="geometry"/></mxCell>
+        <mxCell id="ont" value="ISP / ONT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf" vertex="1" parent="1"><mxGeometry x="320" y="80" width="150" height="60" as="geometry"/></mxCell>
+        <mxCell id="router" value="Firewall / router&#xa;local DNS, VLANs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1"><mxGeometry x="550" y="70" width="170" height="80" as="geometry"/></mxCell>
+        <mxCell id="switch" value="Managed switch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656" vertex="1" parent="1"><mxGeometry x="800" y="80" width="160" height="60" as="geometry"/></mxCell>
+        <mxCell id="server" value="Restaurant server + UPS&#xa;Nginx → Spring → PostgreSQL&#xa;Web, storage, outbox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1"><mxGeometry x="1060" y="45" width="250" height="130" as="geometry"/></mxCell>
+        <mxCell id="ap" value="Primary AP + UPS&#xa;staff and guest SSIDs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656" vertex="1" parent="1"><mxGeometry x="800" y="240" width="170" height="80" as="geometry"/></mxCell>
+        <mxCell id="pos" value="Cash / POS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="1"><mxGeometry x="1020" y="250" width="140" height="60" as="geometry"/></mxCell>
+        <mxCell id="kds" value="Kitchen KDS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="1"><mxGeometry x="1190" y="250" width="140" height="60" as="geometry"/></mxCell>
+        <mxCell id="printer" value="Printers / IoT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="1"><mxGeometry x="1360" y="250" width="150" height="60" as="geometry"/></mxCell>
+        <mxCell id="staff" value="Staff tablets, laptops&#xa;and mobiles" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="1"><mxGeometry x="790" y="430" width="180" height="80" as="geometry"/></mxCell>
+        <mxCell id="guest" value="Guest Wi-Fi&#xa;no private-core access" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450" vertex="1" parent="1"><mxGeometry x="1050" y="430" width="180" height="80" as="geometry"/></mxCell>
+        <mxCell id="camera" value="Cameras&#xa;isolated VLAN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450" vertex="1" parent="1"><mxGeometry x="1270" y="430" width="180" height="80" as="geometry"/></mxCell>
+        <mxCell id="wan-note" value="WAN down: remote requests, Meta, FEL, online payments and email may degrade. Staff LAN → server remains the operational path. Never turn an unreceived request into an order." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacing=12" vertex="1" parent="1"><mxGeometry x="80" y="620" width="1050" height="90" as="geometry"/></mxCell>
+        <mxCell id="e1" value="WAN" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#6c8ebf" edge="1" parent="1" source="wan" target="ont"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#6c8ebf" edge="1" parent="1" source="ont" target="router"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="LAN" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366;strokeWidth=3" edge="1" parent="1" source="router" target="switch"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366;strokeWidth=3" edge="1" parent="1" source="switch" target="server"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366;strokeWidth=3" edge="1" parent="1" source="switch" target="ap"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366" edge="1" parent="1" source="switch" target="pos"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366" edge="1" parent="1" source="switch" target="kds"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366" edge="1" parent="1" source="switch" target="printer"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#82b366" edge="1" parent="1" source="ap" target="staff"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" value="isolated" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#b85450;dashed=1" edge="1" parent="1" source="ap" target="guest"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e11" value="isolated" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#b85450;dashed=1" edge="1" parent="1" source="switch" target="camera"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="logical-services" name="Logical services and isolation">
+    <mxGraphModel dx="1300" dy="850" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+        <mxCell id="clients" value="Web / mobile / staff / Meta&#xa;LAN or WAN" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf" vertex="1" parent="1"><mxGeometry x="80" y="80" width="210" height="80" as="geometry"/></mxCell>
+        <mxCell id="nginx" value="Nginx&#xa;80/443, TLS, routing, limits" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656" vertex="1" parent="1"><mxGeometry x="380" y="80" width="230" height="80" as="geometry"/></mxCell>
+        <mxCell id="web" value="Next.js web&#xa;app_net" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="1"><mxGeometry x="730" y="30" width="180" height="70" as="geometry"/></mxCell>
+        <mxCell id="api" value="Spring Boot modular core&#xa;app_net + data_net + ai_net" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1"><mxGeometry x="730" y="180" width="230" height="90" as="geometry"/></mxCell>
+        <mxCell id="db" value="PostgreSQL 18&#xa;data_net only&#xa;no published port" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450" vertex="1" parent="1"><mxGeometry x="1080" y="190" width="190" height="90" as="geometry"/></mxCell>
+        <mxCell id="outbox" value="Outbox / local storage&#xa;retry after WAN recovery" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366" vertex="1" parent="1"><mxGeometry x="730" y="350" width="230" height="80" as="geometry"/></mxCell>
+        <mxCell id="external" value="Email / Meta / payment / FEL&#xa;replaceable adapters&#xa;WAN-dependent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf" vertex="1" parent="1"><mxGeometry x="1080" y="350" width="230" height="90" as="geometry"/></mxCell>
+        <mxCell id="ai" value="Future AI runtime + GPU&#xa;ai_net only; no DB credentials&#xa;disabled/mocked initially" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6" vertex="1" parent="1"><mxGeometry x="730" y="540" width="260" height="100" as="geometry"/></mxCell>
+        <mxCell id="guard" value="AI tools → Spring authorization → filtered DTOs. NO DIRECT DB ACCESS." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1"><mxGeometry x="1040" y="560" width="320" height="70" as="geometry"/></mxCell>
+        <mxCell id="l1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="1" source="clients" target="nginx"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l2" value="/" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="1" source="nginx" target="web"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l3" value="/api/" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="1" source="nginx" target="api"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#b85450" edge="1" parent="1" source="api" target="db"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block" edge="1" parent="1" source="api" target="outbox"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l6" value="retry" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#6c8ebf" edge="1" parent="1" source="outbox" target="external"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l7" value="private API" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#9673a6" edge="1" parent="1" source="api" target="ai"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
