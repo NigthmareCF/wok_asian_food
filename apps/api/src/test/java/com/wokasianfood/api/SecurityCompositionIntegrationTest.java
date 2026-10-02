@@ -23,6 +23,8 @@ import java.net.http.HttpResponse;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.math.BigDecimal;
+import java.time.Instant;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers(disabledWithoutDocker = true)
@@ -123,6 +125,65 @@ class SecurityCompositionIntegrationTest {
         assertThat(getWithBearer("/api/v1/client/sessions", accessToken).statusCode()).isEqualTo(401);
     }
 
+    @Test
+    void customerCannotReadOrCancelAnotherCustomersPickupRequest() throws Exception {
+        String menuItemId = createSyntheticMenuItem();
+        String ownerToken = registerAndLogin("owner");
+        String otherToken = registerAndLogin("other");
+        String requestIdempotencyKey = UUID.randomUUID().toString();
+        String requestedFor = Instant.now().plusSeconds(900).toString();
+        var submitted = postAuthorized("/api/v1/client/order-requests", ownerToken, requestIdempotencyKey, """
+                {"requestedFor":"%s","customerNote":"integration owner request","items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(requestedFor, menuItemId));
+        assertThat(submitted.statusCode()).as("Pickup request submission: %s", submitted.body()).isEqualTo(202);
+        String ownedRequestId = json.readTree(submitted.body()).path("requestId").asText();
+        assertThat(ownedRequestId).isNotBlank();
+
+        assertThat(getWithBearer("/api/v1/client/order-requests/" + ownedRequestId, ownerToken).statusCode()).isEqualTo(200);
+        assertThat(getWithBearer("/api/v1/client/order-requests/" + ownedRequestId, otherToken).statusCode()).isEqualTo(404);
+        var otherHistory = getWithBearer("/api/v1/client/order-requests", otherToken);
+        assertThat(otherHistory.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(otherHistory.body())).isEmpty();
+        var unauthorizedCancel = deleteWithBearer("/api/v1/client/order-requests/" + ownedRequestId, otherToken);
+        assertThat(unauthorizedCancel.statusCode()).isEqualTo(404);
+        assertThat(getWithBearer("/api/v1/client/order-requests/" + ownedRequestId, ownerToken).statusCode()).isEqualTo(200);
+    }
+
+    private String registerAndLogin(String prefix) throws Exception {
+        String email = prefix + "-" + UUID.randomUUID() + "@example.invalid";
+        String password = "WokTestPassword-2026";
+        assertThat(post("/api/v1/auth/register", """
+                {"email":"%s","displayName":"%s Integration","password":"%s"}
+                """.formatted(email, prefix, password)).statusCode()).isEqualTo(202);
+        emailOutbox.sendNext();
+        var sent = emailProvider.sent().stream().filter(message -> message.recipient().equals(email)).findFirst();
+        assertThat(sent).isPresent();
+        Matcher code = Pattern.compile("Tu código WOK es ([0-9]{6})\\.").matcher(sent.orElseThrow().body());
+        assertThat(code.find()).isTrue();
+        assertThat(post("/api/v1/auth/verify", """
+                {"email":"%s","code":"%s"}
+                """.formatted(email, code.group(1))).statusCode()).isEqualTo(200);
+        var login = post("/api/v1/auth/login", """
+                {"email":"%s","password":"%s","clientType":"MOBILE"}
+                """.formatted(email, password));
+        assertThat(login.statusCode()).isEqualTo(200);
+        return json.readTree(login.body()).path("accessToken").asText();
+    }
+
+    private String createSyntheticMenuItem() {
+        UUID typeId = jdbc.queryForObject("INSERT INTO wok.item_types(code,name) VALUES ('TEST_FOOD','Test food') RETURNING id", UUID.class);
+        UUID unitId = jdbc.queryForObject("INSERT INTO wok.units(code,name,dimension,factor_to_base) VALUES ('EA','Each','COUNT',1) RETURNING id", UUID.class);
+        UUID itemId = jdbc.queryForObject("INSERT INTO wok.items(sku,name,item_type_id,base_unit_id,track_inventory) VALUES (upper('IT-' || gen_random_uuid()::text),'Test item',?,?,false) RETURNING id", UUID.class, typeId, unitId);
+        UUID categoryId = jdbc.queryForObject("INSERT INTO wok.menu_categories(name) VALUES ('Synthetic integration menu') RETURNING id", UUID.class);
+        UUID areaId = jdbc.queryForObject("INSERT INTO wok.preparation_areas(code,name) VALUES ('TEST','Test area') RETURNING id", UUID.class);
+        UUID currencyId = jdbc.queryForObject("SELECT id FROM wok.currencies WHERE code='GTQ'", UUID.class);
+        UUID menuItemId = jdbc.queryForObject("""
+                INSERT INTO wok.menu_items(item_id,category_id,preparation_area_id,name,price,currency_id,estimated_preparation_seconds)
+                VALUES (?, ?, ?, 'Synthetic test plate', ?, ?, 0) RETURNING id
+                """, UUID.class, itemId, categoryId, areaId, new BigDecimal("25.00"), currencyId);
+        return menuItemId.toString();
+    }
+
     private HttpResponse<String> get(String path) throws Exception {
         return http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + serverPort + path))
                 .GET().build(), HttpResponse.BodyHandlers.ofString());
@@ -138,5 +199,19 @@ class SecurityCompositionIntegrationTest {
         return http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + serverPort + path))
                 .header("Authorization", "Bearer " + token)
                 .GET().build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postAuthorized(String path, String token, String idempotencyKey, String body) throws Exception {
+        return http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + serverPort + path))
+                .header("Authorization", "Bearer " + token)
+                .header("Idempotency-Key", idempotencyKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> deleteWithBearer(String path, String token) throws Exception {
+        return http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + serverPort + path))
+                .header("Authorization", "Bearer " + token)
+                .DELETE().build(), HttpResponse.BodyHandlers.ofString());
     }
 }

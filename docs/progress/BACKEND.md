@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-02 — Ownership de pickup y precisión temporal del JWT
+
+- Se corrigió `SecurityConfig`: la validez de una sesión ya compara `auth_sessions.created_at >= users.sessions_valid_after`, junto con estado, revocación y expiración. Antes se comparaba el `iat` del JWT (segundos) contra un timestamp PostgreSQL con microsegundos, lo que podía invalidar una cuenta que registraba e iniciaba sesión dentro del mismo segundo. El nuevo control mantiene la revocación efectiva de sesiones creadas antes del umbral y evita el falso rechazo de sesiones nuevas.
+- `SecurityCompositionIntegrationTest` prueba por HTTP y PostgreSQL limpio dos cuentas Cliente verificadas, envío pickup de una solicitud con catálogo sintético, detalle propio 200, detalle ajeno 404, historial ajeno vacío, cancelación ajena 404 y solicitud original intacta 200. No se inventa catálogo productivo.
+- Maven Java 21: 48 tests, 0 fallos, 0 errores, 0 skips; Testcontainers ejecutó la integración y Flyway aplicó V1–V12. Los 11 scripts SQL ya habían pasado contra PostgreSQL 18 en la validación anterior; no hubo cambio de migraciones.
+- Rama especializada `fix/backend-security-composition`. Pendiente commit/push. Sin merge ni cambios de frontend.
+
 ## 2026-10-02 — Flujo HTTP completo de autenticación con PostgreSQL
 
 - La prueba `SecurityCompositionIntegrationTest` amplía el smoke de composición a un ciclo real con PostgreSQL 18/Testcontainers: registra un Cliente, procesa la verificación mediante `MockEmailProvider` y `EmailOutboxWorker`, verifica la cuenta, inicia sesión móvil, consulta sesiones, confirma `403` en una ruta Admin para token Cliente, rota el refresh y comprueba `401` al reutilizar el token anterior y revocación del access token asociado.

@@ -2,7 +2,6 @@ package com.wokasianfood.api.identity;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.time.Instant;
-import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,9 +64,9 @@ public class SecurityConfig {
                   SELECT 1 FROM wok.auth_sessions s JOIN wok.users u ON u.id = s.user_id
                   WHERE s.id = ? AND s.user_id = ? AND s.revoked_at IS NULL
                     AND s.expires_at > now() AND u.status = 'ACTIVE'
-                    AND u.sessions_valid_after <= ?
+                    AND s.created_at >= u.sessions_valid_after
                 )
-                """, Boolean.class, sessionId, userId, Timestamp.from(issuedAt));
+                """, Boolean.class, sessionId, userId);
             if (Boolean.TRUE.equals(valid)) return OAuth2TokenValidatorResult.success();
             return OAuth2TokenValidatorResult.failure(new org.springframework.security.oauth2.core.OAuth2Error("session_invalid"));
         });
