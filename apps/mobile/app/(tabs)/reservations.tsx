@@ -38,6 +38,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     if (!session?.email) return () => { active = false; };
     void Promise.resolve().then(async () => {
       if (Platform.OS !== "web") {
+        const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
         const raw = await SecureStore.getItemAsync(reservationDraftKey);
         if (raw) {
           const draft = parseReservationDraft(raw);
@@ -55,7 +56,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
             await SecureStore.deleteItemAsync(reservationDraftKey);
           }
         }
-        const rawAttempt = await SecureStore.getItemAsync(pendingReservationAttemptKey);
+        const rawAttempt = await SecureStore.getItemAsync(attemptStorageKey);
         if (rawAttempt) {
           const attempt = parsePendingReservationAttempt(rawAttempt);
           if (attempt && attempt.ownerEmail === session.email) {
@@ -64,7 +65,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
               setAttemptRestored(true);
             }
           } else {
-            await SecureStore.deleteItemAsync(pendingReservationAttemptKey);
+            await SecureStore.deleteItemAsync(attemptStorageKey);
           }
         }
       }
@@ -108,7 +109,10 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     const attempt = resolvePendingReservationAttempt(pendingRequest.current, session.email, body, createRequestKey);
     pendingRequest.current = attempt;
     if (Platform.OS !== "web") {
-      try { await SecureStore.setItemAsync(pendingReservationAttemptKey, JSON.stringify(attempt)); }
+      try {
+        const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
+        await SecureStore.setItemAsync(attemptStorageKey, JSON.stringify(attempt));
+      }
       catch {
         setError("No pudimos guardar el intento de forma segura; no enviamos la solicitud para evitar duplicados.");
         return;
@@ -122,8 +126,9 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
       pendingRequest.current = null;
       if (Platform.OS !== "web") {
         try {
+          const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
           await SecureStore.deleteItemAsync(reservationDraftKey);
-          await SecureStore.deleteItemAsync(pendingReservationAttemptKey);
+          await SecureStore.deleteItemAsync(attemptStorageKey);
         } catch { setDraftError("La solicitud respondió, pero no pudimos borrar todo el estado local."); }
       }
       setDraftRestored(false);
@@ -202,8 +207,12 @@ type ReservationDraft = {
 };
 
 const reservationDraftKey = "wok.client.reservation-draft.v1";
-const pendingReservationAttemptKey = "wok.client.reservation-attempt.v1";
 const reservationDraftLifetimeMs = 30 * 24 * 60 * 60 * 1000;
+
+async function getReservationAttemptStorageKey(ownerEmail: string) {
+  const ownerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, ownerEmail);
+  return `wok.client.reservation-attempt.v1.${ownerHash}`;
+}
 
 function parseReservationDraft(raw: string): ReservationDraft | null {
   if (raw.length > 1800) return null;
