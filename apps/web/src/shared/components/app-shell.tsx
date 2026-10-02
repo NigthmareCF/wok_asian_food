@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { Button } from "@/shared/components/ui/button";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Activity,
   Bike,
@@ -33,6 +33,7 @@ import {
 } from "@/config/navigation";
 import { hasPermission, type Permission } from "@/shared/lib/permissions";
 import type { AuthenticatedUser } from "@/modules/auth/auth-types";
+import { replacePage } from "@/modules/auth/auth-navigation";
 
 const icons: Record<NavigationIcon, typeof LayoutDashboard> = {
   calendar: CalendarDays,
@@ -100,11 +101,11 @@ export function AppShell({
   currentUser?: AuthenticatedUser;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const demoDialog = useRef<HTMLDialogElement>(null);
   const [demoContent, setDemoContent] = useState({ title: "", message: "" });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string>();
   const contextRoot = {
     admin: "/admin",
     client: "/client",
@@ -119,11 +120,15 @@ export function AppShell({
 
   async function logout() {
     setIsLoggingOut(true);
+    setLogoutError(undefined);
     try {
-      await fetch("/bff/auth/logout", { method: "POST" });
-    } finally {
-      router.replace("/login");
-      router.refresh();
+      const response = await fetch("/bff/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Logout failed");
+      window.dispatchEvent(new Event("wok:logout"));
+      replacePage("/login");
+    } catch {
+      setLogoutError("No se pudo cerrar la sesión. Intenta de nuevo.");
+      setIsLoggingOut(false);
     }
   }
 
@@ -244,6 +249,11 @@ export function AppShell({
         ) : null}
       </aside>
       <main className="app-shell__main">
+        {logoutError ? (
+          <p className="form-feedback form-feedback--error" role="alert">
+            {logoutError}
+          </p>
+        ) : null}
         {contextualActions}
         {children}
       </main>

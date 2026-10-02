@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -14,7 +15,10 @@ import { CartView } from "./cart-view";
 import { CartLink } from "./cart-link";
 import type { PendingRequestStatus } from "@/data/fixtures/pending-request";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.sessionStorage.clear();
+});
 const panko = menuFixtures.find((p) => p.id === "panko")!;
 
 function Harness({
@@ -205,7 +209,7 @@ describe("Client cart", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not persist after the provider is remounted", async () => {
+  it("restores the tab cart after remount and clears it on logout", async () => {
     const user = userEvent.setup();
     const first = render(<Harness />);
     await user.click(
@@ -217,8 +221,11 @@ describe("Client cart", () => {
         <CartView />
       </CartProvider>,
     );
+    expect(screen.getByRole("article", { name: "Panko" })).toBeInTheDocument();
+    act(() => window.dispatchEvent(new Event("wok:logout")));
     expect(
       screen.getByRole("heading", { name: "Tu pedido está vacío" }),
     ).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("wok.cart.v1")).toBeNull();
   });
 });

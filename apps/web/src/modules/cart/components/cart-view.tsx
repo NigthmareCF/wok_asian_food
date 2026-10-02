@@ -117,8 +117,8 @@ export function CartView({
       </header>
       <p className={styles.notice}>
         <Info aria-hidden="true" size={18} />
-        Carrito local demostrativo: se vacía al recargar. Agregar no reserva
-        disponibilidad; deberá revalidarse antes de confirmar.
+        Carrito local demostrativo: se conserva en esta pestaña. Agregar no
+        reserva disponibilidad; deberá revalidarse antes de confirmar.
       </p>
       <p className={styles.announcement} role="status">
         {announcement}

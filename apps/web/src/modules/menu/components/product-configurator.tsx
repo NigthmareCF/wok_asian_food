@@ -168,7 +168,7 @@ export function ProductConfigurator({ product }: { product: MenuProduct }) {
             ? "Este producto no está disponible. No se puede agregar al pedido."
             : !configuration.complete
               ? "Selecciona las opciones obligatorias para continuar."
-              : "Se agrega solo en esta sesión. Al recargar se vacía; no reserva disponibilidad."}
+              : "Se conserva en esta pestaña. No reserva disponibilidad ni envía un pedido."}
         </p>
         <Button
           fullWidth

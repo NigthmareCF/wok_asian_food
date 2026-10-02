@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  window.sessionStorage.clear();
 });
 describe("CheckoutView", () => {
   it.each(["table", "pickup", "delivery"] as const)(

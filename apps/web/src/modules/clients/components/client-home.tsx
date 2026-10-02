@@ -89,43 +89,24 @@ export function ClientHome() {
           <span>Explora los platillos</span>
           <ArrowRight aria-hidden="true" size={18} />
         </Link>
-        <details className={styles.action}>
-          <summary>
-            <CalendarDays aria-hidden="true" />
-            <strong>Reservar</strong>
-            <span>Demostrativo</span>
-            <ChevronDown aria-hidden="true" size={18} />
-          </summary>
-          <p>
-            Elige fecha, hora y personas para preparar una reserva demostrativa.
-          </p>
-          <Link href="/client/reservations/new" className={styles.textLink}>Crear reserva <ArrowRight aria-hidden="true" size={16} /></Link>
-        </details>
-        <details className={styles.action}>
-          <summary>
-            <MapPin aria-hidden="true" />
-            <strong>Ubicación</strong>
-            <span>Por confirmar</span>
-            <ChevronDown aria-hidden="true" size={18} />
-          </summary>
-          <p>
-            La dirección oficial y las indicaciones para llegar están pendientes
-            de confirmar.
-          </p>
-          <Link href="/location" className={styles.textLink}>Ver ubicación <ArrowRight aria-hidden="true" size={16} /></Link>
-        </details>
-        <details className={styles.action}>
-          <summary>
-            <MessagesSquare aria-hidden="true" />
-            <strong>Mensajes</strong>
-            <span>Demostrativo</span>
-            <ChevronDown aria-hidden="true" size={18} />
-          </summary>
-          <p>
-            Comunícate con el restaurante mediante el buzón demostrativo.
-          </p>
-          <Link href="/client/messages" className={styles.textLink}>Abrir mensajes <ArrowRight aria-hidden="true" size={16} /></Link>
-        </details>
+        <Link href="/client/reservations/new" className={styles.action}>
+          <CalendarDays aria-hidden="true" />
+          <strong>Reservar</strong>
+          <span>Fecha y personas</span>
+          <ArrowRight aria-hidden="true" size={18} />
+        </Link>
+        <Link href="/location" className={styles.action}>
+          <MapPin aria-hidden="true" />
+          <strong>Ubicación</strong>
+          <span>Datos del restaurante</span>
+          <ArrowRight aria-hidden="true" size={18} />
+        </Link>
+        <Link href="/client/messages" className={styles.action}>
+          <MessagesSquare aria-hidden="true" />
+          <strong>Mensajes</strong>
+          <span>Abrir conversaciones</span>
+          <ArrowRight aria-hidden="true" size={18} />
+        </Link>
       </section>
 
       <section aria-labelledby="home-categories">

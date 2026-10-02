@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ArrowRight, MapPin, UtensilsCrossed } from "lucide-react";
-import { PublicHeader } from "@/shared/components/public-header";
+import { AuthenticatedPublicHeader } from "@/modules/auth/components/authenticated-public-header";
 
 export default function HomePage() {
   return (
     <main className="public-home">
-      <PublicHeader />
+      <AuthenticatedPublicHeader />
       <section className="public-home__content">
         <span className="eyebrow">SABOR ASIATICO</span>
         <h1>WOK Asian Food</h1>

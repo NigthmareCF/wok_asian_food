@@ -1,6 +1,11 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { menuFixtures } from "@/data/fixtures/menu";
 import type { OrderChannel } from "@/data/fixtures/orders";
 import {
@@ -10,6 +15,7 @@ import {
   type CartItem,
 } from "./lib/cart";
 import { usePendingRequest } from "./use-pending-request";
+import { createCartStore } from "./cart-storage";
 
 type CartContextValue = ReturnType<typeof usePendingRequest> & {
   items: readonly CartItem[];
@@ -23,9 +29,14 @@ type CartContextValue = ReturnType<typeof usePendingRequest> & {
 const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<readonly CartItem[]>([]);
-  const [service, setService] = useState<OrderChannel | "">("");
+  const [store] = useState(createCartStore);
+  const { items, service } = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getServerSnapshot,
+  );
   const pending = usePendingRequest();
+
   return (
     <CartContext
       value={{
@@ -34,25 +45,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         ...pending,
         clearCart: () => {
           pending.cancelPendingRequest();
-          setItems([]);
+          store.clear();
         },
         addItem: (input) => {
           pending.cancelPendingRequest();
-          setItems((current) => addCartItem(current, input, menuFixtures));
+          store.updateItems((current) =>
+            addCartItem(current, input, menuFixtures),
+          );
         },
         setQuantity: (id, quantity) => {
           pending.cancelPendingRequest();
-          setItems((current) =>
+          store.updateItems((current) =>
             changeCartQuantity(current, id, quantity, menuFixtures),
           );
         },
         removeItem: (id) => {
           pending.cancelPendingRequest();
-          setItems((current) => current.filter((entry) => entry.id !== id));
+          store.updateItems((current) =>
+            current.filter((entry) => entry.id !== id),
+          );
         },
         setService: (next) => {
           pending.cancelPendingRequest();
-          setService(next);
+          store.updateService(next);
         },
       }}
     >

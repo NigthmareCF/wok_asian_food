@@ -312,3 +312,13 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Cambio local previo de next-env.d.ts respaldado en stash; la compilación regeneró exactamente las mismas referencias de tipos de producción y se conserva en la entrega.
 - Sin nuevas dependencias ni integraciones. Validación de navegador automatizada; no sustituye pruebas con dispositivos físicos.
 - Formato: format:check no pudo ejecutarse porque Prettier no está instalado localmente; no se instalaron dependencias.
+
+## 2026-10-02 - Navegacion, carrito y autenticacion conectada
+
+- Rama: `fix/web-navigation-session`, sobre la integracion de prueba `integration/security-e2e-preview`.
+- Login vuelve al destino autorizado, paginas publicas reconocen la cuenta y el carrito sobrevive a navegacion completa y recarga en la misma pestana.
+- Registro, verificacion y recuperacion conectados a Spring mediante BFF. Renovacion de sesion y cierre de sesion con cookies HttpOnly y control del origen de las solicitudes.
+- Accesos de Inicio a Reservas, Mensajes y Ubicacion simplificados.
+- Pruebas de codigo y recorridos reales documentados en [Navegacion y sesion Web](../frontend/NAVIGATION_SESSION_QA.md).
+- Verificacion: 279 pruebas Web aprobadas en 44 archivos, lint, TypeScript y build de produccion aprobados.
+- Pendientes: conectar catalogo, checkout, reservas, seguimiento y mensajes a sus APIs. Perfil y cambio de clave dentro de la sesion siguen demostrativos; no considerar el frontend integrado al 100%.

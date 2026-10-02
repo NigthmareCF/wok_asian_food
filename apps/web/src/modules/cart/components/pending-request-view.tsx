@@ -79,7 +79,7 @@ export function PendingRequestView({
           <p className={styles.demo} id="pending-demo">
             Experiencia demostrativa. La espera es local; no se envían
             solicitudes al restaurante ni se reserva disponibilidad. Al recargar
-            se vacía esta sesión.
+            se reinicia la espera, pero el carrito permanece en esta pestaña.
           </p>
           <div className={styles.actions}>
             {ready ? (

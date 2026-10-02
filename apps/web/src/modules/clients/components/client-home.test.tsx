@@ -1,10 +1,25 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { ServiceSummary } from "./client-home";
+import { ClientHome, ServiceSummary } from "./client-home";
 
 afterEach(cleanup);
 
 describe("Client service summary", () => {
+  it("opens available flows directly from quick actions", () => {
+    render(<ClientHome />);
+    expect(screen.getByRole("link", { name: /Reservar/ })).toHaveAttribute(
+      "href",
+      "/client/reservations/new",
+    );
+    expect(screen.getByRole("link", { name: /Ubicación/ })).toHaveAttribute(
+      "href",
+      "/location",
+    );
+    expect(screen.getByRole("link", { name: /Mensajes/ })).toHaveAttribute(
+      "href",
+      "/client/messages",
+    );
+  });
   it("identifies the estimate as a demonstration and excludes transit", () => {
     render(
       <ServiceSummary

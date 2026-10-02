@@ -8,9 +8,9 @@ import {
   ResetPasswordForm,
 } from "./auth-flows";
 
-const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+const navigation = vi.hoisted(() => ({ replacePage: vi.fn() }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => router }));
+vi.mock("@/modules/auth/auth-navigation", () => navigation);
 
 afterEach(() => {
   cleanup();
@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("auth flows", () => {
-  it("rejects a weak password when signing in", async () => {
+  it("requires a password when signing in", async () => {
     const user = userEvent.setup();
     render(<LoginForm />);
 
@@ -27,12 +27,9 @@ describe("auth flows", () => {
       screen.getByLabelText("Correo electrónico"),
       "cliente@example.com",
     );
-    await user.type(screen.getByLabelText("Contraseña"), "clave123");
     await user.click(screen.getByRole("button", { name: /iniciar sesión/i }));
 
-    expect(
-      screen.getByText("Incluye al menos una letra mayúscula."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Ingresa tu contraseña.")).toBeInTheDocument();
   });
 
   it("creates the server session and follows the role landing route", async () => {
@@ -68,8 +65,7 @@ describe("auth flows", () => {
       "/bff/auth/login",
       expect.objectContaining({ method: "POST" }),
     );
-    expect(router.replace).toHaveBeenCalledWith("/operation");
-    expect(router.refresh).toHaveBeenCalled();
+    expect(navigation.replacePage).toHaveBeenCalledWith("/operation");
   });
 
   it("reports that phone authentication is not enabled", async () => {
@@ -105,6 +101,41 @@ describe("auth flows", () => {
     expect(
       screen.getByText("Las contraseñas no coinciden."),
     ).toBeInTheDocument();
+  });
+
+  it("waits for the backend before offering email verification", async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ message: "Solicitud recibida." }),
+    });
+    vi.stubGlobal("fetch", request);
+    const user = userEvent.setup();
+    render(<RegisterForm />);
+
+    await user.type(screen.getByLabelText("Nombre"), "Ana Cliente");
+    await user.type(
+      screen.getByLabelText("Correo electrónico"),
+      "ana@example.com",
+    );
+    await user.type(screen.getByLabelText("Contraseña"), "ClaveSegura12!");
+    await user.type(
+      screen.getByLabelText("Confirmar contraseña"),
+      "ClaveSegura12!",
+    );
+    await user.click(screen.getByRole("button", { name: /crear cuenta/i }));
+
+    expect(
+      await screen.findByRole("link", { name: "VERIFICAR CORREO" }),
+    ).toHaveAttribute("href", "/verify-email");
+    expect(request).toHaveBeenCalledWith(
+      "/bff/auth/flow",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(JSON.parse(request.mock.calls[0][1].body)).toMatchObject({
+      action: "register",
+      email: "ana@example.com",
+      displayName: "Ana Cliente",
+    });
   });
 
   it("validates the recovery code and password confirmation", async () => {

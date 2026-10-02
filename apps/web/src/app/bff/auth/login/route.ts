@@ -1,26 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { landingPathForRoles } from "@/modules/auth/auth-policy";
+import { postLoginDestination } from "@/modules/auth/auth-policy";
 import { storeAuthCookies } from "@/modules/auth/server/auth-cookies";
+import { isSameOrigin } from "@/modules/auth/server/request-origin";
 import {
   BackendAuthError,
   loadCurrentUser,
   loginWithBackend,
 } from "@/modules/auth/server/backend-auth";
-
-function isSameOrigin(request: NextRequest) {
-  const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none")
-    return false;
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  const host =
-    request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
@@ -30,7 +16,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { email?: unknown; password?: unknown; rememberSession?: unknown };
+  let body: {
+    email?: unknown;
+    password?: unknown;
+    rememberSession?: unknown;
+    next?: unknown;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -41,9 +32,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (
+    !body ||
     typeof body.email !== "string" ||
     typeof body.password !== "string" ||
-    typeof body.rememberSession !== "boolean"
+    typeof body.rememberSession !== "boolean" ||
+    (body.next !== null &&
+      body.next !== undefined &&
+      (typeof body.next !== "string" || body.next.length > 2048))
   ) {
     return NextResponse.json(
       { message: "Datos de acceso inválidos." },
@@ -57,7 +52,10 @@ export async function POST(request: NextRequest) {
     await storeAuthCookies(tokens, body.rememberSession);
     return NextResponse.json({
       user,
-      redirectTo: landingPathForRoles(user.roles),
+      redirectTo: postLoginDestination(
+        typeof body.next === "string" ? body.next : null,
+        user.roles,
+      ),
     });
   } catch (error) {
     const authError = error instanceof BackendAuthError ? error : null;

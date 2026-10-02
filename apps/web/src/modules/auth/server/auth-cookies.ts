@@ -1,5 +1,9 @@
 import { cookies } from "next/headers";
-import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/modules/auth/auth-constants";
+import {
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
+  REMEMBER_COOKIE,
+} from "@/modules/auth/auth-constants";
 import type { TokenPair } from "@/modules/auth/server/backend-auth";
 
 const secure = process.env.WOK_COOKIE_SECURE === "true";
@@ -23,6 +27,13 @@ export async function storeAuthCookies(
     sameSite: "strict",
     secure,
   });
+  store.set(REMEMBER_COOKIE, rememberSession ? "true" : "false", {
+    httpOnly: true,
+    ...(rememberSession ? { maxAge: 60 * 60 * 24 * 30 } : {}),
+    path: "/bff/auth",
+    sameSite: "strict",
+    secure,
+  });
 }
 
 export async function readAccessToken() {
@@ -32,5 +43,12 @@ export async function readAccessToken() {
 export async function clearAuthCookies() {
   const store = await cookies();
   store.delete(ACCESS_COOKIE);
-  store.delete(REFRESH_COOKIE);
+  for (const name of [REFRESH_COOKIE, REMEMBER_COOKIE])
+    store.set(name, "", {
+      maxAge: 0,
+      path: "/bff/auth",
+      httpOnly: true,
+      sameSite: "strict",
+      secure,
+    });
 }
