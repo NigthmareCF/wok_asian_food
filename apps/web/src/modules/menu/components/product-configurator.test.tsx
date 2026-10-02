@@ -14,7 +14,10 @@ import { CartProvider } from "@/modules/cart/cart-provider";
 const render = (ui: React.ReactElement) =>
   testingRender(ui, { wrapper: CartProvider });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.sessionStorage.clear();
+});
 function product(id: string): MenuProduct {
   const item = menuFixtures.find((entry) => entry.id === id);
   if (!item) throw new Error(`Missing fixture: ${id}`);

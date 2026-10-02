@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
 const pathState = vi.hoisted(() => ({ pathname: "/operation" }));
+const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+const navigation = vi.hoisted(() => ({ replacePage: vi.fn() }));
+vi.mock("@/modules/auth/auth-navigation", () => navigation);
 
 const expectedNavigationRoutes = {
   admin: {
@@ -64,14 +67,70 @@ function expectNavigationRoutes(
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathState.pathname,
+  useRouter: () => router,
 }));
 
 afterEach(() => {
   pathState.pathname = "/operation";
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
   cleanup();
 });
 
 describe("AppShell", () => {
+  it("keeps the session and reports an unsuccessful logout", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const user = userEvent.setup();
+    render(
+      <AppShell
+        context="client"
+        currentUser={{
+          userId: "test",
+          displayName: "Cliente",
+          email: "test@example.test",
+          roles: ["CLIENT"],
+          permissions: [],
+          status: "ACTIVE",
+        }}
+      >
+        Contenido
+      </AppShell>,
+    );
+    await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pudo cerrar la sesión",
+    );
+    expect(navigation.replacePage).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeEnabled();
+  });
+  it("clears local state and navigates only after logout succeeds", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    const onLogout = vi.fn();
+    window.addEventListener("wok:logout", onLogout);
+    try {
+      const user = userEvent.setup();
+      render(
+        <AppShell
+          context="client"
+          currentUser={{
+            userId: "test",
+            displayName: "Cliente",
+            email: "test@example.test",
+            roles: ["CLIENT"],
+            permissions: [],
+            status: "ACTIVE",
+          }}
+        >
+          Contenido
+        </AppShell>,
+      );
+      await user.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+      expect(onLogout).toHaveBeenCalledOnce();
+      expect(navigation.replacePage).toHaveBeenCalledWith("/login");
+    } finally {
+      window.removeEventListener("wok:logout", onLogout);
+    }
+  });
   it("preserves client links and demo dialogs when the sidebar is collapsed", async () => {
     const user = userEvent.setup();
     const { container } = render(

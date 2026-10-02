@@ -11,17 +11,14 @@ import { useCart } from "../cart-provider";
 import { getCartRows, getCartSubtotal } from "../lib/cart";
 import { CartItemCard } from "./cart-item-card";
 import { PendingRequestView } from "./pending-request-view";
-import {
-  pendingRequestFixture,
-  type PendingRequestStatus,
-} from "@/data/fixtures/pending-request";
+import type { PendingRequestStatus } from "@/data/fixtures/pending-request";
 import styles from "./cart.module.css";
 
 type Review = { signature: string; status: "checking" | "ready" | "conflict" };
 
 export function CartView({
   products = menuFixtures,
-  initialPendingStatus = pendingRequestFixture.initialStatus,
+  initialPendingStatus,
 }: {
   products?: readonly MenuProduct[];
   initialPendingStatus?: PendingRequestStatus;
@@ -79,7 +76,7 @@ export function CartView({
         (row) => row.conflict,
       );
       setReview({ signature, status: conflicts ? "conflict" : "ready" });
-      if (!conflicts) {
+      if (!conflicts && (initialPendingStatus || !navigator.onLine)) {
         beginPendingRequest(initialPendingStatus);
         setShowPending(true);
       }
@@ -120,8 +117,8 @@ export function CartView({
       </header>
       <p className={styles.notice}>
         <Info aria-hidden="true" size={18} />
-        Carrito local demostrativo: se vacía al recargar. Agregar no reserva
-        disponibilidad; deberá revalidarse antes de confirmar.
+        Carrito local demostrativo: se conserva en esta pestaña. Agregar no
+        reserva disponibilidad; deberá revalidarse antes de confirmar.
       </p>
       <p className={styles.announcement} role="status">
         {announcement}
@@ -199,28 +196,36 @@ export function CartView({
                 carrito se abandona esa espera y deberás revisarlo de nuevo.
               </p>
             ) : null}
-            <Button
-              fullWidth
-              type="button"
-              disabled={busy || hasConflict || !service}
-              onClick={continueLocally}
-              aria-describedby="cart-help"
-            >
-              {busy
-                ? "Revalidando disponibilidad…"
-                : pendingRequest
-                  ? "Ver solicitud pendiente"
-                  : "Continuar"}
-            </Button>
-            <Link className="button button--secondary" href="/client/checkout">
-              Revisar solicitud
-            </Link>
+            {status === "ready" &&
+            !pendingRequest &&
+            !hasConflict &&
+            service ? (
+              <Link className="button button--primary" href="/client/checkout">
+                Continuar al checkout
+              </Link>
+            ) : (
+              <Button
+                fullWidth
+                type="button"
+                disabled={busy || hasConflict || !service}
+                onClick={continueLocally}
+                aria-describedby="cart-help"
+              >
+                {busy
+                  ? "Revalidando disponibilidad…"
+                  : pendingRequest
+                    ? "Ver solicitud pendiente"
+                    : "Continuar"}
+              </Button>
+            )}
             <div className={styles.review} role="status" aria-atomic="true">
               {busy
                 ? "Revalidando disponibilidad… Comprobación local demostrativa."
                 : hasConflict || status === "conflict"
                   ? "Hay artículos que requieren revisión. No se puede avanzar."
-                  : null}
+                  : status === "ready"
+                    ? "Revisión local completada. Puedes continuar al checkout."
+                    : null}
             </div>
           </aside>
         </div>

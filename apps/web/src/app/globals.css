@@ -686,6 +686,11 @@ a {
   color: #b9d7ff;
   padding: 0.75rem;
 }
+.form-feedback--error {
+  background: rgb(207 61 61 / 12%);
+  border-left-color: var(--danger);
+  color: #ffb8b8;
+}
 
 .app-shell {
   display: grid;
@@ -740,6 +745,7 @@ a {
 }
 .app-shell--sidebar-collapsed .brand__name,
 .app-shell--sidebar-collapsed .navigation a span,
+.app-shell--sidebar-collapsed .sidebar__session div,
 .app-shell--sidebar-collapsed .sidebar__context div {
   display: none;
 }
@@ -749,6 +755,10 @@ a {
   padding-inline: 0;
 }
 .app-shell--sidebar-collapsed .sidebar__context {
+  justify-content: center;
+  padding-inline: 0;
+}
+.app-shell--sidebar-collapsed .sidebar__session {
   justify-content: center;
   padding-inline: 0;
 }
@@ -1029,6 +1039,49 @@ a {
   gap: 0.65rem;
   margin-top: auto;
   padding: 1rem 0.75rem 0;
+}
+.sidebar__session {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding: 1rem 0.25rem 0;
+}
+.sidebar__session + .sidebar__context {
+  margin-top: 0;
+}
+.sidebar__session div {
+  display: grid;
+  min-width: 0;
+}
+.sidebar__session strong,
+.sidebar__session small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar__session strong {
+  font-size: 0.8125rem;
+}
+.sidebar__session small {
+  color: var(--text-subtle);
+  font-size: 0.6875rem;
+}
+.sidebar__session button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0.5rem;
+}
+.sidebar__session button:hover {
+  color: var(--primary);
 }
 .sidebar__context div {
   display: grid;
@@ -2955,6 +3008,9 @@ a {
     grid-template-columns: 1fr;
   }
   .sidebar__context {
+    display: none;
+  }
+  .sidebar__session {
     display: none;
   }
   .ops-dashboard {

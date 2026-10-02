@@ -1,8 +1,27 @@
 .messaging {
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: grid;
   gap: 1rem;
   margin: 0 auto;
   max-width: 72rem;
+}
+
+.deliveryContext {
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.quickReplies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.quickReplies button {
+  white-space: normal;
+  min-height: 44px;
+  text-align: left;
 }
 .header {
   display: grid;
@@ -34,10 +53,17 @@
   overflow: hidden;
 }
 .list {
+  align-content: start;
   border-bottom: 1px solid var(--border);
   display: grid;
   gap: 0.5rem;
   padding: 1rem;
+}
+
+@media (max-width: 1023px) {
+  .messaging {
+    padding-bottom: 3rem;
+  }
 }
 .list h2,
 .threadHeader h2 {
@@ -66,10 +92,10 @@
   color: var(--text);
 }
 .thread {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 30rem;
-  grid-template-rows: auto auto minmax(12rem, 1fr) auto;
 }
 .threadHeader {
   align-items: flex-start;
@@ -108,6 +134,8 @@
   padding: 0.75rem 1rem;
 }
 .messageList {
+  flex: 1;
+  min-height: 12rem;
   align-content: start;
   display: grid;
   gap: 0.75rem;
@@ -116,6 +144,7 @@
 }
 .message-system,
 .message-client {
+  color: var(--on-primary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   margin: 0;
@@ -152,6 +181,11 @@
   opacity: 0;
   position: absolute;
   width: 1px;
+}
+
+.composer:has(input[type="file"]:focus-visible) .fileLabel {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
 }
 .fileNotice {
   color: #f7d98f;

@@ -1,10 +1,9 @@
 package com.wokasianfood.api.identity;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import java.time.Instant;
-import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +27,9 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @EnableMethodSecurity
@@ -41,11 +43,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(AuthSecrets secrets, JdbcTemplate jdbc,
-                          @Value("${wok.auth.issuer}") String issuer) {
+    JwtDecoder jwtDecoder(AuthSecrets secrets, JdbcTemplate jdbc, AuthIssuer issuer) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(secrets.jwtKey())
                 .macAlgorithm(MacAlgorithm.HS256).build();
-        var standard = JwtValidators.createDefaultWithIssuer(issuer);
+        var standard = JwtValidators.createDefaultWithIssuer(issuer.value());
         decoder.setJwtValidator(jwt -> {
             var result = standard.validate(jwt);
             if (result.hasErrors()) return result;
@@ -57,17 +58,16 @@ public class SecurityConfig {
             } catch (IllegalArgumentException malformedIdentity) {
                 return OAuth2TokenValidatorResult.failure(new org.springframework.security.oauth2.core.OAuth2Error("session_invalid"));
             }
-            Instant issuedAt = jwt.getIssuedAt();
-            if (issuedAt == null) return OAuth2TokenValidatorResult.failure(
+            if (jwt.getIssuedAt() == null) return OAuth2TokenValidatorResult.failure(
                     new org.springframework.security.oauth2.core.OAuth2Error("session_invalid"));
             Boolean valid = jdbc.queryForObject("""
                 SELECT EXISTS (
                   SELECT 1 FROM wok.auth_sessions s JOIN wok.users u ON u.id = s.user_id
                   WHERE s.id = ? AND s.user_id = ? AND s.revoked_at IS NULL
                     AND s.expires_at > now() AND u.status = 'ACTIVE'
-                    AND u.sessions_valid_after <= ?
+                    AND s.created_at >= u.sessions_valid_after
                 )
-                """, Boolean.class, sessionId, userId, Timestamp.from(issuedAt));
+                """, Boolean.class, sessionId, userId);
             if (Boolean.TRUE.equals(valid)) return OAuth2TokenValidatorResult.success();
             return OAuth2TokenValidatorResult.failure(new org.springframework.security.oauth2.core.OAuth2Error("session_invalid"));
         });
@@ -75,9 +75,36 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder decoder, JdbcTemplate jdbc) throws Exception {
+    CorsConfigurationSource corsConfigurationSource(
+            @Value("${wok.cors.allowed-origins:http://localhost:3000}") String allowedOrigins) {
+        CorsConfiguration configuration = new CorsConfiguration();
+        for (String origin : allowedOrigins.split(",")) {
+            String trimmed = origin.trim();
+            if (!trimmed.isEmpty()) configuration.addAllowedOrigin(trimmed);
+        }
+        configuration.addAllowedHeader("Authorization");
+        configuration.addAllowedHeader("Content-Type");
+        configuration.addAllowedHeader("Idempotency-Key");
+        configuration.addAllowedHeader("X-Request-Id");
+        configuration.addAllowedMethod("GET");
+        configuration.addAllowedMethod("POST");
+        configuration.addAllowedMethod("PUT");
+        configuration.addAllowedMethod("PATCH");
+        configuration.addAllowedMethod("DELETE");
+        configuration.addAllowedMethod("OPTIONS");
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
+    }
+
+    @Bean
+    SecurityFilterChain filterChain(HttpSecurity http, JwtDecoder decoder, JdbcTemplate jdbc,
+                                     @Qualifier("corsConfigurationSource") CorsConfigurationSource cors) throws Exception {
         return http
             .csrf(csrf -> csrf.disable()) // Bearer-only API; web refresh cookies require a separate CSRF design.
+            .cors(corsCustomizer -> corsCustomizer.configurationSource(cors))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(

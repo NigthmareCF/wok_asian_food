@@ -1,5 +1,13 @@
 # Progreso de planificación backend
 
+## 2026-10-02 - Precision al invalidar sesiones
+
+- Rama: `fix/web-navigation-session`.
+- Detectado mediante recuperacion real de clave: JWT guarda `iat` con precision de segundos, mientras PostgreSQL guarda la invalidacion con mayor precision. Un login dentro del mismo segundo podia producir un token rechazado.
+- `SecurityConfig` compara `auth_sessions.created_at` con `users.sessions_valid_after`, como los demas controles de sesiones. Conserva validacion de firma, emisor, expiracion, cuenta activa y revocacion.
+- Regresiones: nueva sesion en el mismo segundo del cambio de clave aceptada; sesiones anteriores invalidadas rechazadas. Maven verify: 88 pruebas aprobadas.
+- Prueba real con PostgreSQL: recuperacion y login inmediato aprobados. Sin nuevas migraciones, secretos ni modificaciones a cuentas de colaboradores; se uso una cuenta local desechable.
+
 ## 2026-09-26 — Reparto en ramas del backend
 
 - Los worktrees `feature/backend-foundation`, `feature/backend-auth`, `feature/backend-api`, `feature/reservations`, `feature/availability`, `feature/ai` y `feature/payments` están sobre `3bbd0ed`; los paquetes se distribuyeron sin duplicar la aplicación Maven en ramas de dominio.

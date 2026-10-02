@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Home, LogIn } from "lucide-react";
+import { Home, LogIn, UserRound } from "lucide-react";
 
-export function PublicHeader() {
+export function PublicHeader({ accountHref }: { accountHref?: string }) {
   return (
     <header className="public-header">
       <Link className="brand" href="/" aria-label="WOK Asian Food, inicio">
@@ -19,13 +19,19 @@ export function PublicHeader() {
           Ubicacion
         </Link>
         <Link
-          aria-label="Ingresar"
+          aria-label={accountHref ? "Mi espacio" : "Ingresar"}
           className="button button--primary button--compact"
-          href="/login"
-          title="Ingresar"
+          href={accountHref ?? "/login"}
+          title={accountHref ? "Mi espacio" : "Ingresar"}
         >
-          <LogIn aria-hidden="true" size={18} />
-          <span className="public-header__login-label">Ingresar</span>
+          {accountHref ? (
+            <UserRound aria-hidden="true" size={18} />
+          ) : (
+            <LogIn aria-hidden="true" size={18} />
+          )}
+          <span className="public-header__login-label">
+            {accountHref ? "Mi espacio" : "Ingresar"}
+          </span>
         </Link>
       </nav>
     </header>

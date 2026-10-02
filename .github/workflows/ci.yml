@@ -74,6 +74,8 @@ jobs:
       WOK_DB_PASSWORD: ci-only-database-password
       WOK_AUTH_JWT_SECRET_BASE64: Y2ktb25seS1qd3Qtc2VjcmV0LTMyaGFyYWN0ZXJzLWxvbmc=
       WOK_AUTH_CHALLENGE_PEPPER_BASE64: Y2ktb25seS1jaGFsbGVuZ2UtcGVwcGVyLTMyLWJ5dGVz
+      # CI-only issuer: the API refuses to boot on the reserved .invalid placeholder.
+      WOK_AUTH_ISSUER: https://identity.wok.ci
     steps:
       - name: Obtener codigo
         uses: actions/checkout@v6
@@ -113,6 +115,9 @@ jobs:
               --dbname "$WOK_DB_NAME" \
               --set ON_ERROR_STOP=1 < "$test_file"
           done
+
+      - name: Probar flujo operativo por HTTP y PostgreSQL
+        run: bash .github/scripts/operational-flow-smoke.sh
 
       - name: Mostrar diagnostico en caso de fallo
         if: failure()

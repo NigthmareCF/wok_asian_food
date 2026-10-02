@@ -23,6 +23,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
+      WOK_API_BASE_URL: http://api:8080
+      WOK_COOKIE_SECURE: ${WOK_COOKIE_SECURE:-false}
     networks:
       - app_net
 

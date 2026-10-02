@@ -1,9 +1,17 @@
 .tracking {
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: grid;
   gap: 0.9rem;
   margin: 0 auto;
   max-width: 34rem;
   padding-bottom: 1rem;
+}
+
+@media (max-width: 1023px) {
+  .tracking {
+    padding-bottom: 3rem;
+  }
 }
 .header {
   display: grid;

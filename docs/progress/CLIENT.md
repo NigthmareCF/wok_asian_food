@@ -1,5 +1,101 @@
 # Progreso del canal Cliente
 
+## 2026-09-26 — PR #16: solicitudes de reserva pendientes de validación
+
+- Coordinación confirma que el frontend recopila fecha, hora, personas, intención de preorden y notas; la disponibilidad y la aceptación o rechazo corresponden al restaurante. No existe un límite fijo de 21:30 ni se inventan horarios oficiales o respuestas.
+- Las 21:15 se conservan exclusivamente como referencia del aviso C-08. Después se informa que la solicitud está sujeta a disponibilidad y validación del restaurante. El requisito documentado de preorden es visual: no bloquea registrar una solicitud sin preorden y tampoco garantiza aceptación. Se mantiene la validación de datos y la elección explícita de preorden.
+- Confirmación local exacta: «Solicitud de reserva pendiente de validación». Se aclara que está guardada localmente y todavía no enviada. Preorden sigue siendo intención con productos pendientes de vincular.
+- Archivos: `modules/reservations/client-reservation.ts`, `components/reservation-form-view.tsx`, `components/client-reservation.test.tsx`, `components/reservation-views.test.tsx` y este registro. Sin cambios en carrito, checkout, pedidos, mensajería, Operativo o Administración.
+- Regresiones: 21:15, 21:16, 21:30, 21:31 y 22:00, con/sin preorden, clic y submit directo; datos conservados y estado `pending`.
+- Verificaciones aprobadas: Prettier solo en los cinco archivos modificados, 19 pruebas enfocadas, lint, typecheck, suite completa (247 pruebas en 38 archivos), build y `git diff --check`. Tras tiempos de espera en ejecución concurrente, las pruebas enfocadas y la suite completa pasaron con `--maxWorkers=1`, sin cambiar configuración ni tiempos de espera. `next-env.d.ts` regenerado por build se restauró a su contenido previo. Sin nueva revisión visual en navegador; foco y acciones cubiertos por las pruebas de componentes.
+- Sin commit ni push.
+
+## 2026-09-25 — Corrección del bloqueo al revalidar carrito
+
+- Causa: `CartView` activaba siempre el fixture `degradedService` después de una revisión válida. El reintento terminaba en `pendingConfirmation`, pero la vista de espera no ofrecía salida a checkout.
+- Corrección limitada a `cart-view.tsx` y `pending-request-view.tsx`: revisión local válida habilita el enlace Next.js «Continuar al checkout»; el escenario limitado requiere inyección explícita para pruebas (se conserva desconexión). Esperar anuncia «Revalidando disponibilidad…» y al terminar permite continuar si los artículos siguen válidos. Cancelar conserva productos y opciones; los cambios del carrito invalidan la revisión.
+- Pruebas en `cart-view.test.tsx`: éxito normal y desde escenario limitado, destino de checkout, conservación de cantidad/opciones/subtotal, cancelación e invalidación al modificar. Sin cambios en precios, agrupación, menú, opciones, reglas de disponibilidad, API ni persistencia.
+- Verificaciones: 28 pruebas enfocadas aprobadas; lint, typecheck, suite completa (247 pruebas, 38 archivos) y build aprobados. Edge headless contra build: `/menu` → Panko → Solo atún × 2 → carrito Q150 → revalidar → checkout → confirmar → seguimiento pendiente; mismo documento conservado por SPA, pedido presente en lista y carrito vacío al regresar. Seguimiento sin overflow a 390, 768, 1280 y 1440 px.
+- Cambios locales previos y hash de `package-lock.json` conservados; archivo generado `next-env.d.ts` restaurado. Sin commit ni push.
+
+## 2026-09-25 — PR #16: cierre local de checkout y seguimiento
+
+- Rama `fix/client-c07-c12-polish`, confirmada antes de editar. Se conserva el cambio previo de `package-lock.json` (SHA256 sin cambios). Sin commit, push ni merge.
+- Flujo conectado: carrito → checkout → revalidar → confirmar → pedido Cliente pendiente → vaciar carrito → `/client/orders/[orderId]`. Lista y detalle usan la sesión Cliente existente; no se reutilizan módulos ni providers Operativos.
+- Confirmación bloqueada ante carrito vacío, productos/opciones/cantidades inválidos, servicio ausente o inválido y revisión local desactualizada. Se comprueban nuevamente los artículos al confirmar. Los requisitos actuales son productos configurados y servicio; datos de entrega, métodos de pago y tarifas siguen pendientes de definición y no se inventan.
+- Pedido: UUID local, fecha/hora del navegador (ISO, presentada en hora local), snapshot independiente de productos, cantidades y opciones, servicio y estado `pending`. Mesa no almacena importes; Para recoger y Delivery conservan precios de productos y subtotal, sin cargos externos ficticios.
+- `CartProvider.clearCart` vacía en una actualización y cancela la espera/reintento pendiente; es idempotente y conserva el servicio seleccionado. Se llama solamente tras crear el pedido. Doble confirmación protegida; fallo de creación conserva carrito y permite reintentar.
+- Archivos: `modules/cart/cart-provider.tsx`, `modules/checkout/checkout-snapshot.ts`, componentes y pruebas de checkout, `modules/clients/client-session.ts` y texto vacío de la lista Cliente.
+- Validación: lint, typecheck y build aprobados; suite completa con 245 pruebas en 38 archivos aprobada, incluidas 14 de checkout (tres servicios, opciones/cantidades, conflictos, revisión invalidada, doble clic, lista/detalle, fallo/reintento y limpieza de espera). Se regeneró el archivo local truncado `.next/dev/types/routes.d.ts` a partir de los tipos del build; `next-env.d.ts` restaurado a su contenido previo.
+- Formato global: falla por 274 archivos preexistentes; los archivos modificados se formatearon de forma específica. No se ejecutó una nueva revisión visual responsive en navegador; se conservan los layouts y estilos existentes. Todo permanece en memoria y se reinicia al recargar; no hay envío ni aceptación real del restaurante.
+
+## 2026-09-22 — Límites de reservas y acceso a mensajes de delivery
+
+- Rama actual `fix/client-c07-c12-polish`; cambios previos conservados, sin commit, push, merge, cambio de rama ni dependencias nuevas. `package-lock.json` conserva su hash previo y no forma parte de esta intervención.
+- Reservas Cliente (corregido por coordinación el 2026-09-26): sin límite fijo de hora ni decisión de aceptación en el frontend. Después de 21:15 se muestra aviso de solicitud tardía y requisito visual de preorden, sin bloquear el registro. La disponibilidad y aceptación corresponden al restaurante. USAR 21:15 conserva la elección de preorden y tampoco garantiza disponibilidad.
+- Mensajes: usa el pedido de la sesión Cliente; escritura, adjuntos locales y respuestas rápidas habilitados solo con `deliveryStage: in-transit` y pedido no entregado. Antes informa cuándo se habilita; entregado queda en solo lectura; sin delivery enlaza `/client/orders`. Conserva las cinco respuestas editables, historial por pedido y aviso de guardado local sin envío real.
+- Carrito: fallo no reproducido. Edge headless sobre el servidor local existente: Panko + Solo atún, cantidad 2, contador 2, Q150 en `/client/cart`, conservado al visitar `/menu` y regresar por SPA (mismo documento). Submit de agregar cancela el comportamiento nativo; botones de cantidad son `type=button`. Sin cambios en carrito, provider, menú ni texto Tu pedido.
+- Archivos: `modules/reservations/client-reservation.ts`, `components/reservation-form-view.tsx`, `client-reservation.test.tsx`, `reservation-views.test.tsx`; `modules/messaging/components/client-messaging-view.tsx` y su prueba; este registro. Sin modificaciones a módulos Operativos/Administrativos, AppShell o navegación.
+- Pruebas enfocadas: 11 de carrito/detalle y 32 de reservas/mensajes aprobadas. Cubiertos 21:15, 21:16, 21:30, 21:31 y 22:00 con/sin preorden, submit directo y estados de acceso al chat. Validaciones finales ejecutadas una sola vez: typecheck aprobado, suite completa 239 pruebas/38 archivos aprobada y build aprobado; lint aprobado.
+
+## 2026-09-18 — C-07 a C-12: estado local y límites de integración
+
+- Rama: `fix/client-c07-c12-polish`. Asistencia: Codex. Sin commit, push, merge, cambio de rama ni dependencias nuevas.
+- Fuentes: `AGENTS.md`, `BRANCH_CONTEXT.md`, `apps/web/AGENTS.md`, `docs/frontend/TEAM_GUIDE.md`, `docs/frontend/channels/README.md`, `docs/frontend/channels/CLIENT.md`, este registro, `docs/project/CURRENT_STATE.md`, `docs/project/TECH_DECISIONS.md`, `docs/frontend/ARCHITECTURE.md`, `WORKSTREAMS.md`, `QA_CHECKLIST.md`, `docs/WOK_ASIAN_FOOD_CONTEXTO_CENTRAL.md` y las secciones Cliente del `FRONTEND_FOUNDATION_BLUEPRINT.md`. Guías/progreso Operativo consultados únicamente para comprobar límites; no autorizan comportamiento nuevo de Cliente.
+- Alcance: C-07/C-08, C-09, C-10, C-11 y C-12. Se preservan C-03/C-04/C-05, menú, CartProvider, AppProviders global, AppShell, navigation.ts, módulos Operativos/Administrativos y el cambio previo de package-lock.json.
+
+### Reglas aplicadas y trazabilidad
+
+| Comportamiento                                                               | Fuente y sección                                                 | Estado                                   |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------- |
+| Estado en memoria; ninguna operación real de backend                         | BRANCH_CONTEXT: Fuera de alcance; CLIENT: Entrega del canal      | Confirmado                               |
+| Agregar no reserva; revalidar antes de confirmar; solo opciones configuradas | CLIENT: Reglas que no se pueden omitir; progreso C-05            | Confirmado                               |
+| Solicitud pendiente no equivale a aceptación                                 | CLIENT: Reglas que no se pueden omitir                           | Confirmado                               |
+| Mesa sin importes, métodos de pago ni propina                                | Progreso: Correcciones PR #8 C-07, C-09 y C-10                   | Confirmado                               |
+| Preparación y traslado externo separados; sin tarifa ficticia                | CLIENT: Reglas que no se pueden omitir; contexto central 7.7–7.9 | Confirmado                               |
+| C-08 conserva aviso después de 21:15 y acción existente USAR 21:15           | CLIENT: Catálogo C-08; progreso C-07 y C-08                      | Aviso visual; aceptación del restaurante |
+| Fecha inicial local, validaciones y solicitud pendiente                      | CLIENT: Catálogo C-07; autorización de mejora de C-07            | Confirmado                               |
+| Conversaciones, comprobante local y estados de mensajería                    | CLIENT: Catálogo C-12; progreso C-11 y C-12                      | Confirmado                               |
+| Dirección, horario y URL no se inventan                                      | CLIENT: Catálogo C-11; progreso C-11 y C-12                      | Confirmado; datos oficiales no definidos |
+| Regreso e inicio, teclado, foco y 44 px                                      | CLIENT: Navegación mínima; TEAM_GUIDE: Convenciones verificadas  | Confirmado                               |
+
+### Resultado por vista
+
+- Contratos: `modules/clients/client-session.ts` define pedidos locales, borrador/solicitud de reserva y mensajes; `client-session-provider.tsx` monta una sola fuente exclusiva de Cliente en su layout. Memoria del módulo para conservar el borrador al salir a `/menu` y regresar por SPA, sin provider global nuevo. El render de servidor usa un snapshot vacío; las acciones se ejecutan solo desde interacción local. Recargar reinicia todo, también historial de mensajes y pedidos. No es persistencia ni autorización backend.
+- Reservas: fecha inicial calculada en el navegador sin fecha fija de fixture ni discrepancia de hidratación; validaciones de fecha/hora/personas; borrador conservado; solicitud local pendiente con resumen; confirmación repetida protegida. Preorden guarda únicamente intención: no asocia, copia ni vacía productos del carrito. La solicitud informa que faltan productos por vincular. `?demo=late` deja de activar escenarios; la interacción de hora y las pruebas conservan C-08.
+- Checkout: usa `useCart` público y utilidades existentes de C-05 para filas, configuración y subtotal. Sin carrito paralelo, servicio implícito ni cálculos alternativos. Vacío, servicio faltante y conflictos bloquean avance. Revalidación local invalida su mensaje al cambiar los datos. Mesa oculta importes/pago/propina. Para recoger/Delivery muestran subtotal de productos; métodos y tarifa sin aprobación quedan pendientes, nunca Q0/gratis. Se retiran controles de servicio demo y `demoTrackingOrderId`.
+- C-09 **no crea pedidos desde la interfaz**, ni vacía el carrito, ni navega simulando éxito. Falta el contrato de finalización de C-05; la acción permanece deshabilitada con explicación y regreso al carrito. No se considera completo el flujo menú → checkout → pedido.
+- Pedidos: lista y detalle consumen la misma fuente exclusiva de Cliente. Contrato probado de creación local con ID, fecha/hora, artículos inmutables, servicio y estado `pending`, sin ETA inventada. La colección normal empieza vacía; los pedidos poblados se ejercitan en pruebas hasta conectar C-09. ID desconocido muestra estado neutral y Mis pedidos. Estados alternativos y ETA permanecen en fixtures de pruebas, sin controles de cambio.
+- Mensajes: Delivery de mi pedido y Ayuda general; cinco respuestas rápidas editables; hora y “Guardado localmente; todavía no enviado”. Selección de Delivery activo o reciente desde la misma fuente de pedidos. Historial separado por ID para no reasignar mensajes de otra entrega; sin Delivery se muestra ayuda sin fingir entrega. El comprobante solo conserva el nombre seleccionado, sin lectura ni subida. Conexión/error/atención humana se prueban sin selectores técnicos.
+- Ubicación: datos oficiales siguen ausentes; textos sin referencias a fixture/demo/navigationUrl, enlace externo únicamente cuando hay configuración disponible. Se conserva la ruta pública y su regreso a `/`.
+- Navegación: enlaces de regreso dentro de las vistas, sin segunda barra y sin modificar AppShell. ClientDemoNavigation ya no estaba montado y continúa fuera del flujo normal. No se modifica el aviso de Perfil C-13.
+
+### Coordinación pendiente con C-03/C-05
+
+- Solicitud al responsable de C-05 (Barrera/Carlos Chan): exponer `clearCart: () => void` en la API pública del CartProvider. El contrato requerido está declarado como `CheckoutCartCompletion` en `modules/checkout/checkout-snapshot.ts`; no implementado. Debe vaciar todos los artículos en una actualización, cancelar la espera/revisión vinculada, ser idempotente con carrito vacío y no enviar nada ni modificar el registro de pedido. Debe poder llamarse después de crear satisfactoriamente el snapshot del pedido sin dejar una limpieza parcial. La política del servicio tras vaciar corresponde a C-05 y no se redefine aquí.
+- Al aprobar esa función: revalidar entradas actuales, crear el pedido local una sola vez, ejecutar vaciado únicamente después de éxito y navegar a `/client/orders/[orderId]`. Añadir pruebas de fallo/conservación, vaciado y doble confirmación. No se usa un bucle de `removeItem` para sustituir silenciosamente ese contrato.
+- Preorden: falta acordar qué artículos se asocian, qué ocurre con los anteriores y si confirmar conserva o vacía carrito. No se toman esas decisiones. `/menu` conserva su ruta pública existente; el regreso manual es Inicio de cliente → Reservas y el borrador se mantiene. El regreso automático y la asociación requieren coordinación con C-03/C-05.
+
+### Ambigüedades conservadas
+
+- Exactamente 21:15: no se redefine si exige preorden. Se mantiene la conducta previa: ingreso directo a 21:15 no dispara aviso; USAR 21:15 conserva la elección de preorden. La confirmación local nunca acredita preorden completa ni aceptación del restaurante.
+- Artículos previos en carrito y su destino al confirmar reserva: sin política nueva.
+- Métodos comerciales de pago, tarifas/datos de Delivery y dirección/horario/proveedor de ubicación: pendientes; no se habilitan datos o cobros por inferencia desde fixtures o módulos Operativos.
+- QA_CHECKLIST contiene una expectativa general de propina/pagos en checkout que no se aplica a Mesa, conforme al alcance vigente y la corrección documentada del PR #8.
+
+### Verificación
+
+- Pruebas enfocadas ejecutadas por bloque: estado Cliente; reservas; checkout; pedidos; mensajes; ubicación. Verificación final: `npm.cmd run lint`, `npm.cmd run typecheck`, `npm.cmd run test` (228 pruebas en 38 archivos) y `npm.cmd run build:web` aprobados. Vitest necesitó ejecución fuera del sandbox para iniciar sus procesos. No se instalaron dependencias.
+- `npm.cmd run format:check`: falla por formato preexistente en 275 archivos ajenos a los cambios finales. El formato de todos los archivos modificados/agregados del bloque se verificó por separado con Prettier y pasó. No se reformatearon archivos ajenos para corregir el chequeo global.
+- Edge headless contra build de producción: 24 combinaciones de seis rutas directas por 390, 768, 1280 y 1440 px, sin overflow horizontal, controles visibles del contenido de al menos 44 px y sin enlaces Operativos/Administrativos. Se comprobó ID inexistente sin redirección y ausencia de selectores técnicos. Capturas temporales revisadas en móvil y escritorio, fuera del repositorio.
+- Flujo real de carrito → checkout: Panko con Solo atún, cantidad 2 y Q150; Mesa sin importes; Para recoger/Delivery con subtotal y tarifa desconocida sin cargo ficticio. Doce combinaciones adicionales de los tres servicios por los cuatro anchos, sin overflow ni botón final obstruido. La confirmación sigue deshabilitada por la dependencia de C-05.
+- Navegación SPA: borrador conservado al visitar menú y regresar por Inicio de cliente → Reservas; C-08 mediante hora ingresada, foco en ELEGIR OTRA HORA y resumen pendiente sin doble confirmación. Mensajes: respuesta rápida editable, guardado con Enter, historial al salir/regresar y reinicio al recargar. Sin excepciones JavaScript detectadas. Datos poblados de Pedidos/Delivery se prueban mediante inyección en pruebas, no con controles en producción.
+- Se detectó solapamiento de la barra móvil sobre acciones finales y se corrigió con padding exclusivo de las vistas Cliente; se comprobó al final del scroll en 390 y 768 px. AppShell no se modificó. La revisión automatizada no sustituye pruebas en dispositivos físicos o lector de pantalla.
+- Next.js regeneró `next-env.d.ts` durante el build; se restauró exactamente su contenido previo. No se incluyen archivos generados ni cambios de dependencias. El hash de package-lock.json permanece igual al cambio previo del usuario.
+- Carga/red: al ser memoria síncrona no se añade espera de red artificial. Los contratos de revalidación y conexión conservan estados de prueba; no se simula un envío real.
+- Diferencias frente al plan inicial: se usa un provider exclusivo en el layout Cliente, sin AppProviders global; no se modifica C-05 ni menú; la creación desde checkout queda bloqueada, la preorden sin asociación y el Perfil sin cambios.
+- PR: pendiente.
+
 ## 2026-09-29 — Reenvío de verificación
 
 - `POST /api/v1/auth/verify/resend` devuelve siempre una respuesta `202` neutral y sólo emite un nuevo código si la cuenta sigue pendiente.
@@ -16,6 +112,7 @@
 
 - Se añadieron pruebas de `AuthService` para rotación one-time con relación padre, detección de reuse con revocación de toda la familia y evento crítico, y rechazo de cuenta suspendida.
 - La composición temporal foundation+auth+availability+reservations y DB V1–V7 pasó 19/19 pruebas Java. Esta suite prueba lógica de servicio con JDBC simulado; el smoke DB/HTTP separado sigue aportando evidencia real para sesiones y reenvío.
+
 ## 2026-09-28 — Lista pública de capacidades
 
 - `GET /api/v1/public/service-capabilities` limita su respuesta en servidor a capacidades entendibles por Cliente. La capacidad interna `PRODUCTION` ya no se incluye aunque esté activa en la tabla.
@@ -215,3 +312,13 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Cambio local previo de next-env.d.ts respaldado en stash; la compilación regeneró exactamente las mismas referencias de tipos de producción y se conserva en la entrega.
 - Sin nuevas dependencias ni integraciones. Validación de navegador automatizada; no sustituye pruebas con dispositivos físicos.
 - Formato: format:check no pudo ejecutarse porque Prettier no está instalado localmente; no se instalaron dependencias.
+
+## 2026-10-02 - Navegacion, carrito y autenticacion conectada
+
+- Rama: `fix/web-navigation-session`, sobre la integracion de prueba `integration/security-e2e-preview`.
+- Login vuelve al destino autorizado, paginas publicas reconocen la cuenta y el carrito sobrevive a navegacion completa y recarga en la misma pestana.
+- Registro, verificacion y recuperacion conectados a Spring mediante BFF. Renovacion de sesion y cierre de sesion con cookies HttpOnly y control del origen de las solicitudes.
+- Accesos de Inicio a Reservas, Mensajes y Ubicacion simplificados.
+- Pruebas de codigo y recorridos reales documentados en [Navegacion y sesion Web](../frontend/NAVIGATION_SESSION_QA.md).
+- Verificacion: 279 pruebas Web aprobadas en 44 archivos, lint, TypeScript y build de produccion aprobados.
+- Pendientes: conectar catalogo, checkout, reservas, seguimiento y mensajes a sus APIs. Perfil y cambio de clave dentro de la sesion siguen demostrativos; no considerar el frontend integrado al 100%.

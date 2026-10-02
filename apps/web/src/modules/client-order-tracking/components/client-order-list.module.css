@@ -1,8 +1,16 @@
 .orders {
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: grid;
   gap: 1rem;
   margin: 0 auto;
   max-width: 42rem;
+}
+
+@media (max-width: 1023px) {
+  .orders {
+    padding-bottom: 3rem;
+  }
 }
 .header {
   display: grid;

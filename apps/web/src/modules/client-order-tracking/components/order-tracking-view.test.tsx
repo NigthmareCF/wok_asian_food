@@ -17,42 +17,17 @@ describe("OrderTrackingView", () => {
     },
   );
 
-  it("renders the six demo state buttons with their routes and marks the current state", () => {
-    const order = clientOrderTrackingFixtures.find(
-      ({ id }) => id === "demo-preparing",
-    );
-    render(<OrderTrackingView order={order} />);
-
-    const expectedLinks = [
-      ["Pendiente", "/client/orders/demo-pending"],
-      ["Confirmado", "/client/orders/demo-confirmed"],
-      ["Preparando", "/client/orders/demo-preparing"],
-      ["Listo", "/client/orders/demo-ready"],
-      ["Retrasado", "/client/orders/demo-190"],
-      ["Entregado", "/client/orders/demo-delivered"],
-    ];
-
+  it("does not expose technical controls or alternate state links", () => {
+    render(<OrderTrackingView order={clientOrderTrackingFixtures[0]} />);
     expect(
-      screen.getByRole("heading", { name: "Probar estados del pedido" }),
-    ).toBeInTheDocument();
+      screen.queryByText("Probar estados del pedido"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Controles de demostración. No actualizan un pedido real.",
-      ),
-    ).toBeInTheDocument();
-    expectedLinks.forEach(([label, href]) => {
-      expect(screen.getByRole("link", { name: label })).toHaveAttribute(
-        "href",
-        href,
-      );
-    });
-    expect(screen.getByRole("link", { name: "Preparando" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("link", { name: "Pendiente" })).not.toHaveAttribute(
-      "aria-current",
-    );
+      screen
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href")?.includes("demo-")),
+    ).toBe(false);
   });
 
   it("shows delay data and separates external delivery from restaurant preparation", () => {
@@ -77,7 +52,7 @@ describe("OrderTrackingView", () => {
       screen.getByRole("heading", { name: "Pedido no encontrado" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/no está disponible en la demostración/),
+      screen.getByText(/no está disponible en esta sesión/),
     ).toBeInTheDocument();
   });
 });

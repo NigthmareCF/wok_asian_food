@@ -27,6 +27,12 @@ export function PendingRequestView({
   const { service, waitForPendingRequest, requestPendingNotice } = useCart();
   const heading = useRef<HTMLHeadingElement>(null);
   const content = pendingRequestMessages[request.status];
+  const ready =
+    request.status === "pendingConfirmation" &&
+    !request.waiting &&
+    Boolean(service) &&
+    rows.length > 0 &&
+    !rows.some((row) => row.conflict);
   const Icon = request.status === "offline" ? WifiOff : TriangleAlert;
   useEffect(() => {
     heading.current?.focus();
@@ -47,12 +53,20 @@ export function PendingRequestView({
             <Icon aria-hidden="true" size={30} />
           </span>
           <h1 id="pending-title" ref={heading} tabIndex={-1}>
-            Aún no podemos confirmar tu pedido.
+            {ready
+              ? "Revisión local completada"
+              : "Aún no podemos confirmar tu pedido."}
           </h1>
           <div className={styles.status} role="status" aria-atomic="true">
             <StatusBadge
-              label={request.waiting ? "Comprobando de nuevo" : content.label}
-              tone="warning"
+              label={
+                request.waiting
+                  ? "Revalidando disponibilidad…"
+                  : ready
+                    ? "Disponibilidad local revisada"
+                    : content.label
+              }
+              tone={ready ? "success" : "warning"}
             />
             <p>
               {request.waiting
@@ -65,18 +79,24 @@ export function PendingRequestView({
           <p className={styles.demo} id="pending-demo">
             Experiencia demostrativa. La espera es local; no se envían
             solicitudes al restaurante ni se reserva disponibilidad. Al recargar
-            se vacía esta sesión.
+            se reinicia la espera, pero el carrito permanece en esta pestaña.
           </p>
           <div className={styles.actions}>
-            <Button
-              type="button"
-              onClick={waitForPendingRequest}
-              disabled={request.waiting}
-              aria-describedby="pending-demo"
-            >
-              <Clock3 aria-hidden="true" size={18} />
-              {request.waiting ? "Esperando…" : "Esperar"}
-            </Button>
+            {ready ? (
+              <Link className="button button--primary" href="/client/checkout">
+                Continuar al checkout
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                onClick={waitForPendingRequest}
+                disabled={request.waiting}
+                aria-describedby="pending-demo"
+              >
+                <Clock3 aria-hidden="true" size={18} />
+                {request.waiting ? "Revalidando disponibilidad…" : "Esperar"}
+              </Button>
+            )}
             <Button variant="secondary" type="button" onClick={onCancel}>
               Cancelar
             </Button>

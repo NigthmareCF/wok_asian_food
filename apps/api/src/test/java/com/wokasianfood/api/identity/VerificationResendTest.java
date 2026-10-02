@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,13 +50,20 @@ class VerificationResendTest {
     @Test
     void endpointAlwaysUsesNeutralAcceptedResponse() {
         AuthService service = mock(AuthService.class);
-        AuthController controller = new AuthController(service);
+        AuthRateLimiter limiter = mock(AuthRateLimiter.class);
+        AuthController controller = new AuthController(service, mock(CurrentUserService.class), limiter);
 
-        var response = controller.resendVerification(new ResetRequest("person@example.test"));
+        var response = controller.resendVerification(new ResetRequest("person@example.test"), request());
 
         assertEquals(202, response.getStatusCode().value());
         assertTrue(response.getBody().message().contains("Si la cuenta está pendiente"));
         verify(service).resendVerification(new ResetRequest("person@example.test"));
+    }
+
+    private HttpServletRequest request() {
+        HttpServletRequest http = mock(HttpServletRequest.class);
+        when(http.getRemoteAddr()).thenReturn("203.0.113.5");
+        return http;
     }
 
     @Test
