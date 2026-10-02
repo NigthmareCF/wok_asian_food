@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-02 — Composición de seguridad Spring en integración
+
+- Rama de corrección backend: `fix/backend-security-composition`, basada en `integration/backend-bootstrap` para corregir únicamente el conflicto de configuración encontrado al componer las ramas.
+- Se retiró `BootstrapSecurityConfig`, una cadena temporal catch-all `denyAll` que coexistía con `identity.SecurityConfig` (JWT y reglas públicas/privadas). Spring abortaba con `UnreachableFilterChainException` por dos filtros `anyRequest()`; la configuración JWT queda como única cadena general.
+- Maven Java 21: 45 pruebas, 0 fallos/errores/skips. PostgreSQL 18 nuevo: Flyway aplicó V1–V12 con `success=true`. Backend levantó en puerto temporal; HTTP health 200, OpenAPI 200, menú público 200 y cola Operativa privada 401 sin token.
+- Sigue pendiente revisar las divergencias del modelo candidato respecto de V1–V12 y validar roles/ownership de todos los endpoints; este cambio sólo prueba el arranque y las rutas smoke citadas. No merge.
+
 ## 2026-09-26 — Reparto en ramas del backend
 
 - Los worktrees `feature/backend-foundation`, `feature/backend-auth`, `feature/backend-api`, `feature/reservations`, `feature/availability`, `feature/ai` y `feature/payments` están sobre `3bbd0ed`; los paquetes se distribuyeron sin duplicar la aplicación Maven en ramas de dominio.
