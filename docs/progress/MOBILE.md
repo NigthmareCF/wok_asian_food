@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-02 — Reintento idempotente de reservas después de cerrar la app
+
+- Los intentos de reserva se guardan antes del POST en SecureStore, ligados al correo de la sesión, UUID y payload exacto. Al reiniciar, sólo se reutiliza la clave para la misma cuenta/cuerpo; cambiar cuenta o payload crea otra clave, y registros inválidos/vencidos se descartan.
+- Si SecureStore falla, el POST no se envía. Un envío con resultado de red incierto conserva el key para reintento; la respuesta del servidor borra el intento. Cambiar de cuenta remonta el formulario para limpiar datos anteriores.
+- Verificación: tests nuevos de reuso por owner/payload y validación/expiración, suite móvil 5/5, ESLint y TypeScript pasan; Expo Android/Web export en ejecución.
+
 ## 2026-10-02 — UUID criptográficos para reintentos Cliente
 
 - Pickup y reservas ahora usan `expo-crypto` `randomUUID()` para sus claves de idempotencia, alineados con delivery y mensajería. El mismo intento conserva la clave y payload para repetirlo; nuevas solicitudes generan otra clave.

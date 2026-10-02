@@ -4,10 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ReservationHistoryItem, ReservationResult } from "@/lib/api";
+import { parsePendingReservationAttempt, PendingReservationAttempt, resolvePendingReservationAttempt } from "@/lib/reservation-attempt";
 import { useSession } from "@/providers/session-provider";
 
 export default function ReservationsScreen() {
   const { session, request } = useSession();
+  return <ReservationForm key={session?.email ?? "guest"} session={session} request={request} />;
+}
+
+function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession>, "session" | "request">) {
   const [guests, setGuests] = useState("2");
   const [requestedAt, setRequestedAt] = useState("");
   const [notes, setNotes] = useState("");
@@ -24,8 +29,9 @@ export default function ReservationsScreen() {
   const [cancellationNotice, setCancellationNotice] = useState("");
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [attemptRestored, setAttemptRestored] = useState(false);
   const [draftError, setDraftError] = useState("");
-  const pendingRequest = useRef<{ body: string; key: string } | null>(null);
+  const pendingRequest = useRef<PendingReservationAttempt | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -47,6 +53,18 @@ export default function ReservationsScreen() {
             await SecureStore.deleteItemAsync(reservationDraftKey);
           } else if (!draft) {
             await SecureStore.deleteItemAsync(reservationDraftKey);
+          }
+        }
+        const rawAttempt = await SecureStore.getItemAsync(pendingReservationAttemptKey);
+        if (rawAttempt) {
+          const attempt = parsePendingReservationAttempt(rawAttempt);
+          if (attempt && attempt.ownerEmail === session.email) {
+            if (active) {
+              pendingRequest.current = attempt;
+              setAttemptRestored(true);
+            }
+          } else {
+            await SecureStore.deleteItemAsync(pendingReservationAttemptKey);
           }
         }
       }
@@ -87,18 +105,29 @@ export default function ReservationsScreen() {
     if (!requestedAt || Number.isNaN(date.getTime())) { setError("Indica una fecha y hora válidas."); return; }
     if (date.getTime() < Date.now() + 3 * 60 * 60 * 1000) { setError("Las solicitudes requieren al menos 3 horas de anticipación."); return; }
     const body = JSON.stringify({ guests: count, requestedAt: date.toISOString(), preorder, notes: notes.trim() || null });
-    if (!pendingRequest.current || pendingRequest.current.body !== body) pendingRequest.current = { body, key: createRequestKey() };
+    const attempt = resolvePendingReservationAttempt(pendingRequest.current, session.email, body, createRequestKey);
+    pendingRequest.current = attempt;
+    if (Platform.OS !== "web") {
+      try { await SecureStore.setItemAsync(pendingReservationAttemptKey, JSON.stringify(attempt)); }
+      catch {
+        setError("No pudimos guardar el intento de forma segura; no enviamos la solicitud para evitar duplicados.");
+        return;
+      }
+    }
     setBusy(true);
     try {
       const result = await request<ReservationResult>("/api/v1/client/reservations", {
-        method: "POST", headers: { "Idempotency-Key": pendingRequest.current.key }, body,
+        method: "POST", headers: { "Idempotency-Key": attempt.key }, body,
       });
       pendingRequest.current = null;
       if (Platform.OS !== "web") {
-        try { await SecureStore.deleteItemAsync(reservationDraftKey); }
-        catch { setDraftError("La solicitud se envió, pero no pudimos borrar el borrador local."); }
+        try {
+          await SecureStore.deleteItemAsync(reservationDraftKey);
+          await SecureStore.deleteItemAsync(pendingReservationAttemptKey);
+        } catch { setDraftError("La solicitud respondió, pero no pudimos borrar todo el estado local."); }
       }
       setDraftRestored(false);
+      setAttemptRestored(false);
       setGuests("2"); setRequestedAt(""); setNotes(""); setPreorder(false);
       setMessageTone(result.submitted ? "success" : "info");
       setMessage(result.message || (result.submitted
@@ -123,6 +152,7 @@ export default function ReservationsScreen() {
     <Text style={ui.body}>El restaurante revisará capacidad y horario. Enviar una solicitud no confirma la reserva.</Text>
     {session?.offline ? <Notice>Sin conexión al restaurante. Puedes revisar tu borrador; enviar requiere conexión y confirmación del servidor.</Notice> : null}
     {draftRestored ? <Notice tone="success">Restauramos tu borrador guardado en este dispositivo.</Notice> : null}
+    {attemptRestored ? <Notice tone="error">Hay un envío anterior cuyo resultado no se pudo confirmar. Al reenviar la misma información usaremos la misma clave para evitar duplicar la solicitud.</Notice> : null}
     {session && Platform.OS !== "web" ? <Notice>El borrador se guarda en este dispositivo. Nunca se envía automáticamente al recuperar conexión.</Notice> : null}
     {draftError ? <Notice tone="error">{draftError}</Notice> : null}
     <Card>
@@ -134,7 +164,7 @@ export default function ReservationsScreen() {
       {preorder ? <Text style={{ color: "#746e67", fontSize: 13 }}>Esto avisa al equipo para evaluar la solicitud; aún no agrega productos.</Text> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {message ? <Notice tone={messageTone}>{message}</Notice> : null}
-      <Button title="Enviar solicitud" busy={busy} onPress={submit} />
+      <Button title="Enviar solicitud" busy={busy} disabled={Boolean(session && Platform.OS !== "web" && !draftReady)} onPress={submit} />
     </Card>
     {session ? <Card>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -172,6 +202,7 @@ type ReservationDraft = {
 };
 
 const reservationDraftKey = "wok.client.reservation-draft.v1";
+const pendingReservationAttemptKey = "wok.client.reservation-attempt.v1";
 const reservationDraftLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 
 function parseReservationDraft(raw: string): ReservationDraft | null {
