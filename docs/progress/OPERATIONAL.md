@@ -9,6 +9,13 @@
 - Validación: `mvn verify` combinado (12/12); PostgreSQL temporal aplicó V1–V6 y pasó el test SQL V6; smoke HTTP con sesión sintética verificó saldo Q108.00, replay con mismo ID, payload distinto 409, cierre con diferencia -Q3.00, cierre obsoleto y movimiento post-cierre 409.
 - Pendiente: conectar UI Operativa; registrar `SALE` y `TIP_PAYOUT` desde pedidos/cobros; arqueos intermedios; permisos granulares por acción; imprimir y probar con caja física.
 
+## 2026-10-02 — Idempotencia de adapters mock de pagos/FEL
+
+- Los mocks de `PaymentGateway` y `FelGateway` ahora conservan una referencia estable por clave durante la vida del proceso; repetición con igual operación devuelve el mismo resultado y la misma clave con contenido distinto falla explícitamente.
+- Pago compara orden, importe decimal normalizado y moneda; FEL compara factura y SHA-256 del XML, sin guardar otra copia del XML en el mapa idempotente. El mock FEL limita el XML a 5 MB.
+- La respuesta de pago sigue en `PENDING` y FEL en `PENDING_CERTIFICATION`: esto prueba sólo el contrato mock; no es procesamiento, cobro, certificación ni persistencia productivos. El estado del mapa se pierde al reiniciar el proceso y el proveedor real deberá ofrecer idempotencia durable y reconciliación.
+- Añadidas pruebas JUnit para replay, clave conflictiva y replay concurrente de pagos. Se compiló con `javac` el adapter real y se ejecutó un arnés temporal: replay estable en pago/FEL, conflicto por payload cambiado, 32 reintentos concurrentes y estados siempre pendientes pasaron. El checkout no tiene Maven y no se descargó una distribución, por lo que la suite JUnit del proyecto queda pendiente; el arnés no sustituye esa suite.
+
 Responsables: Antony y Tomy.
 
 Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](README.md).
