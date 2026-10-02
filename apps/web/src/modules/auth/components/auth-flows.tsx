@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import type { LoginResult } from "@/modules/auth/auth-types";
 import {
   CheckCircle2,
   Eye,
@@ -52,10 +53,11 @@ function AuthCard({
         )}
         <h1>{title}</h1>
         <p>{description}</p>
-        <p>
-          Demostración local: no se crean cuentas, se autentican usuarios ni se
-          envían correos. Usa datos de prueba.
-        </p>
+        {!isLogin ? (
+          <p>
+            Demostración local: este flujo todavía no modifica cuentas reales.
+          </p>
+        ) : null}
       </header>
       {children}
     </section>
@@ -100,7 +102,9 @@ function getPasswordError(value: string) {
 }
 
 function getPasswordConfirmationError(password: string, confirmation: string) {
-  return password !== confirmation ? "Las contraseñas no coinciden." : undefined;
+  return password !== confirmation
+    ? "Las contraseñas no coinciden."
+    : undefined;
 }
 
 function ContactMethodField({
@@ -184,6 +188,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [serverError, setServerError] = useState<string>();
 
   const isIdentityValid = isContactValid(accessMethod, identity);
   const identityError =
@@ -194,13 +199,44 @@ export function LoginForm() {
       : undefined;
   const passwordError = submitted ? getPasswordError(password) : undefined;
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitted(true);
+    setServerError(undefined);
     if (!isIdentityValid || getPasswordError(password)) return;
 
+    if (accessMethod === "phone") {
+      setServerError(
+        "El acceso por teléfono aún no está disponible. Usa tu correo electrónico.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
-    window.setTimeout(() => router.push("/client"), 450);
+    try {
+      const response = await fetch("/bff/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: identity,
+          password,
+          rememberSession,
+        }),
+      });
+      const result = (await response.json()) as LoginResult & {
+        message?: string;
+      };
+      if (!response.ok) {
+        setServerError(result.message ?? "No fue posible iniciar sesión.");
+        return;
+      }
+      router.replace(result.redirectTo);
+      router.refresh();
+    } catch {
+      setServerError("No se pudo conectar con el servicio de acceso.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function selectAccessMethod(method: AccessMethod) {
@@ -259,10 +295,15 @@ export function LoginForm() {
                 onChange={(event) => setRememberSession(event.target.checked)}
                 type="checkbox"
               />
-              <span>Recordar sesión (demo, sin persistencia)</span>
+              <span>Recordar sesión</span>
             </label>
             <Link href="/forgot-password">¿Olvidaste tu contraseña?</Link>
           </div>
+          {serverError ? (
+            <p className="form-feedback form-feedback--error" role="alert">
+              {serverError}
+            </p>
+          ) : null}
           <Button disabled={isSubmitting} fullWidth type="submit">
             {isSubmitting ? "INGRESANDO..." : "INICIAR SESIÓN"}
           </Button>
@@ -584,9 +625,7 @@ export function ChangePasswordForm() {
   const [submitted, setSubmitted] = useState(false);
   const [done, setDone] = useState(false);
   const currentPasswordError =
-    submitted && !currentPassword
-      ? "Ingresa tu contraseña actual."
-      : undefined;
+    submitted && !currentPassword ? "Ingresa tu contraseña actual." : undefined;
   const newPasswordError = submitted
     ? getPasswordError(newPassword)
     : undefined;

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { Button } from "@/shared/components/ui/button";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Activity,
   Bike,
@@ -15,6 +15,7 @@ import {
   Factory,
   LayoutDashboard,
   LayoutGrid,
+  LogOut,
   MapPin,
   MessagesSquare,
   PackageSearch,
@@ -31,6 +32,7 @@ import {
   type NavigationIcon,
 } from "@/config/navigation";
 import { hasPermission, type Permission } from "@/shared/lib/permissions";
+import type { AuthenticatedUser } from "@/modules/auth/auth-types";
 
 const icons: Record<NavigationIcon, typeof LayoutDashboard> = {
   calendar: CalendarDays,
@@ -90,15 +92,19 @@ export function AppShell({
   children,
   context,
   contextualActions,
+  currentUser,
 }: {
   children: React.ReactNode;
   context: NavigationContext;
   contextualActions?: React.ReactNode;
+  currentUser?: AuthenticatedUser;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const demoDialog = useRef<HTMLDialogElement>(null);
   const [demoContent, setDemoContent] = useState({ title: "", message: "" });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const contextRoot = {
     admin: "/admin",
     client: "/client",
@@ -110,6 +116,16 @@ export function AppShell({
       (!item.requiredPermission ||
         hasPermission(mockPermissions[context], item.requiredPermission)),
   );
+
+  async function logout() {
+    setIsLoggingOut(true);
+    try {
+      await fetch("/bff/auth/logout", { method: "POST" });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
 
   return (
     <div
@@ -200,6 +216,23 @@ export function AppShell({
             );
           })}
         </nav>
+        {currentUser ? (
+          <div className="sidebar__session">
+            <div>
+              <strong>{currentUser.displayName}</strong>
+              <small>{currentUser.email}</small>
+            </div>
+            <button
+              aria-label="Cerrar sesión"
+              disabled={isLoggingOut}
+              onClick={logout}
+              title="Cerrar sesión"
+              type="button"
+            >
+              <LogOut aria-hidden="true" size={18} />
+            </button>
+          </div>
+        ) : null}
         {context === "operational" ? (
           <div className="sidebar__context">
             <span className="live-dot" aria-hidden="true" />

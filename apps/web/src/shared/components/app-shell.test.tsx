@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
 const pathState = vi.hoisted(() => ({ pathname: "/operation" }));
+const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 
 const expectedNavigationRoutes = {
   admin: {
@@ -64,10 +65,12 @@ function expectNavigationRoutes(
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathState.pathname,
+  useRouter: () => router,
 }));
 
 afterEach(() => {
   pathState.pathname = "/operation";
+  vi.clearAllMocks();
   cleanup();
 });
 

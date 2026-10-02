@@ -9,12 +9,14 @@ import { ProductionSessionProvider } from "@/modules/production";
 import { ServiceStatusProvider } from "@/modules/service-status";
 import { ReservationSessionProvider } from "@/modules/reservations";
 import { MessagingSessionProvider } from "@/modules/messaging";
+import { requireContext } from "@/modules/auth/server/auth-session";
 
-export default function OperationalLayout({
+export default async function OperationalLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const currentUser = await requireContext("operational");
   return (
-    <AppShell context="operational">
+    <AppShell context="operational" currentUser={currentUser}>
       <TableSessionProvider>
         <OrderSessionProvider>
           <DeliverySessionProvider>
@@ -24,7 +26,9 @@ export default function OperationalLayout({
                   <ProductionSessionProvider>
                     <ServiceStatusProvider>
                       <ReservationSessionProvider>
-                        <MessagingSessionProvider>{children}</MessagingSessionProvider>
+                        <MessagingSessionProvider>
+                          {children}
+                        </MessagingSessionProvider>
                       </ReservationSessionProvider>
                     </ServiceStatusProvider>
                   </ProductionSessionProvider>
