@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-02 — Mostrar motivo de rechazo en pickup y delivery
+
+- Los contratos mobile `PickupRequestReceipt` y `DeliveryRequestReceipt` incluyen el motivo opcional del servidor. Los historiales muestran motivo con aviso de error sólo en solicitudes `REJECTED`, junto al texto de estado actualizado.
+- No se interpreta el rechazo como un pedido ni como un pago; los estados restantes no muestran decisionReason.
+- Verificación: 3/3 tests Vitest, ESLint y TypeScript pasan; `expo export` para Android y Web completa correctamente. Los exports no son paquetes instalables ni pruebas en dispositivos.
+
 ## 2026-10-02 — Revalidación limpia de la app Cliente
 
 - Se creó un checkout temporal limpio de `feature/mobile-shell` y se instalaron las dependencias con `npm ci --workspace mobile --offline --include-workspace-root=false`; npm reportó 0 vulnerabilidades para esa instalación del workspace.

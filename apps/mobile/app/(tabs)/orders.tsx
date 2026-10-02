@@ -80,6 +80,7 @@ export default function PickupRequestsScreen() {
         <Text style={ui.body}>Hora solicitada: {formatDate(item.requestedFor)}</Text>
         <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>Subtotal informado: {formatMoney(item.subtotal, item.currency)}</Text>
         <Text style={ui.body}>{item.message}</Text>
+        {item.status === "REJECTED" && item.decisionReason ? <Notice tone="error">Motivo: {item.decisionReason}</Notice> : null}
         <Button title={details[item.requestId] ? "Ocultar productos" : "Ver productos"} secondary busy={loadingDetails === item.requestId} onPress={() => void toggleDetails(item.requestId)} />
         {details[item.requestId] ? <View style={ui.section}>
           {details[item.requestId].customerNote ? <Text style={ui.body}>Comentario: {details[item.requestId].customerNote}</Text> : null}
