@@ -146,6 +146,32 @@ class ClientPickupRequestControllerTest {
         verify(jdbc, times(1)).query(anyString(), any(RowMapper.class), any(Object[].class));
     }
 
+    @Test
+    void rejectedPickupHistoryIncludesCustomerFacingReason() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        UUID currencyId = UUID.randomUUID();
+        Instant requestedFor = Instant.now().plusSeconds(3600);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = mock(ResultSet.class);
+            when(rs.getObject("id", UUID.class)).thenReturn(requestId);
+            when(rs.getString("status")).thenReturn("REJECTED");
+            when(rs.getTimestamp("requested_for")).thenReturn(Timestamp.from(requestedFor));
+            when(rs.getBigDecimal("subtotal")).thenReturn(new BigDecimal("20.50"));
+            when(rs.getObject("currency_id", UUID.class)).thenReturn(currencyId);
+            when(rs.getString("currency_code")).thenReturn("GTQ");
+            when(rs.getString("decision_reason")).thenReturn("Cocina cerrada para ese horario");
+            return List.of(mapper.mapRow(rs, 0));
+        }).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
+
+        var result = new ClientPickupRequestController(jdbc).history(jwt(userId)).getFirst();
+
+        assertEquals("REJECTED", result.status());
+        assertEquals("Cocina cerrada para ese horario", result.decisionReason());
+        assertTrue(result.message().contains("no pudo aceptar"));
+    }
+
     private void stubRequestStatus(String status) {
         doAnswer(invocation -> {
             if (status == null) return List.of();

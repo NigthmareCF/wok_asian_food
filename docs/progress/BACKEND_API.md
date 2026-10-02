@@ -7,6 +7,12 @@
 - Aceptación sigue sin endpoint: marcar una solicitud como aceptada sin crear una orden válida, revalidar capacidad y dejarla visible a cocina sería engañoso. El próximo slice requiere un modelo/migración de orders y transición operativa real. Esta API tampoco decide cobertura de delivery.
 - Suite Maven temporal de API+auth pasó 46/46 pruebas Java (incluye 5 pruebas nuevas); compilación y pruebas JUnit verificadas sobre copias compuestas, no HTTP/PostgreSQL E2E. No se fusionaron ramas.
 
+## 2026-10-02 — Devolución del motivo de rechazo a Cliente
+
+- La historia y el detalle autenticados de pickup/delivery ahora devuelven `decisionReason` sólo cuando el estado es `REJECTED`; estados como cancelación no exponen códigos internos. El texto `message` ahora identifica el estado actual, incluido rechazo, cancelación y vencimiento.
+- Se añadieron pruebas de API para comprobar que pickup y delivery entregan el motivo guardado al propietario. La app Cliente muestra el motivo de rechazo en sus historiales.
+- Suite compuesta Maven API+auth: 48/48 tests pasan (incluye los dos casos de historial con motivo de rechazo). No es una prueba HTTP/PostgreSQL E2E.
+
 ## 2026-09-30 — Direcciones guardadas y protegidas por propietario
 
 - `GET/POST /api/v1/client/addresses`, `PUT/DELETE /api/v1/client/addresses/{addressId}` ofrecen una libreta privada para Cliente. Cada operación exige rol CLIENT y todas las lecturas/cambios incluyen `customer_user_id` del token.

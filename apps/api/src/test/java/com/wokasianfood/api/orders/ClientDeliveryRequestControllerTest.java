@@ -2,6 +2,7 @@ package com.wokasianfood.api.orders;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.doReturn;
@@ -42,6 +43,31 @@ class ClientDeliveryRequestControllerTest {
         verify(jdbc).query(contains("r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'"),
                 any(RowMapper.class), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
         verify(jdbc, never()).query(contains("FROM wok.order_request_items"), any(RowMapper.class), any(Object[].class));
+    }
+
+    @Test
+    void rejectedDeliveryHistoryIncludesCustomerFacingReason() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        Instant requestedFor = Instant.now().plusSeconds(3600);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = org.mockito.Mockito.mock(ResultSet.class);
+            when(rs.getObject("id", UUID.class)).thenReturn(requestId);
+            when(rs.getString("status")).thenReturn("REJECTED");
+            when(rs.getTimestamp("requested_for")).thenReturn(Timestamp.from(requestedFor));
+            when(rs.getBigDecimal("subtotal")).thenReturn(new BigDecimal("96.00"));
+            when(rs.getString("currency_code")).thenReturn("GTQ");
+            when(rs.getString("payment_preference")).thenReturn("CASH_ON_DELIVERY");
+            when(rs.getString("decision_reason")).thenReturn("No tenemos cobertura para esa dirección");
+            return List.of(mapper.mapRow(rs, 0));
+        }).when(jdbc).query(org.mockito.ArgumentMatchers.anyString(), any(RowMapper.class), any(Object[].class));
+
+        var result = new ClientDeliveryRequestController(jdbc).history(jwt(customerId)).getFirst();
+
+        assertEquals("REJECTED", result.status());
+        assertEquals("No tenemos cobertura para esa dirección", result.decisionReason());
+        assertTrue(result.message().contains("no pudo aceptar"));
     }
 
     @Test

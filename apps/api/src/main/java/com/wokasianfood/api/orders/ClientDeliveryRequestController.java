@@ -116,7 +116,7 @@ public class ClientDeliveryRequestController {
             VALUES (?, 'SUBMITTED', ?)
             """, requestId, userId);
         return new DeliveryRequestReceipt(requestId, "DELIVERY", "PENDING_REVIEW", request.requestedFor(),
-                subtotal, currency, request.paymentPreference(), false,
+                subtotal, currency, request.paymentPreference(), false, null,
                 "Recibimos la solicitud delivery. El equipo debe confirmar cobertura, disponibilidad y horario; todavía no es un pedido ni un pago.");
     }
 
@@ -124,14 +124,16 @@ public class ClientDeliveryRequestController {
     public List<DeliveryRequestReceipt> history(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
         return jdbc.query("""
-            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference
+            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code,
+                   r.payment_preference, r.decision_reason
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
             ORDER BY r.created_at DESC, r.id DESC LIMIT 50
             """, (rs, row) -> new DeliveryRequestReceipt(rs.getObject("id", UUID.class), "DELIVERY",
                 rs.getString("status"), rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                 rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")), false,
-                "El equipo debe confirmar cobertura, disponibilidad y horario."), userId);
+                customerDecisionReason(rs.getString("status"), rs.getString("decision_reason")),
+                deliveryMessage(rs.getString("status"))), userId);
     }
 
     @GetMapping("/{requestId}")
@@ -139,13 +141,14 @@ public class ClientDeliveryRequestController {
         UUID userId = UUID.fromString(jwt.getSubject());
         List<DeliveryRequestDetails> found = jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code,
-                   r.payment_preference, r.customer_note
+                   r.payment_preference, r.customer_note, r.decision_reason
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
             """, (rs, row) -> new DeliveryRequestDetails(rs.getObject("id", UUID.class), "DELIVERY",
                 rs.getString("status"), rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                 rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")),
-                rs.getString("customer_note"), List.of()), requestId, userId);
+                rs.getString("customer_note"), customerDecisionReason(rs.getString("status"), rs.getString("decision_reason")),
+                List.of()), requestId, userId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
         List<DeliveryRequestLine> items = jdbc.query("""
             SELECT name_snapshot, quantity, unit_price, line_total
@@ -155,7 +158,7 @@ public class ClientDeliveryRequestController {
         DeliveryRequestDetails request = found.getFirst();
         return new DeliveryRequestDetails(request.requestId(), request.fulfillmentType(), request.status(),
                 request.requestedFor(), request.subtotal(), request.currency(), request.paymentPreference(),
-                request.customerNote(), items);
+                request.customerNote(), request.decisionReason(), items);
     }
 
     private List<Product> loadProducts(List<RequestedItem> lines) {
@@ -195,7 +198,8 @@ public class ClientDeliveryRequestController {
 
     private DeliveryRequestReceipt existing(UUID userId, UUID key, String fingerprint) {
         List<DeliveryRequestReceipt> found = jdbc.query("""
-            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference, r.request_fingerprint
+            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code,
+                   r.payment_preference, r.request_fingerprint, r.decision_reason
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY' AND r.idempotency_key = ?
             """, (rs, row) -> {
@@ -204,9 +208,24 @@ public class ClientDeliveryRequestController {
                 return new DeliveryRequestReceipt(rs.getObject("id", UUID.class), "DELIVERY", rs.getString("status"),
                         rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                         rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")), true,
-                        "Recibimos la solicitud delivery. El equipo debe confirmar cobertura y disponibilidad.");
+                        customerDecisionReason(rs.getString("status"), rs.getString("decision_reason")),
+                        deliveryMessage(rs.getString("status")));
             }, userId, key);
         return found.isEmpty() ? null : found.getFirst();
+    }
+
+    private String customerDecisionReason(String status, String reason) {
+        return "REJECTED".equals(status) ? reason : null;
+    }
+
+    private String deliveryMessage(String status) {
+        return switch (status) {
+            case "REJECTED" -> "El restaurante no pudo aceptar tu solicitud delivery.";
+            case "CANCELLED" -> "La solicitud delivery fue cancelada.";
+            case "ACCEPTED" -> "El restaurante aceptó tu solicitud delivery.";
+            case "EXPIRED" -> "La solicitud delivery venció antes de ser procesada.";
+            default -> "El equipo debe confirmar cobertura, disponibilidad y horario.";
+        };
     }
 
     public record DeliveryRequest(@NotNull Instant requestedFor, @Size(max = 500) String customerNote,
@@ -216,10 +235,11 @@ public class ClientDeliveryRequestController {
             @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {}
     public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
     public record DeliveryRequestReceipt(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
-            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean idempotentReplay, String message) {}
+            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean idempotentReplay,
+            String decisionReason, String message) {}
     public record DeliveryRequestDetails(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, String customerNote,
-            List<DeliveryRequestLine> items) {}
+            String decisionReason, List<DeliveryRequestLine> items) {}
     public record DeliveryRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
     public enum PaymentPreference { CASH_ON_DELIVERY, ONLINE_PAYMENT_REQUESTED }
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currency, int preparationSeconds) {}
