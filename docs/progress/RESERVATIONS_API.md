@@ -3,7 +3,8 @@
 ## 2026-10-02 — Cobertura de límites de capacidad y estancia
 
 - Se ampliaron pruebas del evaluador para anticipación exactamente de 3 horas, horarios antes de apertura/después del último ingreso, grupo de 20 a las 21:15, grupo pequeño a las 21:15 y rangos de estancia de 1, 2, 4, 8, 12 y 13+ personas.
-- Suite focal en composición Maven temporal: 6/6 pruebas pasan. El cálculo de capacidad live sigue marcado como `LIVE_CAPACITY_NOT_YET_CONNECTED`; esto verifica guardrails, no disponibilidad real ni aceptación automática.
+- Se añadieron pruebas de revisión Operativa: confirmación/rechazo auditan la transición; versión obsoleta produce conflicto sin escribir y solicitud inexistente da 404 sin escrituras.
+- Suite focal en composición Maven temporal: 10/10 pruebas pasan. El cálculo de capacidad live sigue marcado como `LIVE_CAPACITY_NOT_YET_CONNECTED`; esto verifica guardrails, no disponibilidad real ni aceptación automática.
 
 ## 2026-09-30 — Cancelación de solicitud pendiente
 
