@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ClientSessionProvider } from "@/modules/clients/client-session-provider";
+import { createClientSessionStore } from "@/modules/clients/client-session";
 import { TableSessionProvider } from "@/modules/tables";
 import { ReservationSessionProvider } from "../reservation-session-provider";
 import { NewReservationView } from "./new-reservation-view";
@@ -20,21 +22,28 @@ const renderReservations = (view: React.ReactNode) =>
     </TableSessionProvider>,
   );
 
+const renderClient = (view: React.ReactNode) =>
+  render(
+    <ClientSessionProvider store={createClientSessionStore()}>
+      {view}
+    </ClientSessionProvider>,
+  );
+
 describe("ReservationFormView", () => {
   it("shows the late reservation notice for the C-08 demonstration time", () => {
-    render(<ReservationFormView initialTime="22:00" />);
+    renderClient(<ReservationFormView initialTime="21:30" />);
 
-    expect(screen.getByLabelText("HORA")).toHaveValue("22:00");
+    expect(screen.getByLabelText("HORA")).toHaveValue("21:30");
     expect(
       screen.getByRole("heading", {
-        name: "La última hora disponible para ingreso es 21:15.",
+        name: "Solicitud tardía: después de las 21:15.",
       }),
     ).toBeInTheDocument();
   });
 
   it("validates the preorder selection before continuing", async () => {
     const user = userEvent.setup();
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
@@ -44,7 +53,7 @@ describe("ReservationFormView", () => {
   });
 
   it("sends the preorder choice to the temporary menu access", () => {
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     expect(screen.getByRole("link", { name: "Sí" })).toHaveAttribute(
       "href",
@@ -57,19 +66,19 @@ describe("ReservationFormView", () => {
 
   it("keeps the no-preorder choice in the reservation flow", async () => {
     const user = userEvent.setup();
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     await user.click(screen.getByRole("button", { name: "Ahora no" }));
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
     expect(
-      screen.getByText("Solicitud pendiente de confirmación"),
+      screen.getByText("Solicitud de reserva pendiente de validación"),
     ).toBeInTheDocument();
   });
 
   it("increases and decreases the number of people", async () => {
     const user = userEvent.setup();
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     await user.click(
       screen.getByRole("button", { name: "Aumentar número de personas" }),
@@ -83,36 +92,38 @@ describe("ReservationFormView", () => {
   });
 
   it("keeps 21:15 as a valid time without showing the late notice", () => {
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     fireEvent.change(screen.getByLabelText("HORA"), {
       target: { value: "21:15" },
     });
 
     expect(
-      screen.queryByText(/La última hora disponible para ingreso/),
+      screen.queryByText(/Solicitud tardía: después de las/),
     ).not.toBeInTheDocument();
   });
 
-  it("shows C-08 for a time after 21:15 and uses 21:15 with preorder", async () => {
+  it("shows C-08 after 21:15 and allows choosing 21:15", async () => {
     const user = userEvent.setup();
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     const timeInput = screen.getByLabelText("HORA");
-    fireEvent.change(timeInput, { target: { value: "22:00" } });
+    fireEvent.change(timeInput, { target: { value: "21:30" } });
 
     expect(
       screen.getByRole("heading", {
-        name: "La última hora disponible para ingreso es 21:15.",
+        name: "Solicitud tardía: después de las 21:15.",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Para esta hora se requiere preorden completa y confirmación del restaurante.",
+        "Las solicitudes tardías están sujetas a disponibilidad y validación del restaurante. Registrar la solicitud no garantiza su aceptación.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("El preorden es obligatorio para esta hora."),
+      screen.getByText(
+        "La solicitud tardía requiere preorden para la validación del restaurante. Puedes registrar la solicitud aunque esté pendiente; incluirla no garantiza aceptación.",
+      ),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "USAR 21:15" }));
@@ -123,50 +134,50 @@ describe("ReservationFormView", () => {
       "/menu",
     );
     expect(
-      screen.queryByText(/La última hora disponible para ingreso/),
+      screen.queryByText(/Solicitud tardía: después de las/),
     ).not.toBeInTheDocument();
   });
 
   it("returns focus to the time selector when choosing another time", async () => {
     const user = userEvent.setup();
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     fireEvent.change(screen.getByLabelText("HORA"), {
-      target: { value: "22:00" },
+      target: { value: "21:30" },
     });
     await user.click(screen.getByRole("button", { name: "ELEGIR OTRA HORA" }));
 
     expect(screen.getByLabelText("HORA")).toHaveFocus();
     expect(
-      screen.queryByText(/La última hora disponible para ingreso/),
+      screen.queryByText(/Solicitud tardía: después de las/),
     ).not.toBeInTheDocument();
   });
 
   it("does not show C-08 for a time before 21:15", () => {
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     fireEvent.change(screen.getByLabelText("HORA"), {
       target: { value: "20:30" },
     });
 
     expect(
-      screen.queryByText(/La última hora disponible para ingreso/),
+      screen.queryByText(/Solicitud tardía: después de las/),
     ).not.toBeInTheDocument();
   });
 
   it("shows a simulated pending confirmation for a valid request", async () => {
     const user = userEvent.setup();
-    render(<ReservationFormView />);
+    renderClient(<ReservationFormView />);
 
     await user.click(screen.getByRole("button", { name: "Ahora no" }));
     await user.click(screen.getByRole("button", { name: "CONTINUAR" }));
 
     const pendingConfirmation = screen.getByText(
-      "Solicitud pendiente de confirmación",
+      "Solicitud de reserva pendiente de validación",
     );
     expect(pendingConfirmation).toBeInTheDocument();
     expect(pendingConfirmation.parentElement?.parentElement).toHaveTextContent(
-      "Esta es una simulación",
+      "Guardada localmente",
     );
   });
 });

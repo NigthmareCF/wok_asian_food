@@ -5,7 +5,6 @@ export type ClientReservationAvailability = {
 
 export type ClientReservationFixture = {
   availability: ClientReservationAvailability;
-  defaultDate: string;
   defaultPeople: number;
   defaultTime: string;
   lastNormalEntryTime: string;
@@ -13,10 +12,9 @@ export type ClientReservationFixture = {
 
 export const clientReservationFixture: ClientReservationFixture = {
   availability: {
-    label: "Disponibilidad simulada",
+    label: "Disponibilidad pendiente",
     tone: "info",
   },
-  defaultDate: "2026-09-15",
   defaultPeople: 4,
   defaultTime: "20:00",
   lastNormalEntryTime: "21:15",

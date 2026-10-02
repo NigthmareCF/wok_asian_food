@@ -60,9 +60,7 @@ describe("LocationSnapshot", () => {
     expect(screen.getByText("Navegación no configurada")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "CÓMO LLEGAR" })).toBeDisabled();
     expect(
-      screen.getByText(
-        "La navegación no está configurada con una navigationUrl aprobada.",
-      ),
+      screen.getByText("El enlace para llegar todavía no está disponible."),
     ).toBeInTheDocument();
   });
 

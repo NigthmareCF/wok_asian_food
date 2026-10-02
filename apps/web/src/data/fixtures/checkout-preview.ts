@@ -10,21 +10,17 @@ export const checkoutPreviewSnapshot: CheckoutSnapshot = Object.freeze({
       title: "Wok teriyaki",
       detail: "Pollo · Picante medio",
       unitPriceCents: 13500,
+      subtotalCents: 27000,
     }),
     Object.freeze({
       id: "demo-tea",
       quantity: 1,
       title: "Té verde frío",
       unitPriceCents: 11500,
+      subtotalCents: 11500,
     }),
   ]),
   subtotalCents: 38500,
-  deliveryFeeCents: 0,
-  paymentTiming: "now",
-  paymentMethod: "card",
-  tipPercentage: 0,
-  canPayAtTable: true,
-  demoTrackingOrderId: "demo-190",
 });
 
 export function createCheckoutPreviewSnapshot(

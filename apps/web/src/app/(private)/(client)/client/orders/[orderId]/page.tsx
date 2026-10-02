@@ -1,5 +1,4 @@
-import { findClientOrderTracking } from "@/data/fixtures/client-order-tracking";
-import { OrderTrackingView } from "@/modules/client-order-tracking";
+import { ClientOrderTracking } from "@/modules/client-order-tracking/components/client-order-tracking";
 
 export default async function ClientOrderTrackingPage({
   params,
@@ -7,5 +6,5 @@ export default async function ClientOrderTrackingPage({
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
-  return <OrderTrackingView order={findClientOrderTracking(orderId)} />;
+  return <ClientOrderTracking orderId={orderId} />;
 }

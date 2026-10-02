@@ -2,66 +2,67 @@
 
 import Link from "next/link";
 import { Clock3, Minus, Plus } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useClientSession } from "@/modules/clients/client-session-provider";
+import {
+  localDate,
+  type ReservationDraft,
+} from "@/modules/clients/client-session";
+import {
+  isLateReservation,
+  validateReservation,
+  type ReservationErrors,
+} from "../client-reservation";
 import { clientReservationFixture } from "@/data/fixtures/client-reservations";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { StatusBadge } from "@/shared/components/ui/status-badge";
 import styles from "./reservation.module.css";
 
-type ReservationErrors = Partial<{
-  date: string;
-  people: string;
-  preorder: string;
-  time: string;
-}>;
-
-function getTimeInMinutes(time: string) {
-  const [hour, minute] = time.split(":").map(Number);
-  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
-
-  return hour * 60 + minute;
-}
-
-function isLateReservation(time: string) {
-  const selectedTime = getTimeInMinutes(time);
-  const lastNormalTime = getTimeInMinutes(
-    clientReservationFixture.lastNormalEntryTime,
-  );
-
-  return (
-    selectedTime !== null &&
-    lastNormalTime !== null &&
-    selectedTime > lastNormalTime
-  );
-}
+const subscribeDate = () => () => {};
+const getDateSnapshot = () => localDate(new Date());
 
 export function ReservationFormView({ initialTime }: { initialTime?: string }) {
-  const [date, setDate] = useState(clientReservationFixture.defaultDate);
-  const [time, setTime] = useState(
-    initialTime ?? clientReservationFixture.defaultTime,
-  );
-  const [people, setPeople] = useState(clientReservationFixture.defaultPeople);
-  const [includesPreorder, setIncludesPreorder] = useState<boolean | null>(
-    null,
-  );
-  const [note, setNote] = useState("");
-  const [serviceTime, setServiceTime] = useState("");
+  const session = useClientSession();
+  const today = useSyncExternalStore(subscribeDate, getDateSnapshot, () => "");
+  const draft: ReservationDraft = session.reservationDraft ?? {
+    date: today,
+    time: initialTime ?? clientReservationFixture.defaultTime,
+    people: clientReservationFixture.defaultPeople,
+    includesPreorder: null,
+    note: "",
+    serviceTime: "",
+  };
+  const { date, time, people, includesPreorder, note, serviceTime } = draft;
+  const updateDraft = (changes: Partial<ReservationDraft>) =>
+    session.updateReservation({ ...draft, ...changes });
+  const setDate = (value: string) => updateDraft({ date: value });
+  const setTime = (value: string) => updateDraft({ time: value });
+  const setIncludesPreorder = (value: boolean) =>
+    updateDraft({ includesPreorder: value });
+  const setNote = (value: string) => updateDraft({ note: value });
+  const setServiceTime = (value: string) => updateDraft({ serviceTime: value });
   const [errors, setErrors] = useState<ReservationErrors>({});
-  const [isPendingConfirmation, setIsPendingConfirmation] = useState(false);
+  const isPendingConfirmation = Boolean(session.reservation);
   const [isLateNoticeDismissed, setIsLateNoticeDismissed] = useState(false);
   const timeInputRef = useRef<HTMLInputElement>(null);
+  const summaryRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (isPendingConfirmation) summaryRef.current?.focus();
+  }, [isPendingConfirmation]);
   const lateReservation = isLateReservation(time);
   const showLateNotice = lateReservation && !isLateNoticeDismissed;
 
   function updatePeople(amount: number) {
-    setPeople((current) => Math.max(1, current + amount));
+    if (Number.isSafeInteger(people + amount))
+      updateDraft({ people: Math.max(1, people + amount) });
     setErrors((current) => ({ ...current, people: undefined }));
   }
 
   function useLastNormalTime() {
-    setTime(clientReservationFixture.lastNormalEntryTime);
-    setIncludesPreorder(true);
+    updateDraft({
+      time: clientReservationFixture.lastNormalEntryTime,
+    });
     setIsLateNoticeDismissed(false);
     setErrors((current) => ({
       ...current,
@@ -77,27 +78,32 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
 
   function submitReservation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextErrors: ReservationErrors = {};
-
-    if (!date) nextErrors.date = "Selecciona una fecha.";
-    if (!time) nextErrors.time = "Selecciona una hora.";
-    if (people < 1) nextErrors.people = "Selecciona al menos una persona.";
-    if (includesPreorder === null) {
-      nextErrors.preorder = "Indica si deseas incluir preorden.";
-    }
-    if (lateReservation && includesPreorder !== true) {
-      nextErrors.preorder =
-        "Después de las 21:15 se requiere preorden completa.";
-    }
+    if (session.reservation) return;
+    const nextErrors = validateReservation(draft);
 
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-
-    setIsPendingConfirmation(true);
+    if (Object.keys(nextErrors).length > 0) {
+      document
+        .getElementById(
+          nextErrors.date
+            ? "reservation-date"
+            : nextErrors.time
+              ? "reservation-time"
+              : nextErrors.serviceTime
+                ? "service-time"
+                : "preorder-choice",
+        )
+        ?.focus();
+      return;
+    }
+    session.saveReservation(draft);
   }
 
   return (
     <section className={styles.reservation} aria-labelledby="reservation-title">
+      <Link className="button button--secondary" href="/client">
+        Volver al inicio de Cliente
+      </Link>
       <header className={styles.header}>
         <div>
           <span className={styles.kicker}>RESERVA</span>
@@ -110,7 +116,8 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
       </header>
 
       <p className={styles.simulationNotice}>
-        Datos de disponibilidad simulados. La solicitud no confirma una mesa.
+        Guardado solamente durante esta sesión. La disponibilidad se verificará
+        antes de confirmar; esta solicitud no confirma una mesa.
       </p>
 
       {isPendingConfirmation ? (
@@ -121,171 +128,217 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
         >
           <Clock3 aria-hidden="true" size={28} />
           <div>
-            <h2>Solicitud pendiente de confirmación</h2>
+            <h2 ref={summaryRef} tabIndex={-1}>
+              Solicitud de reserva pendiente de validación
+            </h2>
             <p>
-              Esta es una simulación. La reservación no fue enviada ni
-              confirmada por el restaurante.
+              Guardada localmente; todavía no enviada. Sujeta a disponibilidad y
+              validación del restaurante, que decide su aceptación.
             </p>
           </div>
-          <Button
-            onClick={() => setIsPendingConfirmation(false)}
-            variant="secondary"
-          >
+          <dl>
+            <dt>Fecha y hora</dt>
+            <dd>
+              {session.reservation?.date} · {session.reservation?.time}
+            </dd>
+            <dt>Personas</dt>
+            <dd>{session.reservation?.people}</dd>
+            <dt>Preorden</dt>
+            <dd>
+              {session.reservation?.includesPreorder
+                ? "Solicitada; productos pendientes de vincular"
+                : "Sin preorden"}
+            </dd>
+            {session.reservation?.serviceTime ? (
+              <>
+                <dt>Hora objetivo</dt>
+                <dd>{session.reservation.serviceTime}</dd>
+              </>
+            ) : null}
+            {session.reservation?.note ? (
+              <>
+                <dt>Nota</dt>
+                <dd>{session.reservation.note}</dd>
+              </>
+            ) : null}
+          </dl>
+          <Button onClick={() => updateDraft({})} variant="secondary">
             Revisar solicitud
           </Button>
         </section>
       ) : null}
 
-      <form className={styles.form} noValidate onSubmit={submitReservation}>
-        <section className={styles.group} aria-labelledby="date-time-title">
-          <h2 className="sr-only" id="date-time-title">
-            Fecha y hora
-          </h2>
-          <div className={styles.dateTimeGrid}>
-            <FormField
-              aria-invalid={Boolean(errors.date)}
-              className={styles.control}
-              id="reservation-date"
-              label="FECHA"
-              onChange={(event) => {
-                setDate(event.target.value);
-                setErrors((current) => ({ ...current, date: undefined }));
-              }}
-              type="date"
-              value={date}
-            />
-            <label className={styles.field} htmlFor="reservation-time">
-              <span>HORA</span>
-              <input
-                aria-describedby={
-                  errors.time ? "reservation-time-error" : undefined
-                }
-                aria-invalid={Boolean(errors.time)}
+      {!isPendingConfirmation ? (
+        <form className={styles.form} noValidate onSubmit={submitReservation}>
+          <section className={styles.group} aria-labelledby="date-time-title">
+            <h2 className="sr-only" id="date-time-title">
+              Fecha y hora
+            </h2>
+            <div className={styles.dateTimeGrid}>
+              <FormField
+                error={errors.date}
+                required
+                min={today}
                 className={styles.control}
-                id="reservation-time"
+                id="reservation-date"
+                label="FECHA"
                 onChange={(event) => {
-                  setTime(event.target.value);
-                  setIsLateNoticeDismissed(false);
-                  setErrors((current) => ({
-                    ...current,
-                    preorder: undefined,
-                    time: undefined,
-                  }));
+                  setDate(event.target.value);
+                  setErrors((current) => ({ ...current, date: undefined }));
                 }}
-                ref={timeInputRef}
-                type="time"
-                value={time}
+                type="date"
+                value={date}
               />
-              {errors.time ? (
-                <small className={styles.error} id="reservation-time-error">
-                  {errors.time}
-                </small>
-              ) : null}
-            </label>
-          </div>
-        </section>
+              <label className={styles.field} htmlFor="reservation-time">
+                <span>HORA</span>
+                <input
+                  aria-describedby={
+                    errors.time ? "reservation-time-error" : undefined
+                  }
+                  aria-invalid={Boolean(errors.time)}
+                  className={styles.control}
+                  id="reservation-time"
+                  onChange={(event) => {
+                    setTime(event.target.value);
+                    setIsLateNoticeDismissed(false);
+                    setErrors((current) => ({
+                      ...current,
+                      preorder: undefined,
+                      time: undefined,
+                    }));
+                  }}
+                  ref={timeInputRef}
+                  type="time"
+                  required
+                  value={time}
+                />
+                {errors.time ? (
+                  <small className={styles.error} id="reservation-time-error">
+                    {errors.time}
+                  </small>
+                ) : null}
+              </label>
+            </div>
+          </section>
 
-        {showLateNotice ? (
-          <LateReservationNotice
-            onChooseOtherTime={chooseOtherTime}
-            onUseLastNormalTime={useLastNormalTime}
-          />
-        ) : null}
-
-        <section className={styles.group} aria-labelledby="people-title">
-          <h2 id="people-title">NÚMERO DE PERSONAS</h2>
-          <div className={styles.peopleControl}>
-            <button
-              aria-label="Reducir número de personas"
-              disabled={people <= 1}
-              onClick={() => updatePeople(-1)}
-              type="button"
-            >
-              <Minus aria-hidden="true" size={18} />
-            </button>
-            <output aria-live="polite">{people}</output>
-            <button
-              aria-label="Aumentar número de personas"
-              onClick={() => updatePeople(1)}
-              type="button"
-            >
-              <Plus aria-hidden="true" size={18} />
-            </button>
-          </div>
-          {errors.people ? (
-            <p className={styles.error}>{errors.people}</p>
+          {showLateNotice ? (
+            <LateReservationNotice
+              onChooseOtherTime={chooseOtherTime}
+              onUseLastNormalTime={useLastNormalTime}
+            />
           ) : null}
-        </section>
 
-        <fieldset className={styles.group}>
-          <legend>¿INCLUIR PREORDEN?</legend>
-          <p className={styles.help} id="preorder-help">
-            Al elegir Sí podrás seleccionar platillos en el menú. Este acceso es
-            demostrativo y temporal.
-          </p>
-          <div className={styles.choiceGrid}>
-            <Link
-              aria-describedby="preorder-help"
-              className={includesPreorder === true ? styles.selected : ""}
-              href="/menu"
-            >
-              Sí
-            </Link>
-            <button
-              aria-pressed={includesPreorder === false}
-              className={includesPreorder === false ? styles.selected : ""}
-              onClick={() => setIncludesPreorder(false)}
-              type="button"
-            >
-              Ahora no
-            </button>
-          </div>
-          {lateReservation ? (
-            <p className={styles.requiredPreorder}>
-              El preorden es obligatorio para esta hora.
+          <section className={styles.group} aria-labelledby="people-title">
+            <h2 id="people-title">NÚMERO DE PERSONAS</h2>
+            <div className={styles.peopleControl}>
+              <button
+                aria-label="Reducir número de personas"
+                disabled={people <= 1}
+                onClick={() => updatePeople(-1)}
+                type="button"
+              >
+                <Minus aria-hidden="true" size={18} />
+              </button>
+              <output aria-live="polite">{people}</output>
+              <button
+                aria-label="Aumentar número de personas"
+                onClick={() => updatePeople(1)}
+                type="button"
+              >
+                <Plus aria-hidden="true" size={18} />
+              </button>
+            </div>
+            {errors.people ? (
+              <p className={styles.error}>{errors.people}</p>
+            ) : null}
+          </section>
+
+          <fieldset className={styles.group}>
+            <legend>¿INCLUIR PREORDEN?</legend>
+            <p className={styles.help} id="preorder-help">
+              Al elegir Sí podrás seleccionar platillos en el menú. Tu borrador
+              se conserva; vuelve desde Inicio de cliente → Reservas. Los
+              productos todavía no se vinculan a esta solicitud.
             </p>
-          ) : null}
-          {errors.preorder ? (
-            <p className={styles.error} role="alert">
-              {errors.preorder}
+            <div className={styles.choiceGrid}>
+              <Link
+                aria-describedby="preorder-help"
+                className={includesPreorder === true ? styles.selected : ""}
+                href="/menu"
+                id="preorder-choice"
+                onClick={() => setIncludesPreorder(true)}
+              >
+                Sí
+              </Link>
+              <button
+                aria-pressed={includesPreorder === false}
+                className={includesPreorder === false ? styles.selected : ""}
+                onClick={() => setIncludesPreorder(false)}
+                type="button"
+              >
+                Ahora no
+              </button>
+            </div>
+            {lateReservation ? (
+              <p className={styles.requiredPreorder}>
+                La solicitud tardía requiere preorden para la validación del
+                restaurante. Puedes registrar la solicitud aunque esté
+                pendiente; incluirla no garantiza aceptación.
+              </p>
+            ) : null}
+            {errors.preorder ? (
+              <p className={styles.error} role="alert">
+                {errors.preorder}
+              </p>
+            ) : null}
+          </fieldset>
+
+          <section
+            className={styles.group}
+            aria-labelledby="service-time-title"
+          >
+            <div className={styles.optionalHeading}>
+              <h2 id="service-time-title">HORA OBJETIVO DE SERVICIO</h2>
+              <span>Opcional</span>
+            </div>
+            <input
+              aria-describedby="service-time-help"
+              className={styles.control}
+              id="service-time"
+              aria-labelledby="service-time-title"
+              aria-invalid={Boolean(errors.serviceTime)}
+              onChange={(event) => setServiceTime(event.target.value)}
+              type="time"
+              value={serviceTime}
+            />
+            <p className={styles.help} id="service-time-help">
+              Indica cuándo deseas que inicie el servicio en mesa.
             </p>
-          ) : null}
-        </fieldset>
+            {errors.serviceTime ? (
+              <p className={styles.error} role="alert">
+                {errors.serviceTime}
+              </p>
+            ) : null}
+          </section>
 
-        <section className={styles.group} aria-labelledby="service-time-title">
-          <div className={styles.optionalHeading}>
-            <h2 id="service-time-title">HORA OBJETIVO DE SERVICIO</h2>
-            <span>Opcional</span>
-          </div>
-          <input
-            aria-describedby="service-time-help"
-            className={styles.control}
-            id="service-time"
-            onChange={(event) => setServiceTime(event.target.value)}
-            type="time"
-            value={serviceTime}
-          />
-          <p className={styles.help} id="service-time-help">
-            Indica cuándo deseas que inicie el servicio en mesa.
-          </p>
-        </section>
+          <section className={styles.group} aria-labelledby="note-title">
+            <h2 id="note-title">NOTA ESPECIAL</h2>
+            <textarea
+              className={styles.control}
+              id="reservation-note"
+              aria-labelledby="note-title"
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Alergias, celebraciones, preferencias..."
+              rows={3}
+              value={note}
+            />
+          </section>
 
-        <section className={styles.group} aria-labelledby="note-title">
-          <h2 id="note-title">NOTA ESPECIAL</h2>
-          <textarea
-            className={styles.control}
-            id="reservation-note"
-            onChange={(event) => setNote(event.target.value)}
-            placeholder="Alergias, celebraciones, preferencias..."
-            rows={3}
-            value={note}
-          />
-        </section>
-
-        <Button fullWidth type="submit">
-          CONTINUAR
-        </Button>
-      </form>
+          <Button fullWidth type="submit" disabled={!today}>
+            CONTINUAR
+          </Button>
+        </form>
+      ) : null}
     </section>
   );
 }
@@ -306,16 +359,19 @@ function LateReservationNotice({
       <div className={styles.lateNoticeContent}>
         <div className={styles.warningBlock}>
           <h2 id="late-reservation-title">
-            La última hora disponible para ingreso es <strong>21:15</strong>.
+            Solicitud tardía: después de las <strong>21:15</strong>.
           </h2>
           <p>
-            Para esta hora se requiere preorden completa y confirmación del
-            restaurante.
+            Las solicitudes tardías están sujetas a disponibilidad y validación
+            del restaurante. Registrar la solicitud no garantiza su aceptación.
           </p>
         </div>
         <div className={styles.conditionBlock}>
-          <h2>Condición requerida</h2>
-          <p>El preorden queda marcado como obligatorio al usar 21:15.</p>
+          <h2>Validación pendiente</h2>
+          <p>
+            Las 21:15 son una referencia para el aviso de solicitud tardía, no
+            una garantía de disponibilidad.
+          </p>
         </div>
       </div>
       <Button fullWidth onClick={onUseLastNormalTime} type="button">

@@ -22,8 +22,7 @@ export function LocationSnapshot({
     snapshot.navigationProviderState === "available"
       ? snapshot.navigationUrl
         ? {
-            description:
-              "Hay un enlace de navegación externo disponible para esta consulta demostrativa.",
+            description: "Abre el enlace para consultar cómo llegar.",
             title: "Proveedor de navegación disponible",
           }
         : {
@@ -42,13 +41,17 @@ export function LocationSnapshot({
       <header className={styles.header}>
         <span className={styles.kicker}>INFORMACIÓN DEL RESTAURANTE</span>
         <h1 id="location-title">Ubicación</h1>
-        <p>Consulta demostrativa; no usa mapas ni tu ubicación.</p>
+        <p>Consulta la información publicada para planear tu visita.</p>
       </header>
 
       <article className={styles.card}>
         <MapPin aria-hidden="true" className={styles.icon} size={28} />
         <div>
-          <h2>Ubicación pendiente de confirmación</h2>
+          <h2>
+            {snapshot.address
+              ? "Dirección"
+              : "Ubicación pendiente de confirmación"}
+          </h2>
           <p>{snapshot.address ?? "Aún no hay una dirección publicada."}</p>
         </div>
       </article>
@@ -96,8 +99,8 @@ export function LocationSnapshot({
       {!canOpenNavigation ? (
         <p className={styles.help} id="navigation-help">
           {snapshot.navigationProviderState === "available"
-            ? "La navegación no está configurada con una navigationUrl aprobada."
-            : "La acción estará disponible con una navigationUrl aprobada."}
+            ? "El enlace para llegar todavía no está disponible."
+            : "Podrás consultar cómo llegar cuando se publique la información."}
         </p>
       ) : null}
 
