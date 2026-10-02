@@ -145,7 +145,7 @@ export function AppShell({
           aria-label={
             context === "client"
               ? "Navegación de cliente"
-              : `Navegacion ${context}`
+              : `Navegación ${context}`
           }
         >
           {visibleItems.map((item) => {

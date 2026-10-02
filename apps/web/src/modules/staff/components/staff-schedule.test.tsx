@@ -41,7 +41,7 @@ describe("StaffScheduleView", () => {
       screen.getByText("7 al 13 de septiembre de 2026"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Ana Rodriguez/ }),
+      screen.getByRole("button", { name: /Ana Rodríguez/ }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
       screen.queryByText(new RegExp(blockedTerm, "i")),
@@ -55,12 +55,12 @@ describe("StaffScheduleView", () => {
     await user.type(screen.getByLabelText("Buscar personal"), "Carlos");
 
     expect(
-      screen.queryByRole("button", { name: /Ana Rodriguez/ }),
+      screen.queryByRole("button", { name: /Ana Rodríguez/ }),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Carlos Mendez/ }));
+    await user.click(screen.getByRole("button", { name: /Carlos Méndez/ }));
 
     expect(
-      screen.getByRole("heading", { name: "Carlos Mendez" }),
+      screen.getByRole("heading", { name: "Carlos Méndez" }),
     ).toBeInTheDocument();
   });
 
@@ -98,7 +98,7 @@ describe("StaffScheduleView", () => {
 
     expect(screen.getByText("08:30 - 14:00")).toBeInTheDocument();
     expect(screen.getByText("Sin cambios")).toBeInTheDocument();
-    expect(screen.getByLabelText("Bitacora simulada")).toHaveTextContent(
+    expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
       "Horario editado",
     );
   });
@@ -115,13 +115,13 @@ describe("StaffScheduleView", () => {
     });
     await user.type(within(dialog).getByLabelText("Hora de inicio"), "18:00");
     await user.type(
-      within(dialog).getByLabelText("Hora de finalizacion"),
+      within(dialog).getByLabelText("Hora de finalización"),
       "22:00",
     );
     await saveAndWait(user);
 
     expect(screen.getByText("18:00 - 22:00")).toBeInTheDocument();
-    expect(screen.getByLabelText("Bitacora simulada")).toHaveTextContent(
+    expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
       "Turno especial",
     );
 
@@ -129,13 +129,13 @@ describe("StaffScheduleView", () => {
       screen.getAllByRole("button", { name: "Editar turno especial" })[0],
     );
     dialog = screen.getByRole("dialog", { name: "Editar turno especial" });
-    const endTime = within(dialog).getByLabelText("Hora de finalizacion");
+    const endTime = within(dialog).getByLabelText("Hora de finalización");
     await user.clear(endTime);
     await user.type(endTime, "23:00");
     await saveAndWait(user);
 
     expect(screen.getByText(/23:00/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Bitacora simulada")).toHaveTextContent(
+    expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
       "Turno especial editado",
     );
   });
@@ -157,11 +157,11 @@ describe("StaffScheduleView", () => {
     expect(
       screen.getByText("Ausencia simulada: Ausencia demo"),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Bitacora simulada")).toHaveTextContent(
+    expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
       "Ausencia",
     );
     expect(
-      screen.getByRole("heading", { name: "Ana Rodriguez" }),
+      screen.getByRole("heading", { name: "Ana Rodríguez" }),
     ).toBeInTheDocument();
   });
 
@@ -215,10 +215,10 @@ describe("StaffScheduleView", () => {
       screen.getByRole("dialog", { name: "Editar horario" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { hidden: true, name: /Carlos Mendez/ }),
+      screen.getByRole("button", { hidden: true, name: /Carlos Méndez/ }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Carlos Mendez/ }),
+      screen.queryByRole("button", { name: /Carlos Méndez/ }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Semana siguiente/ }),
@@ -230,7 +230,7 @@ describe("StaffScheduleView", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(
-      screen.getByRole("heading", { hidden: true, name: "Ana Rodriguez" }),
+      screen.getByRole("heading", { hidden: true, name: "Ana Rodríguez" }),
     ).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));

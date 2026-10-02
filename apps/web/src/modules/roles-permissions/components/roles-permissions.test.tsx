@@ -68,7 +68,7 @@ describe("RolesPermissionsView", () => {
     await saveAndWait(user);
 
     expect(
-      screen.getByRole("button", { name: /Coordinación demo/ }),
+      await screen.findByRole("button", { name: /Coordinación demo/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Rol creado");
     expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
@@ -93,7 +93,7 @@ describe("RolesPermissionsView", () => {
     await saveAndWait(user);
 
     expect(
-      screen.getByRole("button", { name: /Administración ajustada/ }),
+      await screen.findByRole("button", { name: /Administración ajustada/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sin cambios" })).toHaveAttribute(
       "aria-pressed",

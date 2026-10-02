@@ -145,7 +145,7 @@ function buildAuditEntry({
   staffId: string;
 }): StaffAuditEntry {
   return {
-    actor: "Administracion demo",
+    actor: "Administración demo",
     id: `STAFF-AUD-${Date.now()}`,
     operation,
     performedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
@@ -176,7 +176,7 @@ function buildNewShift({
 function validateShiftForm(form: ShiftForm): FormErrors {
   return {
     date: form.date ? undefined : "La fecha es requerida.",
-    endTime: form.endTime ? undefined : "La hora de finalizacion es requerida.",
+    endTime: form.endTime ? undefined : "La hora de finalización es requerida.",
     startTime: form.startTime ? undefined : "La hora de inicio es requerida.",
   };
 }
@@ -630,7 +630,7 @@ export function StaffScheduleView() {
       <div className={styles.backgroundContent} ref={backgroundRef}>
         <header className={styles.header}>
           <div>
-            <span className={styles.eyebrow}>Administracion</span>
+            <span className={styles.eyebrow}>Administración</span>
             <h1 id="staff-title">Personal y horarios semanales</h1>
             <p>
               Consulta personal, semanas, horarios, turnos especiales y
@@ -646,8 +646,8 @@ export function StaffScheduleView() {
         <div className={styles.notice}>
           <CalendarDays aria-hidden="true" size={19} />
           <span>
-            Datos simulados: personal, horarios, ausencias, actor y bitacora no
-            estan conectados a backend.
+            Datos simulados: personal, horarios, ausencias, actor y bitácora no
+            están conectados a backend.
           </span>
         </div>
 
@@ -678,7 +678,7 @@ export function StaffScheduleView() {
             />
           </label>
 
-          <div className={styles.weekControls} aria-label="Seleccion de semana">
+          <div className={styles.weekControls} aria-label="Selección de semana">
             <button
               type="button"
               onClick={(event) =>
@@ -758,9 +758,9 @@ export function StaffScheduleView() {
           </div>
         </div>
 
-        <section className={styles.auditPanel} aria-label="Bitacora simulada">
+        <section className={styles.auditPanel} aria-label="Bitácora simulada">
           <div className={styles.sectionHeading}>
-            <h2>Bitacora simulada</h2>
+            <h2>Bitácora simulada</h2>
             <ClipboardList aria-hidden="true" size={18} />
           </div>
           <ul>
@@ -870,7 +870,7 @@ export function StaffScheduleView() {
                   ) : null}
                 </label>
                 <label className={styles.field}>
-                  <span>Hora de finalizacion</span>
+                  <span>Hora de finalización</span>
                   <input
                     aria-describedby={
                       formErrors.endTime ? "staff-end-error" : undefined

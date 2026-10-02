@@ -7,22 +7,22 @@ const pathState = vi.hoisted(() => ({ pathname: "/operation" }));
 
 const expectedNavigationRoutes = {
   admin: {
-    "Ajustes": "/admin/settings",
-    "Auditoría": "/admin/audit",
+    Ajustes: "/admin/settings",
+    Auditoría: "/admin/audit",
     "Cierres de caja": "/admin/cash-closings",
-    "Clientes": "/admin/clients",
-    "Compras": "/admin/purchases",
+    Clientes: "/admin/clients",
+    Compras: "/admin/purchases",
     "IA y mensajería": "/admin/ai",
-    "Menu": "/admin/menu",
+    Menu: "/admin/menu",
     "Personal y horarios": "/admin/staff",
-    "Producción": "/admin/production",
-    "Proveedores": "/admin/suppliers",
-    "Recetas": "/admin/recipes",
-    "Reportes": "/admin/reports",
-    "Resumen": "/admin",
+    Producción: "/admin/production",
+    Proveedores: "/admin/suppliers",
+    Recetas: "/admin/recipes",
+    Reportes: "/admin/reports",
+    Resumen: "/admin",
     "Roles y permisos": "/admin/roles",
-    "Usuarios": "/admin/users",
-    "Cámaras": "/admin/vision",
+    Usuarios: "/admin/users",
+    Cámaras: "/admin/vision",
   },
   client: {
     Inicio: "/client",
@@ -49,7 +49,9 @@ const expectedNavigationRoutes = {
   },
 } as const;
 
-function expectNavigationRoutes(context: keyof typeof expectedNavigationRoutes) {
+function expectNavigationRoutes(
+  context: keyof typeof expectedNavigationRoutes,
+) {
   for (const [label, route] of Object.entries(
     expectedNavigationRoutes[context],
   )) {
@@ -93,10 +95,9 @@ describe("AppShell", () => {
       "href",
       "/client",
     );
-    expect(screen.getByRole("link", { name: "WOK Asian Food" })).toHaveAttribute(
-      "href",
-      "/client",
-    );
+    expect(
+      screen.getByRole("link", { name: "WOK Asian Food" }),
+    ).toHaveAttribute("href", "/client");
     expect(screen.getByRole("link", { name: "Menú" })).toHaveAttribute(
       "href",
       "/menu",
@@ -112,7 +113,9 @@ describe("AppShell", () => {
     expect(dialog).not.toHaveAttribute("open");
     expect(showModal).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "Expandir menú" }));
-    expect(container.firstChild).not.toHaveClass("app-shell--sidebar-collapsed");
+    expect(container.firstChild).not.toHaveClass(
+      "app-shell--sidebar-collapsed",
+    );
   });
 
   it("collapses and restores the operational navigation", async () => {
@@ -129,10 +132,9 @@ describe("AppShell", () => {
       "title",
       "Mesas",
     );
-    expect(screen.getByRole("link", { name: "WOK Asian Food" })).toHaveAttribute(
-      "href",
-      "/operation",
-    );
+    expect(
+      screen.getByRole("link", { name: "WOK Asian Food" }),
+    ).toHaveAttribute("href", "/operation");
     expectNavigationRoutes("operational");
 
     await user.click(screen.getByRole("button", { name: "Expandir menú" }));
@@ -155,10 +157,9 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("link", { name: "Personal y horarios" }),
     ).toHaveAttribute("href", "/admin/staff");
-    expect(screen.getByRole("link", { name: "WOK Asian Food" })).toHaveAttribute(
-      "href",
-      "/admin",
-    );
+    expect(
+      screen.getByRole("link", { name: "WOK Asian Food" }),
+    ).toHaveAttribute("href", "/admin");
     expectNavigationRoutes("admin");
 
     pathState.pathname = "/operation";
@@ -174,5 +175,21 @@ describe("AppShell", () => {
     expect(
       screen.queryByRole("link", { name: "Personal y horarios" }),
     ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["admin", "/admin"],
+    ["client", "/client"],
+    ["operational", "/operation"],
+  ] as const)("links the %s brand to its channel home", (context, route) => {
+    render(
+      <AppShell context={context}>
+        <div>Contenido del canal</div>
+      </AppShell>,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "WOK Asian Food" }),
+    ).toHaveAttribute("href", route);
   });
 });
