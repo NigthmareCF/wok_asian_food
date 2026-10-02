@@ -31,7 +31,9 @@ jobs:
         run: npm ci
 
       - name: Bloquear alertas altas o criticas
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          node --test .github/scripts/audit-production-dependencies.test.mjs
+          node .github/scripts/audit-production-dependencies.mjs
 
       - name: Revisar frontend web
         run: |

@@ -1,5 +1,12 @@
 # Progreso de planificación móvil
 
+## 2026-10-02 — Auditoria de dependencias Expo
+
+- El CI conserva el bloqueo de alertas altas y criticas mediante una politica verificable, en lugar de degradar Expo con `npm audit fix --force`.
+- Se documento una excepcion temporal y exacta para `GHSA-86w9-cpqp-85rv`, introducida por `node-forge` a traves de las herramientas de compilacion de Expo 57. El aviso no publica una version npm corregida al momento de la revision.
+- Cualquier otro aviso alto o critico continua bloqueando la integracion. La excepcion debe revisarse el 2026-11-02 o antes si Expo o `node-forge` publican una correccion.
+- Verificacion: cuatro pruebas de la politica, auditoria real del lockfile, lint y TypeScript movil, 279 pruebas Web y build Web de produccion aprobados.
+
 ## 2026-09-30 — Libreta de direcciones y detalle delivery
 
 - Mi cuenta permite listar, crear, editar y eliminar las direcciones propias mediante `/api/v1/client/addresses`; se puede establecer la predeterminada. Ediciones envían `expectedVersion`; conflictos y errores se muestran sin ocultar el estado de servidor. La pantalla confirma antes de borrar.
