@@ -174,7 +174,7 @@ public class AuthService {
 
     @Transactional
     public TokenPair google(GoogleLogin request) {
-        GoogleIdentityVerifier.VerifiedIdentity identity = googleVerifier.verify(request.idToken());
+        GoogleIdentityVerifier.VerifiedIdentity identity = googleVerifier.verify(request.idToken(), request.nonce());
         if (identity.subject() == null || identity.subject().isBlank() || !identity.emailVerified())
             throw new AuthException(401, "Identidad externa inválida.");
         List<UUID> ids = jdbc.query("""

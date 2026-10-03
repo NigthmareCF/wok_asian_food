@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.email.EmailOutboxWorker;
 import com.wokasianfood.api.email.MockEmailProvider;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -51,6 +52,11 @@ class SecurityCompositionIntegrationTest {
 
     private final HttpClient http = HttpClient.newHttpClient();
 
+    @BeforeEach
+    void isolateAuthRateLimitCountersBetweenTests() {
+        jdbc.update("DELETE FROM wok.auth_rate_limit_events");
+    }
+
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry properties) {
         properties.add("spring.datasource.url", DATABASE::getJdbcUrl);
@@ -60,6 +66,7 @@ class SecurityCompositionIntegrationTest {
                 () -> "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
         properties.add("wok.auth.challenge-pepper-base64",
                 () -> "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=");
+        properties.add("wok.auth.issuer", () -> "https://identity.wok.test");
         properties.add("wok.email.poll-ms", () -> "3600000");
     }
 

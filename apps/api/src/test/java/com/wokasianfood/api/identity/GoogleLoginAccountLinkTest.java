@@ -1,0 +1,66 @@
+package com.wokasianfood.api.identity;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
+import com.wokasianfood.api.identity.AuthDtos.GoogleLogin;
+import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+class GoogleLoginAccountLinkTest {
+    private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
+    private final PasswordEncoder passwords = mock(PasswordEncoder.class);
+    private final TokenService tokens = mock(TokenService.class);
+    private final GoogleIdentityVerifier googleVerifier = mock(GoogleIdentityVerifier.class);
+    private AuthService auth;
+
+    @BeforeEach
+    void setUp() {
+        AuthSecrets secrets = new AuthSecrets(Base64.getEncoder().encodeToString(new byte[32]),
+                Base64.getEncoder().encodeToString(new byte[32]));
+        when(passwords.encode(anyString())).thenReturn("dummy-hash");
+        auth = new AuthService(jdbc, passwords, tokens, new ChallengeService(secrets), secrets, googleVerifier);
+    }
+
+    @Test
+    void loginLooksUpStableProviderSubjectAndDoesNotAutoLinkByEmail() {
+        when(googleVerifier.verify("google-id-token", "nonce-123")).thenReturn(
+                new GoogleIdentityVerifier.VerifiedIdentity("google-subject", "existing@example.com", true));
+        when(jdbc.query(contains("provider_subject"), anyRowMapper(), eq("google-subject"))).thenReturn(List.of());
+
+        AuthException error = assertThrows(AuthException.class,
+                () -> auth.google(new GoogleLogin("google-id-token", "nonce-123")));
+
+        assertEquals(409, error.status());
+        verify(jdbc).query(contains("provider = 'GOOGLE' AND ai.provider_subject = ?"),
+                anyRowMapper(), eq("google-subject"));
+        verify(jdbc, never()).update(contains("INSERT INTO wok.auth_identities"), any(Object[].class));
+        verify(tokens, never()).refresh();
+    }
+
+    @Test
+    void rejectsUnverifiedExternalEmailBeforeIdentityLookup() {
+        when(googleVerifier.verify("google-id-token", "nonce-123")).thenReturn(
+                new GoogleIdentityVerifier.VerifiedIdentity("google-subject", "customer@example.com", false));
+
+        AuthException error = assertThrows(AuthException.class,
+                () -> auth.google(new GoogleLogin("google-id-token", "nonce-123")));
+
+        assertEquals(401, error.status());
+        verifyNoInteractions(jdbc);
+    }
+
+    @SuppressWarnings("unchecked")
+    private RowMapper<Object> anyRowMapper() { return (RowMapper<Object>) any(RowMapper.class); }
+}
