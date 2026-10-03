@@ -1,5 +1,13 @@
 # Progreso del canal Operativo
 
+## 2026-10-03 — Validación HTTP/BFF real de reservas operativas
+
+- Se levantó un entorno Docker aislado y desechable con PostgreSQL, API, Web, Nginx y Mailpit; se aplicaron las migraciones V1–V14.
+- Cliente temporal y Operativo demo autenticaron correctamente. Una reserva confirmada apareció como `CONFIRMED` en el historial Cliente; una reserva rechazada apareció como `CANCELLED`.
+- La cola operativa finalizó sin pendientes. Un reintento de decisión obsoleta devolvió `409` y no sobrescribió la decisión existente.
+- Al finalizar se eliminaron los contenedores, red y volumen de prueba. No se persistieron secretos ni se modificaron datos reales.
+- La validación HTTP/BFF se completó; la revisión visual automatizada no estuvo disponible.
+
 ## 2026-10-02 — Cola operativa de decisiones de reservas
 
 - `/operation/reservations` consume la cola autenticada de solicitudes pendientes y permite confirmar o rechazar con motivo obligatorio. Conserva la versión recibida, bloquea acciones durante el envío y recarga la cola tras una decisión o un conflicto `409`, sin sobrescribir una decisión ajena.
