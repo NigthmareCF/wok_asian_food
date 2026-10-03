@@ -55,40 +55,6 @@ const icons: Record<NavigationIcon, typeof LayoutDashboard> = {
   tables: LayoutGrid,
 };
 
-const mockPermissions: Record<NavigationContext, Permission[]> = {
-  client: ["orders.read"],
-  operational: [
-    "tables.read",
-    "orders.read",
-    "kitchen.read",
-    "reservations.read",
-    "messages.read",
-    "delivery.read",
-    "cash.read",
-    "payments.read",
-    "inventory.read",
-    "production.read",
-    "status.read",
-  ],
-  admin: [
-    "users.read",
-    "roles.read",
-    "staff.read",
-    "menu.read",
-    "settings.read",
-    "recipes.read",
-    "suppliers.read",
-    "purchases.read",
-    "production.read",
-    "reports.read",
-    "cash.read",
-    "clients.read",
-    "ai.read",
-    "vision.read",
-    "audit.read",
-  ],
-};
-
 export function AppShell({
   children,
   context,
@@ -111,11 +77,12 @@ export function AppShell({
     client: "/client",
     operational: "/operation",
   }[context];
+  const grantedPermissions = (currentUser?.permissions ?? []) as Permission[];
   const visibleItems = navigation[context].filter(
     (item) =>
       item.featureFlag !== false &&
       (!item.requiredPermission ||
-        hasPermission(mockPermissions[context], item.requiredPermission)),
+        hasPermission(grantedPermissions, item.requiredPermission)),
   );
 
   async function logout() {

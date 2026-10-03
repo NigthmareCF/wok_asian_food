@@ -134,7 +134,7 @@ describe("StaffScheduleView", () => {
     await user.type(endTime, "23:00");
     await saveAndWait(user);
 
-    expect(screen.getByText(/23:00/)).toBeInTheDocument();
+    expect(screen.getByText("18:00 - 23:00")).toBeInTheDocument();
     expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
       "Turno especial editado",
     );
