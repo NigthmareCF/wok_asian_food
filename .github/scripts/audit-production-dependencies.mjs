@@ -3,8 +3,8 @@ import { pathToFileURL } from "node:url";
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 
-// Expo 57 brings node-forge through build-time CLI packages. Upstream has not
-// published a patched npm version for this advisory yet.
+// Expo 57 brings node-forge and braces through build-time CLI/Metro packages.
+// Upstream has not published a patched npm version for these advisories yet.
 export const allowedAdvisories = new Map([
   [
     "GHSA-86W9-CPQP-85RV",
@@ -12,6 +12,14 @@ export const allowedAdvisories = new Map([
       packageName: "node-forge",
       reviewBy: "2026-11-02",
       reason: "Transitive Expo CLI dependency with no patched npm release.",
+    },
+  ],
+  [
+    "GHSA-VFJ7-8CJW-P6XM",
+    {
+      packageName: "braces",
+      reviewBy: "2026-11-02",
+      reason: "Transitive Metro/Expo build dependency with no patched npm release.",
     },
   ],
 ]);
@@ -39,8 +47,12 @@ export function isAllowedVulnerability(
   vulnerabilities,
   visiting = new Set(),
 ) {
+  // Un ciclo de dependencias (por ejemplo metro <-> metro-config) no aporta
+  // ningun aviso propio: se ignora la arista que vuelve a un paquete en
+  // revision y se siguen evaluando las demas. Un ciclo que alcanza un aviso
+  // sin excepcion sigue bloqueado porque esa arista si se evalua.
   if (visiting.has(packageName)) {
-    return false;
+    return true;
   }
 
   const vulnerability = vulnerabilities[packageName];

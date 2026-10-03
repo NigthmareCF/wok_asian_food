@@ -1,5 +1,5 @@
 import { AppShell } from "@/shared/components/app-shell";
-import { CartLink } from "@/modules/cart";
+import { LiveCartLink } from "@/modules/cart/components/cart-link";
 import { ClientSessionProvider } from "@/modules/clients/client-session-provider";
 import { requireContext } from "@/modules/auth/server/auth-session";
 export default async function ClientLayout({
@@ -11,7 +11,7 @@ export default async function ClientLayout({
       <AppShell
         context="client"
         currentUser={currentUser}
-        contextualActions={<CartLink />}
+        contextualActions={<LiveCartLink />}
       >
         {children}
       </AppShell>
