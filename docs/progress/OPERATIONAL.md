@@ -1,5 +1,11 @@
 # Progreso del canal Operativo
 
+## 2026-10-03 — Mesas operativas conectadas
+
+- `/operation/tables` y `/operation/tables/[tableId]` consumen el listado real de Mesas y permiten crear, abrir y cerrar mesas. Cada mutación envía `X-Request-Id`, bloquea doble envío y recarga el listado; los conflictos `404` y `409` informan y recargan antes de continuar.
+- Se agregaron exclusivamente `GET/POST /bff/operational/tables`, `POST /bff/operational/tables/:tableId/open` y `POST /bff/operational/tables/:tableId/close`, con sesión, validación de contrato y transporte común.
+- La vista muestra sólo campos del DTO real: identificación, nombre, capacidad, zona, actividad, estado, versión, actualización y cuenta abierta. Unión/separación, reserva, traslado, cobro/división, limpieza a libre y atención presencial permanecen deshabilitados porque no tienen API.
+
 ## 2026-10-03 — Validación HTTP/BFF real de reservas operativas
 
 - Se levantó un entorno Docker aislado y desechable con PostgreSQL, API, Web, Nginx y Mailpit; se aplicaron las migraciones V1–V14.
