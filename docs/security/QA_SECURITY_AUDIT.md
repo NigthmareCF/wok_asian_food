@@ -46,6 +46,13 @@ El sistema aún no debe presentarse como una integración completa de todos los 
 - Corrección: `POST /api/v1/auth/login` ahora registra el intento en `AuthRateLimiter` antes de validar las credenciales. Se permite un máximo de 20 intentos por IP en 15 minutos, además del límite por cuenta ya existente en `AuthService`.
 - Verificación pendiente: la prueba Java fue añadida, pero requiere JDK 21 para ejecutar `mvnw verify`.
 
+### QA-SEC-004: disponibilidad pública de reservaciones bloqueada
+
+- Severidad: media.
+- Riesgo: `POST /api/v1/public/reservations/evaluate` se presenta como una evaluación preliminar pública, pero la política permitía solamente solicitudes `GET` bajo `/api/v1/public/**`. Un visitante sin sesión recibía 401 al consultar disponibilidad.
+- Corrección: se autorizó explícitamente y solo ese `POST` público. La acción no crea ni confirma una reservación; únicamente evalúa capacidad.
+- Verificación pendiente: ejecutar la prueba de integración con y sin token al recuperar Java y Docker.
+
 ## Estado de rutas y sesiones
 
 | Capa | Estado | Observación |
