@@ -6,7 +6,13 @@
 - Se reforzó la ruta de cancelación pickup para que sólo modifique `fulfillment_type = 'PICKUP'`; un request delivery no se puede cancelar accidentalmente usando la ruta pickup.
 - La integración HTTP/PostgreSQL prueba envío, propiedad A-vs-B, ruta cruzada pickup→delivery (404), cancelación, retry sin duplicar eventos y estado final. Fixtures sintéticos ahora toleran reutilización dentro del mismo test container.
 - Validación completa Maven Java 21: 53 tests, 0 fallos, 0 errores, 0 skips; PostgreSQL 18/Testcontainers aplicó Flyway V1–V12. No requiere proveedor externo.
-- Rama `fix/backend-security-composition`; cambio local probado, se publicará tras sincronizar el commit de estabilidad entrante de `integration/backend-bootstrap`. No merge a `development`.
+- Rama `fix/backend-security-composition`; commit `66cc322`. Se incorporó sin conflictos `origin/integration/backend-bootstrap` (`dc6ce06`), que añade CI, health externo desacoplado y resolución dinámica de DNS en Nginx. La suite completa tras el merge pasó 53/53; no merge a `development`.
+
+## 2026-10-03 — Auditoría de cambios remotos backend pendientes de revisión
+
+- Se actualizaron referencias remotas en el clone backend de trabajo. `fix/backend-security-composition` no tenía commits remotos entrantes antes del trabajo local; la rama local `integration/backend-bootstrap` estaba en `cabd2f6`, y el remoto avanzó a `dc6ce06`.
+- `dc6ce06` se integró en `fix/backend-security-composition` sin conflicto. La resolución conserva el validador de sesión DB de `8d1dfcd` y además permite `/actuator/info`/Swagger y deja el health de correo configurable; Nginx re-resuelve los servicios Docker.
+- Cambios aún separados para PR/revisión coordinada: `origin/feature/backend-auth` contiene `7df1b5e` (Google OIDC por `sub`, audience/issuer y nonce); `origin/feature/backend-operational-and-auth-hardening` contiene rutas de mesas, pedidos y cocina, hardening de auth y migraciones V13/V14; también hay ramas de caja, pagos mixtos, facturación, inventario/producción y flujo operativo. No se mezclan a ciegas ni se declaran integradas a la API hasta revisar su PR/contratos.
 
 ## 2026-10-02 — Recuperación de contraseña y revocación comprobadas por HTTP
 
