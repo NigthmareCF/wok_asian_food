@@ -1,12 +1,18 @@
 # Progreso de planificación backend
 
-## 2026-10-02 - Precision al invalidar sesiones
+## 2026-10-02 — Flujo HTTP completo de autenticación con PostgreSQL
 
-- Rama: `fix/web-navigation-session`.
-- Detectado mediante recuperacion real de clave: JWT guarda `iat` con precision de segundos, mientras PostgreSQL guarda la invalidacion con mayor precision. Un login dentro del mismo segundo podia producir un token rechazado.
-- `SecurityConfig` compara `auth_sessions.created_at` con `users.sessions_valid_after`, como los demas controles de sesiones. Conserva validacion de firma, emisor, expiracion, cuenta activa y revocacion.
-- Regresiones: nueva sesion en el mismo segundo del cambio de clave aceptada; sesiones anteriores invalidadas rechazadas. Maven verify: 88 pruebas aprobadas.
-- Prueba real con PostgreSQL: recuperacion y login inmediato aprobados. Sin nuevas migraciones, secretos ni modificaciones a cuentas de colaboradores; se uso una cuenta local desechable.
+- La prueba `SecurityCompositionIntegrationTest` amplía el smoke de composición a un ciclo real con PostgreSQL 18/Testcontainers: registra un Cliente, procesa la verificación mediante `MockEmailProvider` y `EmailOutboxWorker`, verifica la cuenta, inicia sesión móvil, consulta sesiones, confirma `403` en una ruta Admin para token Cliente, rota el refresh y comprueba `401` al reutilizar el token anterior y revocación del access token asociado.
+- Validación final de `mvn -q test`: 47 tests, 0 fallos, 0 errores, 0 skips; Testcontainers ejecutó la integración y Flyway aplicó V1–V12. Hubo un primer `401` intermitente en el acceso a sesiones; la prueba aislada y la suite completa pasaron al repetirla. Mantener observación en CI/repeticiones futuras antes de considerar la cobertura estable.
+- Cambio en rama especializada `fix/backend-security-composition`; commits previos `6a487a7` (corrección de filtros duplicados) y `af0390c` (smoke automatizado) ya estaban publicados. Este avance de cobertura queda pendiente de commit/push.
+- Límite: es cobertura de auth sobre la API integrada, no prueba exhaustiva de ownership entre clientes ni despliegue productivo de email/OIDC. Sin merge ni cambios en frontend web.
+
+## 2026-10-02 — Composición de seguridad Spring en integración
+
+- Rama de corrección backend: `fix/backend-security-composition`, basada en `integration/backend-bootstrap` para corregir únicamente el conflicto de configuración encontrado al componer las ramas.
+- Se retiró `BootstrapSecurityConfig`, una cadena temporal catch-all `denyAll` que coexistía con `identity.SecurityConfig` (JWT y reglas públicas/privadas). Spring abortaba con `UnreachableFilterChainException` por dos filtros `anyRequest()`; la configuración JWT queda como única cadena general.
+- Maven Java 21: 45 pruebas, 0 fallos/errores/skips. PostgreSQL 18 nuevo: Flyway aplicó V1–V12 con `success=true`. Backend levantó en puerto temporal; HTTP health 200, OpenAPI 200, menú público 200 y cola Operativa privada 401 sin token.
+- Sigue pendiente revisar las divergencias del modelo candidato respecto de V1–V12 y validar roles/ownership de todos los endpoints; este cambio sólo prueba el arranque y las rutas smoke citadas. No merge.
 
 ### Regresión automatizada de seguridad y startup
 
