@@ -55,6 +55,7 @@ public abstract class PostgresIntegrationTest {
                 () -> "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=");
         properties.add("wok.auth.issuer", () -> "https://identity.wok.test");
         properties.add("wok.email.poll-ms", () -> "3600000");
+        properties.add("wok.fiscal.poll-ms", () -> "3600000");
     }
 
     protected UUID createUserWithRole(String email, String roleCode) {
