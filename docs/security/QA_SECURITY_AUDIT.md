@@ -70,6 +70,14 @@ La revisión estática del backend encontró controles que deben conservarse y v
 
 La evidencia anterior es estática. Antes de publicación debe repetirse con pruebas de integración que confirmen respuestas 401 y 403 para tokens ausentes, expirados, revocados o con permisos insuficientes.
 
+## Consultas y exposición de servicios
+
+La revisión estática de los controladores y servicios que usan `JdbcTemplate` no encontró concatenación de datos enviados por usuarios dentro de SQL. Las consultas que reciben identificadores, textos, importes o filtros usan marcadores `?` y parámetros separados. Las concatenaciones observadas se limitan a fragmentos SQL definidos por el propio código, como una cláusula `FOR UPDATE`, o a constantes compartidas.
+
+Esto reduce el riesgo de inyección SQL, pero no sustituye una prueba en ejecución. Cuando el entorno esté disponible se debe intentar una entrada con caracteres de inyección en los formularios y comprobar que el resultado sea una validación controlada, nunca una consulta alterada ni un error interno.
+
+El archivo de composición también mantiene una frontera útil: Nginx es el único servicio con puerto HTTP publicado. La API y PostgreSQL se comunican por redes internas de Docker. Esta condición debe conservarse en desarrollo, demostración y nube; publicar directamente el puerto de la API invalidaría la confianza actual sobre las cabeceras que Nginx normaliza.
+
 ## Integración real y datos simulados
 
 Ya existen rutas BFF para menú, autenticación, solicitudes de pedido, reservaciones, mensajería, delivery y mesas operativas. Sin embargo, el código conserva módulos con fixtures o avisos de datos simulados, entre ellos pedidos operativos, cocina, delivery, caja, inventario, producción, mensajería operativa y varias pantallas administrativas.
@@ -98,3 +106,4 @@ No se ejecutó `npm audit fix --force`, porque puede cambiar Expo o React Native
 4. Probar cada URL privada sin sesión, con rol equivocado y con permiso parcial.
 5. Migrar o retirar de la demo los módulos que aún usan datos simulados.
 6. Resolver las alertas de dependencias con una actualización compatible y volver a ejecutar esta auditoría.
+7. Mantener la API y PostgreSQL fuera de puertos públicos; todo tráfico externo debe entrar por el proxy configurado.
