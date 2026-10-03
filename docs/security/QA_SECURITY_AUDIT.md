@@ -32,6 +32,13 @@ El sistema aún no debe presentarse como una integración completa de todos los 
 - Corrección: `AppShell` utiliza `currentUser.permissions` para filtrar la navegación y la prueba cubre un usuario operativo con permiso limitado.
 - Límite: ocultar enlaces mejora la interfaz, pero no sustituye la autorización del backend. Cada endpoint debe conservar su control de permisos.
 
+### QA-SEC-002: identidad de IP confiable para rate limiting
+
+- Severidad: alta.
+- Riesgo: Nginx conservaba una cadena `X-Forwarded-For` suministrada por el cliente antes de añadir la IP observada. La API usa el primer valor para limitar intentos de autenticación; un cliente podía falsificarlo y evadir parte de ese control.
+- Corrección: los proxies HTTP y TLS reemplazan `X-Forwarded-For` por `$remote_addr`, por lo que la API recibe una identidad asignada por Nginx y no una cadena controlada por el cliente.
+- Pendiente de ejecución: al recuperar Docker, validar la configuración con `nginx -t` y comprobar que múltiples cabeceras enviadas por un cliente no alteran el límite.
+
 ## Estado de rutas y sesiones
 
 | Capa | Estado | Observación |
