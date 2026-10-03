@@ -42,7 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/operational/orders")
-@PreAuthorize("hasAnyRole('OPERATIONAL', 'ADMIN')")
+@PreAuthorize("hasAuthority('orders:manage')")
 public class OperationalOrderController {
     private final OrderService orders;
 
