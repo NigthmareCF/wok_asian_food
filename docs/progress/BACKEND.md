@@ -1,5 +1,14 @@
 # Progreso de planificación backend
 
+## 2026-10-02 — Flujo Operativo verificable y permisos granulares (rama de tarea)
+
+- Rama `feature/operational-flow-tables-orders-kitchen` (desde `development`). Se incorporaron Testcontainers y una base reutilizable `PostgresIntegrationTest` con contenedor singleton PostgreSQL 18 y Flyway aplicando V1–V15. El cherry-pick de la cobertura de sesión y la corrección del issuer quedan en commits propios (`16b05862`, `71811402`, `28395c8d`, `4d93b40a`, `65268ab6`).
+- `OperationalFlowIntegrationTest` (`c69527c8`) cubre el flujo Mesas → cuenta → pedido → cocina → servicio → cierre contra PostgreSQL real: apertura de mesa/cuenta, alta de pedido con `Idempotency-Key` (replay idempotente y `409` por payload distinto), generación de comanda por estación, claim, cambio de estado, liberación del pedido a `READY`, cierre bloqueado con pedido abierto y rollback `422` sin persistencia.
+- `RoleAuthorizationIntegrationTest` (`3ec29c9`) verifica `401` anónimo, `403` entre contextos (Cliente fuera de Operativo/Admin; Operativo fuera de Cliente/Admin; Admin sí accede a Operativo), endpoints públicos y rechazo de sesión expirada o revocada.
+- Migración `V15__granular_operational_permissions.sql` añade `tables:manage`, `orders:manage`, `kitchen:manage`, `accounts:manage` y las asigna a OPERATIONAL/ADMIN. Los controladores de mesas, pedidos y cocina pasan de `hasAnyRole` a `hasAuthority`; abrir/cerrar cuenta exige `accounts:manage`. `PermissionAuthorizationIntegrationTest` demuestra que un rol con solo `tables:manage` accede a mesas pero no a pedidos/cocina ni a abrir cuenta.
+- Suite completa: 103 tests, 0 fallos/errores/skips con `mvnw test` en `apps/api`.
+- Límite: es un slice Operativo; no incluye pagos, caja, inventario, producción, delivery ni resolución de `order_requests`. Sin cambios de frontend, sin push ni merge.
+
 ## 2026-10-02 — Flujo HTTP completo de autenticación con PostgreSQL
 
 - La prueba `SecurityCompositionIntegrationTest` amplía el smoke de composición a un ciclo real con PostgreSQL 18/Testcontainers: registra un Cliente, procesa la verificación mediante `MockEmailProvider` y `EmailOutboxWorker`, verifica la cuenta, inicia sesión móvil, consulta sesiones, confirma `403` en una ruta Admin para token Cliente, rota el refresh y comprueba `401` al reutilizar el token anterior y revocación del access token asociado.
