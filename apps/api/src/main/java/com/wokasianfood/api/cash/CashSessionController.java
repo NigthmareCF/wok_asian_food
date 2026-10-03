@@ -85,6 +85,16 @@ public class CashSessionController {
                 requestId == null ? UUID.randomUUID() : requestId, request);
     }
 
+    @PostMapping("/{sessionId}/reconciliations")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CashSessionService.Reconciliation reconcile(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID sessionId,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody ReconciliationRequest request) {
+        return cash.reconcile(sessionId, UUID.fromString(jwt.getSubject()),
+                requestId == null ? UUID.randomUUID() : requestId, request);
+    }
+
     public record OpenRequest(@NotBlank @Size(max = 32) String registerCode,
                               @NotNull @DecimalMin("0.00") BigDecimal openingFloat) {}
 
@@ -94,6 +104,9 @@ public class CashSessionController {
 
     public record CloseRequest(@NotNull @DecimalMin("0.00") BigDecimal countedCash,
                                @Positive int expectedVersion) {}
+
+    public record ReconciliationRequest(@NotNull @DecimalMin("0.00") BigDecimal countedCash,
+                                        @Size(max = 500) String notes) {}
 
     public enum MovementType { INCOME, EXPENSE, WITHDRAWAL }
 }
@@ -245,11 +258,78 @@ class CashSessionService {
         return details(sessionId);
     }
 
+    @Transactional
+    public Reconciliation reconcile(UUID sessionId, UUID actor, UUID requestId,
+                                    CashSessionController.ReconciliationRequest request) {
+        SessionRow session = lock(sessionId);
+        if (!"OPEN".equals(session.status()))
+            throw new AuthException(409, "La caja ya está cerrada.");
+        BigDecimal expected = expectedCash(sessionId);
+        String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
+        UUID reconciliationId = jdbc.queryForObject("""
+            INSERT INTO wok.cash_reconciliations
+                (cash_session_id, expected_cash, counted_cash, counted_by, is_final, notes)
+            VALUES (?, ?, ?, ?, false, ?) RETURNING id
+            """, UUID.class, sessionId, expected, request.countedCash(), actor, notes);
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            VALUES (?, 'CASH_RECONCILED', 'CASH_SESSION', ?,
+                    jsonb_build_object('expectedCash', ?, 'countedCash', ?), 'SUCCESS', ?)
+            """, actor, sessionId, expected, request.countedCash(), requestId);
+        return reconciliation(reconciliationId);
+    }
+
     private CashSession toDto(SessionRow row) {
         BigDecimal expected = row.expectedCash() == null ? expectedCash(row.id()) : row.expectedCash();
         return new CashSession(row.id(), row.registerCode(), row.status(), expected, row.countedCash(),
                 row.difference(), row.openedBy(), row.openedAt(), row.closedBy(), row.closedAt(), row.rowVersion(),
-                movements(row.id()));
+                breakdown(row.id()), reconciliations(row.id()), movements(row.id()));
+    }
+
+    private CashBreakdown breakdown(UUID sessionId) {
+        BigDecimal[] totals = jdbc.queryForObject("""
+            SELECT
+              COALESCE(SUM(amount_delta) FILTER (WHERE movement_type = 'OPENING'), 0),
+              COALESCE(SUM(amount_delta) FILTER (WHERE movement_type = 'SALE'), 0),
+              COALESCE(SUM(amount_delta) FILTER (WHERE movement_type = 'INCOME'), 0),
+              COALESCE(SUM(amount_delta) FILTER (WHERE movement_type = 'EXPENSE'), 0),
+              COALESCE(SUM(amount_delta) FILTER (WHERE movement_type = 'WITHDRAWAL'), 0),
+              COALESCE(SUM(amount_delta), 0)
+            FROM wok.cash_movements WHERE cash_session_id = ?
+            """, (rs, row) -> new BigDecimal[] {rs.getBigDecimal(1), rs.getBigDecimal(2), rs.getBigDecimal(3),
+                rs.getBigDecimal(4), rs.getBigDecimal(5), rs.getBigDecimal(6)}, sessionId);
+        BigDecimal tips = cashTips(sessionId);
+        return new CashBreakdown(totals[0], totals[1], tips, totals[2].subtract(tips), totals[3].abs(),
+                totals[4].abs(), totals[5]);
+    }
+
+    private BigDecimal cashTips(UUID sessionId) {
+        BigDecimal tips = jdbc.queryForObject("""
+            SELECT COALESCE(SUM(tip_amount), 0) FROM wok.payments
+            WHERE cash_session_id = ? AND status = 'CAPTURED'
+            """, BigDecimal.class, sessionId);
+        return tips == null ? BigDecimal.ZERO : tips;
+    }
+
+    private List<Reconciliation> reconciliations(UUID sessionId) {
+        return jdbc.query("""
+            SELECT id, expected_cash, counted_cash, difference, is_final, notes, counted_at
+            FROM wok.cash_reconciliations WHERE cash_session_id = ? ORDER BY counted_at, id
+            """, (rs, row) -> new Reconciliation(rs.getObject("id", UUID.class), rs.getBigDecimal("expected_cash"),
+                rs.getBigDecimal("counted_cash"), rs.getBigDecimal("difference"), rs.getBoolean("is_final"),
+                rs.getString("notes"), rs.getTimestamp("counted_at").toInstant()), sessionId);
+    }
+
+    private Reconciliation reconciliation(UUID reconciliationId) {
+        List<Reconciliation> found = jdbc.query("""
+            SELECT id, expected_cash, counted_cash, difference, is_final, notes, counted_at
+            FROM wok.cash_reconciliations WHERE id = ?
+            """, (rs, row) -> new Reconciliation(rs.getObject("id", UUID.class), rs.getBigDecimal("expected_cash"),
+                rs.getBigDecimal("counted_cash"), rs.getBigDecimal("difference"), rs.getBoolean("is_final"),
+                rs.getString("notes"), rs.getTimestamp("counted_at").toInstant()), reconciliationId);
+        if (found.isEmpty()) throw new AuthException(404, "No encontramos el arqueo de caja.");
+        return found.getFirst();
     }
 
     private SessionRow load(UUID sessionId) {
@@ -301,9 +381,16 @@ class CashSessionService {
     public record CashMovement(UUID id, String type, BigDecimal amountDelta, String reason,
                                UUID responsibleUserId, Instant occurredAt) {}
 
+    public record CashBreakdown(BigDecimal opening, BigDecimal sales, BigDecimal tips, BigDecimal otherIncome,
+                                BigDecimal expenses, BigDecimal withdrawals, BigDecimal expectedCash) {}
+
+    public record Reconciliation(UUID id, BigDecimal expectedCash, BigDecimal countedCash, BigDecimal difference,
+                                 boolean isFinal, String notes, Instant countedAt) {}
+
     public record CashSession(UUID id, String registerCode, String status, BigDecimal expectedCash,
                               BigDecimal countedCash, BigDecimal difference, UUID openedBy, Instant openedAt,
-                              UUID closedBy, Instant closedAt, int rowVersion, List<CashMovement> movements) {}
+                              UUID closedBy, Instant closedAt, int rowVersion, CashBreakdown breakdown,
+                              List<Reconciliation> reconciliations, List<CashMovement> movements) {}
 
     private record SessionRow(UUID id, String registerCode, String status, UUID openedBy, Instant openedAt,
                               UUID closedBy, Instant closedAt, int rowVersion, BigDecimal expectedCash,
