@@ -235,6 +235,40 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         assertThat(rejected.statusCode()).isEqualTo(409);
     }
 
+    @Test
+    void returnsAccountDetailsWithOrdersAndTotalExcludingCancelled() {
+        String token = tokenForRole("OPERATIONAL");
+        String stationCode = "WOK_ACCOUNT";
+        UUID tableId = createDiningTable("Mesa Cuenta");
+        UUID firstItem = seedMenuItem("Wok Cuenta A", "40.00", stationCode, 60);
+        UUID secondItem = seedMenuItem("Wok Cuenta B", "15.00", stationCode, 60);
+        String tableName = jdbc.queryForObject("SELECT name FROM wok.dining_tables WHERE id = ?", String.class, tableId);
+        UUID accountId = UUID.fromString(
+                body(post("/api/v1/operational/tables/" + tableId + "/open", token, null)).path("accountId").asText());
+
+        body(post("/api/v1/operational/orders", token, """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":2,"items":[
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                """.formatted(accountId, firstItem), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID cancelledOrder = UUID.fromString(body(post("/api/v1/operational/orders", token, """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":1,"items":[
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                """.formatted(accountId, secondItem),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()))).path("orderId").asText());
+        assertThat(changeOrderStatus(token, cancelledOrder, "CANCELLED").path("status").asText()).isEqualTo("CANCELLED");
+
+        JsonNode details = body(get("/api/v1/operational/accounts/" + accountId, token));
+        assertThat(details.path("account").path("id").asText()).isEqualTo(accountId.toString());
+        assertThat(details.path("account").path("status").asText()).isEqualTo("OPEN");
+        assertThat(details.path("account").path("diningTableId").asText()).isEqualTo(tableId.toString());
+        assertThat(details.path("account").path("diningTableName").asText()).isEqualTo(tableName);
+        assertThat(details.path("orders")).hasSize(2);
+        assertThat(details.path("total").decimalValue()).isEqualByComparingTo("40.00");
+
+        assertThat(get("/api/v1/operational/accounts/" + UUID.randomUUID(), token).statusCode()).isEqualTo(404);
+        assertThat(get("/api/v1/operational/accounts/" + accountId, tokenForRole("CLIENT")).statusCode()).isEqualTo(403);
+    }
+
     private JsonNode changeOrderStatus(String token, UUID orderId, String status) {
         JsonNode current = body(get("/api/v1/operational/orders/" + orderId, token)).path("order");
         return body(patch("/api/v1/operational/orders/" + orderId + "/status", token, """
