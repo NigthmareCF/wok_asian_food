@@ -13,7 +13,7 @@ export async function PUT(
   const { reservationId } = await context.params;
   if (!isUuid(reservationId))
     return NextResponse.json(
-      { message: "Reserva invÃ¡lida." },
+      { message: "Reserva inválida." },
       { status: 400 },
     );
   return endpoint(request, {

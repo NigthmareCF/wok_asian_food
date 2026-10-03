@@ -47,7 +47,7 @@ it("loads pending reservations and sends a versioned confirmation", async () => 
   expect(await screen.findByText("Ana Ruiz")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Confirmar" }));
   await user.type(
-    screen.getByLabelText("Motivo de la decisiÃ³n"),
+    screen.getByLabelText("Motivo de la decisión"),
     "Capacidad disponible",
   );
   await user.click(screen.getByRole("button", { name: "Confirmar solicitud" }));
@@ -82,7 +82,7 @@ it("reloads the queue after a 409 without overwriting another decision", async (
   vi.mocked(fetch)
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockResolvedValueOnce(
-      Response.json({ message: "El estado cambiÃ³." }, { status: 409 }),
+      Response.json({ message: "El estado cambió." }, { status: 409 }),
     )
     .mockResolvedValueOnce(Response.json([]));
 
@@ -90,11 +90,11 @@ it("reloads the queue after a 409 without overwriting another decision", async (
 
   await screen.findByText("Ana Ruiz");
   await user.click(screen.getByRole("button", { name: "Rechazar" }));
-  await user.type(screen.getByLabelText("Motivo de la decisiÃ³n"), "Sin cupo");
+  await user.type(screen.getByLabelText("Motivo de la decisión"), "Sin cupo");
   await user.click(screen.getByRole("button", { name: "Rechazar solicitud" }));
 
   expect(
-    await screen.findByText(/no sobrescribir otra decisiÃ³n/i),
+    await screen.findByText(/no sobrescribir otra decisión/i),
   ).toBeInTheDocument();
   await waitFor(() =>
     expect(

@@ -75,10 +75,10 @@ export function OperationalReservationQueue() {
           "message" in body &&
           typeof body.message === "string"
             ? body.message
-            : "No pudimos guardar la decisiÃ³n.";
+            : "No pudimos guardar la decisión.";
         if (response.status === 409) {
           setError(
-            "La solicitud cambiÃ³ mientras la revisabas. Actualizamos la cola para no sobrescribir otra decisiÃ³n.",
+            "La solicitud cambió mientras la revisabas. Actualizamos la cola para no sobrescribir otra decisión.",
           );
           setDraft(null);
           queue.reload();
@@ -97,7 +97,7 @@ export function OperationalReservationQueue() {
       setError(
         cause instanceof Error
           ? cause.message
-          : "No pudimos guardar la decisiÃ³n.",
+          : "No pudimos guardar la decisión.",
       );
     } finally {
       setSending(false);
@@ -135,13 +135,13 @@ export function OperationalReservationQueue() {
       {!queue.data && !queue.error ? (
         <div className={styles.empty} role="status">
           <CalendarDays aria-hidden="true" size={25} />
-          <strong>Cargando solicitudes pendientesâ€¦</strong>
+          <strong>Cargando solicitudes pendientes…</strong>
         </div>
       ) : queue.error ? null : queue.data?.length === 0 ? (
         <div className={styles.empty}>
           <CalendarDays aria-hidden="true" size={25} />
           <strong>No hay solicitudes pendientes</strong>
-          <span>Las nuevas solicitudes de Cliente aparecerÃ¡n aquÃ­.</span>
+          <span>Las nuevas solicitudes de Cliente aparecerán aquí­.</span>
         </div>
       ) : (
         <section className={styles.list} aria-label="Solicitudes pendientes">
@@ -187,7 +187,7 @@ export function OperationalReservationQueue() {
                 {active ? (
                   <div className={styles.queueDecision}>
                     <label className="order-field">
-                      <span>Motivo de la decisiÃ³n</span>
+                      <span>Motivo de la decisión</span>
                       <textarea
                         disabled={sending}
                         maxLength={500}
@@ -212,7 +212,7 @@ export function OperationalReservationQueue() {
                         type="button"
                       >
                         {sending
-                          ? "Guardandoâ€¦"
+                          ? "Guardando…"
                           : decisionLabel(draft.decision)}
                       </button>
                       <button
