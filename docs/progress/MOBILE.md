@@ -5,7 +5,7 @@
 - Las pantallas de Pickup (`orders`) y Mi cuenta se remontan al cambiar el correo de sesión. Esto descarta el historial, perfil, sesiones, formularios y avisos anteriores mientras se carga la cuenta nueva, e impide que resultados tardíos del árbol anterior se muestren en el árbol activo.
 - Las pantallas de Reservas, Direcciones, Mensajes y Delivery ya aplicaban este patrón o aislaban sus datos por propietario; se mantuvieron intactas.
 - Verificación: 5/5 tests Vitest, ESLint, TypeScript y exports Expo Android/Web completos. Los exports verifican bundles y rutas, no builds instalables ni pruebas físicas.
-- Rama `fix/mobile-client-flow`, derivada del HEAD vigente `origin/feature/mobile-shell` (`0d645fa`). Cambio listo para publicar; no merge.
+- Rama `fix/mobile-client-flow`, derivada del HEAD vigente `origin/feature/mobile-shell` (`0d645fa`); publicado en `281a7d9`. No merge.
 
 ## 2026-10-02 — Reintento idempotente de reservas después de cerrar la app
 
