@@ -49,6 +49,60 @@ test("permite dependencias afectadas solo de forma transitiva por el aviso docum
   });
 });
 
+test("permite ciclos que solo alcanzan avisos documentados", () => {
+  const vulnerabilities = {
+    "node-forge": allowedNodeForge,
+    braces: {
+      severity: "high",
+      via: [
+        {
+          severity: "high",
+          url: "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+        },
+      ],
+    },
+    micromatch: { severity: "high", via: ["braces"] },
+    "metro-file-map": { severity: "high", via: ["micromatch"] },
+    metro: { severity: "high", via: ["metro-config", "metro-file-map"] },
+    "metro-config": { severity: "high", via: ["metro"] },
+    expo: { severity: "high", via: ["metro", "node-forge"] },
+  };
+
+  assert.deepEqual(classifyAuditReport({ vulnerabilities }), {
+    allowed: [
+      "node-forge",
+      "braces",
+      "micromatch",
+      "metro-file-map",
+      "metro",
+      "metro-config",
+      "expo",
+    ],
+    blocking: [],
+  });
+});
+
+test("bloquea ciclos que alcanzan un aviso sin excepcion", () => {
+  const vulnerabilities = {
+    alpha: { severity: "high", via: ["beta", "gamma"] },
+    beta: { severity: "high", via: ["alpha"] },
+    gamma: {
+      severity: "high",
+      via: [
+        {
+          severity: "high",
+          url: "https://github.com/advisories/GHSA-xxxx-yyyy-zzzz",
+        },
+      ],
+    },
+  };
+
+  assert.deepEqual(classifyAuditReport({ vulnerabilities }), {
+    allowed: [],
+    blocking: ["alpha", "beta", "gamma"],
+  });
+});
+
 test("bloquea cualquier aviso alto diferente", () => {
   const vulnerabilities = {
     "other-package": {
