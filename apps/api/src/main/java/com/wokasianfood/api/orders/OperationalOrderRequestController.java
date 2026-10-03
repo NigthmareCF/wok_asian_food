@@ -57,11 +57,11 @@ class OrderRequestDecisionService {
                           OperationalOrderRequestController.DecisionRequest request) {
         OperationalOrderRequestController.Action action = request.action();
         List<Locked> rows = jdbc.query("""
-            SELECT id, status, requested_for, currency_id, order_id
+            SELECT id, status, fulfillment_type, requested_for, currency_id, order_id
             FROM wok.order_requests WHERE id = ? FOR UPDATE
             """, (rs, row) -> new Locked(rs.getObject("id", UUID.class), rs.getString("status"),
-                rs.getTimestamp("requested_for").toInstant(), rs.getObject("currency_id", UUID.class),
-                rs.getObject("order_id", UUID.class)), orderRequestId);
+                rs.getString("fulfillment_type"), rs.getTimestamp("requested_for").toInstant(),
+                rs.getObject("currency_id", UUID.class), rs.getObject("order_id", UUID.class)), orderRequestId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
         Locked current = rows.getFirst();
 
@@ -87,6 +87,9 @@ class OrderRequestDecisionService {
             audit(actor, correlationId, orderRequestId, "ORDER_REQUEST_REJECTED", "REJECTED", reason);
             return new DecisionResult(orderRequestId, "REJECTED", null, false);
         }
+
+        if (!"PICKUP".equals(current.fulfillmentType()))
+            throw new AuthException(422, "La aceptación de solicitudes delivery aún no está habilitada.");
 
         revalidate(current);
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines(orderRequestId);
@@ -146,7 +149,8 @@ class OrderRequestDecisionService {
             """, actor, action, entityId, status, reason, correlationId);
     }
 
-    private record Locked(UUID id, String status, Instant requestedFor, UUID currencyId, UUID orderId) {}
+    private record Locked(UUID id, String status, String fulfillmentType, Instant requestedFor,
+                          UUID currencyId, UUID orderId) {}
     private record Revalidated(UUID menuItemId, int quantity, int preparationSeconds, UUID currencyId) {}
 
     public record DecisionResult(UUID requestId, String status, UUID orderId, boolean idempotentReplay) {}
