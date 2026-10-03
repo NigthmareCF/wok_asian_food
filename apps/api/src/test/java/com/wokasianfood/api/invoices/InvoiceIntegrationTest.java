@@ -7,12 +7,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 class InvoiceIntegrationTest extends PostgresIntegrationTest {
 
     private final ObjectMapper json = new ObjectMapper();
+
+    @Autowired
+    private InvoiceIssuanceWorker invoiceIssuance;
 
     @Test
     void createsMultipleDraftsAndListsThemPerAccount() {
@@ -65,6 +70,79 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
 
         var missingInvoice = get("/api/v1/operational/invoices/" + UUID.randomUUID(), token);
         assertThat(missingInvoice.statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void issuesDraftThroughOutboxAndIsIdempotent() {
+        UUID actor = createUserWithRole("factura-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta emision");
+        MenuItemSeed menu = seedMenuItem("Arroz frito", "50.00");
+        closedOrderWithItem(accountId, actor, menu, "Arroz frito", 2, "50.00", "100.00");
+        UUID invoiceId = draft(token, accountId);
+
+        String key = UUID.randomUUID().toString();
+        JsonNode queued = body(post(issuePath(invoiceId), token, null, Map.of("Idempotency-Key", key)));
+        assertThat(queued.path("status").asText()).isEqualTo("QUEUED");
+        assertThat(queued.path("authorizationNumber").isMissingNode()).isTrue();
+        assertThat(count("""
+                SELECT count(*) FROM wok.outbox_events
+                WHERE event_type = 'INVOICE_ISSUANCE_REQUESTED' AND aggregate_id = ? AND published_at IS NULL
+                """, invoiceId)).isEqualTo(1);
+
+        invoiceIssuance.issueNext();
+
+        JsonNode issued = body(get("/api/v1/operational/invoices/" + invoiceId, token));
+        assertThat(issued.path("status").asText()).isEqualTo("ISSUED");
+        assertThat(issued.path("authorizationNumber").asText()).startsWith("MOCK-");
+        assertThat(issued.path("dteUuid").isMissingNode()).isFalse();
+        assertThat(issued.path("issuedAt").isMissingNode()).isFalse();
+        assertThat(count("""
+                SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ? AND published_at IS NOT NULL
+                """, invoiceId)).isEqualTo(1);
+        assertThat(count("""
+                SELECT count(*) FROM wok.audit_logs WHERE action = 'INVOICE_ISSUED' AND entity_id = ?
+                """, invoiceId)).isEqualTo(1);
+
+        JsonNode replay = body(post(issuePath(invoiceId), token, null, Map.of("Idempotency-Key", key)));
+        assertThat(replay.path("status").asText()).isEqualTo("ISSUED");
+        assertThat(replay.path("authorizationNumber").asText()).isEqualTo(issued.path("authorizationNumber").asText());
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ?", invoiceId)).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsIssuingAgainOrAnUnknownInvoice() {
+        UUID actor = createUserWithRole("factura-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta reemision");
+        MenuItemSeed menu = seedMenuItem("Tallarines", "40.00");
+        closedOrderWithItem(accountId, actor, menu, "Tallarines", 1, "40.00", "40.00");
+        UUID invoiceId = draft(token, accountId);
+
+        body(post(issuePath(invoiceId), token, null, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        var again = post(issuePath(invoiceId), token, null, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(again.statusCode()).isEqualTo(409);
+
+        var unknown = post(issuePath(UUID.randomUUID()), token, null,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(unknown.statusCode()).isEqualTo(404);
+
+        var forbidden = post(issuePath(invoiceId), tokenForRole("CLIENT"), null,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(forbidden.statusCode()).isEqualTo(403);
+    }
+
+    private UUID draft(String token, UUID accountId) {
+        return UUID.fromString(body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, "{}"))
+                .path("invoiceId").asText());
+    }
+
+    private String issuePath(UUID invoiceId) {
+        return "/api/v1/operational/invoices/" + invoiceId + "/issue";
+    }
+
+    private int count(String sql, Object... arguments) {
+        return jdbc.queryForObject(sql, Integer.class, arguments);
     }
 
     private UUID createAccount(UUID actor, String name) {
