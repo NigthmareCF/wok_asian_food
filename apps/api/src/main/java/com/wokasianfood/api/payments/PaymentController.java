@@ -3,6 +3,7 @@ package com.wokasianfood.api.payments;
 import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -48,6 +49,7 @@ public class PaymentController {
     }
 
     public record PaymentRequest(@NotNull PaymentMethod method,
+                                 @DecimalMin(value = "0.01") BigDecimal amount,
                                  @Size(max = 120) String reference,
                                  @Size(max = 32) String registerCode) {}
 
@@ -71,7 +73,9 @@ class PaymentService {
                 ? null : request.reference().trim();
         String registerCode = request.registerCode() == null || request.registerCode().isBlank()
                 ? "MAIN" : request.registerCode().trim().toUpperCase(Locale.ROOT);
-        String hash = fingerprint(accountId.toString(), request.method().name(), reference, registerCode);
+        String requestedAmount = request.amount() == null
+                ? "FULL" : request.amount().stripTrailingZeros().toPlainString();
+        String hash = fingerprint(accountId.toString(), request.method().name(), requestedAmount, reference, registerCode);
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "ACCOUNT_PAYMENT_CAPTURED",
                 idempotencyKey, hash);
         if (claim.replay()) return receipt(claim.resourceId(), true);
@@ -91,6 +95,10 @@ class PaymentService {
         BigDecimal outstanding = billing.total().subtract(previouslyPaid);
         if (outstanding.signum() <= 0)
             throw new AuthException(409, "La cuenta no tiene saldo pendiente.");
+        BigDecimal amount = request.amount() == null ? outstanding : request.amount();
+        if (amount.compareTo(outstanding) > 0)
+            throw new AuthException(422, "El monto excede el saldo pendiente de la cuenta.");
+        BigDecimal remaining = outstanding.subtract(amount);
 
         UUID cashSessionId = null;
         if (request.method() == PaymentController.PaymentMethod.CASH) {
@@ -104,7 +112,7 @@ class PaymentService {
             INSERT INTO wok.payments
                 (id, account_id, cash_session_id, amount, currency_id, method, reference, captured_by, request_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, paymentId, accountId, cashSessionId, outstanding, billing.currencyId(),
+            """, paymentId, accountId, cashSessionId, amount, billing.currencyId(),
                 request.method().name(), reference, actor, requestId);
 
         UUID cashMovementId = null;
@@ -113,20 +121,22 @@ class PaymentService {
                 INSERT INTO wok.cash_movements
                     (cash_session_id, movement_type, amount_delta, payment_id, reason, responsible_user_id, request_id)
                 VALUES (?, 'SALE', ?, ?, ?, ?, ?) RETURNING id
-                """, UUID.class, cashSessionId, outstanding, paymentId, "Cobro de cuenta", actor, requestId);
+                """, UUID.class, cashSessionId, amount, paymentId, "Cobro de cuenta", actor, requestId);
         }
 
-        jdbc.update("""
-            UPDATE wok.order_accounts
-            SET status = 'PAID', updated_at = now(), updated_by = ?, row_version = row_version + 1
-            WHERE id = ? AND status IN ('OPEN', 'IN_COBRO')
-            """, actor, accountId);
+        if (remaining.signum() == 0) {
+            jdbc.update("""
+                UPDATE wok.order_accounts
+                SET status = 'PAID', updated_at = now(), updated_by = ?, row_version = row_version + 1
+                WHERE id = ? AND status IN ('OPEN', 'IN_COBRO')
+                """, actor, accountId);
+        }
         jdbc.update("""
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
             VALUES (?, 'PAYMENT_CAPTURED', 'PAYMENT', ?,
-                    jsonb_build_object('accountId', ?, 'amount', ?, 'method', ?), 'SUCCESS', ?)
-            """, actor, paymentId, accountId, outstanding, request.method().name(), requestId);
+                    jsonb_build_object('accountId', ?, 'amount', ?, 'method', ?, 'balance', ?), 'SUCCESS', ?)
+            """, actor, paymentId, accountId, amount, request.method().name(), remaining, requestId);
         idempotency.complete(actor.toString(), "ACCOUNT_PAYMENT_CAPTURED", idempotencyKey, paymentId);
         return receipt(paymentId, false);
     }
@@ -176,7 +186,11 @@ class PaymentService {
     private PaymentReceipt receipt(UUID paymentId, boolean replay) {
         List<PaymentReceipt> rows = jdbc.query("""
             SELECT p.id, p.account_id, p.amount, p.method, p.status, p.reference, p.cash_session_id,
-                   c.code AS currency_code, a.status AS account_status, m.id AS cash_movement_id
+                   c.code AS currency_code, a.status AS account_status, m.id AS cash_movement_id,
+                   (SELECT COALESCE(SUM(o.total), 0) FROM wok.orders o
+                     WHERE o.account_id = p.account_id AND o.status <> 'CANCELLED')
+                   - (SELECT COALESCE(SUM(pay.amount), 0) FROM wok.payments pay
+                       WHERE pay.account_id = p.account_id AND pay.status = 'CAPTURED') AS balance
             FROM wok.payments p
             JOIN wok.currencies c ON c.id = p.currency_id
             JOIN wok.order_accounts a ON a.id = p.account_id
@@ -185,7 +199,7 @@ class PaymentService {
             """, (rs, row) -> new PaymentReceipt(rs.getObject("id", UUID.class),
                 rs.getObject("account_id", UUID.class), rs.getString("account_status"),
                 rs.getBigDecimal("amount"), rs.getString("currency_code"), rs.getString("method"),
-                rs.getString("status"), rs.getString("reference"),
+                rs.getString("status"), rs.getString("reference"), rs.getBigDecimal("balance"),
                 rs.getObject("cash_session_id", UUID.class), rs.getObject("cash_movement_id", UUID.class), replay),
             paymentId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos el pago.");
@@ -208,6 +222,6 @@ class PaymentService {
                            UUID currencyId) {}
 
     public record PaymentReceipt(UUID paymentId, UUID accountId, String accountStatus, BigDecimal amount,
-                                 String currency, String method, String status, String reference,
+                                 String currency, String method, String status, String reference, BigDecimal balance,
                                  UUID cashSessionId, UUID cashMovementId, boolean idempotentReplay) {}
 }
