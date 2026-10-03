@@ -91,6 +91,87 @@ export const isReservationCancellation = (
   v: unknown,
 ): v is { reservationId: string; status: "CANCELLED" } =>
   record(v) && isUuid(v.reservationId) && v.status === "CANCELLED";
+
+export type OperationalPendingReservation = {
+  id: string;
+  guests: number;
+  reservationAt: string;
+  estimatedEndAt: string;
+  notes: string | null;
+  rowVersion: number;
+  customerName: string;
+  email: string | null;
+};
+
+export function isOperationalPendingReservations(
+  v: unknown,
+): v is OperationalPendingReservation[] {
+  return (
+    Array.isArray(v) &&
+    v.every(
+      (item) =>
+        record(item) &&
+        isUuid(item.id) &&
+        Number.isSafeInteger(item.guests) &&
+        Number(item.guests) > 0 &&
+        instant(item.reservationAt) &&
+        instant(item.estimatedEndAt) &&
+        (item.notes === null || typeof item.notes === "string") &&
+        Number.isSafeInteger(item.rowVersion) &&
+        Number(item.rowVersion) > 0 &&
+        typeof item.customerName === "string" &&
+        (item.email === null || typeof item.email === "string"),
+    )
+  );
+}
+
+export type OperationalReservationDecision = {
+  decision: "CONFIRM" | "REJECT";
+  reason: string;
+  expectedVersion: number;
+};
+
+export function parseOperationalReservationDecision(
+  v: unknown,
+): OperationalReservationDecision | null {
+  if (
+    !record(v) ||
+    (v.decision !== "CONFIRM" && v.decision !== "REJECT") ||
+    typeof v.reason !== "string" ||
+    v.reason.trim().length < 3 ||
+    v.reason.trim().length > 500 ||
+    !Number.isSafeInteger(v.expectedVersion) ||
+    Number(v.expectedVersion) <= 0
+  )
+    return null;
+  return {
+    decision: v.decision,
+    reason: v.reason.trim(),
+    expectedVersion: Number(v.expectedVersion),
+  };
+}
+
+export type OperationalReservationDecisionResult = {
+  reservationId: string;
+  decision: "CONFIRM" | "REJECT";
+  status: "CONFIRMED" | "CANCELLED";
+  rowVersion: number;
+  reason: string;
+};
+
+export function isOperationalReservationDecisionResult(
+  v: unknown,
+): v is OperationalReservationDecisionResult {
+  return (
+    record(v) &&
+    isUuid(v.reservationId) &&
+    (v.decision === "CONFIRM" || v.decision === "REJECT") &&
+    (v.status === "CONFIRMED" || v.status === "CANCELLED") &&
+    Number.isSafeInteger(v.rowVersion) &&
+    Number(v.rowVersion) > 0 &&
+    typeof v.reason === "string"
+  );
+}
 export const reservationLabels: Record<string, string> = {
   REQUESTED: "Pendiente de revisión",
   CONFIRMED: "Confirmada",

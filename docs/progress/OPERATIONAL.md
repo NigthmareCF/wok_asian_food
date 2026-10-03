@@ -1,5 +1,14 @@
 # Progreso del canal Operativo
 
+## 2026-10-02 — Cola operativa de decisiones de reservas
+
+- `/operation/reservations` consume la cola autenticada de solicitudes pendientes y permite confirmar o rechazar con motivo obligatorio. Conserva la versión recibida, bloquea acciones durante el envío y recarga la cola tras una decisión o un conflicto `409`, sin sobrescribir una decisión ajena.
+- Se agregaron exclusivamente los BFF `GET /bff/operational/reservations/pending` y `PUT /bff/operational/reservations/:reservationId/decision`. Ambos reenvían la sesión al backend; el segundo valida `CONFIRM|REJECT`, motivo de 3–500 caracteres, versión positiva y `X-Request-Id` UUID antes de reenviar.
+- Cliente conserva su historial existente: al actualizarlo muestra el estado real `CONFIRMED` o `CANCELLED` de su consulta propia.
+- Archivos principales: `apps/web/src/app/bff/operational/reservations`, `apps/web/src/modules/client-workflows/server/endpoint.ts`, `apps/web/src/modules/reservations` y la ruta operativa de Reservas.
+- Pruebas: 15 pruebas enfocadas aprobadas; lint, TypeScript y build web aprobados. La suite completa terminó con 367/377 aprobadas; fallaron 10 pruebas preexistentes ajenas a Reservas en Caja, Personal, Auth, Usuarios y Administración (timeouts/aserciones de interfaz bajo ejecución paralela).
+- No se modificaron backend, contratos API de backend, mesas, pedidos, cocina ni el historial Cliente. No se hicieron commits, push ni merge.
+
 ## 2026-09-29 — Historial de reservas propio para Cliente
 
 - `GET /api/v1/client/reservations` devuelve las 50 evaluaciones más recientes ligadas exclusivamente al `requester_user_id` autenticado; no admite un ID de cliente enviado por el consumidor.
@@ -215,6 +224,7 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Decisiones: permisos, ETA, pedidos y realtime son únicamente conceptos visuales
 - Pendiente: seleccionar IDs del sprint e implementar vistas asignadas
 - PR: `https://github.com/NigthmareCF/wok_asian_food/pull/2`
+
 # Progreso del canal Operativo
 
 ## 2026-09-15 — Auditoría de integración de rutas

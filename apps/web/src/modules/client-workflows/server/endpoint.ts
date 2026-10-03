@@ -4,10 +4,11 @@ import { isSameOrigin } from "@/modules/auth/server/request-origin";
 import { isUuid } from "@/modules/checkout/pickup-contract";
 type Options = {
   path: string;
-  method: "GET" | "POST" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "DELETE";
   parse?: (v: unknown) => unknown;
   validate: (v: unknown) => boolean;
   idempotent?: boolean;
+  requestId?: boolean;
 };
 export async function endpoint(request: NextRequest, options: Options) {
   const reply = (body: unknown, status: number) =>
@@ -27,10 +28,15 @@ export async function endpoint(request: NextRequest, options: Options) {
       401,
     );
   const key = request.headers.get("Idempotency-Key");
+  const requestId = request.headers.get("X-Request-Id");
   const payload = options.parse
     ? options.parse(await request.json().catch(() => null))
     : undefined;
-  if ((options.parse && !payload) || (options.idempotent && !isUuid(key)))
+  if (
+    (options.parse && !payload) ||
+    (options.idempotent && !isUuid(key)) ||
+    (options.requestId && !isUuid(requestId))
+  )
     return reply({ message: "Revisa los datos enviados." }, 400);
   try {
     const base = (
@@ -44,6 +50,7 @@ export async function endpoint(request: NextRequest, options: Options) {
         Authorization: `Bearer ${token}`,
         ...(payload ? { "Content-Type": "application/json" } : {}),
         ...(options.idempotent ? { "Idempotency-Key": key! } : {}),
+        ...(options.requestId ? { "X-Request-Id": requestId! } : {}),
       },
       ...(payload ? { body: JSON.stringify(payload) } : {}),
     });
