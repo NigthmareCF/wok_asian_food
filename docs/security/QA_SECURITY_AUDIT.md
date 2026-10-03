@@ -39,6 +39,13 @@ El sistema aún no debe presentarse como una integración completa de todos los 
 - Corrección: los proxies HTTP y TLS reemplazan `X-Forwarded-For` por `$remote_addr`, por lo que la API recibe una identidad asignada por Nginx y no una cadena controlada por el cliente.
 - Pendiente de ejecución: al recuperar Docker, validar la configuración con `nginx -t` y comprobar que múltiples cabeceras enviadas por un cliente no alteran el límite.
 
+### QA-SEC-003: límite por IP para inicio de sesión
+
+- Severidad: alta.
+- Riesgo: el inicio de sesión mantenía un bloqueo por correo después de fallos repetidos, pero no aplicaba la ventana de control por IP usada por los demás endpoints de autenticación. Eso dejaba más margen para intentos de fuerza bruta distribuidos.
+- Corrección: `POST /api/v1/auth/login` ahora registra el intento en `AuthRateLimiter` antes de validar las credenciales. Se permite un máximo de 20 intentos por IP en 15 minutos, además del límite por cuenta ya existente en `AuthService`.
+- Verificación pendiente: la prueba Java fue añadida, pero requiere JDK 21 para ejecutar `mvnw verify`.
+
 ## Estado de rutas y sesiones
 
 | Capa | Estado | Observación |

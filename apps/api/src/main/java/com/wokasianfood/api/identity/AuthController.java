@@ -40,7 +40,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public TokenPair login(@Valid @RequestBody Login request) { return auth.login(request); }
+    public TokenPair login(@Valid @RequestBody Login request, HttpServletRequest http) {
+        rateLimiter.check(AuthRateLimiter.Action.LOGIN, request.email(), clientIp(http));
+        return auth.login(request);
+    }
 
     @PostMapping("/refresh")
     public TokenPair refresh(@Valid @RequestBody Refresh request) { return auth.refresh(request); }
