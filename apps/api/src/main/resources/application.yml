@@ -47,3 +47,8 @@ wok:
     mode: ${WOK_AI_MODE:disabled}
   email:
     mode: ${WOK_EMAIL_MODE:mock}
+  fiscal:
+    # Facturacion electronica simulada; no hay certificacion real ante la SAT.
+    mode: ${WOK_FISCAL_MODE:mock}
+    tax-rate: ${WOK_FISCAL_TAX_RATE:0.12}
+    poll-ms: ${WOK_FISCAL_POLL_MS:5000}
