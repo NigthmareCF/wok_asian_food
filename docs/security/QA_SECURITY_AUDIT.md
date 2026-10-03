@@ -20,7 +20,8 @@ El sistema aún no debe presentarse como una integración completa de todos los 
 | Build Web | Aprobado | Next.js generó 94 rutas sin error. |
 | Lint móvil | Aprobado | `eslint src app`. |
 | Tipado móvil | Aprobado | `tsc --noEmit`. |
-| API Spring Boot | Pendiente de entorno | El equipo local no tiene JDK/JAVA_HOME configurado. |
+| Pruebas unitarias de seguridad API | Aprobadas | 17 pruebas: autenticación, CORS, sesión, DTO y errores. |
+| Build API Spring Boot | Aprobado | `mvnw verify -DskipTests` con Eclipse Temurin JDK 21. |
 | Docker integrado | Pendiente de entorno | Docker Desktop no expuso el motor Linux durante la auditoría. |
 
 ## Hallazgo corregido
@@ -117,8 +118,8 @@ No se ejecutó `npm audit fix --force`, porque puede cambiar Expo o React Native
 
 ## Próximos pasos obligatorios
 
-1. Instalar o configurar JDK 21 y `JAVA_HOME`; ejecutar `apps/api/mvnw verify`.
-2. Recuperar Docker Desktop; levantar `docker compose --profile dev up --build -d` con un `.env` local ignorado.
+1. Recuperar Docker Desktop; levantar `docker compose --profile dev up --build -d` con un `.env` local ignorado.
+2. Ejecutar `apps/api/mvnw verify` completo, incluidas las pruebas de integración con PostgreSQL.
 3. Ejecutar pruebas E2E con cuentas Cliente, Operación y Administración:
    - Cliente crea solicitud o reserva.
    - Operación la visualiza y cambia el estado autorizado.
