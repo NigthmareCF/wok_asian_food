@@ -21,7 +21,11 @@ function formatMoney(amount: number, currency: string) {
 }
 
 export default function PickupRequestsScreen() {
-  const { session, request } = useSession();
+  const account = useSession();
+  return <PickupRequestHistory key={account.session?.email ?? "guest"} {...account} />;
+}
+
+function PickupRequestHistory({ session, request }: ReturnType<typeof useSession>) {
   const [requests, setRequests] = useState<PickupRequestState[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

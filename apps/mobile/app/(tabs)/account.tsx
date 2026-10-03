@@ -8,7 +8,11 @@ import { useSession } from "@/providers/session-provider";
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
 
 export default function AccountScreen() {
-  const { session, login, register, verify, resendVerification, requestPasswordReset, completePasswordReset, request, logout } = useSession();
+  const account = useSession();
+  return <AccountContent key={account.session?.email ?? "guest"} {...account} />;
+}
+
+function AccountContent({ session, login, register, verify, resendVerification, requestPasswordReset, completePasswordReset, request, logout }: ReturnType<typeof useSession>) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");

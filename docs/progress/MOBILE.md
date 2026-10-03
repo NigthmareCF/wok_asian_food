@@ -1,5 +1,12 @@
 # Progreso de planificación móvil
 
+## 2026-10-02 — Aislar estado en memoria al cambiar de cuenta
+
+- Las pantallas de Pickup (`orders`) y Mi cuenta se remontan al cambiar el correo de sesión. Esto descarta el historial, perfil, sesiones, formularios y avisos anteriores mientras se carga la cuenta nueva, e impide que resultados tardíos del árbol anterior se muestren en el árbol activo.
+- Las pantallas de Reservas, Direcciones, Mensajes y Delivery ya aplicaban este patrón o aislaban sus datos por propietario; se mantuvieron intactas.
+- Verificación: 5/5 tests Vitest, ESLint, TypeScript y exports Expo Android/Web completos. Los exports verifican bundles y rutas, no builds instalables ni pruebas físicas.
+- Rama `fix/mobile-client-flow`, derivada del HEAD vigente `origin/feature/mobile-shell` (`0d645fa`). Cambio listo para publicar; no merge.
+
 ## 2026-10-02 — Reintento idempotente de reservas después de cerrar la app
 
 - Los intentos de reserva se guardan antes del POST en SecureStore, ligados al correo de sesión (la llave de almacenamiento usa su SHA-256), UUID y payload exacto. Al reiniciar, sólo se reutiliza la clave para la misma cuenta/cuerpo; cambiar cuenta o payload crea otra clave, y registros inválidos/vencidos se descartan.
