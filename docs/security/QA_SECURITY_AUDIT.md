@@ -43,6 +43,19 @@ El sistema aún no debe presentarse como una integración completa de todos los 
 | Permisos de interfaz | Corregido | Se filtra la navegación con permisos de la sesión. |
 | Permisos de página individual | Pendiente de prueba E2E | Debe comprobarse con usuarios de permisos parciales cuando la API esté levantada. |
 
+## Controles observados en la API
+
+La revisión estática del backend encontró controles que deben conservarse y validarse en ejecución:
+
+- Contraseñas protegidas con BCrypt de coste 12.
+- JWT con emisor configurado, expiración y validación contra una sesión activa, no revocada y asociada a un usuario activo.
+- Roles y permisos cargados desde PostgreSQL para las autoridades de Spring Security.
+- Controladores operativos críticos protegidos con `@PreAuthorize`, por ejemplo mesas, cuentas, pedidos, cocina, pagos, inventario, producción y caja.
+- Rate limiting con ventana deslizante para registro, verificación, reenvío de código, inicio de sesión y restablecimiento de contraseña.
+- CORS con lista explícita de orígenes y métodos; no se permite cualquier origen.
+
+La evidencia anterior es estática. Antes de publicación debe repetirse con pruebas de integración que confirmen respuestas 401 y 403 para tokens ausentes, expirados, revocados o con permisos insuficientes.
+
 ## Integración real y datos simulados
 
 Ya existen rutas BFF para menú, autenticación, solicitudes de pedido, reservaciones, mensajería, delivery y mesas operativas. Sin embargo, el código conserva módulos con fixtures o avisos de datos simulados, entre ellos pedidos operativos, cocina, delivery, caja, inventario, producción, mensajería operativa y varias pantallas administrativas.
