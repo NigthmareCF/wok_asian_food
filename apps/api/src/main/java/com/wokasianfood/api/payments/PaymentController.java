@@ -50,6 +50,7 @@ public class PaymentController {
 
     public record PaymentRequest(@NotNull PaymentMethod method,
                                  @DecimalMin(value = "0.01") BigDecimal amount,
+                                 @DecimalMin(value = "0.00") BigDecimal tipAmount,
                                  @Size(max = 120) String reference,
                                  @Size(max = 32) String registerCode) {}
 
@@ -75,7 +76,9 @@ class PaymentService {
                 ? "MAIN" : request.registerCode().trim().toUpperCase(Locale.ROOT);
         String requestedAmount = request.amount() == null
                 ? "FULL" : request.amount().stripTrailingZeros().toPlainString();
-        String hash = fingerprint(accountId.toString(), request.method().name(), requestedAmount, reference, registerCode);
+        BigDecimal tip = request.tipAmount() == null ? BigDecimal.ZERO : request.tipAmount();
+        String hash = fingerprint(accountId.toString(), request.method().name(), requestedAmount,
+                tip.stripTrailingZeros().toPlainString(), reference, registerCode);
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "ACCOUNT_PAYMENT_CAPTURED",
                 idempotencyKey, hash);
         if (claim.replay()) return receipt(claim.resourceId(), true);
@@ -110,9 +113,10 @@ class PaymentService {
         UUID paymentId = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO wok.payments
-                (id, account_id, cash_session_id, amount, currency_id, method, reference, captured_by, request_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, paymentId, accountId, cashSessionId, amount, billing.currencyId(),
+                (id, account_id, cash_session_id, amount, tip_amount, currency_id, method, reference,
+                 captured_by, request_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, paymentId, accountId, cashSessionId, amount, tip, billing.currencyId(),
                 request.method().name(), reference, actor, requestId);
 
         UUID cashMovementId = null;
@@ -122,6 +126,13 @@ class PaymentService {
                     (cash_session_id, movement_type, amount_delta, payment_id, reason, responsible_user_id, request_id)
                 VALUES (?, 'SALE', ?, ?, ?, ?, ?) RETURNING id
                 """, UUID.class, cashSessionId, amount, paymentId, "Cobro de cuenta", actor, requestId);
+            if (tip.signum() > 0) {
+                jdbc.update("""
+                    INSERT INTO wok.cash_movements
+                        (cash_session_id, movement_type, amount_delta, reason, responsible_user_id)
+                    VALUES (?, 'INCOME', ?, 'Propina de cuenta', ?)
+                    """, cashSessionId, tip, actor);
+            }
         }
 
         if (remaining.signum() == 0) {
@@ -135,8 +146,9 @@ class PaymentService {
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
             VALUES (?, 'PAYMENT_CAPTURED', 'PAYMENT', ?,
-                    jsonb_build_object('accountId', ?, 'amount', ?, 'method', ?, 'balance', ?), 'SUCCESS', ?)
-            """, actor, paymentId, accountId, amount, request.method().name(), remaining, requestId);
+                    jsonb_build_object('accountId', ?, 'amount', ?, 'tip', ?, 'method', ?, 'balance', ?),
+                    'SUCCESS', ?)
+            """, actor, paymentId, accountId, amount, tip, request.method().name(), remaining, requestId);
         idempotency.complete(actor.toString(), "ACCOUNT_PAYMENT_CAPTURED", idempotencyKey, paymentId);
         return receipt(paymentId, false);
     }
@@ -185,7 +197,7 @@ class PaymentService {
 
     private PaymentReceipt receipt(UUID paymentId, boolean replay) {
         List<PaymentReceipt> rows = jdbc.query("""
-            SELECT p.id, p.account_id, p.amount, p.method, p.status, p.reference, p.cash_session_id,
+            SELECT p.id, p.account_id, p.amount, p.tip_amount, p.method, p.status, p.reference, p.cash_session_id,
                    c.code AS currency_code, a.status AS account_status, m.id AS cash_movement_id,
                    (SELECT COALESCE(SUM(o.total), 0) FROM wok.orders o
                      WHERE o.account_id = p.account_id AND o.status <> 'CANCELLED')
@@ -198,8 +210,8 @@ class PaymentService {
             WHERE p.id = ?
             """, (rs, row) -> new PaymentReceipt(rs.getObject("id", UUID.class),
                 rs.getObject("account_id", UUID.class), rs.getString("account_status"),
-                rs.getBigDecimal("amount"), rs.getString("currency_code"), rs.getString("method"),
-                rs.getString("status"), rs.getString("reference"), rs.getBigDecimal("balance"),
+                rs.getBigDecimal("amount"), rs.getBigDecimal("tip_amount"), rs.getString("currency_code"),
+                rs.getString("method"), rs.getString("status"), rs.getString("reference"), rs.getBigDecimal("balance"),
                 rs.getObject("cash_session_id", UUID.class), rs.getObject("cash_movement_id", UUID.class), replay),
             paymentId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos el pago.");
@@ -222,6 +234,6 @@ class PaymentService {
                            UUID currencyId) {}
 
     public record PaymentReceipt(UUID paymentId, UUID accountId, String accountStatus, BigDecimal amount,
-                                 String currency, String method, String status, String reference, BigDecimal balance,
-                                 UUID cashSessionId, UUID cashMovementId, boolean idempotentReplay) {}
+                                 BigDecimal tipAmount, String currency, String method, String status, String reference,
+                                 BigDecimal balance, UUID cashSessionId, UUID cashMovementId, boolean idempotentReplay) {}
 }
