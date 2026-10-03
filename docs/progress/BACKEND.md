@@ -201,3 +201,9 @@
 - Ambos endpoints exigen `orders:manage`, validan filtros contra listas permitidas y no reciben IDs de usuario para ampliar alcance. Se añadió prueba HTTP/PostgreSQL para filtro, detalle delivery, items, rol Cliente prohibido y filtro inválido.
 - La rama contiene explícitamente el límite previo: aceptar una solicitud DELIVERY sigue respondiendo 422; consulta del Operativo no equivale a soporte de reparto, autorización contra entrega o cobro externo.
 - PostgreSQL 18 aplicó Flyway V1–V24 en la prueba efímera. Clase focal: 5/5 pruebas; suite completa: 140 pruebas, 0 fallos, 0 errores, 0 omitidas. Docker/Testcontainers disponible en la corrida con acceso elevado.
+
+## 2026-10-04 — Google OIDC remoto integrado de forma compatible
+
+- Se integraron los commits remotos de verificación OIDC y nonces de un solo uso, ajustando las migraciones a V30/V31 porque V25–V29 ya están ocupadas por capacidades vigentes de esta rama.
+- Google queda preparado, pero deshabilitado sin `wok.auth.google.client-id`; el endpoint emite nonce aleatorio de 256 bits, conserva sólo SHA-256, vence a los cinco minutos y limita intentos por IP. El backend comprueba firma/JWKS, issuer, audience, tiempo, `sub`, correo verificado y coincidencia/consumo único del nonce.
+- La integración se limita a la rama backend especializada; no importa la reducción del snapshot candidato ni toca el frontend.

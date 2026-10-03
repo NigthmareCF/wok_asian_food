@@ -33,7 +33,8 @@ class VerificationResendTest {
         AuthSecrets secrets = new AuthSecrets(Base64.getEncoder().encodeToString(new byte[32]),
                 Base64.getEncoder().encodeToString(new byte[32]));
         when(passwords.encode(anyString())).thenReturn("dummy-hash");
-        auth = new AuthService(jdbc, passwords, tokens, new ChallengeService(secrets), secrets, googleVerifier);
+        auth = new AuthService(jdbc, passwords, tokens, new ChallengeService(secrets), secrets, googleVerifier,
+                mock(GoogleNonceService.class));
     }
 
     @Test
@@ -51,7 +52,8 @@ class VerificationResendTest {
     void endpointAlwaysUsesNeutralAcceptedResponse() {
         AuthService service = mock(AuthService.class);
         AuthRateLimiter limiter = mock(AuthRateLimiter.class);
-        AuthController controller = new AuthController(service, mock(CurrentUserService.class), limiter);
+        AuthController controller = new AuthController(service, mock(CurrentUserService.class), limiter,
+                mock(GoogleNonceService.class));
 
         var response = controller.resendVerification(new ResetRequest("person@example.test"), request());
 

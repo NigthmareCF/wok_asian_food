@@ -114,7 +114,8 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/swagger-ui/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/verify", "/api/v1/auth/verify/resend", "/api/v1/auth/login",
-                    "/api/v1/auth/refresh", "/api/v1/auth/reset/request", "/api/v1/auth/reset/complete", "/api/v1/auth/google").permitAll()
+                    "/api/v1/auth/refresh", "/api/v1/auth/reset/request", "/api/v1/auth/reset/complete",
+                    "/api/v1/auth/google", "/api/v1/auth/google/nonce").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/public/**").permitAll()
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(decoder)

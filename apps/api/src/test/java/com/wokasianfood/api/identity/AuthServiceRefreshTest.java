@@ -33,7 +33,8 @@ class AuthServiceRefreshTest {
         AuthSecrets secrets = new AuthSecrets(Base64.getEncoder().encodeToString(new byte[32]),
                 Base64.getEncoder().encodeToString(new byte[32]));
         when(passwords.encode(anyString())).thenReturn("dummy-hash");
-        auth = new AuthService(jdbc, passwords, tokens, new ChallengeService(secrets), secrets, googleVerifier);
+        auth = new AuthService(jdbc, passwords, tokens, new ChallengeService(secrets), secrets, googleVerifier,
+                mock(GoogleNonceService.class));
     }
 
     @Test
