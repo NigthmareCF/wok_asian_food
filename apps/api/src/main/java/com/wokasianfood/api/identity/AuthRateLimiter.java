@@ -30,9 +30,11 @@ public class AuthRateLimiter {
         policies.put(Action.RESEND, new Policy(10, Duration.ofMinutes(15), 5, Duration.ofHours(1)));
         policies.put(Action.RESET_REQUEST, new Policy(5, Duration.ofMinutes(15), 3, Duration.ofHours(1)));
         policies.put(Action.RESET_COMPLETE, new Policy(10, Duration.ofMinutes(15), 5, Duration.ofMinutes(15)));
+        policies.put(Action.GOOGLE_NONCE, new Policy(20, Duration.ofMinutes(15), 0, Duration.ZERO));
+        policies.put(Action.GOOGLE_LOGIN, new Policy(20, Duration.ofMinutes(15), 0, Duration.ZERO));
     }
 
-    public enum Action { REGISTER, VERIFY, RESEND, RESET_REQUEST, RESET_COMPLETE }
+    public enum Action { REGISTER, VERIFY, RESEND, RESET_REQUEST, RESET_COMPLETE, GOOGLE_NONCE, GOOGLE_LOGIN }
 
     public void check(Action action, String identifier, String clientIp) {
         Policy policy = policies.get(action);

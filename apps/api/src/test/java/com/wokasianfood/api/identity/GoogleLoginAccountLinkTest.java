@@ -23,6 +23,7 @@ class GoogleLoginAccountLinkTest {
     private final PasswordEncoder passwords = mock(PasswordEncoder.class);
     private final TokenService tokens = mock(TokenService.class);
     private final GoogleIdentityVerifier googleVerifier = mock(GoogleIdentityVerifier.class);
+    private final GoogleNonceService googleNonces = mock(GoogleNonceService.class);
     private AuthService auth;
 
     @BeforeEach
@@ -30,7 +31,9 @@ class GoogleLoginAccountLinkTest {
         AuthSecrets secrets = new AuthSecrets(Base64.getEncoder().encodeToString(new byte[32]),
                 Base64.getEncoder().encodeToString(new byte[32]));
         when(passwords.encode(anyString())).thenReturn("dummy-hash");
-        auth = new AuthService(jdbc, passwords, tokens, new ChallengeService(secrets), secrets, googleVerifier);
+        when(googleNonces.consume("nonce-123")).thenReturn(true);
+        auth = new AuthService(jdbc, passwords, tokens, new ChallengeService(secrets), secrets, googleVerifier,
+                googleNonces);
     }
 
     @Test
@@ -47,6 +50,19 @@ class GoogleLoginAccountLinkTest {
                 anyRowMapper(), eq("google-subject"));
         verify(jdbc, never()).update(contains("INSERT INTO wok.auth_identities"), any(Object[].class));
         verify(tokens, never()).refresh();
+    }
+
+    @Test
+    void rejectsAReplayedOrUnissuedNonceBeforeLookingUpAnAccount() {
+        when(googleVerifier.verify("google-id-token", "nonce-123")).thenReturn(
+                new GoogleIdentityVerifier.VerifiedIdentity("google-subject", "customer@example.com", true));
+        when(googleNonces.consume("nonce-123")).thenReturn(false);
+
+        AuthException error = assertThrows(AuthException.class,
+                () -> auth.google(new GoogleLogin("google-id-token", "nonce-123")));
+
+        assertEquals(401, error.status());
+        verifyNoInteractions(jdbc);
     }
 
     @Test

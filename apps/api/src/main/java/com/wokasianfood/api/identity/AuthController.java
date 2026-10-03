@@ -15,8 +15,11 @@ public class AuthController {
     private final AuthService auth;
     private final CurrentUserService currentUser;
     private final AuthRateLimiter rateLimiter;
-    public AuthController(AuthService auth, CurrentUserService currentUser, AuthRateLimiter rateLimiter) {
+    private final GoogleNonceService googleNonces;
+    public AuthController(AuthService auth, CurrentUserService currentUser, AuthRateLimiter rateLimiter,
+                          GoogleNonceService googleNonces) {
         this.auth = auth; this.currentUser = currentUser; this.rateLimiter = rateLimiter;
+        this.googleNonces = googleNonces;
     }
 
     @PostMapping("/register")
@@ -45,8 +48,18 @@ public class AuthController {
     @PostMapping("/refresh")
     public TokenPair refresh(@Valid @RequestBody Refresh request) { return auth.refresh(request); }
 
+    @PostMapping("/google/nonce")
+    public GoogleNonce googleNonce(HttpServletRequest http) {
+        rateLimiter.check(AuthRateLimiter.Action.GOOGLE_NONCE, null, clientIp(http));
+        GoogleNonceService.IssuedNonce issued = googleNonces.issue();
+        return new GoogleNonce(issued.nonce(), issued.expiresInSeconds());
+    }
+
     @PostMapping("/google")
-    public TokenPair google(@Valid @RequestBody GoogleLogin request) { return auth.google(request); }
+    public TokenPair google(@Valid @RequestBody GoogleLogin request, HttpServletRequest http) {
+        rateLimiter.check(AuthRateLimiter.Action.GOOGLE_LOGIN, null, clientIp(http));
+        return auth.google(request);
+    }
 
     @PostMapping("/reset/request")
     public ResponseEntity<Message> requestReset(@Valid @RequestBody ResetRequest request, HttpServletRequest http) {

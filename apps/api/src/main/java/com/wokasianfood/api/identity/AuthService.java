@@ -28,13 +28,15 @@ public class AuthService {
     private final ChallengeService challenges;
     private final AuthSecrets secrets;
     private final GoogleIdentityVerifier googleVerifier;
+    private final GoogleNonceService googleNonces;
     private final SecureRandom random = new SecureRandom();
     private final String dummyHash;
 
     public AuthService(JdbcTemplate jdbc, PasswordEncoder passwords, TokenService tokens,
-                       ChallengeService challenges, AuthSecrets secrets, GoogleIdentityVerifier googleVerifier) {
+                       ChallengeService challenges, AuthSecrets secrets, GoogleIdentityVerifier googleVerifier,
+                       GoogleNonceService googleNonces) {
         this.jdbc = jdbc; this.passwords = passwords; this.tokens = tokens; this.challenges = challenges;
-        this.secrets = secrets; this.googleVerifier = googleVerifier;
+        this.secrets = secrets; this.googleVerifier = googleVerifier; this.googleNonces = googleNonces;
         this.dummyHash = passwords.encode(UUID.randomUUID().toString());
     }
 
@@ -172,9 +174,11 @@ public class AuthService {
         return createSession(user.id, clientType);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = AuthException.class)
     public TokenPair google(GoogleLogin request) {
         GoogleIdentityVerifier.VerifiedIdentity identity = googleVerifier.verify(request.idToken(), request.nonce());
+        if (!googleNonces.consume(request.nonce()))
+            throw new AuthException(401, "Identidad externa inválida o vencida.");
         if (identity.subject() == null || identity.subject().isBlank() || !identity.emailVerified())
             throw new AuthException(401, "Identidad externa inválida.");
         List<UUID> ids = jdbc.query("""

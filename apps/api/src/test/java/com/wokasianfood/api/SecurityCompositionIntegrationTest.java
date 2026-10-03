@@ -79,6 +79,23 @@ class SecurityCompositionIntegrationTest {
     }
 
     @Test
+    void issuesShortLivedServerSideGoogleNonceAndStoresOnlyItsHash() throws Exception {
+        var response = post("/api/v1/auth/google/nonce", "{}");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        JsonNode body = json.readTree(response.body());
+        String nonce = body.path("nonce").asText();
+        assertThat(nonce).matches("[A-Za-z0-9_-]{43}");
+        assertThat(body.path("expiresInSeconds").asInt()).isEqualTo(300);
+        String storedHash = jdbc.queryForObject("""
+                SELECT nonce_hash FROM wok.google_oidc_nonce_challenges
+                WHERE consumed_at IS NULL AND expires_at > now()
+                ORDER BY created_at DESC LIMIT 1
+                """, String.class);
+        assertThat(storedHash).hasSize(64).isNotEqualTo(nonce);
+    }
+
+    @Test
     void registersVerifiesLogsInRotatesRefreshAndRevokesReusedSession() throws Exception {
         String email = "security-it-" + UUID.randomUUID() + "@example.invalid";
         String password = "WokTestPassword-2026";
