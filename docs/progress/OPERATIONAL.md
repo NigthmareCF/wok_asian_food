@@ -1,5 +1,28 @@
 # Progreso del canal Operativo
 
+## 2026-10-03 — Mesas operativas conectadas
+
+- `/operation/tables` y `/operation/tables/[tableId]` consumen el listado real de Mesas y permiten crear, abrir y cerrar mesas. Cada mutación envía `X-Request-Id`, bloquea doble envío y recarga el listado; los conflictos `404` y `409` informan y recargan antes de continuar.
+- Se agregaron exclusivamente `GET/POST /bff/operational/tables`, `POST /bff/operational/tables/:tableId/open` y `POST /bff/operational/tables/:tableId/close`, con sesión, validación de contrato y transporte común.
+- La vista muestra sólo campos del DTO real: identificación, nombre, capacidad, zona, actividad, estado, versión, actualización y cuenta abierta. Unión/separación, reserva, traslado, cobro/división, limpieza a libre y atención presencial permanecen deshabilitados porque no tienen API.
+
+## 2026-10-03 — Validación HTTP/BFF real de reservas operativas
+
+- Se levantó un entorno Docker aislado y desechable con PostgreSQL, API, Web, Nginx y Mailpit; se aplicaron las migraciones V1–V14.
+- Cliente temporal y Operativo demo autenticaron correctamente. Una reserva confirmada apareció como `CONFIRMED` en el historial Cliente; una reserva rechazada apareció como `CANCELLED`.
+- La cola operativa finalizó sin pendientes. Un reintento de decisión obsoleta devolvió `409` y no sobrescribió la decisión existente.
+- Al finalizar se eliminaron los contenedores, red y volumen de prueba. No se persistieron secretos ni se modificaron datos reales.
+- La validación HTTP/BFF se completó; la revisión visual automatizada no estuvo disponible.
+
+## 2026-10-02 — Cola operativa de decisiones de reservas
+
+- `/operation/reservations` consume la cola autenticada de solicitudes pendientes y permite confirmar o rechazar con motivo obligatorio. Conserva la versión recibida, bloquea acciones durante el envío y recarga la cola tras una decisión o un conflicto `409`, sin sobrescribir una decisión ajena.
+- Se agregaron exclusivamente los BFF `GET /bff/operational/reservations/pending` y `PUT /bff/operational/reservations/:reservationId/decision`. Ambos reenvían la sesión al backend; el segundo valida `CONFIRM|REJECT`, motivo de 3–500 caracteres, versión positiva y `X-Request-Id` UUID antes de reenviar.
+- Cliente conserva su historial existente: al actualizarlo muestra el estado real `CONFIRMED` o `CANCELLED` de su consulta propia.
+- Archivos principales: `apps/web/src/app/bff/operational/reservations`, `apps/web/src/modules/client-workflows/server/endpoint.ts`, `apps/web/src/modules/reservations` y la ruta operativa de Reservas.
+- Pruebas: 15 pruebas enfocadas aprobadas; lint, TypeScript y build web aprobados. La suite completa terminó con 367/377 aprobadas; fallaron 10 pruebas preexistentes ajenas a Reservas en Caja, Personal, Auth, Usuarios y Administración (timeouts/aserciones de interfaz bajo ejecución paralela).
+- No se modificaron backend, contratos API de backend, mesas, pedidos, cocina ni el historial Cliente. No se hicieron commits, push ni merge.
+
 ## 2026-09-29 — Historial de reservas propio para Cliente
 
 - `GET /api/v1/client/reservations` devuelve las 50 evaluaciones más recientes ligadas exclusivamente al `requester_user_id` autenticado; no admite un ID de cliente enviado por el consumidor.
@@ -215,9 +238,17 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Decisiones: permisos, ETA, pedidos y realtime son únicamente conceptos visuales
 - Pendiente: seleccionar IDs del sprint e implementar vistas asignadas
 - PR: `https://github.com/NigthmareCF/wok_asian_food/pull/2`
+
 # Progreso del canal Operativo
 
 ## 2026-09-15 — Auditoría de integración de rutas
 
 - Se verificó la cobertura de navegación del canal: Operación, Mesas, Pedidos, Cocina, Reservas, Mensajes, Solicitudes, Delivery, Caja, Pagos, Inventario, Producción y Estado del servicio tienen rutas y accesos en la sidebar.
 - Se conservaron los formularios operativos como pendientes de ampliación.
+
+## 2026-10-02 — Mensajería operativa conectada
+
+- `/operation/messages` sustituye el inbox de fixtures por conversaciones APP WAITING de la API, lectura y respuesta del personal autenticado. La bandeja es compartida y no implementa asignación individual.
+- Después de responder, el hilo permanece visible con estado Abierta y la conversación sale de la cola. Se conserva el intento idempotente ante respuestas perdidas. Estado del servicio en el shell sigue simulado y su etiqueta lo aclara.
+- Prueba local entre Cliente Demo Checkout y Operativo Demo mediante HTTP y navegador: mensaje enviado, respuesta visible, cola sin pendientes. Cliente sin rol operativo recibe 403. Suite web 368 pruebas aprobadas, lint/TypeScript/build Docker correctos.
+- Delivery y reservas operativas conservan sus vistas previas; su integración y gestión posterior se deben abordar como siguiente sección. No se hicieron commits ni push.
