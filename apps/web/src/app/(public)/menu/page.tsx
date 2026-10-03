@@ -1,8 +1,7 @@
 ﻿import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { CartLink } from "@/modules/cart/components/cart-link";
-import { MenuCatalog } from "@/modules/menu";
-import { menuFixtures } from "@/data/fixtures/menu";
+import { LiveCartLink } from "@/modules/cart/components/cart-link";
+import { LiveMenuCatalog } from "@/modules/menu/components/live-menu-catalog";
 import { landingPathForRoles } from "@/modules/auth/auth-policy";
 import { currentSession } from "@/modules/auth/server/auth-session";
 import { PublicHeader } from "@/shared/components/public-header";
@@ -28,8 +27,8 @@ export default async function MenuPage() {
             </Link>
           ) : null}
         </header>
-        <CartLink />
-        <MenuCatalog products={menuFixtures} />
+        <LiveCartLink />
+        <LiveMenuCatalog />
       </main>
     </div>
   );

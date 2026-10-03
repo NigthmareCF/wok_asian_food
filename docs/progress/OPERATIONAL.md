@@ -221,3 +221,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 
 - Se verificó la cobertura de navegación del canal: Operación, Mesas, Pedidos, Cocina, Reservas, Mensajes, Solicitudes, Delivery, Caja, Pagos, Inventario, Producción y Estado del servicio tienen rutas y accesos en la sidebar.
 - Se conservaron los formularios operativos como pendientes de ampliación.
+
+## 2026-10-02 — Mensajería operativa conectada
+
+- `/operation/messages` sustituye el inbox de fixtures por conversaciones APP WAITING de la API, lectura y respuesta del personal autenticado. La bandeja es compartida y no implementa asignación individual.
+- Después de responder, el hilo permanece visible con estado Abierta y la conversación sale de la cola. Se conserva el intento idempotente ante respuestas perdidas. Estado del servicio en el shell sigue simulado y su etiqueta lo aclara.
+- Prueba local entre Cliente Demo Checkout y Operativo Demo mediante HTTP y navegador: mensaje enviado, respuesta visible, cola sin pendientes. Cliente sin rol operativo recibe 403. Suite web 368 pruebas aprobadas, lint/TypeScript/build Docker correctos.
+- Delivery y reservas operativas conservan sus vistas previas; su integración y gestión posterior se deben abordar como siguiente sección. No se hicieron commits ni push.

@@ -32,6 +32,7 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
   client: [
     { label: "Inicio", route: "/client", icon: "dashboard" },
     { label: "Menú", route: "/menu", icon: "menu" },
+    { label: "Delivery", route: "/client/delivery", icon: "delivery" },
     {
       label: "Pedidos",
       route: "/client/orders",
