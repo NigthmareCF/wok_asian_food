@@ -155,6 +155,33 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                 """, String.class, accountId)).isEqualTo("CLOSED");
     }
 
+    @Test
+    void showsPaidBalanceAndPaymentsInAccountDetails() {
+        UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, null, "Cuenta detalle pago");
+        closedOrder(accountId, actor, "80.00");
+
+        JsonNode before = body(get("/api/v1/operational/accounts/" + accountId, token));
+        assertThat(before.path("total").decimalValue()).isEqualByComparingTo("80.00");
+        assertThat(before.path("paid").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(before.path("balance").decimalValue()).isEqualByComparingTo("80.00");
+        assertThat(before.path("payments")).isEmpty();
+
+        body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CARD_EXTERNAL","reference":"REF-1"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        JsonNode after = body(get("/api/v1/operational/accounts/" + accountId, token));
+        assertThat(after.path("account").path("status").asText()).isEqualTo("PAID");
+        assertThat(after.path("paid").decimalValue()).isEqualByComparingTo("80.00");
+        assertThat(after.path("balance").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(after.path("payments")).hasSize(1);
+        assertThat(after.path("payments").get(0).path("method").asText()).isEqualTo("CARD_EXTERNAL");
+        assertThat(after.path("payments").get(0).path("status").asText()).isEqualTo("CAPTURED");
+        assertThat(after.path("payments").get(0).path("reference").asText()).isEqualTo("REF-1");
+    }
+
     private UUID createAccount(UUID actor, UUID tableId, String name) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
