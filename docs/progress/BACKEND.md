@@ -5,7 +5,7 @@
 - Se corrigió `SecurityConfig`: la validez de una sesión ya compara `auth_sessions.created_at >= users.sessions_valid_after`, junto con estado, revocación y expiración. Antes se comparaba el `iat` del JWT (segundos) contra un timestamp PostgreSQL con microsegundos, lo que podía invalidar una cuenta que registraba e iniciaba sesión dentro del mismo segundo. El nuevo control mantiene la revocación efectiva de sesiones creadas antes del umbral y evita el falso rechazo de sesiones nuevas.
 - `SecurityCompositionIntegrationTest` prueba por HTTP y PostgreSQL limpio dos cuentas Cliente verificadas, envío pickup de una solicitud con catálogo sintético, detalle propio 200, detalle ajeno 404, historial ajeno vacío, cancelación ajena 404 y solicitud original intacta 200. No se inventa catálogo productivo.
 - Maven Java 21: 48 tests, 0 fallos, 0 errores, 0 skips; Testcontainers ejecutó la integración y Flyway aplicó V1–V12. Los 11 scripts SQL ya habían pasado contra PostgreSQL 18 en la validación anterior; no hubo cambio de migraciones.
-- Rama especializada `fix/backend-security-composition`. Pendiente commit/push. Sin merge ni cambios de frontend.
+- Rama especializada `fix/backend-security-composition`; commit/push `8d1dfcd` completado. Sin merge ni cambios de frontend.
 
 ## 2026-10-02 — Flujo HTTP completo de autenticación con PostgreSQL
 
