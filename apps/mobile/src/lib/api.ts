@@ -98,6 +98,7 @@ export type PickupRequestReceipt = {
   currencyId: string;
   currency: string;
   idempotentReplay: boolean;
+  decisionReason: string | null;
   message: string;
 };
 export type PickupRequestState = PickupRequestReceipt;
@@ -123,6 +124,7 @@ export type DeliveryRequestReceipt = {
   currency: string;
   paymentPreference: DeliveryRequestBody["paymentPreference"];
   idempotentReplay: boolean;
+  decisionReason: string | null;
   message: string;
 };
 export type DeliveryRequestDetails = DeliveryRequestReceipt & {

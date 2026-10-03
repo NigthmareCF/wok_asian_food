@@ -211,6 +211,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       {visibleHistory.map((item) => <View key={item.requestId} style={{ borderTopWidth: 1, borderTopColor: palette.line, paddingTop: 12, gap: 8 }}>
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud {item.requestId.slice(0, 8)} · {requestStatus(item.status)}</Text>
         <Text style={ui.body}>{formatMoney(item.subtotal, item.currency)} · {paymentLabel(item.paymentPreference)}</Text>
+        {item.message ? <Text style={ui.body}>{item.message}</Text> : null}
+        {item.status === "REJECTED" && item.decisionReason ? <Notice tone="error">Motivo: {item.decisionReason}</Notice> : null}
         <Button title={details?.requestId === item.requestId ? "Ocultar detalle" : "Ver detalle"} secondary busy={detailsLoading === item.requestId} onPress={() => void toggleDetails(item.requestId)} />
         {details?.requestId === item.requestId ? <View style={ui.section}>
           <Text style={ui.body}>Horario solicitado: {new Date(details.requestedFor).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })}</Text>

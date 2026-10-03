@@ -1,5 +1,44 @@
 # Progreso de planificación móvil
 
+## 2026-10-02 — Aislar estado en memoria al cambiar de cuenta
+
+- Las pantallas de Pickup (`orders`) y Mi cuenta se remontan al cambiar el correo de sesión. Esto descarta el historial, perfil, sesiones, formularios y avisos anteriores mientras se carga la cuenta nueva, e impide que resultados tardíos del árbol anterior se muestren en el árbol activo.
+- Las pantallas de Reservas, Direcciones, Mensajes y Delivery ya aplicaban este patrón o aislaban sus datos por propietario; se mantuvieron intactas.
+- Verificación: 5/5 tests Vitest, ESLint, TypeScript y exports Expo Android/Web completos. Los exports verifican bundles y rutas, no builds instalables ni pruebas físicas.
+- Rama `fix/mobile-client-flow`, derivada del HEAD vigente `origin/feature/mobile-shell` (`0d645fa`); publicado en `281a7d9`. No merge.
+
+## 2026-10-02 — Reintento idempotente de reservas después de cerrar la app
+
+- Los intentos de reserva se guardan antes del POST en SecureStore, ligados al correo de sesión (la llave de almacenamiento usa su SHA-256), UUID y payload exacto. Al reiniciar, sólo se reutiliza la clave para la misma cuenta/cuerpo; cambiar cuenta o payload crea otra clave, y registros inválidos/vencidos se descartan.
+- Si SecureStore falla, el POST no se envía. Un envío con resultado de red incierto conserva el key para reintento; la respuesta del servidor borra el intento. Cambiar de cuenta remonta el formulario para limpiar datos anteriores.
+- Verificación: tests nuevos de reuso por owner/payload y validación/expiración, suite móvil 5/5, ESLint y TypeScript pasan; Expo Android/Web export en ejecución.
+
+## 2026-10-02 — UUID criptográficos para reintentos Cliente
+
+- Pickup y reservas ahora usan `expo-crypto` `randomUUID()` para sus claves de idempotencia, alineados con delivery y mensajería. El mismo intento conserva la clave y payload para repetirlo; nuevas solicitudes generan otra clave.
+- Verificación: 3/3 tests Vitest, ESLint, TypeScript y exportaciones Expo Android/Web aprobadas. Las exportaciones no son builds instalables ni pruebas de dispositivo.
+
+## 2026-10-02 — Mostrar motivo de rechazo en pickup y delivery
+
+- Los contratos mobile `PickupRequestReceipt` y `DeliveryRequestReceipt` incluyen el motivo opcional del servidor. Los historiales muestran motivo con aviso de error sólo en solicitudes `REJECTED`, junto al texto de estado actualizado.
+- No se interpreta el rechazo como un pedido ni como un pago; los estados restantes no muestran decisionReason.
+- Verificación: 3/3 tests Vitest, ESLint y TypeScript pasan; `expo export` para Android y Web completa correctamente. Los exports no son paquetes instalables ni pruebas en dispositivos.
+
+## 2026-10-02 — Revalidación limpia de la app Cliente
+
+- Se creó un checkout temporal limpio de `feature/mobile-shell` y se instalaron las dependencias con `npm ci --workspace mobile --offline --include-workspace-root=false`; npm reportó 0 vulnerabilidades para esa instalación del workspace.
+- Pasaron `npm run test --workspace mobile` (3/3), `npm run lint --workspace mobile` y `npm run typecheck --workspace mobile`.
+- `npx expo export --platform android` y `npx expo export --platform web` pasaron ejecutándolos desde `apps/mobile`; web publicó rutas `/menu`, `/orders`, `/account`, `/delivery`, `/messages`, `/addresses` y `/reservations`. Estos exports validan bundles/rutas, no build instalable, E2E con backend ni pruebas físicas.
+- Un primer intento desde la raíz falló porque Expo resolvió `AppEntry` de otro workspace; repetir desde `apps/mobile` corrigió el directorio de ejecución y ambos exports pasaron.
+
+## 2026-10-01 — Aislamiento de refresh tokens al cambiar de sesión
+
+- La coordinación de renovaciones ahora comparte una solicitud sólo cuando usa el mismo refresh token; dos cuentas/sesiones distintas ya no pueden recibir entre sí el resultado de la renovación en vuelo.
+- Las operaciones de lectura autenticada capturan una generación de sesión. Si el Cliente cierra sesión o inicia otra, una respuesta atrasada no puede reactivar la sesión anterior ni devolver datos al flujo nuevo.
+- Las escrituras y borrados de refresh token/correo en Expo SecureStore se serializan y se descartan si pertenecen a una generación obsoleta. Logout también queda protegido contra una finalización tardía que borre una sesión iniciada después.
+- Se agregaron pruebas unitarias del coordinador de refresh (misma cuenta comparte renovación, tokens de cuentas distintas no se cruzan, caché se invalida al cerrar sesión) y de la cola de SecureStore (orden serial, recuperación tras rechazo). Vitest queda declarado en el workspace móvil.
+- Verificación: 3/3 pruebas unitarias, ESLint móvil y TypeScript pasaron; `npx expo export --platform android` y `--platform web` pasaron. La exportación confirma bundles y rutas, no reemplaza pruebas instaladas en dispositivo.
+
 ## 2026-09-30 — Libreta de direcciones y detalle delivery
 
 - Mi cuenta permite listar, crear, editar y eliminar las direcciones propias mediante `/api/v1/client/addresses`; se puede establecer la predeterminada. Ediciones envían `expectedVersion`; conflictos y errores se muestran sin ocultar el estado de servidor. La pantalla confirma antes de borrar.
