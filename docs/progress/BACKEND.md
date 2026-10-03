@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-02 — Recuperación de contraseña y revocación comprobadas por HTTP
+
+- `SecurityCompositionIntegrationTest` recorre registro/verificación y login; luego solicita recuperación, procesa el email mock por outbox, consume el código y fija contraseña nueva. Verifica que access token, refresh token y contraseña anteriores fallen, y que la nueva sesión funcione.
+- Maven Java 21: 49 tests, 0 fallos, 0 errores, 0 skips; PostgreSQL 18/Testcontainers con Flyway V1–V12. No se dependió de correo externo.
+- Rama especializada `fix/backend-security-composition`; commit/push pendiente. Sin merge ni cambios frontend.
+
 ## 2026-10-02 — Ownership de pickup y precisión temporal del JWT
 
 - Se corrigió `SecurityConfig`: la validez de una sesión ya compara `auth_sessions.created_at >= users.sessions_valid_after`, junto con estado, revocación y expiración. Antes se comparaba el `iat` del JWT (segundos) contra un timestamp PostgreSQL con microsegundos, lo que podía invalidar una cuenta que registraba e iniciaba sesión dentro del mismo segundo. El nuevo control mantiene la revocación efectiva de sesiones creadas antes del umbral y evita el falso rechazo de sesiones nuevas.
