@@ -1,5 +1,14 @@
 # Progreso de planificación backend
 
+## 2026-10-02 — Fase 4 Pagos mixtos, propina y conciliación (rama de tarea)
+
+- Rama `feature/mixed-payments-tips`, apilada sobre `feature/inventory-production` para conservar inventario/producción y Testcontainers. Continúa `NEXT-2` (cuenta/pagos/caja) sin simular pasarela: `CARD_EXTERNAL`/`TRANSFER` siguen siendo registro verificado por personal, conforme a BE-09.
+- Commit `499de66` — `POST /api/v1/operational/accounts/{accountId}/payments` acepta `amount` opcional: si se omite cobra el saldo pendiente; si se envía, valida que no exceda el saldo (`422`) y admite varios métodos por cuenta. La cuenta pasa a `PAID` sólo cuando el saldo llega a cero; con pagos parciales permanece `OPEN`. La respuesta incluye `balance` y el movimiento `SALE` en caja usa el importe cobrado (no el total).
+- Commit `31f0aa9` — `V22__payment_tips.sql` agrega `payments.tip_amount` (≥0). La propina no reduce el saldo de la cuenta; en efectivo entra a caja como movimiento `INCOME` "Propina de cuenta" (el `SALE` conserva sólo la venta), mientras que en tarjeta/transferencia se registra sin movimiento de caja. El detalle de cuenta expone `tips` y `tipAmount` por pago.
+- Commit `3e2287e` — la caja incluye `breakdown` (`opening`, `sales`, `tips`, `otherIncome`, `expenses`, `withdrawals`, `expectedCash`) y la lista de `reconciliations`. Nuevo `POST /api/v1/operational/cash-sessions/{sessionId}/reconciliations` registra un arqueo intermedio (`is_final=false`) con auditoría `CASH_RECONCILED`; el cierre sigue generando el arqueo final.
+- Pruebas PostgreSQL: `PaymentIntegrationTest` (9) suma pagos parciales/mixtos hasta saldar, rechazo de sobrepago, propina en efectivo (venta+propina en caja y desglose) y propina con tarjeta sin movimiento; `CashSessionIntegrationTest` (5) suma arqueo intermedio, desglose del esperado y rechazo tras cierre o sin permiso. Suite completa: 130 tests, 0 fallos/errores/skips con `mvnw test` en `apps/api`.
+- Límite: sin divisiones de cuenta, propina sugerida, devoluciones/anulaciones ni pasarela real; el arqueo intermedio no bloquea el cierre y no hay conciliación bancaria. No incluye frontend ni delivery. Cambios en rama de tarea; push/PR pendientes.
+
 ## 2026-10-02 — Fase 3 Inventario y producción (rama de tarea)
 
 - Rama `feature/inventory-production`, apilada sobre `feature/cash-simple-closing` para conservar Testcontainers y el flujo operativo completo. Se reutiliza `wok.items`/`wok.units` de `V8__catalog_foundation.sql`; todo el trabajo es aditivo por migraciones nuevas (`V19`–`V21`), sin editar migraciones aplicadas.

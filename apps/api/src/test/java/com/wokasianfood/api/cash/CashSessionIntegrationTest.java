@@ -168,6 +168,60 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
         assertThat(closed.path("difference").decimalValue()).isEqualByComparingTo("-2.00");
     }
 
+    @Test
+    void recordsIntermediateReconciliationAndExposesBreakdown() {
+        String token = tokenForRole("OPERATIONAL");
+        String code = uniqueCode("CAJA");
+        openRegister(code);
+        UUID sessionId = UUID.fromString(body(post("/api/v1/operational/cash-sessions", token, """
+                {"registerCode":"%s","openingFloat":500.00}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString())))
+                .path("id").asText());
+        body(post("/api/v1/operational/cash-sessions/" + sessionId + "/movements", token, """
+                {"type":"INCOME","amount":20.00,"reason":"Venta de mostrador"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        body(post("/api/v1/operational/cash-sessions/" + sessionId + "/movements", token, """
+                {"type":"EXPENSE","amount":30.00,"reason":"Compra de insumos"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        JsonNode counted = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations", token, """
+                {"countedCash":485.00,"notes":"Arqueo intermedio"}
+                """));
+        assertThat(counted.path("expectedCash").decimalValue()).isEqualByComparingTo("490.00");
+        assertThat(counted.path("countedCash").decimalValue()).isEqualByComparingTo("485.00");
+        assertThat(counted.path("difference").decimalValue()).isEqualByComparingTo("-5.00");
+        assertThat(counted.path("isFinal").asBoolean()).isFalse();
+
+        JsonNode current = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
+        JsonNode breakdown = current.path("breakdown");
+        assertThat(breakdown.path("opening").decimalValue()).isEqualByComparingTo("500.00");
+        assertThat(breakdown.path("sales").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(breakdown.path("tips").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(breakdown.path("otherIncome").decimalValue()).isEqualByComparingTo("20.00");
+        assertThat(breakdown.path("expenses").decimalValue()).isEqualByComparingTo("30.00");
+        assertThat(breakdown.path("withdrawals").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(breakdown.path("expectedCash").decimalValue()).isEqualByComparingTo("490.00");
+        assertThat(current.path("reconciliations")).hasSize(1);
+
+        body(post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
+                {"countedCash":490.00,"expectedVersion":1}
+                """));
+        JsonNode closed = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
+        assertThat(closed.path("reconciliations")).hasSize(2);
+        assertThat(count("""
+                SELECT count(*) FROM wok.audit_logs WHERE action = 'CASH_RECONCILED' AND entity_id = ?
+                """, sessionId)).isEqualTo(1);
+
+        var afterClose = post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations", token, """
+                {"countedCash":490.00}
+                """);
+        assertThat(afterClose.statusCode()).isEqualTo(409);
+        assertThat(post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations",
+                tokenForRole("CLIENT"), """
+                {"countedCash":490.00}
+                """).statusCode()).isEqualTo(403);
+    }
+
     private void openRegister(String code) {
         jdbc.update("""
                 INSERT INTO wok.cash_registers (code, name, currency_id)
