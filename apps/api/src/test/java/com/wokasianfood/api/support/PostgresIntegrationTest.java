@@ -14,19 +14,24 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers(disabledWithoutDocker = true)
 public abstract class PostgresIntegrationTest {
 
-    @Container
     protected static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:18-alpine")
             .withDatabaseName("wok")
             .withUsername("wok")
             .withPassword("wok_test_password");
+
+    static {
+        if (DockerClientFactory.instance().isDockerAvailable()) {
+            DATABASE.start();
+        }
+    }
 
     @LocalServerPort
     protected int port;
@@ -77,7 +82,7 @@ public abstract class PostgresIntegrationTest {
     }
 
     protected String tokenForRole(String roleCode) {
-        return tokenFor(createUserWithRole(roleCode.toLowerCase() + "@wok.test", roleCode));
+        return tokenFor(createUserWithRole(roleCode.toLowerCase() + "-" + UUID.randomUUID() + "@wok.test", roleCode));
     }
 
     protected String tokenFor(UUID userId) {
