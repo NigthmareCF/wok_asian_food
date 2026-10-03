@@ -58,10 +58,20 @@ class InvoiceIssuanceService {
                 idempotencyKey, hash);
         if (claim.replay()) return invoices.details(claim.resourceId());
 
-        List<String> statuses = jdbc.query("SELECT status FROM wok.invoices WHERE id = ? FOR UPDATE",
-                (rs, row) -> rs.getString("status"), invoiceId);
-        if (statuses.isEmpty()) throw new AuthException(404, "No encontramos la factura.");
-        if (!"DRAFT".equals(statuses.getFirst())) throw new AuthException(409, "La factura no esta en borrador.");
+        List<InvoiceRow> rows = jdbc.query("SELECT status, account_id FROM wok.invoices WHERE id = ? FOR UPDATE",
+                (rs, row) -> new InvoiceRow(rs.getString("status"), rs.getObject("account_id", UUID.class)), invoiceId);
+        if (rows.isEmpty()) throw new AuthException(404, "No encontramos la factura.");
+        InvoiceRow invoice = rows.getFirst();
+        if (!"DRAFT".equals(invoice.status())) throw new AuthException(409, "La factura no esta en borrador.");
+
+        jdbc.query("SELECT id FROM wok.order_accounts WHERE id = ? FOR UPDATE",
+                (rs, row) -> rs.getObject("id", UUID.class), invoice.accountId());
+        Integer active = jdbc.queryForObject("""
+            SELECT count(*) FROM wok.invoices
+            WHERE account_id = ? AND status IN ('QUEUED', 'ISSUED') AND id <> ?
+            """, Integer.class, invoice.accountId(), invoiceId);
+        if (active != null && active > 0)
+            throw new AuthException(409, "La cuenta ya tiene una factura en emision o emitida.");
 
         jdbc.update("""
             UPDATE wok.invoices SET status = 'QUEUED', updated_at = now(), updated_by = ?,
@@ -89,4 +99,6 @@ class InvoiceIssuanceService {
             throw new IllegalStateException(impossible);
         }
     }
+
+    private record InvoiceRow(String status, UUID accountId) {}
 }

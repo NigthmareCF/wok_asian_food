@@ -1,11 +1,16 @@
 package com.wokasianfood.api.invoices;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -43,10 +48,11 @@ public class InvoiceController {
     @ResponseStatus(HttpStatus.CREATED)
     public InvoiceService.InvoiceDetails createDraft(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID accountId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
             @Valid @RequestBody CreateDraftRequest request) {
         return invoices.createDraft(UUID.fromString(jwt.getSubject()),
-                requestId == null ? UUID.randomUUID() : requestId, accountId, request);
+                requestId == null ? UUID.randomUUID() : requestId, accountId, idempotencyKey, request);
     }
 
     @GetMapping("/invoices/{invoiceId}")
@@ -61,16 +67,27 @@ public class InvoiceController {
 @Service
 class InvoiceService {
     private final JdbcTemplate jdbc;
+    private final IdempotencyStore idempotency;
     private final BigDecimal taxRate;
 
-    InvoiceService(JdbcTemplate jdbc, @Value("${wok.fiscal.tax-rate:0.12}") BigDecimal taxRate) {
+    InvoiceService(JdbcTemplate jdbc, IdempotencyStore idempotency,
+                   @Value("${wok.fiscal.tax-rate:0.12}") BigDecimal taxRate) {
         this.jdbc = jdbc;
+        this.idempotency = idempotency;
         this.taxRate = taxRate;
     }
 
     @Transactional
-    public InvoiceDetails createDraft(UUID actor, UUID requestId, UUID accountId,
+    public InvoiceDetails createDraft(UUID actor, UUID requestId, UUID accountId, UUID idempotencyKey,
                                       InvoiceController.CreateDraftRequest request) {
+        String customerName = blankToNull(request.customerName());
+        String customerTaxId = blankToNull(request.customerTaxId());
+        String hash = fingerprint(accountId.toString(), customerName == null ? "" : customerName,
+                customerTaxId == null ? "" : customerTaxId);
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "INVOICE_DRAFT_CREATED",
+                idempotencyKey, hash);
+        if (claim.replay()) return details(claim.resourceId());
+
         requireAccount(accountId, true);
         Billing billing = billing(accountId);
         if (billing.lineCount() == 0) throw new AuthException(422, "La cuenta no tiene consumos facturables.");
@@ -87,7 +104,7 @@ class InvoiceService {
                  customer_name, customer_tax_id, request_id, created_by, updated_by)
             VALUES (?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, invoiceId, accountId, billing.currencyId(), taxRate, subtotal, taxTotal, total,
-            blankToNull(request.customerName()), blankToNull(request.customerTaxId()), requestId, actor, actor);
+            customerName, customerTaxId, requestId, actor, actor);
         for (Line line : billing.lines()) {
             jdbc.update("""
                 INSERT INTO wok.invoice_items (invoice_id, order_item_id, description, quantity, unit_price)
@@ -100,6 +117,7 @@ class InvoiceService {
             VALUES (?, 'INVOICE_DRAFT_CREATED', 'INVOICE', ?,
                     jsonb_build_object('accountId', ?, 'total', ?), 'SUCCESS', ?)
             """, actor, invoiceId, accountId, total, requestId);
+        idempotency.complete(actor.toString(), "INVOICE_DRAFT_CREATED", idempotencyKey, invoiceId);
         return details(invoiceId);
     }
 
@@ -181,6 +199,16 @@ class InvoiceService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String fingerprint(String... parts) {
+        String canonical = String.join("\n", parts);
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 
     private record Billing(BigDecimal total, int lineCount, int currencyCount, UUID currencyId, List<Line> lines) {}
