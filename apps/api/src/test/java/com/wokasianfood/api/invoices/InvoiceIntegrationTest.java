@@ -29,7 +29,7 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
 
         JsonNode first = body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, """
                 {"customerName":"Cliente Fiscal","customerTaxId":"12345678"}
-                """));
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         assertThat(first.path("status").asText()).isEqualTo("DRAFT");
         assertThat(first.path("currency").asText()).isEqualTo("GTQ");
         assertThat(first.path("total").decimalValue()).isEqualByComparingTo("100.00");
@@ -40,7 +40,8 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
         assertThat(first.path("items").get(0).path("quantity").asInt()).isEqualTo(2);
         assertThat(first.path("items").get(0).path("lineTotal").decimalValue()).isEqualByComparingTo("100.00");
 
-        JsonNode second = body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, "{}"));
+        JsonNode second = body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, "{}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         assertThat(second.path("invoiceId").asText()).isNotEqualTo(first.path("invoiceId").asText());
         assertThat(second.path("customerName").isMissingNode()).isTrue();
 
@@ -59,13 +60,16 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
         String token = tokenFor(actor);
 
         UUID empty = createAccount(actor, "Cuenta vacia");
-        var noConsumption = post("/api/v1/operational/accounts/" + empty + "/invoices", token, "{}");
+        var noConsumption = post("/api/v1/operational/accounts/" + empty + "/invoices", token, "{}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(noConsumption.statusCode()).isEqualTo(422);
 
-        var unknown = post("/api/v1/operational/accounts/" + UUID.randomUUID() + "/invoices", token, "{}");
+        var unknown = post("/api/v1/operational/accounts/" + UUID.randomUUID() + "/invoices", token, "{}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(unknown.statusCode()).isEqualTo(404);
 
-        var forbidden = post("/api/v1/operational/accounts/" + empty + "/invoices", tokenForRole("CLIENT"), "{}");
+        var forbidden = post("/api/v1/operational/accounts/" + empty + "/invoices", tokenForRole("CLIENT"), "{}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(forbidden.statusCode()).isEqualTo(403);
 
         var missingInvoice = get("/api/v1/operational/invoices/" + UUID.randomUUID(), token);
@@ -132,9 +136,37 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
         assertThat(forbidden.statusCode()).isEqualTo(403);
     }
 
+    @Test
+    void replaysDraftCreationAndBlocksSecondActiveInvoice() {
+        UUID actor = createUserWithRole("factura-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta antidoble");
+        MenuItemSeed menu = seedMenuItem("Ramen", "30.00");
+        closedOrderWithItem(accountId, actor, menu, "Ramen", 1, "30.00", "30.00");
+
+        String path = "/api/v1/operational/accounts/" + accountId + "/invoices";
+        String key = UUID.randomUUID().toString();
+        JsonNode first = body(post(path, token, "{\"customerName\":\"Cliente Uno\"}",
+                Map.of("Idempotency-Key", key)));
+        JsonNode replay = body(post(path, token, "{\"customerName\":\"Cliente Uno\"}",
+                Map.of("Idempotency-Key", key)));
+        assertThat(replay.path("invoiceId").asText()).isEqualTo(first.path("invoiceId").asText());
+        assertThat(count("SELECT count(*) FROM wok.invoices WHERE account_id = ?", accountId)).isEqualTo(1);
+
+        body(post(issuePath(UUID.fromString(first.path("invoiceId").asText())), token, null,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID second = draft(token, accountId);
+        var conflict = post(issuePath(second), token, null,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(conflict.statusCode()).isEqualTo(409);
+        assertThat(count("""
+                SELECT count(*) FROM wok.invoices WHERE account_id = ? AND status IN ('QUEUED', 'ISSUED')
+                """, accountId)).isEqualTo(1);
+    }
+
     private UUID draft(String token, UUID accountId) {
-        return UUID.fromString(body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, "{}"))
-                .path("invoiceId").asText());
+        return UUID.fromString(body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, "{}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()))).path("invoiceId").asText());
     }
 
     private String issuePath(UUID invoiceId) {
