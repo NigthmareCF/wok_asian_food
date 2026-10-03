@@ -230,6 +230,54 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
         assertThat(details.path("payments")).hasSize(3);
     }
 
+    @Test
+    void recordsCashTipAsIncomeWithoutReducingBalance() {
+        UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        String code = openRegister("CAJA");
+        UUID sessionId = openCash(token, code, "0.00");
+        UUID accountId = createAccount(actor, null, "Cuenta propina efectivo");
+        closedOrder(accountId, actor, "50.00");
+
+        JsonNode payment = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CASH","registerCode":"%s","amount":50.00,"tipAmount":5.00}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(payment.path("amount").decimalValue()).isEqualByComparingTo("50.00");
+        assertThat(payment.path("tipAmount").decimalValue()).isEqualByComparingTo("5.00");
+        assertThat(payment.path("balance").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(payment.path("accountStatus").asText()).isEqualTo("PAID");
+        assertThat(jdbc.queryForObject("""
+                SELECT SUM(amount_delta) FROM wok.cash_movements WHERE cash_session_id = ?
+                """, BigDecimal.class, sessionId)).isEqualByComparingTo("55.00");
+        assertThat(count("""
+                SELECT count(*) FROM wok.cash_movements
+                WHERE cash_session_id = ? AND movement_type = 'INCOME' AND reason = 'Propina de cuenta'
+                """, sessionId)).isEqualTo(1);
+
+        JsonNode details = body(get("/api/v1/operational/accounts/" + accountId, token));
+        assertThat(details.path("paid").decimalValue()).isEqualByComparingTo("50.00");
+        assertThat(details.path("tips").decimalValue()).isEqualByComparingTo("5.00");
+        assertThat(details.path("balance").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(details.path("payments").get(0).path("tipAmount").decimalValue()).isEqualByComparingTo("5.00");
+    }
+
+    @Test
+    void recordsCardTipWithoutCashMovement() {
+        UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, null, "Cuenta propina tarjeta");
+        closedOrder(accountId, actor, "20.00");
+
+        JsonNode payment = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CARD_EXTERNAL","reference":"T-9","amount":20.00,"tipAmount":3.00}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(payment.path("tipAmount").decimalValue()).isEqualByComparingTo("3.00");
+        assertThat(payment.path("cashSessionId").isMissingNode()).isTrue();
+        assertThat(payment.path("cashMovementId").isMissingNode()).isTrue();
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE id = ? AND tip_amount = 3.00",
+                UUID.fromString(payment.path("paymentId").asText()))).isEqualTo(1);
+    }
+
     private UUID createAccount(UUID actor, UUID tableId, String name) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
