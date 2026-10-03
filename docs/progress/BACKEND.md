@@ -4,7 +4,7 @@
 
 - `SecurityCompositionIntegrationTest` recorre registro/verificación y login; luego solicita recuperación, procesa el email mock por outbox, consume el código y fija contraseña nueva. Verifica que access token, refresh token y contraseña anteriores fallen, y que la nueva sesión funcione.
 - Maven Java 21: 49 tests, 0 fallos, 0 errores, 0 skips; PostgreSQL 18/Testcontainers con Flyway V1–V12. No se dependió de correo externo.
-- Rama especializada `fix/backend-security-composition`; commit/push pendiente. Sin merge ni cambios frontend.
+- Rama especializada `fix/backend-security-composition`; test publicado en `826483c`. Sin merge ni cambios frontend.
 
 ## 2026-10-02 — Ownership de pickup y precisión temporal del JWT
 
