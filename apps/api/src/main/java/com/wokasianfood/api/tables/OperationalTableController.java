@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/operational/tables")
-@PreAuthorize("hasAnyRole('OPERATIONAL', 'ADMIN')")
+@PreAuthorize("hasAuthority('tables:manage')")
 public class OperationalTableController {
     private final TableService tables;
 
@@ -51,6 +51,7 @@ public class OperationalTableController {
     }
 
     @PostMapping("/{tableId}/open")
+    @PreAuthorize("hasAuthority('accounts:manage')")
     public TableService.TableView open(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID tableId,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId) {
@@ -58,6 +59,7 @@ public class OperationalTableController {
     }
 
     @PostMapping("/{tableId}/close")
+    @PreAuthorize("hasAuthority('accounts:manage')")
     public TableService.TableView close(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID tableId,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId) {

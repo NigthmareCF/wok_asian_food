@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/operational/kitchen")
-@PreAuthorize("hasAnyRole('OPERATIONAL', 'ADMIN')")
+@PreAuthorize("hasAuthority('kitchen:manage')")
 public class KitchenController {
     private final KitchenService kitchen;
 
