@@ -1,5 +1,5 @@
-import { CartView } from "@/modules/cart";
+import { LiveCartView } from "@/modules/cart/components/live-cart-view";
 
 export default function CartPage() {
-  return <CartView />;
+  return <LiveCartView />;
 }

@@ -1,0 +1,70 @@
+.page {
+  display: grid;
+  gap: 1rem;
+  max-width: 70rem;
+  margin: auto;
+  padding-bottom: 4rem;
+  min-width: 0;
+}
+.columns {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.panel {
+  display: grid;
+  align-content: start;
+  gap: 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.conversation {
+  display: grid;
+  gap: 0.3rem;
+  white-space: normal;
+  text-align: left;
+  min-height: 3rem;
+  padding: 0.7rem;
+  background: var(--surface-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.conversation[aria-pressed="true"] {
+  border-color: var(--primary);
+}
+.message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0;
+}
+.message p {
+  margin: 0.4rem 0;
+}
+.compose {
+  display: grid;
+  gap: 0.75rem;
+}
+.compose textarea {
+  width: 100%;
+  min-height: 7rem;
+  resize: vertical;
+  box-sizing: border-box;
+  background: var(--surface-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  font: inherit;
+}
+@media (min-width: 768px) {
+  .columns {
+    grid-template-columns: minmax(14rem, 1fr) minmax(0, 2fr);
+  }
+}

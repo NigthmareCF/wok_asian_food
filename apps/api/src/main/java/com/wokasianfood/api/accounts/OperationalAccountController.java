@@ -63,7 +63,18 @@ class AccountService {
                 .filter(order -> !"CANCELLED".equals(order.status()))
                 .map(AccountOrder::total)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new AccountDetails(found.getFirst(), orders, total);
+
+        List<AccountPayment> payments = jdbc.query("""
+            SELECT id, amount, method, status, reference, captured_at
+            FROM wok.payments WHERE account_id = ? ORDER BY captured_at, id
+            """, (rs, row) -> new AccountPayment(rs.getObject("id", UUID.class), rs.getBigDecimal("amount"),
+                rs.getString("method"), rs.getString("status"), rs.getString("reference"),
+                rs.getTimestamp("captured_at").toInstant()), accountId);
+        BigDecimal paid = payments.stream()
+                .filter(payment -> "CAPTURED".equals(payment.status()))
+                .map(AccountPayment::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new AccountDetails(found.getFirst(), orders, total, paid, total.subtract(paid), payments);
     }
 
     public record AccountSummary(UUID id, String name, String status, UUID diningTableId, String diningTableName,
@@ -72,5 +83,9 @@ class AccountService {
     public record AccountOrder(UUID id, String code, String status, String channel, BigDecimal total,
                                Instant openedAt, Instant closedAt, int itemCount) {}
 
-    public record AccountDetails(AccountSummary account, List<AccountOrder> orders, BigDecimal total) {}
+    public record AccountPayment(UUID id, BigDecimal amount, String method, String status, String reference,
+                                 Instant capturedAt) {}
+
+    public record AccountDetails(AccountSummary account, List<AccountOrder> orders, BigDecimal total,
+                                 BigDecimal paid, BigDecimal balance, List<AccountPayment> payments) {}
 }

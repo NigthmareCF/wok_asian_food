@@ -243,7 +243,7 @@ export function AppShell({
             <span className="live-dot" aria-hidden="true" />
             <div>
               <strong>Servicio normal</strong>
-              <small>Datos simulados</small>
+              <small>Estado del servicio simulado</small>
             </div>
           </div>
         ) : null}
