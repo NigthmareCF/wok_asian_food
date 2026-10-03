@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.platform.IdempotencyStore;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.springframework.jdbc.core.RowMapper;
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
     @Mock JdbcTemplate jdbc;
+    @Mock IdempotencyStore idempotency;
     private UUID insertedOrderId;
 
     @Test
@@ -38,7 +40,7 @@ class OrderServiceTest {
         var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 4, "Sin cebolla",
                 List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 2, "DINE_IN", null)));
 
-        var receipt = new OrderService(jdbc).open(actor, requestId, idempotencyKey, request);
+        var receipt = new OrderService(jdbc, idempotency).open(actor, requestId, idempotencyKey, request);
 
         assertEquals("SENT", receipt.status());
         assertFalse(receipt.idempotentReplay());
@@ -49,12 +51,14 @@ class OrderServiceTest {
                 eq(currencyId), eq(4), eq("Sin cebolla"), eq(idempotencyKey), any(String.class), eq(actor), eq(actor));
         verify(jdbc).update(contains("SET subtotal = totals.subtotal"), eq(actor), eq(insertedOrderId),
                 eq(insertedOrderId));
-        verify(jdbc).update(contains("INSERT INTO wok.order_items"), eq(insertedOrderId), eq(menuItemId), eq("Pad Thai"),
-                eq(2), eq(new BigDecimal("10.25")), eq(stationId), eq("DINE_IN"), eq(null));
+        verify(jdbc).queryForObject(contains("INSERT INTO wok.order_items"), eq(UUID.class), eq(insertedOrderId),
+                eq(menuItemId), eq("Pad Thai"), eq(2), eq(new BigDecimal("10.25")), eq(stationId), eq("DINE_IN"),
+                eq(null));
+        verify(jdbc).update(contains("SET subtotal = totals.subtotal"), eq(actor), eq(insertedOrderId),
+                eq(insertedOrderId));
         verify(jdbc).update(contains("INSERT INTO wok.kitchen_tickets"), any(UUID.class), eq(insertedOrderId), eq(1),
                 eq(stationId));
-        verify(jdbc).update(contains("INSERT INTO wok.kitchen_ticket_items"), any(UUID.class), eq(2),
-                eq(insertedOrderId), eq(menuItemId));
+        verify(jdbc).update(contains("INSERT INTO wok.kitchen_ticket_items"), any(UUID.class), any(UUID.class), eq(2));
         verify(jdbc).update(contains("estimated_ready_at = now() + make_interval"), eq(300), any(UUID.class));
         verify(jdbc).update(contains("INSERT INTO wok.order_status_history"), eq(insertedOrderId), eq(actor),
                 eq(requestId));
@@ -75,7 +79,7 @@ class OrderServiceTest {
         var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null,
                 List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null)));
 
-        var receipt = new OrderService(jdbc).open(actor, UUID.randomUUID(), idempotencyKey, request);
+        var receipt = new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request);
 
         assertTrue(receipt.idempotentReplay());
         assertEquals(1, receipt.itemCount());
@@ -96,7 +100,7 @@ class OrderServiceTest {
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 3, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc).open(actor, UUID.randomUUID(), idempotencyKey, request));
+                () -> new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request));
 
         assertEquals(409, error.status());
     }
@@ -118,7 +122,7 @@ class OrderServiceTest {
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 1, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc).open(actor, UUID.randomUUID(), idempotencyKey, request));
+                () -> new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request));
 
         assertEquals(422, error.status());
         verify(jdbc, never()).update(contains("INSERT INTO wok.orders"), any(Object[].class));
@@ -139,7 +143,7 @@ class OrderServiceTest {
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 1, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc).open(actor, UUID.randomUUID(), idempotencyKey, request));
+                () -> new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request));
 
         assertEquals(422, error.status());
     }
@@ -159,7 +163,7 @@ class OrderServiceTest {
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 1, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc).open(actor, UUID.randomUUID(), idempotencyKey, request));
+                () -> new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request));
 
         assertEquals(409, error.status());
     }
@@ -172,7 +176,7 @@ class OrderServiceTest {
                         new OperationalOrderController.OrderLineRequest(menuItemId, 2, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc).open(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), request));
+                () -> new OrderService(jdbc, idempotency).open(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), request));
 
         assertEquals(400, error.status());
     }
@@ -183,7 +187,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of());
 
-        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc)
+        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc, idempotency)
                 .changeStatus(UUID.randomUUID(), UUID.randomUUID(), orderId,
                         new OperationalOrderController.StatusRequest(OrderService.OrderStatus.PREPARING, 1, null)));
 
@@ -196,7 +200,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.SENT));
 
-        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc)
+        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc, idempotency)
                 .changeStatus(UUID.randomUUID(), UUID.randomUUID(), orderId,
                         new OperationalOrderController.StatusRequest(OrderService.OrderStatus.SERVED, 1, null)));
 
@@ -218,7 +222,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("JOIN wok.currencies c ON c.id = o.currency_id"), any(RowMapper.class), eq(orderId)))
                 .thenReturn(List.of(summary(orderId, "PREPARING", 2)));
 
-        var result = new OrderService(jdbc).changeStatus(actor, requestId, orderId,
+        var result = new OrderService(jdbc, idempotency).changeStatus(actor, requestId, orderId,
                 new OperationalOrderController.StatusRequest(OrderService.OrderStatus.PREPARING, 1, "cocinero"));
 
         assertEquals("PREPARING", result.status());
@@ -245,7 +249,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("JOIN wok.currencies c ON c.id = o.currency_id"), any(RowMapper.class), eq(orderId)))
                 .thenReturn(List.of(summary(orderId, "CANCELLED", 4)));
 
-        var result = new OrderService(jdbc).changeStatus(actor, UUID.randomUUID(), orderId,
+        var result = new OrderService(jdbc, idempotency).changeStatus(actor, UUID.randomUUID(), orderId,
                 new OperationalOrderController.StatusRequest(OrderService.OrderStatus.CANCELLED, 3, "cliente se retiró"));
 
         assertEquals("CANCELLED", result.status());
@@ -260,7 +264,7 @@ class OrderServiceTest {
         when(jdbc.update(contains("SET status = ?"), eq("SERVED"), eq("SERVED"), any(UUID.class), eq(orderId),
                 eq("READY"), eq(9))).thenReturn(0);
 
-        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc)
+        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc, idempotency)
                 .changeStatus(UUID.randomUUID(), UUID.randomUUID(), orderId,
                         new OperationalOrderController.StatusRequest(OrderService.OrderStatus.SERVED, 9, null)));
 
@@ -286,14 +290,15 @@ class OrderServiceTest {
         var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null,
                 List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null)));
 
-        var receipt = new OrderService(jdbc).open(actor, UUID.randomUUID(), idempotencyKey, request);
+        var receipt = new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request);
 
         assertFalse(receipt.idempotentReplay());
         assertEquals(1, receipt.itemCount());
         verify(jdbc, times(1)).query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor),
                 eq(idempotencyKey), any(String.class));
-        verify(jdbc).update(contains("INSERT INTO wok.order_items"), eq(insertedOrderId), eq(menuItemId), eq("Pad Thai"),
-                eq(1), eq(new BigDecimal("10.25")), eq(stationId), eq("DINE_IN"), eq(null));
+        verify(jdbc).queryForObject(contains("INSERT INTO wok.order_items"), eq(UUID.class), eq(insertedOrderId),
+                eq(menuItemId), eq("Pad Thai"), eq(1), eq(new BigDecimal("10.25")), eq(stationId), eq("DINE_IN"),
+                eq(null));
         verify(jdbc).update(contains("SET subtotal = totals.subtotal"), eq(actor), eq(insertedOrderId),
                 eq(insertedOrderId));
         verify(jdbc).update(contains("INSERT INTO wok.kitchen_tickets"), any(UUID.class), eq(insertedOrderId), eq(1),
@@ -320,6 +325,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("FROM wok.order_accounts WHERE id = ? FOR UPDATE"), any(RowMapper.class), eq(accountId)))
                 .thenReturn(List.of(new OrderService.Account(accountId, tableId, "OPEN")));
         when(jdbc.queryForObject(contains("nextval"), eq(Integer.class))).thenReturn(1);
+        when(jdbc.queryForObject(contains("COALESCE(max(sequence_no)"), eq(Integer.class), any())).thenReturn(0);
         when(jdbc.query(contains("JOIN wok.currencies c ON c.id = mi.currency_id"), any(RowMapper.class), eq(menuItemId)))
                 .thenReturn(List.of(new OrderService.Product(menuItemId, "Pad Thai", new BigDecimal("10.25"),
                         currencyId, "GTQ", stationId, "COCINA", 300)));
@@ -327,7 +333,8 @@ class OrderServiceTest {
             insertedOrderId = invocation.getArgument(1);
             return 1;
         });
-        when(jdbc.update(contains("INSERT INTO wok.order_items"), any(Object[].class))).thenReturn(1);
+        when(jdbc.queryForObject(contains("INSERT INTO wok.order_items"), eq(UUID.class), any(), eq(menuItemId),
+                eq("Pad Thai"), any(), any(), eq(stationId), any(), any())).thenReturn(UUID.randomUUID());
         when(jdbc.update(contains("SET subtotal = totals.subtotal"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("INSERT INTO wok.kitchen_tickets"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("INSERT INTO wok.kitchen_ticket_items"), any(Object[].class))).thenReturn(1);

@@ -163,6 +163,78 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
                 .isEqualTo("OCCUPIED");
     }
 
+    @Test
+    void addsItemsToOpenOrderAndEnqueuesFollowUpTicket() {
+        String token = tokenForRole("OPERATIONAL");
+        String stationCode = "WOK_ADD";
+        UUID tableId = createDiningTable("Mesa Agregar");
+        UUID baseItem = seedMenuItem("Wok Base", "40.00", stationCode, 120);
+        UUID extraItem = seedMenuItem("Wok Extra", "15.00", stationCode, 90);
+        UUID accountId = UUID.fromString(
+                body(post("/api/v1/operational/tables/" + tableId + "/open", token, null)).path("accountId").asText());
+        UUID orderId = UUID.fromString(body(post("/api/v1/operational/orders", token, """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":2,"items":[
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                """.formatted(accountId, baseItem),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()))).path("orderId").asText());
+
+        JsonNode added = body(post("/api/v1/operational/orders/" + orderId + "/items", token, """
+                {"items":[{"menuItemId":"%s","quantity":2,"fulfillment":"DINE_IN"}]}
+                """.formatted(extraItem), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        assertThat(added.path("order").path("total").decimalValue()).isEqualByComparingTo("70.00");
+        assertThat(added.path("order").path("status").asText()).isEqualTo("SENT");
+        assertThat(added.path("items")).hasSize(2);
+        assertThat(added.path("tickets")).hasSize(2);
+        assertThat(added.path("tickets").get(0).path("sequence").asInt()).isEqualTo(1);
+        assertThat(added.path("tickets").get(1).path("sequence").asInt()).isEqualTo(2);
+        assertThat(count("""
+                SELECT count(*) FROM wok.kitchen_ticket_items kti
+                JOIN wok.order_items i ON i.id = kti.order_item_id WHERE i.order_id = ?
+                """, orderId)).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'ORDER_ITEMS_ADDED'",
+                orderId)).isEqualTo(1);
+        assertThat(orderStatus(orderId)).isEqualTo("SENT");
+    }
+
+    @Test
+    void replaysAddedItemsKeyAndRejectsWhenOrderIsCancelled() {
+        String token = tokenForRole("OPERATIONAL");
+        UUID tableId = createDiningTable("Mesa Replay Items");
+        UUID baseItem = seedMenuItem("Wok Replay Base", "10.00", "WOK_REPLAY_ITEMS", 60);
+        UUID extraItem = seedMenuItem("Wok Replay Extra", "5.00", "WOK_REPLAY_ITEMS", 60);
+        UUID accountId = UUID.fromString(
+                body(post("/api/v1/operational/tables/" + tableId + "/open", token, null)).path("accountId").asText());
+        UUID orderId = UUID.fromString(body(post("/api/v1/operational/orders", token, """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":1,"items":[
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                """.formatted(accountId, baseItem),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()))).path("orderId").asText());
+
+        String idempotencyKey = UUID.randomUUID().toString();
+        String payload = """
+                {"items":[{"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                """.formatted(extraItem);
+
+        assertThat(post("/api/v1/operational/orders/" + orderId + "/items", token, payload,
+                Map.of("Idempotency-Key", idempotencyKey)).statusCode()).isEqualTo(200);
+        var replay = post("/api/v1/operational/orders/" + orderId + "/items", token, payload,
+                Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(replay.statusCode()).isEqualTo(200);
+        assertThat(body(replay).path("items")).hasSize(2);
+        assertThat(count("SELECT count(*) FROM wok.order_items WHERE order_id = ?", orderId)).isEqualTo(2);
+
+        var conflicting = post("/api/v1/operational/orders/" + orderId + "/items", token,
+                payload.replace("\"quantity\":1", "\"quantity\":3"), Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(conflicting.statusCode()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.order_items WHERE order_id = ?", orderId)).isEqualTo(2);
+
+        assertThat(changeOrderStatus(token, orderId, "CANCELLED").path("status").asText()).isEqualTo("CANCELLED");
+        var rejected = post("/api/v1/operational/orders/" + orderId + "/items", token, payload,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(rejected.statusCode()).isEqualTo(409);
+    }
+
     private JsonNode changeOrderStatus(String token, UUID orderId, String status) {
         JsonNode current = body(get("/api/v1/operational/orders/" + orderId, token)).path("order");
         return body(patch("/api/v1/operational/orders/" + orderId + "/status", token, """
