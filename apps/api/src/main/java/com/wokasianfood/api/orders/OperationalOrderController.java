@@ -1,6 +1,7 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.inventory.InventoryReservationService;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -129,10 +130,12 @@ class OrderService {
 
     private final JdbcTemplate jdbc;
     private final IdempotencyStore idempotency;
+    private final InventoryReservationService reservations;
 
-    OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency) {
+    OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency, InventoryReservationService reservations) {
         this.jdbc = jdbc;
         this.idempotency = idempotency;
+        this.reservations = reservations;
     }
 
     public enum OrderStatus { SENT, PREPARING, READY, SERVED, CLOSED, CANCELLED }
@@ -250,6 +253,7 @@ class OrderService {
             newLines.add(insertLine(orderId, products.get(index), lines.get(index)));
         }
 
+        reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
         enqueueTickets(actor, requestId, orderId, newLines);
         jdbc.update("""
@@ -275,7 +279,8 @@ class OrderService {
         if (claim.replay()) return details(claim.resourceId());
 
         OrderRow order = lockOrder(orderId);
-        if (order.status() == OrderStatus.CLOSED || order.status() == OrderStatus.CANCELLED)
+        if (order.status() == OrderStatus.SERVED || order.status() == OrderStatus.CLOSED
+                || order.status() == OrderStatus.CANCELLED)
             throw new AuthException(409, "El pedido ya no admite nuevos productos.");
         Account account = lockAccount(order.accountId());
         if (!"OPEN".equals(account.status()))
@@ -291,6 +296,7 @@ class OrderService {
         for (int index = 0; index < products.size(); index++) {
             newLines.add(insertLine(orderId, products.get(index), lines.get(index)));
         }
+        reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
         enqueueTickets(actor, requestId, orderId, newLines);
         jdbc.update("""
@@ -335,6 +341,7 @@ class OrderService {
         for (int index = 0; index < products.size(); index++) {
             newLines.add(insertLine(orderId, products.get(index), lines.get(index)));
         }
+        reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
         enqueueTickets(actor, requestId, orderId, newLines);
         jdbc.update("""
@@ -374,7 +381,13 @@ class OrderService {
         if (changed != 1)
             throw new AuthException(409, "El pedido cambió. Actualiza la vista y vuelve a intentarlo.");
 
-        if (request.status() == OrderStatus.CANCELLED) cancelTickets(actor, requestId, orderId);
+        if (request.status() == OrderStatus.CANCELLED) {
+            cancelTickets(actor, requestId, orderId);
+            reservations.release(orderId);
+        }
+        if (request.status() == OrderStatus.SERVED) {
+            reservations.consume(actor, requestId, orderId);
+        }
         jdbc.update("""
             INSERT INTO wok.order_status_history (order_id, from_status, to_status, reason, actor_user_id, request_id)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -391,6 +404,12 @@ class OrderService {
                 request.expectedVersion() + 1, request.reason(), requestId);
 
         return summary(orderId);
+    }
+
+    private void reserveStock(UUID actor, UUID requestId, UUID orderId, List<NewLine> newLines) {
+        reservations.reserve(actor, requestId, orderId, newLines.stream()
+                .map(line -> new InventoryReservationService.Line(line.product().id(), line.quantity()))
+                .toList());
     }
 
     private OrderSummary summary(UUID orderId) {
