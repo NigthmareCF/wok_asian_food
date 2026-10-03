@@ -1,5 +1,15 @@
 # Progreso del canal Operativo
 
+## 2026-10-03 — Validación real de Etapa 2 con Docker (PR #23)
+
+- Rama `feature/frontend-backend-integration`: estado inicial limpio en `95849b0`; `pull --ff-only` actualizó a `3e18b74`, HEAD validado. Sin cambios de código ni inicio de Etapa 3.
+- Entorno aislado `wok-stage2-validation`: build Web/API correcto y migraciones V1–V14 aplicadas. Autenticación Operativo demo y listado real mediante BFF correctos.
+- Mesa temporal `TEST-STAGE2-PR23`, ID `c9ea4b6e-1f20-4c4b-a553-7136cb30249f`: creación 201, apertura a `OCCUPIED`, cierre a `CLEANING` y cuenta cerrada en PostgreSQL. Persistencia comprobada mediante GET y recarga en Edge headless; versión final 5.
+- Nombre duplicado y doble apertura devolvieron 409. Pedido temporal insertado sólo como fixture en la base desechable, ID `e025772c-60ac-4e42-bf21-b3b4dd048a00`: cierre bloqueado con 409 en `SENT`, `PREPARING`, `READY` y `SERVED`, conservando estado, cuenta y versión. Tras cancelar el fixture, cierre correcto.
+- Cuentas de prueba: `e9dcd22e-e0a0-457b-936d-08d069566622` y `dee17f29-b82f-4a87-b958-73c0ca0d598f`. Los seis botones sin API se comprobaron deshabilitados en el DOM del navegador.
+- Incidencia de configuración resuelta únicamente en el entorno temporal: el issuer predeterminado de Compose es rechazado; se proporcionó un issuer HTTPS local. Sin bloqueos pendientes de esta validación.
+- Limpieza: eliminados contenedores, redes, volumen con todos los datos de prueba, imágenes temporales y perfil temporal del navegador. No se guardaron secretos ni archivos `.env`. Sin cambios de código ni merge.
+
 ## 2026-10-03 — Mesas operativas conectadas
 
 - `/operation/tables` y `/operation/tables/[tableId]` consumen el listado real de Mesas y permiten crear, abrir y cerrar mesas. Cada mutación envía `X-Request-Id`, bloquea doble envío y recarga el listado; los conflictos `404` y `409` informan y recargan antes de continuar.
