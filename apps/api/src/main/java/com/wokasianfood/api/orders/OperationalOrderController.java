@@ -592,7 +592,8 @@ class OrderService {
         String canonical = channel.name() + "\n" + guestCount + "\n" + (notes == null ? "" : notes) + "\n"
                 + lines.stream()
                         .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
-                                + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()))
+                                + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()) + ":"
+                                + (line.notes() == null ? "" : line.notes()))
                         .reduce((a, b) -> a + "\n" + b).orElse("");
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -605,7 +606,8 @@ class OrderService {
     private String itemsFingerprint(UUID orderId, List<OperationalOrderController.OrderLineRequest> lines) {
         String canonical = orderId + "\n" + lines.stream()
                 .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
-                        + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()))
+                        + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()) + ":"
+                        + (line.notes() == null ? "" : line.notes()))
                 .reduce((a, b) -> a + "\n" + b).orElse("");
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

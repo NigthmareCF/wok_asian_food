@@ -1,0 +1,51 @@
+.filters,
+.form,
+.actions,
+.unavailable {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.filters {
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.filters label,
+.form label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 10rem;
+}
+
+.form {
+  align-items: end;
+  margin: 1rem 0;
+}
+
+.card {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 12rem;
+}
+
+.meta {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.unavailable {
+  margin-top: 1.5rem;
+}
+
+.unavailable button {
+  min-height: 2.75rem;
+}
+
+@media (max-width: 640px) {
+  .filters label,
+  .form label {
+    width: 100%;
+  }
+}

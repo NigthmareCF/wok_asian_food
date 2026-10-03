@@ -1,5 +1,5 @@
-import { TableFloorView } from "@/modules/tables";
+import { OperationalTablesView } from "@/modules/tables/components/operational-tables-view";
 
 export default function TablesPage() {
-  return <TableFloorView />;
+  return <OperationalTablesView />;
 }
