@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.inventory.InventoryReservationService;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -21,7 +22,12 @@ import org.springframework.jdbc.core.RowMapper;
 class OrderServiceTest {
     @Mock JdbcTemplate jdbc;
     @Mock IdempotencyStore idempotency;
+    @Mock InventoryReservationService reservations;
     private UUID insertedOrderId;
+
+    private OrderService service() {
+        return new OrderService(jdbc, idempotency, reservations);
+    }
 
     @Test
     void opensOrderRecomputingTotalInDatabaseAndQueuingKitchenTickets() {
@@ -40,7 +46,7 @@ class OrderServiceTest {
         var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 4, "Sin cebolla",
                 List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 2, "DINE_IN", null)));
 
-        var receipt = new OrderService(jdbc, idempotency).open(actor, requestId, idempotencyKey, request);
+        var receipt = service().open(actor, requestId, idempotencyKey, request);
 
         assertEquals("SENT", receipt.status());
         assertFalse(receipt.idempotentReplay());
@@ -79,7 +85,7 @@ class OrderServiceTest {
         var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null,
                 List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null)));
 
-        var receipt = new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request);
+        var receipt = service().open(actor, UUID.randomUUID(), idempotencyKey, request);
 
         assertTrue(receipt.idempotentReplay());
         assertEquals(1, receipt.itemCount());
@@ -100,7 +106,7 @@ class OrderServiceTest {
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 3, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request));
+                () -> service().open(actor, UUID.randomUUID(), idempotencyKey, request));
 
         assertEquals(409, error.status());
     }
@@ -122,7 +128,7 @@ class OrderServiceTest {
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 1, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request));
+                () -> service().open(actor, UUID.randomUUID(), idempotencyKey, request));
 
         assertEquals(422, error.status());
         verify(jdbc, never()).update(contains("INSERT INTO wok.orders"), any(Object[].class));
@@ -143,7 +149,7 @@ class OrderServiceTest {
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 1, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request));
+                () -> service().open(actor, UUID.randomUUID(), idempotencyKey, request));
 
         assertEquals(422, error.status());
     }
@@ -163,7 +169,7 @@ class OrderServiceTest {
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 1, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request));
+                () -> service().open(actor, UUID.randomUUID(), idempotencyKey, request));
 
         assertEquals(409, error.status());
     }
@@ -176,7 +182,7 @@ class OrderServiceTest {
                         new OperationalOrderController.OrderLineRequest(menuItemId, 2, "DINE_IN", null)));
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new OrderService(jdbc, idempotency).open(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), request));
+                () -> service().open(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), request));
 
         assertEquals(400, error.status());
     }
@@ -187,7 +193,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of());
 
-        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc, idempotency)
+        AuthException error = assertThrows(AuthException.class, () -> service()
                 .changeStatus(UUID.randomUUID(), UUID.randomUUID(), orderId,
                         new OperationalOrderController.StatusRequest(OrderService.OrderStatus.PREPARING, 1, null)));
 
@@ -200,7 +206,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.SENT));
 
-        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc, idempotency)
+        AuthException error = assertThrows(AuthException.class, () -> service()
                 .changeStatus(UUID.randomUUID(), UUID.randomUUID(), orderId,
                         new OperationalOrderController.StatusRequest(OrderService.OrderStatus.SERVED, 1, null)));
 
@@ -222,7 +228,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("JOIN wok.currencies c ON c.id = o.currency_id"), any(RowMapper.class), eq(orderId)))
                 .thenReturn(List.of(summary(orderId, "PREPARING", 2)));
 
-        var result = new OrderService(jdbc, idempotency).changeStatus(actor, requestId, orderId,
+        var result = service().changeStatus(actor, requestId, orderId,
                 new OperationalOrderController.StatusRequest(OrderService.OrderStatus.PREPARING, 1, "cocinero"));
 
         assertEquals("PREPARING", result.status());
@@ -249,7 +255,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("JOIN wok.currencies c ON c.id = o.currency_id"), any(RowMapper.class), eq(orderId)))
                 .thenReturn(List.of(summary(orderId, "CANCELLED", 4)));
 
-        var result = new OrderService(jdbc, idempotency).changeStatus(actor, UUID.randomUUID(), orderId,
+        var result = service().changeStatus(actor, UUID.randomUUID(), orderId,
                 new OperationalOrderController.StatusRequest(OrderService.OrderStatus.CANCELLED, 3, "cliente se retiró"));
 
         assertEquals("CANCELLED", result.status());
@@ -264,7 +270,7 @@ class OrderServiceTest {
         when(jdbc.update(contains("SET status = ?"), eq("SERVED"), eq("SERVED"), any(UUID.class), eq(orderId),
                 eq("READY"), eq(9))).thenReturn(0);
 
-        AuthException error = assertThrows(AuthException.class, () -> new OrderService(jdbc, idempotency)
+        AuthException error = assertThrows(AuthException.class, () -> service()
                 .changeStatus(UUID.randomUUID(), UUID.randomUUID(), orderId,
                         new OperationalOrderController.StatusRequest(OrderService.OrderStatus.SERVED, 9, null)));
 
@@ -290,7 +296,7 @@ class OrderServiceTest {
         var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null,
                 List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null)));
 
-        var receipt = new OrderService(jdbc, idempotency).open(actor, UUID.randomUUID(), idempotencyKey, request);
+        var receipt = service().open(actor, UUID.randomUUID(), idempotencyKey, request);
 
         assertFalse(receipt.idempotentReplay());
         assertEquals(1, receipt.itemCount());

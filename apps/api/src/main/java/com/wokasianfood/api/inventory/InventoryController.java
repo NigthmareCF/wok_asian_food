@@ -5,6 +5,7 @@ import com.wokasianfood.api.inventory.InventoryController.MovementType;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -62,9 +64,28 @@ public class InventoryController {
                 requestId == null ? UUID.randomUUID() : requestId, itemId, idempotencyKey, request);
     }
 
+    @GetMapping("/items/{itemId}/recipe")
+    public InventoryService.RecipeDetails recipe(@PathVariable UUID itemId) {
+        return inventory.recipe(itemId);
+    }
+
+    @PutMapping("/items/{itemId}/recipe")
+    public InventoryService.RecipeDetails updateRecipe(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID itemId,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody RecipeRequest request) {
+        return inventory.updateRecipe(UUID.fromString(jwt.getSubject()),
+                requestId == null ? UUID.randomUUID() : requestId, itemId, request);
+    }
+
     public record MovementRequest(@NotNull MovementType type,
                                   @NotNull @DecimalMin("0.0") BigDecimal quantity,
                                   @Size(max = 300) String reason) {}
+
+    public record RecipeRequest(@NotEmpty @Size(max = 100) List<@Valid RecipeComponentRequest> components) {}
+
+    public record RecipeComponentRequest(@NotNull UUID componentItemId,
+                                         @NotNull @DecimalMin(value = "0.0", inclusive = false) BigDecimal quantity) {}
 
     public enum MovementType { ENTRY, ADJUSTMENT, WASTE }
 
@@ -95,14 +116,21 @@ class InventoryService {
     List<InventoryItem> list(String search, String status) {
         List<InventoryItem> rows = jdbc.query("""
             SELECT i.id, i.sku, i.name, i.active, i.track_inventory, i.minimum_stock,
-                   u.code AS unit_code, COALESCE(b.quantity_on_hand, 0) AS on_hand
+                   u.code AS unit_code, COALESCE(b.quantity_on_hand, 0) AS on_hand,
+                   COALESCE(res.reserved, 0) AS reserved
             FROM wok.items i
             JOIN wok.units u ON u.id = i.base_unit_id
             LEFT JOIN wok.inventory_balances b ON b.item_id = i.id
+            LEFT JOIN LATERAL (
+                SELECT COALESCE(SUM(r.quantity), 0) AS reserved
+                FROM wok.inventory_reservations r
+                WHERE r.item_id = i.id AND r.status = 'ACTIVE'
+            ) res ON true
             WHERE (CAST(? AS text) IS NULL OR i.sku ILIKE '%' || ? || '%' OR i.name ILIKE '%' || ? || '%')
             ORDER BY i.name, i.id
             LIMIT 200
-            """, (rs, row) -> item(rs, rs.getBigDecimal("on_hand")), search, search, search);
+            """, (rs, row) -> item(rs, rs.getBigDecimal("on_hand"), rs.getBigDecimal("reserved")),
+            search, search, search);
         if (status == null) return rows;
         return rows.stream().filter(row -> status.equals(row.status())).toList();
     }
@@ -110,12 +138,18 @@ class InventoryService {
     InventoryItemDetails details(UUID itemId) {
         List<InventoryItem> found = jdbc.query("""
             SELECT i.id, i.sku, i.name, i.active, i.track_inventory, i.minimum_stock,
-                   u.code AS unit_code, COALESCE(b.quantity_on_hand, 0) AS on_hand
+                   u.code AS unit_code, COALESCE(b.quantity_on_hand, 0) AS on_hand,
+                   COALESCE(res.reserved, 0) AS reserved
             FROM wok.items i
             JOIN wok.units u ON u.id = i.base_unit_id
             LEFT JOIN wok.inventory_balances b ON b.item_id = i.id
+            LEFT JOIN LATERAL (
+                SELECT COALESCE(SUM(r.quantity), 0) AS reserved
+                FROM wok.inventory_reservations r
+                WHERE r.item_id = i.id AND r.status = 'ACTIVE'
+            ) res ON true
             WHERE i.id = ?
-            """, (rs, row) -> item(rs, rs.getBigDecimal("on_hand")), itemId);
+            """, (rs, row) -> item(rs, rs.getBigDecimal("on_hand"), rs.getBigDecimal("reserved")), itemId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos el item de inventario.");
         List<Movement> movements = jdbc.query("""
             SELECT id, movement_type, quantity_delta, reason, order_id, responsible_user_id, occurred_at
@@ -192,6 +226,62 @@ class InventoryService {
         return receipt(movementId, false);
     }
 
+    RecipeDetails recipe(UUID itemId) {
+        requireItem(itemId);
+        List<RecipeComponent> components = jdbc.query("""
+            SELECT rc.component_item_id, i.sku, i.name, u.code AS unit_code, rc.quantity
+            FROM wok.item_recipe_components rc
+            JOIN wok.items i ON i.id = rc.component_item_id
+            JOIN wok.units u ON u.id = i.base_unit_id
+            WHERE rc.parent_item_id = ?
+            ORDER BY i.name, i.id
+            """, (rs, row) -> new RecipeComponent(rs.getObject("component_item_id", UUID.class),
+                rs.getString("sku"), rs.getString("name"), rs.getString("unit_code"),
+                rs.getBigDecimal("quantity")), itemId);
+        return new RecipeDetails(itemId, components);
+    }
+
+    @Transactional
+    public RecipeDetails updateRecipe(UUID actor, UUID requestId, UUID itemId,
+                                      InventoryController.RecipeRequest request) {
+        requireItem(itemId);
+        List<InventoryController.RecipeComponentRequest> components = request.components();
+        java.util.Set<UUID> seen = new java.util.HashSet<>();
+        for (InventoryController.RecipeComponentRequest component : components) {
+            if (component.componentItemId().equals(itemId))
+                throw new AuthException(422, "Un item no puede ser componente de sí mismo.");
+            if (!seen.add(component.componentItemId()))
+                throw new AuthException(422, "No repitas componentes en la receta.");
+            if (!activeItemExists(component.componentItemId()))
+                throw new AuthException(422, "Uno de los componentes no existe.");
+        }
+        jdbc.update("DELETE FROM wok.item_recipe_components WHERE parent_item_id = ?", itemId);
+        for (InventoryController.RecipeComponentRequest component : components) {
+            jdbc.update("""
+                INSERT INTO wok.item_recipe_components (parent_item_id, component_item_id, quantity)
+                VALUES (?, ?, ?)
+                """, itemId, component.componentItemId(), component.quantity());
+        }
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            VALUES (?, 'ITEM_RECIPE_UPDATED', 'ITEM', ?, jsonb_build_object('components', ?), 'SUCCESS', ?)
+            """, actor, itemId, components.size(), requestId);
+        return recipe(itemId);
+    }
+
+    private void requireItem(UUID itemId) {
+        Integer found = jdbc.queryForObject("SELECT count(*) FROM wok.items WHERE id = ?", Integer.class, itemId);
+        if (found == null || found == 0) throw new AuthException(404, "No encontramos el item de inventario.");
+    }
+
+    private boolean activeItemExists(UUID itemId) {
+        Integer found = jdbc.queryForObject("""
+            SELECT count(*) FROM wok.items WHERE id = ? AND active = true
+            """, Integer.class, itemId);
+        return found != null && found > 0;
+    }
+
     private ItemRow item(UUID itemId) {
         List<ItemRow> rows = jdbc.query("""
             SELECT i.id, i.track_inventory, i.active FROM wok.items i WHERE i.id = ?
@@ -217,17 +307,19 @@ class InventoryService {
         return rows.getFirst();
     }
 
-    private InventoryItem item(java.sql.ResultSet rs, BigDecimal onHand) throws java.sql.SQLException {
+    private InventoryItem item(java.sql.ResultSet rs, BigDecimal onHand, BigDecimal reserved)
+            throws java.sql.SQLException {
         boolean trackInventory = rs.getBoolean("track_inventory");
         BigDecimal minimum = rs.getBigDecimal("minimum_stock");
+        BigDecimal available = onHand.subtract(reserved);
         String status;
         if (!trackInventory) status = "UNTRACKED";
         else if (onHand.signum() <= 0) status = "OUT";
-        else if (onHand.compareTo(minimum) <= 0) status = "LOW";
+        else if (available.compareTo(minimum) <= 0) status = "LOW";
         else status = "OK";
         return new InventoryItem(rs.getObject("id", UUID.class), rs.getString("sku"), rs.getString("name"),
             rs.getString("unit_code"), trackInventory, rs.getBoolean("active"), minimum,
-            onHand, BigDecimal.ZERO, onHand, status);
+            onHand, reserved, available, status);
     }
 
     private String fingerprint(String... parts) {
@@ -248,6 +340,8 @@ class InventoryService {
     public record Movement(UUID id, String type, BigDecimal quantityDelta, String reason, UUID orderId,
                            UUID responsibleUserId, java.time.Instant occurredAt) {}
     public record InventoryItemDetails(InventoryItem item, List<Movement> movements) {}
+    public record RecipeComponent(UUID itemId, String sku, String name, String unit, BigDecimal quantity) {}
+    public record RecipeDetails(UUID parentItemId, List<RecipeComponent> components) {}
     public record MovementReceipt(UUID movementId, UUID itemId, String type, BigDecimal quantityDelta,
                                   BigDecimal quantityOnHand, String unit, boolean idempotentReplay) {}
 }
