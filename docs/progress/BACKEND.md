@@ -1,5 +1,14 @@
 # Progreso de planificación backend
 
+## 2026-10-02 — Fase 1 Operativa: agregar ítems, detalle de cuenta y decisión de solicitudes (rama de tarea)
+
+- Continuación en `feature/operational-flow-tables-orders-kitchen`. `OrderService` ahora inyecta `IdempotencyStore` (`platform/IdempotencyStore.java`), que reclama y completa registros en `wok.idempotency_keys` dentro de la misma transacción del caso de uso (replay con `resource_id`, `409` por hash distinto y `409` mientras está en proceso). Se unificó el alta de líneas en `insertLine` (con `RETURNING id`) y se refactorizó `enqueueTickets` para recibir líneas nuevas explícitas, continuar `sequence_no` con `COALESCE(max)+1` y crear `kitchen_ticket_items` por `order_item_id` (en lugar de reconsultar por `menu_item_id`).
+- Commit `cb3dcd3` — `POST /api/v1/operational/orders/{orderId}/items` con `Idempotency-Key` (`orders:manage`): admite pedidos en SENT/PREPARING/READY/SERVED con cuenta `OPEN`, valida productos activos y moneda única, recalcula totales, re-encola comandas y registra auditoría `ORDER_ITEMS_ADDED`.
+- Commit `345e8be` — `GET /api/v1/operational/accounts/{accountId}` (`accounts:manage`, nuevo `OperationalAccountController`/`AccountService`): cuenta con nombre de mesa, pedidos y total excluyendo CANCELLED.
+- Commit `7b1dd45` — `V16__order_request_decision_link.sql` agrega `order_requests.order_id` con índice único parcial, y `POST /api/v1/operational/order-requests/{requestId}/decision` (`orders:manage`) acepta o rechaza solicitudes del Cliente. REJECT exige motivo; ACCEPT revalida disponibilidad, moneda y `requested_for` contra el tiempo de preparación, crea cuenta pickup (`dining_table_id NULL`) y pedido `channel PICKUP` con líneas `TAKEAWAY`, enlaza `order_id` y es idempotente por transición de estado. Se registran eventos y auditoría (`ORDER_REQUEST_ACCEPTED`/`ORDER_REQUEST_REJECTED`).
+- Pruebas PostgreSQL: `OrderRequestDecisionIntegrationTest` (3) cubre aceptación con creación de pedido, replay de la decisión, rechazo con/sin motivo y producto que deja de estar disponible; `OperationalFlowIntegrationTest` (7) y `OrderServiceTest` (13) actualizados al nuevo encolado. Suite completa: 109 tests, 0 fallos/errores/skips con `mvnw test` en `apps/api`.
+- Límite: Fase 1 sigue siendo backend Operativo; no incluye pagos, caja, inventario, producción ni delivery. Sin cambios de frontend, sin push ni merge.
+
 ## 2026-10-02 — Flujo Operativo verificable y permisos granulares (rama de tarea)
 
 - Rama `feature/operational-flow-tables-orders-kitchen` (desde `development`). Se incorporaron Testcontainers y una base reutilizable `PostgresIntegrationTest` con contenedor singleton PostgreSQL 18 y Flyway aplicando V1–V15. El cherry-pick de la cobertura de sesión y la corrección del issuer quedan en commits propios (`16b05862`, `71811402`, `28395c8d`, `4d93b40a`, `65268ab6`).
