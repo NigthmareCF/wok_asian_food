@@ -1,5 +1,13 @@
 # Progreso de planificación backend
 
+## 2026-10-03 — Cancelación segura de solicitudes delivery
+
+- Se agregó `DELETE /api/v1/client/delivery-requests/{requestId}` para cancelar solicitudes `PENDING_REVIEW`. Bloquea la fila con `FOR UPDATE`, oculta solicitudes ajenas o que no sean DELIVERY con 404, rechaza estados ya decididos con 409, permite reintento idempotente tras cancelación y registra un evento con actor/motivo.
+- Se reforzó la ruta de cancelación pickup para que sólo modifique `fulfillment_type = 'PICKUP'`; un request delivery no se puede cancelar accidentalmente usando la ruta pickup.
+- La integración HTTP/PostgreSQL prueba envío, propiedad A-vs-B, ruta cruzada pickup→delivery (404), cancelación, retry sin duplicar eventos y estado final. Fixtures sintéticos ahora toleran reutilización dentro del mismo test container.
+- Validación completa Maven Java 21: 53 tests, 0 fallos, 0 errores, 0 skips; PostgreSQL 18/Testcontainers aplicó Flyway V1–V12. No requiere proveedor externo.
+- Rama `fix/backend-security-composition`; cambio local probado, se publicará tras sincronizar el commit de estabilidad entrante de `integration/backend-bootstrap`. No merge a `development`.
+
 ## 2026-10-02 — Recuperación de contraseña y revocación comprobadas por HTTP
 
 - `SecurityCompositionIntegrationTest` recorre registro/verificación y login; luego solicita recuperación, procesa el email mock por outbox, consume el código y fija contraseña nueva. Verifica que access token, refresh token y contraseña anteriores fallen, y que la nueva sesión funcione.

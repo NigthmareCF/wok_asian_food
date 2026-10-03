@@ -150,6 +150,40 @@ class SecurityCompositionIntegrationTest {
     }
 
     @Test
+    void customerCanCancelOnlyTheirPendingDeliveryRequestAndCannotUsePickupCancellationRoute() throws Exception {
+        jdbc.update("UPDATE wok.service_capabilities SET status = 'ENABLED' WHERE code = 'DELIVERY'");
+        String menuItemId = createSyntheticMenuItem();
+        String ownerToken = registerAndLogin("delivery-owner");
+        String otherToken = registerAndLogin("delivery-other");
+        String requestIdempotencyKey = UUID.randomUUID().toString();
+        String requestedFor = Instant.now().plusSeconds(3600).toString();
+        var submitted = postAuthorized("/api/v1/client/delivery-requests", ownerToken, requestIdempotencyKey, """
+                {"requestedFor":"%s","address":"Zona 10, Ciudad de Guatemala","reference":"Casa 5",
+                 "contactPhone":"+502 5555-1234","paymentPreference":"CASH_ON_DELIVERY",
+                 "items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(requestedFor, menuItemId));
+        assertThat(submitted.statusCode()).as("Delivery request submission: %s", submitted.body()).isEqualTo(202);
+        String requestId = json.readTree(submitted.body()).path("requestId").asText();
+        assertThat(requestId).isNotBlank();
+
+        assertThat(deleteWithBearer("/api/v1/client/delivery-requests/" + requestId, otherToken).statusCode()).isEqualTo(404);
+        assertThat(deleteWithBearer("/api/v1/client/order-requests/" + requestId, ownerToken).statusCode()).isEqualTo(404);
+        assertThat(json.readTree(getWithBearer("/api/v1/client/delivery-requests/" + requestId, ownerToken).body())
+                .path("status").asText()).isEqualTo("PENDING_REVIEW");
+
+        var cancelled = deleteWithBearer("/api/v1/client/delivery-requests/" + requestId, ownerToken);
+        assertThat(cancelled.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(cancelled.body()).path("status").asText()).isEqualTo("CANCELLED");
+        var retry = deleteWithBearer("/api/v1/client/delivery-requests/" + requestId, ownerToken);
+        assertThat(retry.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(retry.body()).path("status").asText()).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM wok.order_request_events
+                WHERE order_request_id = ?::uuid AND event_type = 'CANCELLED' AND reason = 'CANCELLED_BY_CLIENT'
+                """, Integer.class, requestId)).isEqualTo(1);
+    }
+
+    @Test
     void passwordResetInvalidatesExistingSessionAndOldCredentials() throws Exception {
         String email = "reset-" + UUID.randomUUID() + "@example.invalid";
         String oldPassword = "WokOldPassword-2026";
@@ -224,11 +258,23 @@ class SecurityCompositionIntegrationTest {
     }
 
     private String createSyntheticMenuItem() {
-        UUID typeId = jdbc.queryForObject("INSERT INTO wok.item_types(code,name) VALUES ('TEST_FOOD','Test food') RETURNING id", UUID.class);
-        UUID unitId = jdbc.queryForObject("INSERT INTO wok.units(code,name,dimension,factor_to_base) VALUES ('EA','Each','COUNT',1) RETURNING id", UUID.class);
+        UUID typeId = jdbc.queryForObject("""
+                INSERT INTO wok.item_types(code,name) VALUES ('TEST_FOOD','Test food')
+                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id
+                """, UUID.class);
+        UUID unitId = jdbc.queryForObject("""
+                INSERT INTO wok.units(code,name,dimension,factor_to_base) VALUES ('EA','Each','COUNT',1)
+                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id
+                """, UUID.class);
         UUID itemId = jdbc.queryForObject("INSERT INTO wok.items(sku,name,item_type_id,base_unit_id,track_inventory) VALUES (upper('IT-' || gen_random_uuid()::text),'Test item',?,?,false) RETURNING id", UUID.class, typeId, unitId);
-        UUID categoryId = jdbc.queryForObject("INSERT INTO wok.menu_categories(name) VALUES ('Synthetic integration menu') RETURNING id", UUID.class);
-        UUID areaId = jdbc.queryForObject("INSERT INTO wok.preparation_areas(code,name) VALUES ('TEST','Test area') RETURNING id", UUID.class);
+        UUID categoryId = jdbc.queryForObject("""
+                INSERT INTO wok.menu_categories(name) VALUES ('Synthetic integration menu')
+                ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id
+                """, UUID.class);
+        UUID areaId = jdbc.queryForObject("""
+                INSERT INTO wok.preparation_areas(code,name) VALUES ('TEST','Test area')
+                ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id
+                """, UUID.class);
         UUID currencyId = jdbc.queryForObject("SELECT id FROM wok.currencies WHERE code='GTQ'", UUID.class);
         UUID menuItemId = jdbc.queryForObject("""
                 INSERT INTO wok.menu_items(item_id,category_id,preparation_area_id,name,price,currency_id,estimated_preparation_seconds)

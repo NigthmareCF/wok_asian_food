@@ -82,6 +82,60 @@ class ClientDeliveryRequestControllerTest {
     }
 
     @Test
+    void customerCanCancelOnlyTheirPendingDeliveryRequestAndCancellationIsIdempotent() {
+        UUID requestId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        String lockSql = "fulfillment_type = 'DELIVERY' FOR UPDATE";
+        String updateSql = "fulfillment_type = 'DELIVERY' AND status = 'PENDING_REVIEW'";
+        doReturn(List.of("PENDING_REVIEW")).doReturn(List.of("CANCELLED"))
+                .when(jdbc).query(contains(lockSql), any(RowMapper.class),
+                        org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+        doReturn(1).when(jdbc).update(contains(updateSql), org.mockito.ArgumentMatchers.eq(customerId),
+                org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+
+        var controller = new ClientDeliveryRequestController(jdbc);
+
+        assertEquals(new ClientDeliveryRequestController.DeliveryRequestState(requestId, "CANCELLED"),
+                controller.cancel(jwt(customerId), requestId));
+        assertEquals(new ClientDeliveryRequestController.DeliveryRequestState(requestId, "CANCELLED"),
+                controller.cancel(jwt(customerId), requestId));
+
+        verify(jdbc).update(contains(updateSql), org.mockito.ArgumentMatchers.eq(customerId),
+                org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+        verify(jdbc).update(contains("INSERT INTO wok.order_request_events"),
+                org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+    }
+
+    @Test
+    void deliveryCancellationHidesOtherCustomersAndOtherFulfillmentTypes() {
+        UUID requestId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        doReturn(List.of()).when(jdbc).query(contains("fulfillment_type = 'DELIVERY' FOR UPDATE"),
+                any(RowMapper.class), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+
+        AuthException error = assertThrows(AuthException.class,
+                () -> new ClientDeliveryRequestController(jdbc).cancel(jwt(customerId), requestId));
+
+        assertEquals(404, error.status());
+        verify(jdbc, never()).update(contains("UPDATE wok.order_requests"), any(Object[].class));
+        verify(jdbc, never()).update(contains("INSERT INTO wok.order_request_events"), any(Object[].class));
+    }
+
+    @Test
+    void acceptedDeliveryRequestCannotBeCancelledByCustomer() {
+        UUID requestId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        doReturn(List.of("ACCEPTED")).when(jdbc).query(contains("fulfillment_type = 'DELIVERY' FOR UPDATE"),
+                any(RowMapper.class), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
+
+        AuthException error = assertThrows(AuthException.class,
+                () -> new ClientDeliveryRequestController(jdbc).cancel(jwt(customerId), requestId));
+
+        assertEquals(409, error.status());
+        verify(jdbc, never()).update(contains("UPDATE wok.order_requests"), any(Object[].class));
+    }
+
+    @Test
     void pausedDeliveryServiceRejectsTheRequestBeforeProductLookupOrPersistence() {
         doReturn(List.of()).when(jdbc).query(contains("request_fingerprint"), any(RowMapper.class), any(Object[].class));
         doReturn(List.of("PAUSED")).when(jdbc).query(contains("code = 'DELIVERY'"), any(RowMapper.class));

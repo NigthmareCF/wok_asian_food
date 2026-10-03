@@ -26,6 +26,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -158,6 +159,32 @@ public class ClientDeliveryRequestController {
                 request.customerNote(), items);
     }
 
+    @DeleteMapping("/{requestId}")
+    @Transactional
+    public DeliveryRequestState cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId) {
+        UUID customerId = UUID.fromString(jwt.getSubject());
+        List<String> statuses = jdbc.query("""
+            SELECT status FROM wok.order_requests
+            WHERE id = ? AND customer_user_id = ? AND fulfillment_type = 'DELIVERY' FOR UPDATE
+            """, (rs, row) -> rs.getString("status"), requestId, customerId);
+        if (statuses.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
+        String status = statuses.getFirst();
+        if ("CANCELLED".equals(status)) return new DeliveryRequestState(requestId, status);
+        if (!"PENDING_REVIEW".equals(status))
+            throw new AuthException(409, "La solicitud ya no se puede cancelar.");
+        int changed = jdbc.update("""
+            UPDATE wok.order_requests SET status = 'CANCELLED', decided_by = ?, decided_at = now(),
+                decision_reason = 'CANCELLED_BY_CLIENT', updated_at = now()
+            WHERE id = ? AND customer_user_id = ? AND fulfillment_type = 'DELIVERY' AND status = 'PENDING_REVIEW'
+            """, customerId, requestId, customerId);
+        if (changed != 1) throw new AuthException(409, "La solicitud ya cambió de estado.");
+        jdbc.update("""
+            INSERT INTO wok.order_request_events(order_request_id, event_type, actor_user_id, reason)
+            VALUES (?, 'CANCELLED', ?, 'CANCELLED_BY_CLIENT')
+            """, requestId, customerId);
+        return new DeliveryRequestState(requestId, "CANCELLED");
+    }
+
     private List<Product> loadProducts(List<RequestedItem> lines) {
         List<Product> products = new ArrayList<>();
         for (RequestedItem line : lines) {
@@ -220,6 +247,7 @@ public class ClientDeliveryRequestController {
     public record DeliveryRequestDetails(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, String customerNote,
             List<DeliveryRequestLine> items) {}
+    public record DeliveryRequestState(UUID requestId, String status) {}
     public record DeliveryRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
     public enum PaymentPreference { CASH_ON_DELIVERY, ONLINE_PAYMENT_REQUESTED }
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currency, int preparationSeconds) {}
