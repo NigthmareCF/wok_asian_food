@@ -8,17 +8,19 @@ import java.util.List;
 import java.util.UUID;
 
 public final class AuthDtos {
+    private static final String PASSWORD_PATTERN = "^(?=\\S{12,128}$)(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).*$";
+
     private AuthDtos() {}
 
-    public record Register(@Email @NotBlank String email, @NotBlank @Size(min = 2, max = 100) String displayName,
-                           @NotBlank @Size(min = 12, max = 128) String password) {}
-    public record Verify(@Email @NotBlank String email, @Pattern(regexp = "[0-9]{6}") String code) {}
-    public record Login(@Email @NotBlank String email, @NotBlank String password,
-                        @Pattern(regexp = "WEB|MOBILE|DESKTOP") String clientType) {}
+    public record Register(@Email @NotBlank @Size(max = 254) String email, @NotBlank @Size(min = 2, max = 100) String displayName,
+                           @NotBlank @Pattern(regexp = PASSWORD_PATTERN) String password) {}
+    public record Verify(@Email @NotBlank @Size(max = 254) String email, @NotBlank @Pattern(regexp = "[0-9]{6}") String code) {}
+    public record Login(@Email @NotBlank @Size(max = 254) String email, @NotBlank @Size(max = 128) String password,
+                        @NotBlank @Pattern(regexp = "WEB|MOBILE|DESKTOP") String clientType) {}
     public record Refresh(@NotBlank String refreshToken) {}
-    public record ResetRequest(@Email @NotBlank String email) {}
-    public record ResetComplete(@Email @NotBlank String email, @Pattern(regexp = "[0-9]{6}") String code,
-                                @NotBlank @Size(min = 12, max = 128) String newPassword) {}
+    public record ResetRequest(@Email @NotBlank @Size(max = 254) String email) {}
+    public record ResetComplete(@Email @NotBlank @Size(max = 254) String email, @NotBlank @Pattern(regexp = "[0-9]{6}") String code,
+                                @NotBlank @Pattern(regexp = PASSWORD_PATTERN) String newPassword) {}
     public record GoogleLogin(@NotBlank String idToken) {}
     public record TokenPair(String accessToken, String refreshToken, String tokenType, long expiresInSeconds) {}
     public record CurrentUser(UUID userId, String email, String displayName, String status,

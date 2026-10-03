@@ -53,6 +53,13 @@ El sistema aún no debe presentarse como una integración completa de todos los 
 - Corrección: se autorizó explícitamente y solo ese `POST` público. La acción no crea ni confirma una reservación; únicamente evalúa capacidad.
 - Verificación pendiente: ejecutar la prueba de integración con y sin token al recuperar Java y Docker.
 
+### QA-SEC-005: política de contraseña solo aplicada en la interfaz
+
+- Severidad: alta.
+- Riesgo: la Web exigía una contraseña compleja, pero la API aceptaba cualquier valor de 12 a 128 caracteres. Una solicitud directa podía omitir las reglas de mayúscula, minúscula, número y símbolo.
+- Corrección: los DTO de registro y restablecimiento aplican ahora esa política en el backend. Las entradas de autenticación también limitan correo, contraseña, código y tipo de cliente para evitar valores nulos o excesivamente grandes.
+- Verificación pendiente: ejecutar las pruebas Java y añadir casos HTTP de contraseña débil al recuperar el entorno.
+
 ## Estado de rutas y sesiones
 
 | Capa | Estado | Observación |
