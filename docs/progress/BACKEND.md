@@ -1,12 +1,50 @@
 # Progreso de planificación backend
 
-## 2026-10-02 - Precision al invalidar sesiones
+## 2026-10-02 — Fase 2 Cobro simple y caja (rama de tarea)
 
-- Rama: `fix/web-navigation-session`.
-- Detectado mediante recuperacion real de clave: JWT guarda `iat` con precision de segundos, mientras PostgreSQL guarda la invalidacion con mayor precision. Un login dentro del mismo segundo podia producir un token rechazado.
-- `SecurityConfig` compara `auth_sessions.created_at` con `users.sessions_valid_after`, como los demas controles de sesiones. Conserva validacion de firma, emisor, expiracion, cuenta activa y revocacion.
-- Regresiones: nueva sesion en el mismo segundo del cambio de clave aceptada; sesiones anteriores invalidadas rechazadas. Maven verify: 88 pruebas aprobadas.
-- Prueba real con PostgreSQL: recuperacion y login inmediato aprobados. Sin nuevas migraciones, secretos ni modificaciones a cuentas de colaboradores; se uso una cuenta local desechable.
+- Rama `feature/cash-simple-closing`, apilada sobre la rama de Fase 1 para conservar la infraestructura de pruebas PostgreSQL. Se reutiliza el esquema de caja de `V6__cash_sessions_and_movements.sql`; no se tomó el `CashSessionController` sin mergear de `origin/feature/payments`, para mantener los patrones endurecidos (`IdempotencyStore`, `AuthException`, permisos granulares, tests reales).
+- Commit `586d4e8` — `V17__cash_permissions.sql` agrega `cash:manage` (OPERATIONAL/ADMIN). Endpoints en `/api/v1/operational/cash-sessions`: abrir con fondo (`Idempotency-Key`), consultar la caja actual, registrar `INCOME`/`EXPENSE`/`WITHDRAWAL`, y cerrar con arqueo final (`countedCash` + `expectedVersion`). La idempotencia usa `IdempotencyStore` (`CASH_SESSION_OPENED`, `CASH_MOVEMENT_RECORDED`), hay bloqueo `FOR UPDATE` y auditoría (`CASH_SESSION_OPENED`, `CASH_MOVEMENT_RECORDED`, `CASH_SESSION_CLOSED`).
+- Commit `8489a4e` — `V18__account_payments.sql` agrega `payments:manage`, la tabla `wok.payments` (método `CASH`/`CARD_EXTERNAL`/`TRANSFER`, estado `CAPTURED`) y la FK `cash_movements.payment_id`. `POST /api/v1/operational/accounts/{accountId}/payments` calcula el importe en el servidor (consumo no cancelado menos pagos previos), es un cobro único idempotente por cuenta (doble clic no duplica), exige caja abierta para efectivo (movimiento `SALE` enlazado) y deja la cuenta en `PAID`. El cierre de mesa ahora admite cuentas `PAID`.
+- Commit `8328f70` — `GET /api/v1/operational/accounts/{accountId}` incluye `paid`, `balance` y la lista de pagos, para cerrar el ciclo cuenta → cobro → cierre.
+- Pruebas PostgreSQL: `CashSessionIntegrationTest` (4) cubre apertura/movimientos/arqueo/cierre, replay y conflicto idempotente, segunda apertura, registro inexistente y rol no autorizado; `PaymentIntegrationTest` (6) cubre cobro en efectivo con movimiento de caja, cobros externos, doble cobro, pedidos abiertos, permiso y cierre de mesa tras el pago. Suite completa: 119 tests, 0 fallos/errores/skips con `mvnw test` en `apps/api`.
+- Límite: cobro único sin pagos parciales, sin devoluciones/anulaciones ni pasarela en línea; no incluye frontend, inventario, producción ni delivery. Cambios en rama de tarea; push/PR pendientes.
+
+## 2026-10-02 — Fase 1 Operativa: agregar ítems, detalle de cuenta y decisión de solicitudes (rama de tarea)
+
+- Continuación en `feature/operational-flow-tables-orders-kitchen`. `OrderService` ahora inyecta `IdempotencyStore` (`platform/IdempotencyStore.java`), que reclama y completa registros en `wok.idempotency_keys` dentro de la misma transacción del caso de uso (replay con `resource_id`, `409` por hash distinto y `409` mientras está en proceso). Se unificó el alta de líneas en `insertLine` (con `RETURNING id`) y se refactorizó `enqueueTickets` para recibir líneas nuevas explícitas, continuar `sequence_no` con `COALESCE(max)+1` y crear `kitchen_ticket_items` por `order_item_id` (en lugar de reconsultar por `menu_item_id`).
+- Commit `cb3dcd3` — `POST /api/v1/operational/orders/{orderId}/items` con `Idempotency-Key` (`orders:manage`): admite pedidos en SENT/PREPARING/READY/SERVED con cuenta `OPEN`, valida productos activos y moneda única, recalcula totales, re-encola comandas y registra auditoría `ORDER_ITEMS_ADDED`.
+- Commit `345e8be` — `GET /api/v1/operational/accounts/{accountId}` (`accounts:manage`, nuevo `OperationalAccountController`/`AccountService`): cuenta con nombre de mesa, pedidos y total excluyendo CANCELLED.
+- Commit `7b1dd45` — `V16__order_request_decision_link.sql` agrega `order_requests.order_id` con índice único parcial, y `POST /api/v1/operational/order-requests/{requestId}/decision` (`orders:manage`) acepta o rechaza solicitudes del Cliente. REJECT exige motivo; ACCEPT revalida disponibilidad, moneda y `requested_for` contra el tiempo de preparación, crea cuenta pickup (`dining_table_id NULL`) y pedido `channel PICKUP` con líneas `TAKEAWAY`, enlaza `order_id` y es idempotente por transición de estado. Se registran eventos y auditoría (`ORDER_REQUEST_ACCEPTED`/`ORDER_REQUEST_REJECTED`).
+- Pruebas PostgreSQL: `OrderRequestDecisionIntegrationTest` (3) cubre aceptación con creación de pedido, replay de la decisión, rechazo con/sin motivo y producto que deja de estar disponible; `OperationalFlowIntegrationTest` (7) y `OrderServiceTest` (13) actualizados al nuevo encolado. Suite completa: 109 tests, 0 fallos/errores/skips con `mvnw test` en `apps/api`.
+- Límite: Fase 1 sigue siendo backend Operativo; no incluye pagos, caja, inventario, producción ni delivery. Sin cambios de frontend, sin push ni merge.
+
+## 2026-10-02 — Flujo Operativo verificable y permisos granulares (rama de tarea)
+
+- Rama `feature/operational-flow-tables-orders-kitchen` (desde `development`). Se incorporaron Testcontainers y una base reutilizable `PostgresIntegrationTest` con contenedor singleton PostgreSQL 18 y Flyway aplicando V1–V15. El cherry-pick de la cobertura de sesión y la corrección del issuer quedan en commits propios (`16b05862`, `71811402`, `28395c8d`, `4d93b40a`, `65268ab6`).
+- `OperationalFlowIntegrationTest` (`c69527c8`) cubre el flujo Mesas → cuenta → pedido → cocina → servicio → cierre contra PostgreSQL real: apertura de mesa/cuenta, alta de pedido con `Idempotency-Key` (replay idempotente y `409` por payload distinto), generación de comanda por estación, claim, cambio de estado, liberación del pedido a `READY`, cierre bloqueado con pedido abierto y rollback `422` sin persistencia.
+- `RoleAuthorizationIntegrationTest` (`3ec29c9`) verifica `401` anónimo, `403` entre contextos (Cliente fuera de Operativo/Admin; Operativo fuera de Cliente/Admin; Admin sí accede a Operativo), endpoints públicos y rechazo de sesión expirada o revocada.
+- Migración `V15__granular_operational_permissions.sql` añade `tables:manage`, `orders:manage`, `kitchen:manage`, `accounts:manage` y las asigna a OPERATIONAL/ADMIN. Los controladores de mesas, pedidos y cocina pasan de `hasAnyRole` a `hasAuthority`; abrir/cerrar cuenta exige `accounts:manage`. `PermissionAuthorizationIntegrationTest` demuestra que un rol con solo `tables:manage` accede a mesas pero no a pedidos/cocina ni a abrir cuenta.
+- Suite completa: 103 tests, 0 fallos/errores/skips con `mvnw test` en `apps/api`.
+- Límite: es un slice Operativo; no incluye pagos, caja, inventario, producción, delivery ni resolución de `order_requests`. Sin cambios de frontend, sin push ni merge.
+
+## 2026-10-02 — Flujo HTTP completo de autenticación con PostgreSQL
+
+- La prueba `SecurityCompositionIntegrationTest` amplía el smoke de composición a un ciclo real con PostgreSQL 18/Testcontainers: registra un Cliente, procesa la verificación mediante `MockEmailProvider` y `EmailOutboxWorker`, verifica la cuenta, inicia sesión móvil, consulta sesiones, confirma `403` en una ruta Admin para token Cliente, rota el refresh y comprueba `401` al reutilizar el token anterior y revocación del access token asociado.
+- Validación final de `mvn -q test`: 47 tests, 0 fallos, 0 errores, 0 skips; Testcontainers ejecutó la integración y Flyway aplicó V1–V12. Hubo un primer `401` intermitente en el acceso a sesiones; la prueba aislada y la suite completa pasaron al repetirla. Mantener observación en CI/repeticiones futuras antes de considerar la cobertura estable.
+- Cambio en rama especializada `fix/backend-security-composition`; commits previos `6a487a7` (corrección de filtros duplicados) y `af0390c` (smoke automatizado) ya estaban publicados. Este avance de cobertura queda pendiente de commit/push.
+- Límite: es cobertura de auth sobre la API integrada, no prueba exhaustiva de ownership entre clientes ni despliegue productivo de email/OIDC. Sin merge ni cambios en frontend web.
+
+## 2026-10-02 — Composición de seguridad Spring en integración
+
+- Rama de corrección backend: `fix/backend-security-composition`, basada en `integration/backend-bootstrap` para corregir únicamente el conflicto de configuración encontrado al componer las ramas.
+- Se retiró `BootstrapSecurityConfig`, una cadena temporal catch-all `denyAll` que coexistía con `identity.SecurityConfig` (JWT y reglas públicas/privadas). Spring abortaba con `UnreachableFilterChainException` por dos filtros `anyRequest()`; la configuración JWT queda como única cadena general.
+- Maven Java 21: 45 pruebas, 0 fallos/errores/skips. PostgreSQL 18 nuevo: Flyway aplicó V1–V12 con `success=true`. Backend levantó en puerto temporal; HTTP health 200, OpenAPI 200, menú público 200 y cola Operativa privada 401 sin token.
+- Sigue pendiente revisar las divergencias del modelo candidato respecto de V1–V12 y validar roles/ownership de todos los endpoints; este cambio sólo prueba el arranque y las rutas smoke citadas. No merge.
+
+### Regresión automatizada de seguridad y startup
+
+- Se añadieron dependencias test-scope de Testcontainers PostgreSQL/JUnit y `SecurityCompositionIntegrationTest`. El test crea una PostgreSQL18 aislada, arranca el contexto real (incluyendo Flyway) y verifica health/OpenAPI/menú público 200 y cola Operativa 401 sin token.
+- `mvn test`: 46/46 pruebas; integration test ejecutó (no skip) con Testcontainers/Docker. Esto convierte el smoke del conflicto de filtros en una regresión automatizada. No cubre todavía login/ownership A-vs-B ni todos los permisos.
 
 ## 2026-09-26 — Reparto en ramas del backend
 

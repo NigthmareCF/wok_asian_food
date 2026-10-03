@@ -1,6 +1,7 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -42,7 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/operational/orders")
-@PreAuthorize("hasAnyRole('OPERATIONAL', 'ADMIN')")
+@PreAuthorize("hasAuthority('orders:manage')")
 public class OperationalOrderController {
     private final OrderService orders;
 
@@ -77,6 +78,18 @@ public class OperationalOrderController {
         return orders.changeStatus(UUID.fromString(jwt.getSubject()),
                 requestId == null ? UUID.randomUUID() : requestId, orderId, request);
     }
+
+    @PostMapping("/{orderId}/items")
+    public OrderService.OrderDetails addItems(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID orderId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody AddItemsRequest request) {
+        return orders.addItems(UUID.fromString(jwt.getSubject()),
+                requestId == null ? UUID.randomUUID() : requestId, orderId, idempotencyKey, request);
+    }
+
+    public record AddItemsRequest(@NotEmpty @Size(max = 50) List<@Valid OrderLineRequest> items) {}
 
     public record OpenOrderRequest(@NotNull UUID accountId,
                                    @Size(min = 2, max = 20) String channel,
@@ -115,8 +128,12 @@ class OrderService {
             rs.getInt("estimated_preparation_seconds"));
 
     private final JdbcTemplate jdbc;
+    private final IdempotencyStore idempotency;
 
-    OrderService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency) {
+        this.jdbc = jdbc;
+        this.idempotency = idempotency;
+    }
 
     public enum OrderStatus { SENT, PREPARING, READY, SERVED, CLOSED, CANCELLED }
 
@@ -228,30 +245,13 @@ class OrderService {
             if (replay != null) return receipt(replay, true);
         }
 
+        List<NewLine> newLines = new ArrayList<>();
         for (int index = 0; index < products.size(); index++) {
-            Product product = products.get(index);
-            OperationalOrderController.OrderLineRequest line = lines.get(index);
-            jdbc.update("""
-                INSERT INTO wok.order_items
-                    (order_id, menu_item_id, name_snapshot, quantity, unit_price, preparation_area_id,
-                     fulfillment, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, orderId, product.id(), product.name(), line.quantity(), product.price(),
-                    product.preparationAreaId(), line.fulfillment() == null ? "DINE_IN"
-                        : line.fulfillment().trim().toUpperCase(),
-                    line.notes() == null || line.notes().isBlank() ? null : line.notes().trim());
+            newLines.add(insertLine(orderId, products.get(index), lines.get(index)));
         }
 
-        jdbc.update("""
-            UPDATE wok.orders o
-            SET subtotal = totals.subtotal, total = totals.subtotal - o.discount, updated_at = now(),
-                updated_by = ?, row_version = row_version + 1
-            FROM (SELECT COALESCE(sum(line_total), 0) AS subtotal FROM wok.order_items WHERE order_id = ?)
-                totals
-            WHERE o.id = ? AND o.subtotal <> totals.subtotal
-            """, actor, orderId, orderId);
-
-        enqueueTickets(actor, requestId, orderId, products, lines);
+        recalcTotals(orderId, actor);
+        enqueueTickets(actor, requestId, orderId, newLines);
         jdbc.update("""
             INSERT INTO wok.order_status_history (order_id, from_status, to_status, actor_user_id, request_id)
             VALUES (?, NULL, 'SENT', ?, ?)
@@ -263,6 +263,91 @@ class OrderService {
                     jsonb_build_object('status', 'SENT', 'channel', ?, 'items', ?), 'SUCCESS', ?)
             """, actor, orderId, channel.name(), lines.size(), requestId);
         return receipt(details(orderId), false);
+    }
+
+    @Transactional
+    public OrderDetails addItems(UUID actor, UUID requestId, UUID orderId, UUID idempotencyKey,
+                                 OperationalOrderController.AddItemsRequest request) {
+        List<OperationalOrderController.OrderLineRequest> lines = normalizedLines(request.items());
+        String fingerprint = itemsFingerprint(orderId, lines);
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "ORDER_ITEMS_ADDED",
+                idempotencyKey, fingerprint);
+        if (claim.replay()) return details(claim.resourceId());
+
+        OrderRow order = lockOrder(orderId);
+        if (order.status() == OrderStatus.CLOSED || order.status() == OrderStatus.CANCELLED)
+            throw new AuthException(409, "El pedido ya no admite nuevos productos.");
+        Account account = lockAccount(order.accountId());
+        if (!"OPEN".equals(account.status()))
+            throw new AuthException(409, "La cuenta ya no admite productos nuevos.");
+
+        List<Product> products = loadProducts(lines);
+        if (products.size() != lines.size())
+            throw new AuthException(422, "Uno o más productos ya no están disponibles.");
+        if (products.stream().anyMatch(product -> !product.currencyId().equals(order.currencyId())))
+            throw new AuthException(422, "No se pueden mezclar monedas en un pedido.");
+
+        List<NewLine> newLines = new ArrayList<>();
+        for (int index = 0; index < products.size(); index++) {
+            newLines.add(insertLine(orderId, products.get(index), lines.get(index)));
+        }
+        recalcTotals(orderId, actor);
+        enqueueTickets(actor, requestId, orderId, newLines);
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            VALUES (?, 'ORDER_ITEMS_ADDED', 'ORDER', ?,
+                    jsonb_build_object('lines', ?, 'quantity', ?), 'SUCCESS', ?)
+            """, actor, orderId, lines.size(),
+                newLines.stream().mapToInt(NewLine::quantity).sum(), requestId);
+        idempotency.complete(actor.toString(), "ORDER_ITEMS_ADDED", idempotencyKey, orderId);
+        return details(orderId);
+    }
+
+    @Transactional
+    public UUID createPickupOrder(UUID actor, UUID requestId, String accountName,
+                                  List<OperationalOrderController.OrderLineRequest> requestedLines) {
+        List<OperationalOrderController.OrderLineRequest> lines = requestedLines.stream()
+                .map(line -> new OperationalOrderController.OrderLineRequest(
+                        line.menuItemId(), line.quantity(), "TAKEAWAY", line.notes()))
+                .toList();
+        List<Product> products = loadProducts(lines);
+        if (products.size() != lines.size())
+            throw new AuthException(422, "Uno o más productos de la solicitud ya no están disponibles.");
+        UUID currencyId = products.getFirst().currencyId();
+        if (products.stream().anyMatch(product -> !product.currencyId().equals(currencyId)))
+            throw new AuthException(422, "No se pueden mezclar monedas en un pedido.");
+
+        UUID accountId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO wok.order_accounts (id, dining_table_id, name, status, opened_by, created_by, updated_by)
+            VALUES (?, NULL, ?, 'OPEN', ?, ?, ?)
+            """, accountId, accountName, actor, actor, actor);
+
+        UUID orderId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO wok.orders
+                (id, code, account_id, dining_table_id, channel, status, currency_id, guest_count, opened_by, updated_by)
+            VALUES (?, ?, ?, NULL, 'PICKUP', 'SENT', ?, 1, ?, ?)
+            """, orderId, nextCode(), accountId, currencyId, actor, actor);
+
+        List<NewLine> newLines = new ArrayList<>();
+        for (int index = 0; index < products.size(); index++) {
+            newLines.add(insertLine(orderId, products.get(index), lines.get(index)));
+        }
+        recalcTotals(orderId, actor);
+        enqueueTickets(actor, requestId, orderId, newLines);
+        jdbc.update("""
+            INSERT INTO wok.order_status_history (order_id, from_status, to_status, actor_user_id, request_id)
+            VALUES (?, NULL, 'SENT', ?, ?)
+            """, orderId, actor, requestId);
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            VALUES (?, 'ORDER_OPENED', 'ORDER', ?,
+                    jsonb_build_object('status', 'SENT', 'channel', 'PICKUP', 'lines', ?), 'SUCCESS', ?)
+            """, actor, orderId, lines.size(), requestId);
+        return orderId;
     }
 
     @Transactional
@@ -325,30 +410,59 @@ class OrderService {
         return found.getFirst();
     }
 
-    private void enqueueTickets(UUID actor, UUID requestId, UUID orderId, List<Product> products,
-                                List<OperationalOrderController.OrderLineRequest> lines) {
-        Map<UUID, List<Integer>> byStation = new LinkedHashMap<>();
-        for (int index = 0; index < products.size(); index++) {
-            Product product = products.get(index);
-            byStation.computeIfAbsent(product.preparationAreaId(), key -> new ArrayList<>()).add(index);
+    private NewLine insertLine(UUID orderId, Product product,
+                                OperationalOrderController.OrderLineRequest line) {
+        UUID orderItemId = jdbc.queryForObject("""
+            INSERT INTO wok.order_items
+                (order_id, menu_item_id, name_snapshot, quantity, unit_price, preparation_area_id,
+                 fulfillment, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+            """, UUID.class, orderId, product.id(), product.name(), line.quantity(), product.price(),
+                product.preparationAreaId(), line.fulfillment() == null ? "DINE_IN"
+                    : line.fulfillment().trim().toUpperCase(),
+                line.notes() == null || line.notes().isBlank() ? null : line.notes().trim());
+        return new NewLine(orderItemId, product, line.quantity());
+    }
+
+    private void recalcTotals(UUID orderId, UUID actor) {
+        jdbc.update("""
+            UPDATE wok.orders o
+            SET subtotal = totals.subtotal, total = totals.subtotal - o.discount, updated_at = now(),
+                updated_by = ?, row_version = row_version + 1
+            FROM (SELECT COALESCE(sum(line_total), 0) AS subtotal FROM wok.order_items WHERE order_id = ?)
+                totals
+            WHERE o.id = ? AND o.subtotal <> totals.subtotal
+            """, actor, orderId, orderId);
+    }
+
+    private OrderRow lockOrder(UUID orderId) {
+        List<OrderRow> rows = jdbc.query("""
+            SELECT id, account_id, status, currency_id FROM wok.orders WHERE id = ? FOR UPDATE
+            """, (rs, row) -> new OrderRow(rs.getObject("id", UUID.class), rs.getObject("account_id", UUID.class),
+                OrderStatus.valueOf(rs.getString("status")), rs.getObject("currency_id", UUID.class)), orderId);
+        if (rows.isEmpty()) throw new AuthException(404, "No encontramos el pedido.");
+        return rows.getFirst();
+    }
+
+    private void enqueueTickets(UUID actor, UUID requestId, UUID orderId, List<NewLine> newLines) {
+        Map<UUID, List<NewLine>> byStation = new LinkedHashMap<>();
+        for (NewLine line : newLines) {
+            byStation.computeIfAbsent(line.product().preparationAreaId(), key -> new ArrayList<>()).add(line);
         }
-        int sequence = 1;
-        for (Map.Entry<UUID, List<Integer>> entry : byStation.entrySet()) {
-            List<Integer> indexes = entry.getValue();
+        int sequence = nextTicketSequence(orderId);
+        for (Map.Entry<UUID, List<NewLine>> entry : byStation.entrySet()) {
             int preparationSeconds = 0;
             UUID ticketId = UUID.randomUUID();
             jdbc.update("""
                 INSERT INTO wok.kitchen_tickets (id, order_id, sequence_no, station_id, status)
                 VALUES (?, ?, ?, ?, 'QUEUED')
                 """, ticketId, orderId, sequence, entry.getKey());
-            for (int index : indexes) {
-                Product product = products.get(index);
-                preparationSeconds = Math.max(preparationSeconds, product.preparationSeconds());
+            for (NewLine line : entry.getValue()) {
+                preparationSeconds = Math.max(preparationSeconds, line.product().preparationSeconds());
                 jdbc.update("""
                     INSERT INTO wok.kitchen_ticket_items (ticket_id, order_item_id, quantity, action)
-                    SELECT ?, i.id, ?, 'NEW' FROM wok.order_items i
-                    WHERE i.order_id = ? AND i.menu_item_id = ?
-                    """, ticketId, lines.get(index).quantity(), orderId, product.id());
+                    VALUES (?, ?, ?, 'NEW')
+                    """, ticketId, line.orderItemId(), line.quantity());
             }
             scheduleEta(ticketId, entry.getKey(), preparationSeconds);
             jdbc.update("""
@@ -357,6 +471,13 @@ class OrderService {
                 """, ticketId, actor, requestId);
             sequence++;
         }
+    }
+
+    private int nextTicketSequence(UUID orderId) {
+        Integer max = jdbc.queryForObject("""
+            SELECT COALESCE(max(sequence_no), 0) FROM wok.kitchen_tickets WHERE order_id = ?
+            """, Integer.class, orderId);
+        return (max == null ? 0 : max) + 1;
     }
 
     /**
@@ -462,6 +583,19 @@ class OrderService {
         }
     }
 
+    private String itemsFingerprint(UUID orderId, List<OperationalOrderController.OrderLineRequest> lines) {
+        String canonical = orderId + "\n" + lines.stream()
+                .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
+                        + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()))
+                .reduce((a, b) -> a + "\n" + b).orElse("");
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
     private String nextCode() {
         Integer sequence = jdbc.queryForObject("SELECT nextval('wok.order_code_seq')", Integer.class);
         ZonedDateTime now = ZonedDateTime.now(RESTAURANT_ZONE);
@@ -491,6 +625,8 @@ class OrderService {
     record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currencyCode,
                    UUID preparationAreaId, String preparationAreaCode, int preparationSeconds) {}
     record Account(UUID id, UUID diningTableId, String status) {}
+    record NewLine(UUID orderItemId, Product product, int quantity) {}
+    record OrderRow(UUID id, UUID accountId, OrderStatus status, UUID currencyId) {}
 
     public record OrderSummary(UUID id, String code, String status, String channel, BigDecimal subtotal,
                                BigDecimal discount, BigDecimal total, int guestCount, Instant openedAt, Instant closedAt,

@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/operational/tables")
-@PreAuthorize("hasAnyRole('OPERATIONAL', 'ADMIN')")
+@PreAuthorize("hasAuthority('tables:manage')")
 public class OperationalTableController {
     private final TableService tables;
 
@@ -51,6 +51,7 @@ public class OperationalTableController {
     }
 
     @PostMapping("/{tableId}/open")
+    @PreAuthorize("hasAuthority('accounts:manage')")
     public TableService.TableView open(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID tableId,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId) {
@@ -58,6 +59,7 @@ public class OperationalTableController {
     }
 
     @PostMapping("/{tableId}/close")
+    @PreAuthorize("hasAuthority('accounts:manage')")
     public TableService.TableView close(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID tableId,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId) {
@@ -87,7 +89,7 @@ class TableService {
             FROM wok.dining_tables t
             LEFT JOIN LATERAL (
                 SELECT a.id, a.name, a.status FROM wok.order_accounts a
-                WHERE a.dining_table_id = t.id AND a.status IN ('OPEN', 'IN_COBRO')
+                WHERE a.dining_table_id = t.id AND a.status IN ('OPEN', 'IN_COBRO', 'PAID')
                 ORDER BY a.opened_at DESC LIMIT 1
             ) account ON true
             WHERE (CAST(? AS text) IS NULL OR t.current_status = CAST(? AS text))
@@ -155,14 +157,14 @@ class TableService {
 
         List<UUID> openAccounts = jdbc.query("""
             SELECT id FROM wok.order_accounts
-            WHERE dining_table_id = ? AND status IN ('OPEN', 'IN_COBRO')
+            WHERE dining_table_id = ? AND status IN ('OPEN', 'IN_COBRO', 'PAID')
             FOR UPDATE
             """, (rs, row) -> rs.getObject(1, UUID.class), tableId);
         for (UUID accountId : openAccounts) {
             jdbc.update("""
                 UPDATE wok.order_accounts
                 SET status = 'CLOSED', closed_at = now(), updated_at = now(), updated_by = ?, row_version = row_version + 1
-                WHERE id = ? AND status IN ('OPEN', 'IN_COBRO')
+                WHERE id = ? AND status IN ('OPEN', 'IN_COBRO', 'PAID')
                 """, actor, accountId);
         }
         changeStatus(actor, requestId, tableId, current.status(), "CLEANING");
@@ -203,7 +205,7 @@ class TableService {
             FROM wok.dining_tables t
             LEFT JOIN LATERAL (
                 SELECT a.id, a.name, a.status FROM wok.order_accounts a
-                WHERE a.dining_table_id = t.id AND a.status IN ('OPEN', 'IN_COBRO')
+                WHERE a.dining_table_id = t.id AND a.status IN ('OPEN', 'IN_COBRO', 'PAID')
                 ORDER BY a.opened_at DESC LIMIT 1
             ) account ON true
             WHERE t.id = ?
