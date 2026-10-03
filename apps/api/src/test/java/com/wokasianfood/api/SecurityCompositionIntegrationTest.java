@@ -40,6 +40,7 @@ class SecurityCompositionIntegrationTest {
         properties.add("wok.auth.challenge-pepper-base64",
                 () -> "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=");
         properties.add("wok.email.poll-ms", () -> "3600000");
+        properties.add("wok.auth.issuer", () -> "https://identity.wok.test");
     }
 
     @Test
