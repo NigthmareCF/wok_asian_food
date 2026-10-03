@@ -254,6 +254,12 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                 WHERE cash_session_id = ? AND movement_type = 'INCOME' AND reason = 'Propina de cuenta'
                 """, sessionId)).isEqualTo(1);
 
+        JsonNode session = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
+        assertThat(session.path("breakdown").path("sales").decimalValue()).isEqualByComparingTo("50.00");
+        assertThat(session.path("breakdown").path("tips").decimalValue()).isEqualByComparingTo("5.00");
+        assertThat(session.path("breakdown").path("otherIncome").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(session.path("breakdown").path("expectedCash").decimalValue()).isEqualByComparingTo("55.00");
+
         JsonNode details = body(get("/api/v1/operational/accounts/" + accountId, token));
         assertThat(details.path("paid").decimalValue()).isEqualByComparingTo("50.00");
         assertThat(details.path("tips").decimalValue()).isEqualByComparingTo("5.00");
