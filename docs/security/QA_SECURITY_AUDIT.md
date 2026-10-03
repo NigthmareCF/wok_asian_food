@@ -60,6 +60,13 @@ El sistema aún no debe presentarse como una integración completa de todos los 
 - Corrección: los DTO de registro y restablecimiento aplican ahora esa política en el backend. Las entradas de autenticación también limitan correo, contraseña, código y tipo de cliente para evitar valores nulos o excesivamente grandes.
 - Verificación pendiente: ejecutar las pruebas Java y añadir casos HTTP de contraseña débil al recuperar el entorno.
 
+### QA-SEC-006: manejo uniforme de errores inesperados
+
+- Severidad: media.
+- Riesgo: la API no tenía una respuesta explícita y uniforme para errores inesperados. Según la configuración del entorno, una falla podía devolver detalles inconsistentes o difíciles de consumir desde Web y móvil.
+- Corrección: las excepciones de negocio con estado HTTP conservan su mensaje controlado; cualquier error no previsto responde `500` con un mensaje genérico, sin detalles internos.
+- Verificación pendiente: ejecutar las pruebas Java y provocar una falla controlada en el entorno integrado para confirmar que no se exponen trazas ni SQL.
+
 ## Estado de rutas y sesiones
 
 | Capa | Estado | Observación |
