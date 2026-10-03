@@ -8,6 +8,11 @@
 - Regresiones: nueva sesion en el mismo segundo del cambio de clave aceptada; sesiones anteriores invalidadas rechazadas. Maven verify: 88 pruebas aprobadas.
 - Prueba real con PostgreSQL: recuperacion y login inmediato aprobados. Sin nuevas migraciones, secretos ni modificaciones a cuentas de colaboradores; se uso una cuenta local desechable.
 
+### Regresión automatizada de seguridad y startup
+
+- Se añadieron dependencias test-scope de Testcontainers PostgreSQL/JUnit y `SecurityCompositionIntegrationTest`. El test crea una PostgreSQL18 aislada, arranca el contexto real (incluyendo Flyway) y verifica health/OpenAPI/menú público 200 y cola Operativa 401 sin token.
+- `mvn test`: 46/46 pruebas; integration test ejecutó (no skip) con Testcontainers/Docker. Esto convierte el smoke del conflicto de filtros en una regresión automatizada. No cubre todavía login/ownership A-vs-B ni todos los permisos.
+
 ## 2026-09-26 — Reparto en ramas del backend
 
 - Los worktrees `feature/backend-foundation`, `feature/backend-auth`, `feature/backend-api`, `feature/reservations`, `feature/availability`, `feature/ai` y `feature/payments` están sobre `3bbd0ed`; los paquetes se distribuyeron sin duplicar la aplicación Maven en ramas de dominio.
