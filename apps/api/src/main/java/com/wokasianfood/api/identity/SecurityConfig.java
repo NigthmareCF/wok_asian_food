@@ -79,7 +79,12 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // Bearer-only API; web refresh cookies require a separate CSRF design.
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health/**", "/api/v1/openapi/**", "/swagger-ui/**").permitAll()
+                .requestMatchers(
+                    "/actuator/health/**",
+                    "/actuator/info",
+                    "/api/v1/openapi/**",
+                    "/swagger-ui.html",
+                    "/swagger-ui/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/verify", "/api/v1/auth/verify/resend", "/api/v1/auth/login",
                     "/api/v1/auth/refresh", "/api/v1/auth/reset/request", "/api/v1/auth/reset/complete", "/api/v1/auth/google").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/public/**").permitAll()
