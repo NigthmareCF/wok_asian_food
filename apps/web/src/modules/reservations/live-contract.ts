@@ -116,11 +116,11 @@ export function isOperationalPendingReservations(
         Number(item.guests) > 0 &&
         instant(item.reservationAt) &&
         instant(item.estimatedEndAt) &&
-        (item.notes === null || typeof item.notes === "string") &&
+        (item.notes == null || typeof item.notes === "string") &&
         Number.isSafeInteger(item.rowVersion) &&
         Number(item.rowVersion) > 0 &&
         typeof item.customerName === "string" &&
-        (item.email === null || typeof item.email === "string"),
+        (item.email == null || typeof item.email === "string"),
     )
   );
 }

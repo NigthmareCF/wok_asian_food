@@ -52,9 +52,9 @@ export function isOperationalTable(value: unknown): value is OperationalTable {
     return false;
 
   const noAccount =
-    value.accountId === null &&
-    value.accountName === null &&
-    value.accountStatus === null;
+    value.accountId == null &&
+    value.accountName == null &&
+    value.accountStatus == null;
   const account =
     isUuid(value.accountId) &&
     typeof value.accountName === "string" &&
