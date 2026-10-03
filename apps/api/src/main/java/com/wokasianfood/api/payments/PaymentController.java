@@ -191,6 +191,7 @@ class PaymentService {
             JOIN wok.cash_registers r ON r.id = s.cash_register_id
             WHERE r.code = ? AND s.status IN ('OPEN', 'CLOSING')
             ORDER BY s.opened_at DESC LIMIT 1
+            FOR UPDATE OF s
             """, (rs, row) -> rs.getObject(1, UUID.class), registerCode);
         return ids.isEmpty() ? null : ids.getFirst();
     }

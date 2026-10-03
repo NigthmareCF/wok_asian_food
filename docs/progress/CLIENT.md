@@ -322,3 +322,59 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Pruebas de codigo y recorridos reales documentados en [Navegacion y sesion Web](../frontend/NAVIGATION_SESSION_QA.md).
 - Verificacion: 279 pruebas Web aprobadas en 44 archivos, lint, TypeScript y build de produccion aprobados.
 - Pendientes: conectar catalogo, checkout, reservas, seguimiento y mensajes a sus APIs. Perfil y cambio de clave dentro de la sesion siguen demostrativos; no considerar el frontend integrado al 100%.
+
+## 2026-10-02 — Primera conexión del catálogo público
+
+- `/menu` consume `/bff/menu`, que consulta `GET /api/v1/public/menu` desde Next.js con timeout de 8 segundos, sin caché ni credenciales de usuario. No hay fallback a fixtures.
+- Contrato validado antes de renderizar; categorías e identificadores vienen de PostgreSQL. Se muestran moneda, precio, descripción y preparación estimada sin inferir existencias ni modificadores.
+- Incluye carga, error neutral, reintento, vacío, búsqueda sin distinción de tildes y filtros por categorías reales. Los productos de este catálogo todavía no se envían al carrito simulado.
+- Archivos: `modules/menu/public-menu.ts`, `modules/menu/server/public-menu.ts`, `modules/menu/components/live-menu-catalog.tsx`, `app/bff/menu/route.ts`, sus pruebas y `app/(public)/menu/page.tsx`.
+- Validación: 286 pruebas en 46 archivos aprobadas (7 nuevas); lint y TypeScript sin errores; build de producción aprobado dentro de Docker; `/bff/menu` HTTP 200 con Cache-Control no-store y mismo catálogo vacío que la API. Navegador: estado vacío correcto. No se cargaron productos de demostración.
+- `format:check` global reporta 331 archivos preexistentes; archivos nuevos/editados de esta entrega formateados. No se completó validación visual en los cuatro tamaños de pantalla.
+- Pendiente: catálogo con productos reales, integración de carrito/checkout y solicitudes autenticadas, historial, reservas, mensajes y demás canales. El inicio y las rutas de detalle antiguas aún usan fixtures; esta entrega no completa esos flujos.
+
+## 2026-10-02 — Carrito del catálogo real (sección C-05)
+
+- El catálogo permite agregar productos por su identificador real. El carrito en `/client/cart` permite aumentar/disminuir cantidades (1–100), eliminar artículos y consultar precios actuales desde `/bff/menu`.
+- Borrador guardado en sessionStorage bajo `wok.cart.catalog.v1`, separado del carrito fixture. Persiste al recargar en la misma pestaña y se limpia al cerrar sesión. Guarda identificador, nombre y cantidad, nunca precios como autoridad.
+- Errores del catálogo conservan el borrador y permiten reintentar. Productos retirados permanecen visibles para eliminarlos; no se calcula un subtotal completo si faltan productos. Los subtotales se separan por moneda y usan centavos.
+- El checkout de este carrito permanece deshabilitado: no se crean solicitudes ni se reservan existencias. El flujo fixture antiguo sigue aislado para su posterior sustitución.
+- Datos locales: se cargó únicamente el bloque de catálogo de `database/seeds/dev_demo.sql`, autorizado por el usuario: Gyozas de cerdo Q68 y referencias necesarias. No se cargaron mesas ni cuentas adicionales.
+- Validación: suite general 285/291 inicialmente; las 6 regresiones del contador antiguo se corrigieron y pasaron en la ejecución focalizada (15/15 entre carrito antiguo, nuevo y catálogo). Lint y TypeScript aprobados; build de Docker aprobado. Navegador con API real: producto Q68 visible, agregar actualiza contador, recargar conserva cantidad y abrir carrito sin sesión dirige al login conservando `next`.
+- Pruebas automatizadas de integración: agregar desde catálogo, contador, remontaje/persistencia, cantidades, eliminación, precio actualizado (ignora precio manipulado en storage), producto retirado, fallo/reintento de API, limpieza al logout y validación de borradores/límites.
+- Límite de QA: edición dentro del carrito autenticado comprobada con pruebas de componentes; no se inició sesión Cliente en el navegador ni se completó comprobación visual de cuatro tamaños. Checkout y envío real pendientes de la próxima sección.
+
+## 2026-10-02 — Checkout real para recoger (sección C-09 pickup)
+
+- `/client/checkout` usa el carrito del catálogo real y permite elegir fecha/hora local del dispositivo y nota opcional. Solo PICKUP: delivery, pagos e historial quedan fuera de esta entrega.
+- Nuevo POST `/bff/order-requests`: exige origen del navegador, lee access token HttpOnly en servidor y envía únicamente horario, nota e identificadores/cantidades a `/api/v1/client/order-requests`. El backend conserva la autoridad sobre roles, precios, productos y preparación. No se exponen tokens al navegador.
+- Límites alineados con API y SQL: hasta 20 productos distintos, 50 unidades por línea, nota de 500 caracteres. Se exige catálogo vigente, una moneda y horario posterior a preparación estimada. Backend vuelve a validar.
+- Clave idempotente y cuerpo se persisten por usuario antes de enviar. Fallos de red/5xx conservan exactamente el mismo envío incluso tras recargar. 401 permite recuperar sesión. El comprobante muestra estado al recibirlo y subtotal real; se vacían únicamente las líneas del carrito que coinciden con las enviadas.
+- Pruebas: suite web 308 pruebas en 49 archivos aprobadas; corrección posterior del tipado de casos parametrizados validada con 14 pruebas BFF y TypeScript. Lint aprobado; compilación y despliegue Docker aprobados tras esa corrección.
+- Prueba real autorizada: cuenta Cliente demo registrada y verificada mediante Mailpit; navegador recorrió menú → carrito → checkout → comprobante. Solicitud `ae2bba4f-140a-46d2-92a9-0a7a43ebdc6b`: una unidad de gyozas, Q68, inicialmente PENDING_REVIEW. Repetición vía BFF devolvió el mismo ID y `idempotentReplay=true`; SQL confirmó un solo registro. La solicitud fue cancelada por API al concluir y queda CANCELLED para trazabilidad.
+- Seguridad comprobada contra el servidor: envío anónimo 401; cuenta ADMIN sin rol CLIENT 403. No se realizaron cobros ni se alteraron roles existentes.
+- Pendiente de la siguiente sección: historial/detalle actualizado de solicitudes y cancelación desde la interfaz. El comprobante persistido es una fotografía de la respuesta, no seguimiento en tiempo real. La validación responsive en cuatro tamaños sigue pendiente.
+
+## 2026-10-02 — Historial, detalle y cancelación de solicitudes pickup (C-10)
+
+- `/client/orders` muestra las últimas 50 solicitudes para recoger desde la API; `/client/orders/[orderId]` consulta el detalle persistido, líneas, cantidades, importes, nota y estado. Se eliminó el uso de fixtures en estas dos rutas. Delivery y seguimiento de pedidos aceptados siguen fuera del alcance.
+- Nuevos GET del BFF para historial/detalle y DELETE para cancelar. JWT se lee solo de cookie HttpOnly en servidor; rutas por UUID validado, respuestas sin caché, errores neutrales y validación del contrato/ID. DELETE exige origen válido. Backend conserva la autorización por rol y propiedad del registro.
+- Confirmación explícita antes de cancelar, acción disponible solo en PENDING_REVIEW, protección frente a doble envío, refresco del detalle tras éxito/error. Un 409 o resultado incierto no se presenta como cancelación confirmada. Carga, vacío, error, reintento, sesión vencida y solicitud inexistente cubiertos.
+- El comprobante de checkout incluye un enlace al estado actual de la solicitud.
+- Validación: 327 pruebas en 51 archivos aprobadas, incluidas 19 nuevas. Se corrigió una opción de Testing Library no admitida por TypeScript; las 6 pruebas de interfaz afectadas se repitieron correctamente. Lint, TypeScript y build de Docker aprobados; web desplegada localmente.
+- Prueba real: cuenta Cliente demo abrió historial y detalle de `357e3903-57be-4667-aba2-934b2dfe893b` (Gyozas Q68), confirmó la cancelación desde la UI y recargó: estado CANCELLED persistente. La solicitud anterior cancelada también aparece en el historial.
+- Aislamiento real: segunda cuenta Cliente demo creada y verificada por Mailpit (`cliente.privacidad@wok.demo`); la solicitud ajena no aparece en su historial y GET/DELETE por ID devuelven 404. Historial anónimo devuelve 401. No se modificaron roles existentes ni solicitudes ajenas.
+- Pendiente: entrega a domicilio, reservas y mensajes, además de integración operativa. Estados se refrescan al abrir o usar Actualizar; sin realtime. No se completó validación visual en los cuatro tamaños de pantalla.
+
+## 2026-10-02 — Delivery, reservas y mensajes conectados
+
+- Cliente: `/client/delivery` usa carrito y catálogo reales, dirección, referencia, teléfono, fecha/hora y preferencia de pago. Historial y detalle persistidos en `/client/delivery/history` y `/client/delivery/[requestId]`. No simula cobros, cobertura, costo de envío ni confirmación del restaurante. No hay DELETE de delivery en el contrato disponible.
+- Reservas: `/client/reservations/new` envía solicitud real, muestra resultado/historial y permite cancelar únicamente REQUESTED con confirmación. El resultado inicial se distingue del estado actual. Se envía preorder=false; no se inventa una preorden sin productos.
+- Mensajes: `/client/messages` abre/reutiliza conversación APP, consulta historial y envía mensajes al backend. `/operation/messages` recibe y responde desde la bandeja compartida real. Actualización manual; sin adjuntos ni realtime.
+- BFF: cookies HttpOnly, origen obligatorio para mutaciones, rutas y UUID acotados, listas blancas de campos, validación de respuestas y errores neutrales, no-store. Autorización por rol/propiedad permanece en API. Intentos de envío persistidos por usuario/conversación en sessionStorage antes de enviar; reintentos reutilizan clave y cuerpo ante resultados inciertos.
+- Validación: lint, TypeScript y build Docker aprobados; suite completa 368 pruebas / 55 archivos. Nuevas pruebas de contratos, BFF, aislamiento de intentos, almacenamiento bloqueado y reintento tras perder respuesta/recargar. Comprobaciones funcionales reales por HTTP y navegador.
+- Delivery real: solicitudes `db8c2f22-387a-4317-85cc-1fdf647c0b2f` (HTTP) y `ce85441d-bd6a-45c3-b4c6-64f6082affd4` (navegador), Gyozas Q68, PENDING_REVIEW, marcadas PRUEBA LOCAL / no preparar ni despachar. El reintento HTTP recuperó el mismo ID. El formulario vació solo las líneas enviadas al recibir comprobante. Se conservan pendientes porque el contrato delivery no ofrece cancelación.
+- Reservas reales: solicitudes `17da357a-b326-4a77-a034-af2f29717665` y `41fff0dc-aef3-4ab8-85b7-0558530f714a`, ambas canceladas. Creación/reintento idempotente por HTTP y creación/cancelación/recarga por navegador verificadas.
+- Mensajes reales: conversación demo `2228f316-efa1-4774-a972-d16cda927234`; consulta/respuesta entre cuentas demo, reintento sin duplicado, entrada/salida de cola WAITING y lectura por cliente verificadas. Envío y respuesta también comprobados desde ambas pantallas.
+- Aislamiento real: otro cliente recibe 404 al leer delivery/conversación ajenos; cliente recibe 403 en bandeja operativa. Sin cambios de roles, credenciales, `.env`, commits o push.
+- Pendiente: integración de vistas operativas de Delivery/reservas y sus flujos posteriores; pagos reales, disponibilidad/capacidad en vivo y realtime. Esta entrega no convierte las solicitudes en pedidos confirmados. Revisión visual de escritorio realizada; matriz completa de cuatro tamaños pendiente.

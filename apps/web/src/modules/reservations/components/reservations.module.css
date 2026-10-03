@@ -149,6 +149,21 @@
   background: rgb(255 255 255 / 2%);
 }
 
+.queueActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.queueDecision {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.75rem;
+  grid-column: 1 / -1;
+  padding-top: 0.75rem;
+}
+
 .time,
 .people {
   align-items: center;

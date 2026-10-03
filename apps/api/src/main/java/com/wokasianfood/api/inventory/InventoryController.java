@@ -219,7 +219,7 @@ class InventoryService {
         jdbc.update("""
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, reason, result, request_id)
-            VALUES (?, 'INVENTORY_MOVEMENT_RECORDED', 'ITEM', ?, 
+            VALUES (?, 'INVENTORY_MOVEMENT_RECORDED', 'ITEM', ?,
                     jsonb_build_object('delta', ?, 'onHand', ?), ?, 'SUCCESS', ?)
             """, actor, itemId, delta, updated, reason, requestId);
         idempotency.complete(actor.toString(), "INVENTORY_MOVEMENT_RECORDED", idempotencyKey, movementId);
@@ -252,8 +252,11 @@ class InventoryService {
                 throw new AuthException(422, "Un item no puede ser componente de sí mismo.");
             if (!seen.add(component.componentItemId()))
                 throw new AuthException(422, "No repitas componentes en la receta.");
-            if (!activeItemExists(component.componentItemId()))
+            Boolean tracked = componentTracked(component.componentItemId());
+            if (tracked == null)
                 throw new AuthException(422, "Uno de los componentes no existe.");
+            if (!tracked)
+                throw new AuthException(422, "El componente no controla inventario.");
         }
         jdbc.update("DELETE FROM wok.item_recipe_components WHERE parent_item_id = ?", itemId);
         for (InventoryController.RecipeComponentRequest component : components) {
@@ -275,11 +278,11 @@ class InventoryService {
         if (found == null || found == 0) throw new AuthException(404, "No encontramos el item de inventario.");
     }
 
-    private boolean activeItemExists(UUID itemId) {
-        Integer found = jdbc.queryForObject("""
-            SELECT count(*) FROM wok.items WHERE id = ? AND active = true
-            """, Integer.class, itemId);
-        return found != null && found > 0;
+    private Boolean componentTracked(UUID itemId) {
+        List<Boolean> found = jdbc.query("""
+            SELECT track_inventory FROM wok.items WHERE id = ? AND active = true
+            """, (rs, row) -> rs.getBoolean("track_inventory"), itemId);
+        return found.isEmpty() ? null : found.getFirst();
     }
 
     private ItemRow item(UUID itemId) {
@@ -314,7 +317,7 @@ class InventoryService {
         BigDecimal available = onHand.subtract(reserved);
         String status;
         if (!trackInventory) status = "UNTRACKED";
-        else if (onHand.signum() <= 0) status = "OUT";
+        else if (available.signum() <= 0) status = "OUT";
         else if (available.compareTo(minimum) <= 0) status = "LOW";
         else status = "OK";
         return new InventoryItem(rs.getObject("id", UUID.class), rs.getString("sku"), rs.getString("name"),
