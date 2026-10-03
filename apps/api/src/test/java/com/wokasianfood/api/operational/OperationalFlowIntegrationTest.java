@@ -128,7 +128,7 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         String idempotencyKey = UUID.randomUUID().toString();
         String payload = """
                 {"accountId":"%s","channel":"DINE_IN","guestCount":2,"items":[
-                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN","notes":"Sin cebolla"}]}
                 """.formatted(accountId, menuItemId);
 
         var first = post("/api/v1/operational/orders", token, payload, Map.of("Idempotency-Key", idempotencyKey));
@@ -142,6 +142,9 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         var conflicting = post("/api/v1/operational/orders", token,
                 payload.replace("\"guestCount\":2", "\"guestCount\":3"), Map.of("Idempotency-Key", idempotencyKey));
         assertThat(conflicting.statusCode()).isEqualTo(409);
+        var conflictingNotes = post("/api/v1/operational/orders", token,
+                payload.replace("Sin cebolla", "Con cebolla"), Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(conflictingNotes.statusCode()).isEqualTo(409);
         assertThat(count("SELECT count(*) FROM wok.orders WHERE account_id = ?", accountId)).isEqualTo(1);
     }
 
@@ -213,7 +216,7 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
 
         String idempotencyKey = UUID.randomUUID().toString();
         String payload = """
-                {"items":[{"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                {"items":[{"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN","notes":"Sin picante"}]}
                 """.formatted(extraItem);
 
         assertThat(post("/api/v1/operational/orders/" + orderId + "/items", token, payload,
@@ -227,6 +230,9 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         var conflicting = post("/api/v1/operational/orders/" + orderId + "/items", token,
                 payload.replace("\"quantity\":1", "\"quantity\":3"), Map.of("Idempotency-Key", idempotencyKey));
         assertThat(conflicting.statusCode()).isEqualTo(409);
+        var conflictingNotes = post("/api/v1/operational/orders/" + orderId + "/items", token,
+                payload.replace("Sin picante", "Muy picante"), Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(conflictingNotes.statusCode()).isEqualTo(409);
         assertThat(count("SELECT count(*) FROM wok.order_items WHERE order_id = ?", orderId)).isEqualTo(2);
 
         assertThat(changeOrderStatus(token, orderId, "CANCELLED").path("status").asText()).isEqualTo("CANCELLED");

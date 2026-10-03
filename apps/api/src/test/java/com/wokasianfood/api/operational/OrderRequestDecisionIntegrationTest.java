@@ -124,6 +124,30 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 .isNull();
     }
 
+    @Test
+    void keepsDeliveryRequestPendingUntilItsOperationalFlowExists() {
+        UUID menuItemId = seedMenuItem("Wok Delivery", "18.00", "WOK_DELIVERY_DECISION", 60);
+        UUID requestId = UUID.fromString(submit(tokenForRole("CLIENT"), menuItemId, 1,
+                Instant.now().plusSeconds(600).toString()).path("requestId").asText());
+        jdbc.update("""
+                UPDATE wok.order_requests
+                SET fulfillment_type = 'DELIVERY', delivery_address = 'Zona 1, Ciudad de Guatemala',
+                    contact_phone = '+502 5555-0101', payment_preference = 'CASH_ON_DELIVERY'
+                WHERE id = ?
+                """, requestId);
+
+        var response = post("/api/v1/operational/order-requests/" + requestId + "/decision",
+                tokenForRole("OPERATIONAL"), """
+                {"action":"ACCEPT"}
+                """);
+
+        assertThat(response.statusCode()).isEqualTo(422);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, requestId))
+                .isEqualTo("PENDING_REVIEW");
+        assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class, requestId))
+                .isNull();
+    }
+
     private JsonNode body(HttpResponse<String> response) {
         assertThat(response.statusCode()).as("body %s", response.body()).isBetween(200, 299);
         try {
