@@ -83,11 +83,11 @@ class ProductionIntegrationTest extends PostgresIntegrationTest {
 
         UUID untracked = createItem("LIBRE", "Insumo libre", false, "0");
         UUID untrackedProduct = createItem("CONLIBRE", "Producto con libre", true, "0");
-        putRecipe(token, untrackedProduct, untracked, "1");
-        var untrackedResponse = send("POST", "/api/v1/operational/production/batches", token, """
-                {"producedItemId":"%s","quantity":1}
-                """.formatted(untrackedProduct), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
-        assertThat(untrackedResponse.statusCode()).isEqualTo(422);
+        var untrackedRecipe = send("PUT", "/api/v1/operational/inventory/items/" + untrackedProduct + "/recipe",
+                token, """
+                {"components":[{"componentItemId":"%s","quantity":1}]}
+                """.formatted(untracked), Map.of());
+        assertThat(untrackedRecipe.statusCode()).isEqualTo(422);
 
         UUID producedForForbidden = createItem("PERMISO", "Producto permiso", true, "0");
         putRecipe(token, producedForForbidden, createItem("BASE", "Base", true, "0"), "1");

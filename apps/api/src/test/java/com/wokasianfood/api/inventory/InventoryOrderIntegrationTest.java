@@ -91,6 +91,36 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
                 {"components":[{"componentItemId":"%s","quantity":1}]}
                 """.formatted(componentId), Map.of());
         assertThat(forbidden.statusCode()).isEqualTo(403);
+
+        UUID untracked = createItem("EMPAQUE", "Empaque", "0", false);
+        var untrackedComponent = send("PUT", "/api/v1/operational/inventory/items/" + parentItemId + "/recipe",
+                token, """
+                {"components":[{"componentItemId":"%s","quantity":1}]}
+                """.formatted(untracked), Map.of());
+        assertThat(untrackedComponent.statusCode()).isEqualTo(422);
+    }
+
+    @Test
+    void marksAvailabilityZeroAsOutEvenWhenStockRemains() {
+        UUID actor = createUserWithRole("inventario-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID componentId = createItem("CAMARON", "Camaron", "0");
+        jdbc.update("""
+                INSERT INTO wok.inventory_balances (item_id, quantity_on_hand) VALUES (?, 2)
+                """, componentId);
+        UUID parentItemId = createItem("PLATO", "Pizza Wok", "0");
+        UUID menuItemId = createMenuItem(parentItemId, "30.00", token);
+        body(send("PUT", "/api/v1/operational/inventory/items/" + parentItemId + "/recipe", token, """
+                {"components":[{"componentItemId":"%s","quantity":2}]}
+                """.formatted(componentId), Map.of()));
+
+        UUID accountId = createAccount(actor, "Cuenta sin disponible");
+        openOrder(token, accountId, menuItemId, 1);
+
+        assertThat(available(token, componentId)).isEqualByComparingTo("0");
+        assertThat(onHand(token, componentId)).isEqualByComparingTo("2");
+        JsonNode detail = body(get("/api/v1/operational/inventory/items/" + componentId, token));
+        assertThat(detail.path("item").path("status").asText()).isEqualTo("OUT");
     }
 
     private int transition(String token, UUID orderId, String status, int expectedVersion) {
@@ -131,6 +161,10 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
     }
 
     private UUID createItem(String skuPrefix, String name, String minimumStock) {
+        return createItem(skuPrefix, name, minimumStock, true);
+    }
+
+    private UUID createItem(String skuPrefix, String name, String minimumStock, boolean trackInventory) {
         UUID typeId = UUID.randomUUID();
         UUID unitId = UUID.randomUUID();
         jdbc.update("INSERT INTO wok.item_types (id, code, name) VALUES (?, ?, ?)",
@@ -142,8 +176,8 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
         UUID itemId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO wok.items (id, sku, name, item_type_id, base_unit_id, track_inventory, minimum_stock)
-                VALUES (?, ?, ?, ?, ?, true, ?::numeric)
-                """, itemId, uniqueCode(skuPrefix), name, typeId, unitId, minimumStock);
+                VALUES (?, ?, ?, ?, ?, ?, ?::numeric)
+                """, itemId, uniqueCode(skuPrefix), name, typeId, unitId, trackInventory, minimumStock);
         return itemId;
     }
 
