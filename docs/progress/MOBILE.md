@@ -1,5 +1,12 @@
 # Progreso de planificación móvil
 
+## 2026-10-03 — Validación móvil dentro del candidato de integración
+
+- Se integró localmente `fix/mobile-client-flow` (`ff6e461`) sobre la versión remota vigente `feature/mobile-shell` (`0d645fa`), preservando la corrección que separa el estado de Mi cuenta e historial pickup al cambiar de sesión.
+- En el worktree candidato, `npm test`, `npm run lint` y `npm run typecheck` pasaron; `npx expo export --platform android --platform web` generó los bundles y 15 rutas estáticas. No se instalaron dependencias: se reutilizó el cache local del worktree móvil.
+- La app continúa siendo Cliente y consume la API WOK; este resultado verifica compilación/export, no APK/IPA, instalación en teléfono ni E2E de todos los flujos. La API ya integrada en el candidato amplía las capacidades de backend disponibles, pero todavía faltan conectar en app catálogo, checkout, pedidos, pagos, facturas y seguimiento, y cubrir Google OIDC/mensajería con pruebas end-to-end.
+- No se hicieron nuevos cambios de código móvil en esta etapa. El candidato se mantiene separado de `development` para revisión.
+
 ## 2026-10-02 — Aislar estado en memoria al cambiar de cuenta
 
 - Las pantallas de Pickup (`orders`) y Mi cuenta se remontan al cambiar el correo de sesión. Esto descarta el historial, perfil, sesiones, formularios y avisos anteriores mientras se carga la cuenta nueva, e impide que resultados tardíos del árbol anterior se muestren en el árbol activo.
