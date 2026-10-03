@@ -1,0 +1,507 @@
+package com.wokasianfood.api.orders;
+
+import com.wokasianfood.api.identity.AuthException;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/operational/orders")
+@PreAuthorize("hasAnyRole('OPERATIONAL', 'ADMIN')")
+public class OperationalOrderController {
+    private final OrderService orders;
+
+    public OperationalOrderController(OrderService orders) { this.orders = orders; }
+
+    @GetMapping
+    public List<OrderService.OrderSummary> list(@RequestParam(required = false) String status,
+                                                @RequestParam(required = false) UUID tableId) {
+        return orders.list(normalize(status), tableId);
+    }
+
+    @GetMapping("/{orderId}")
+    public OrderService.OrderDetails details(@PathVariable UUID orderId) {
+        return orders.details(orderId);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderService.OrderReceipt open(@AuthenticationPrincipal Jwt jwt,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody OpenOrderRequest request) {
+        return orders.open(UUID.fromString(jwt.getSubject()),
+                requestId == null ? UUID.randomUUID() : requestId, idempotencyKey, request);
+    }
+
+    @PatchMapping("/{orderId}/status")
+    public OrderService.OrderSummary changeStatus(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID orderId,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody StatusRequest request) {
+        return orders.changeStatus(UUID.fromString(jwt.getSubject()),
+                requestId == null ? UUID.randomUUID() : requestId, orderId, request);
+    }
+
+    public record OpenOrderRequest(@NotNull UUID accountId,
+                                   @Size(min = 2, max = 20) String channel,
+                                   @Positive int guestCount,
+                                   @Size(max = 500) String notes,
+                                   @NotEmpty @Size(max = 50) List<@Valid OrderLineRequest> items) {}
+
+    public record OrderLineRequest(@NotNull UUID menuItemId, @Positive int quantity,
+                                   @Size(min = 2, max = 20) String fulfillment,
+                                   @Size(max = 300) String notes) {}
+
+    public record StatusRequest(@NotNull OrderService.OrderStatus status, @Positive int expectedVersion,
+                                @Size(max = 300) String reason) {}
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim().toUpperCase();
+    }
+}
+
+@Service
+class OrderService {
+    private static final ZoneId RESTAURANT_ZONE = ZoneId.of("America/Guatemala");
+    private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final Map<OrderStatus, List<OrderStatus>> TRANSITIONS = Map.of(
+            OrderStatus.SENT, List.of(OrderStatus.PREPARING, OrderStatus.CANCELLED),
+            OrderStatus.PREPARING, List.of(OrderStatus.READY, OrderStatus.CANCELLED),
+            OrderStatus.READY, List.of(OrderStatus.SERVED, OrderStatus.CANCELLED),
+            OrderStatus.SERVED, List.of(OrderStatus.CLOSED),
+            OrderStatus.CLOSED, List.of(),
+            OrderStatus.CANCELLED, List.of());
+    private static final RowMapper<Product> PRODUCT_MAPPER = (rs, row) -> new Product(
+            rs.getObject("id", UUID.class), rs.getString("name"), rs.getBigDecimal("price"),
+            rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
+            rs.getObject("preparation_area_id", UUID.class), rs.getString("preparation_area_code"),
+            rs.getInt("estimated_preparation_seconds"));
+
+    private final JdbcTemplate jdbc;
+
+    OrderService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+
+    public enum OrderStatus { SENT, PREPARING, READY, SERVED, CLOSED, CANCELLED }
+
+    List<OrderSummary> list(String status, UUID tableId) {
+        return jdbc.query("""
+            SELECT o.id, o.code, o.status, o.channel, o.subtotal, o.discount, o.total, o.guest_count, o.opened_at,
+                   o.closed_at, o.row_version, o.currency_id, c.code AS currency_code,
+                   t.id AS dining_table_id, t.name AS dining_table_name,
+                   a.id AS account_id, a.name AS account_name,
+                   COALESCE(item_stats.item_count, 0) AS item_count
+            FROM wok.orders o
+            JOIN wok.currencies c ON c.id = o.currency_id
+            JOIN wok.order_accounts a ON a.id = o.account_id
+            LEFT JOIN wok.dining_tables t ON t.id = o.dining_table_id
+            LEFT JOIN LATERAL (
+                SELECT count(*) AS item_count FROM wok.order_items i WHERE i.order_id = o.id
+            ) item_stats ON true
+            WHERE (CAST(? AS text) IS NULL OR o.status = CAST(? AS text))
+              AND (CAST(? AS uuid) IS NULL OR o.dining_table_id = CAST(? AS uuid))
+            ORDER BY o.opened_at DESC, o.id DESC
+            LIMIT 200
+            """, (rs, row) -> new OrderSummary(
+                rs.getObject("id", UUID.class), rs.getString("code"), rs.getString("status"), rs.getString("channel"),
+                rs.getBigDecimal("subtotal"), rs.getBigDecimal("discount"), rs.getBigDecimal("total"),
+                rs.getInt("guest_count"), rs.getTimestamp("opened_at").toInstant(),
+                rs.getTimestamp("closed_at") == null ? null : rs.getTimestamp("closed_at").toInstant(),
+                rs.getInt("row_version"), rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
+                rs.getObject("dining_table_id", UUID.class), rs.getString("dining_table_name"),
+                rs.getObject("account_id", UUID.class), rs.getString("account_name"), rs.getInt("item_count")),
+            status, status, tableId, tableId);
+    }
+
+    public OrderDetails details(UUID orderId) {
+        List<OrderSummary> found = jdbc.query("""
+            SELECT o.id, o.code, o.status, o.channel, o.subtotal, o.discount, o.total, o.guest_count, o.opened_at,
+                   o.closed_at, o.row_version, o.currency_id, c.code AS currency_code,
+                   t.id AS dining_table_id, t.name AS dining_table_name,
+                   a.id AS account_id, a.name AS account_name,
+                   (SELECT count(*) FROM wok.order_items i WHERE i.order_id = o.id) AS item_count
+            FROM wok.orders o
+            JOIN wok.currencies c ON c.id = o.currency_id
+            JOIN wok.order_accounts a ON a.id = o.account_id
+            LEFT JOIN wok.dining_tables t ON t.id = o.dining_table_id
+            WHERE o.id = ?
+            """, summaryMapper(), orderId);
+        if (found.isEmpty()) throw new AuthException(404, "No encontramos el pedido.");
+        OrderSummary summary = found.getFirst();
+        List<OrderLine> items = jdbc.query("""
+            SELECT i.id, i.name_snapshot, i.quantity, i.unit_price, i.line_total, i.fulfillment, i.notes,
+                   i.preparation_area_id, pa.code AS preparation_area_code
+            FROM wok.order_items i
+            JOIN wok.preparation_areas pa ON pa.id = i.preparation_area_id
+            WHERE i.order_id = ? ORDER BY pa.code, i.created_at, i.id
+            """, (rs, row) -> new OrderLine(rs.getObject("id", UUID.class), rs.getString("name_snapshot"),
+                rs.getInt("quantity"), rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"),
+                rs.getString("fulfillment"), rs.getString("notes"), rs.getObject("preparation_area_id", UUID.class),
+                rs.getString("preparation_area_code")), orderId);
+        List<KitchenTicket> tickets = jdbc.query("""
+            SELECT t.id, t.sequence_no, t.status, t.claimed_by, t.ready_at, t.estimated_ready_at, t.row_version,
+                   t.station_id, pa.code AS station_code
+            FROM wok.kitchen_tickets t
+            JOIN wok.preparation_areas pa ON pa.id = t.station_id
+            WHERE t.order_id = ? ORDER BY t.sequence_no
+            """, (rs, row) -> new KitchenTicket(rs.getObject("id", UUID.class), rs.getInt("sequence_no"),
+                rs.getString("status"), rs.getObject("claimed_by", UUID.class),
+                rs.getTimestamp("ready_at") == null ? null : rs.getTimestamp("ready_at").toInstant(),
+                rs.getTimestamp("estimated_ready_at") == null ? null : rs.getTimestamp("estimated_ready_at").toInstant(),
+                rs.getInt("row_version"), rs.getObject("station_id", UUID.class), rs.getString("station_code")),
+            orderId);
+        return new OrderDetails(summary, items, tickets);
+    }
+
+    @Transactional
+    public OrderReceipt open(UUID actor, UUID requestId, UUID idempotencyKey,
+                             OperationalOrderController.OpenOrderRequest request) {
+        Channel channel = request.channel() == null ? Channel.DINE_IN : Channel.valueOf(request.channel().trim().toUpperCase());
+        String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
+        List<OperationalOrderController.OrderLineRequest> lines = normalizedLines(request.items());
+        String fingerprint = fingerprint(channel, notes, request.guestCount(), lines);
+
+        OrderDetails previous = existing(actor, idempotencyKey, fingerprint);
+        if (previous != null) return receipt(previous, true);
+
+        Account account = lockAccount(request.accountId());
+        if (account.status() != null && !"OPEN".equals(account.status()))
+            throw new AuthException(409, "La cuenta ya no admite pedidos nuevos.");
+        if (channel == Channel.DINE_IN && account.diningTableId() == null)
+            throw new AuthException(422, "El canal en salón requiere una cuenta con mesa.");
+
+        List<Product> products = loadProducts(lines);
+        if (products.size() != lines.size())
+            throw new AuthException(422, "Uno o más productos ya no están disponibles.");
+        UUID currencyId = products.getFirst().currencyId();
+        if (products.stream().anyMatch(product -> !product.currencyId().equals(currencyId)))
+            throw new AuthException(422, "No se pueden mezclar monedas en un pedido.");
+
+        UUID orderId = UUID.randomUUID();
+        int inserted = jdbc.update("""
+            INSERT INTO wok.orders
+                (id, code, account_id, dining_table_id, channel, status, currency_id, guest_count, notes,
+                 idempotency_key, request_fingerprint, opened_by, updated_by)
+            VALUES (?, ?, ?, ?, ?, 'SENT', ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (opened_by, idempotency_key) DO NOTHING
+            """, orderId, nextCode(), request.accountId(), account.diningTableId(), channel.name(), currencyId,
+                request.guestCount(), notes, idempotencyKey, fingerprint, actor, actor);
+
+        if (inserted == 0) {
+            OrderDetails replay = existing(actor, idempotencyKey, fingerprint);
+            if (replay != null) return receipt(replay, true);
+        }
+
+        for (int index = 0; index < products.size(); index++) {
+            Product product = products.get(index);
+            OperationalOrderController.OrderLineRequest line = lines.get(index);
+            jdbc.update("""
+                INSERT INTO wok.order_items
+                    (order_id, menu_item_id, name_snapshot, quantity, unit_price, preparation_area_id,
+                     fulfillment, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, orderId, product.id(), product.name(), line.quantity(), product.price(),
+                    product.preparationAreaId(), line.fulfillment() == null ? "DINE_IN"
+                        : line.fulfillment().trim().toUpperCase(),
+                    line.notes() == null || line.notes().isBlank() ? null : line.notes().trim());
+        }
+
+        jdbc.update("""
+            UPDATE wok.orders o
+            SET subtotal = totals.subtotal, total = totals.subtotal - o.discount, updated_at = now(),
+                updated_by = ?, row_version = row_version + 1
+            FROM (SELECT COALESCE(sum(line_total), 0) AS subtotal FROM wok.order_items WHERE order_id = ?)
+                totals
+            WHERE o.id = ? AND o.subtotal <> totals.subtotal
+            """, actor, orderId, orderId);
+
+        enqueueTickets(actor, requestId, orderId, products, lines);
+        jdbc.update("""
+            INSERT INTO wok.order_status_history (order_id, from_status, to_status, actor_user_id, request_id)
+            VALUES (?, NULL, 'SENT', ?, ?)
+            """, orderId, actor, requestId);
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            VALUES (?, 'ORDER_OPENED', 'ORDER', ?,
+                    jsonb_build_object('status', 'SENT', 'channel', ?, 'items', ?), 'SUCCESS', ?)
+            """, actor, orderId, channel.name(), lines.size(), requestId);
+        return receipt(details(orderId), false);
+    }
+
+    @Transactional
+    public OrderSummary changeStatus(UUID actor, UUID requestId, UUID orderId,
+                                     OperationalOrderController.StatusRequest request) {
+        List<OrderStatus> rows = jdbc.query("""
+            SELECT status FROM wok.orders WHERE id = ? FOR UPDATE
+            """, (rs, row) -> OrderStatus.valueOf(rs.getString("status")), orderId);
+        if (rows.isEmpty()) throw new AuthException(404, "No encontramos el pedido.");
+        OrderStatus current = rows.getFirst();
+        if (!TRANSITIONS.getOrDefault(current, List.of()).contains(request.status()))
+            throw new AuthException(409, "El pedido no puede pasar de " + current + " a " + request.status() + ".");
+        if (request.expectedVersion() <= 0)
+            throw new AuthException(422, "Revisa la versión del pedido.");
+
+        int changed = jdbc.update("""
+            UPDATE wok.orders
+            SET status = ?,
+                closed_at = CASE WHEN ? IN ('CLOSED', 'CANCELLED') THEN now() ELSE NULL END,
+                updated_at = now(), updated_by = ?, row_version = row_version + 1
+            WHERE id = ? AND status = ? AND row_version = ?
+            """, request.status().name(), request.status().name(), actor, orderId, current.name(),
+                request.expectedVersion());
+        if (changed != 1)
+            throw new AuthException(409, "El pedido cambió. Actualiza la vista y vuelve a intentarlo.");
+
+        if (request.status() == OrderStatus.CANCELLED) cancelTickets(actor, requestId, orderId);
+        jdbc.update("""
+            INSERT INTO wok.order_status_history (order_id, from_status, to_status, reason, actor_user_id, request_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """, orderId, current.name(), request.status().name(),
+                request.reason() == null || request.reason().isBlank() ? null : request.reason().trim(),
+                actor, requestId);
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, before_data, after_data, reason, result, request_id)
+            VALUES (?, 'ORDER_STATUS_CHANGED', 'ORDER', ?,
+                    jsonb_build_object('status', ?, 'version', ?),
+                    jsonb_build_object('status', ?, 'version', ?), ?, 'SUCCESS', ?)
+            """, actor, orderId, current.name(), request.expectedVersion(), request.status().name(),
+                request.expectedVersion() + 1, request.reason(), requestId);
+
+        return summary(orderId);
+    }
+
+    private OrderSummary summary(UUID orderId) {
+        List<OrderSummary> found = jdbc.query("""
+            SELECT o.id, o.code, o.status, o.channel, o.subtotal, o.discount, o.total, o.guest_count, o.opened_at,
+                   o.closed_at, o.row_version, o.currency_id, c.code AS currency_code,
+                   t.id AS dining_table_id, t.name AS dining_table_name,
+                   a.id AS account_id, a.name AS account_name,
+                   (SELECT count(*) FROM wok.order_items i WHERE i.order_id = o.id) AS item_count
+            FROM wok.orders o
+            JOIN wok.currencies c ON c.id = o.currency_id
+            JOIN wok.order_accounts a ON a.id = o.account_id
+            LEFT JOIN wok.dining_tables t ON t.id = o.dining_table_id
+            WHERE o.id = ?
+            """, summaryMapper(), orderId);
+        if (found.isEmpty()) throw new AuthException(404, "No encontramos el pedido.");
+        return found.getFirst();
+    }
+
+    private void enqueueTickets(UUID actor, UUID requestId, UUID orderId, List<Product> products,
+                                List<OperationalOrderController.OrderLineRequest> lines) {
+        Map<UUID, List<Integer>> byStation = new LinkedHashMap<>();
+        for (int index = 0; index < products.size(); index++) {
+            Product product = products.get(index);
+            byStation.computeIfAbsent(product.preparationAreaId(), key -> new ArrayList<>()).add(index);
+        }
+        int sequence = 1;
+        for (Map.Entry<UUID, List<Integer>> entry : byStation.entrySet()) {
+            List<Integer> indexes = entry.getValue();
+            int preparationSeconds = 0;
+            UUID ticketId = UUID.randomUUID();
+            jdbc.update("""
+                INSERT INTO wok.kitchen_tickets (id, order_id, sequence_no, station_id, status)
+                VALUES (?, ?, ?, ?, 'QUEUED')
+                """, ticketId, orderId, sequence, entry.getKey());
+            for (int index : indexes) {
+                Product product = products.get(index);
+                preparationSeconds = Math.max(preparationSeconds, product.preparationSeconds());
+                jdbc.update("""
+                    INSERT INTO wok.kitchen_ticket_items (ticket_id, order_item_id, quantity, action)
+                    SELECT ?, i.id, ?, 'NEW' FROM wok.order_items i
+                    WHERE i.order_id = ? AND i.menu_item_id = ?
+                    """, ticketId, lines.get(index).quantity(), orderId, product.id());
+            }
+            scheduleEta(ticketId, entry.getKey(), preparationSeconds);
+            jdbc.update("""
+                INSERT INTO wok.kitchen_ticket_status_history (ticket_id, from_status, to_status, actor_user_id, request_id)
+                VALUES (?, NULL, 'QUEUED', ?, ?)
+                """, ticketId, actor, requestId);
+            sequence++;
+        }
+    }
+
+    /**
+     * ETA por carga: el tiempo base del ticket se ajusta segun cuantos tickets activos comparte estacion.
+     */
+    private void scheduleEta(UUID ticketId, UUID stationId, int preparationSeconds) {
+        Integer queued = jdbc.queryForObject("""
+            SELECT count(*) FROM wok.kitchen_tickets
+            WHERE station_id = ? AND status IN ('QUEUED', 'PREPARING')
+            """, Integer.class, stationId);
+        int load = queued == null ? 1 : Math.max(1, queued);
+        int adjusted = Math.min(7200, preparationSeconds + (preparationSeconds * (load - 1)) / 4);
+        jdbc.update("""
+            UPDATE wok.kitchen_tickets
+            SET estimated_ready_at = now() + make_interval(secs => ?), updated_at = now()
+            WHERE id = ?
+            """, adjusted, ticketId);
+    }
+
+    private void cancelTickets(UUID actor, UUID requestId, UUID orderId) {
+        List<UUID> pending = jdbc.query("""
+            SELECT id FROM wok.kitchen_tickets
+            WHERE order_id = ? AND status IN ('QUEUED', 'PREPARING')
+            """, (rs, row) -> rs.getObject("id", UUID.class), orderId);
+        for (UUID ticketId : pending) {
+            jdbc.update("""
+                UPDATE wok.kitchen_tickets
+                SET status = 'CANCELLED', claimed_by = NULL, claimed_at = NULL, updated_at = now(), row_version = row_version + 1
+                WHERE id = ? AND status IN ('QUEUED', 'PREPARING')
+                """, ticketId);
+            jdbc.update("""
+                INSERT INTO wok.kitchen_ticket_status_history (ticket_id, from_status, to_status, reason, actor_user_id, request_id)
+                SELECT id, status, 'CANCELLED', 'ORDER_CANCELLED', ?, ? FROM wok.kitchen_tickets WHERE id = ?
+                """, actor, requestId, ticketId);
+        }
+    }
+
+    private Account lockAccount(UUID accountId) {
+        List<Account> rows = jdbc.query("""
+            SELECT id, dining_table_id, status FROM wok.order_accounts WHERE id = ? FOR UPDATE
+            """, (rs, row) -> new Account(rs.getObject("id", UUID.class),
+                rs.getObject("dining_table_id", UUID.class), rs.getString("status")), accountId);
+        if (rows.isEmpty()) throw new AuthException(404, "No encontramos la cuenta.");
+        return rows.getFirst();
+    }
+
+    private List<Product> loadProducts(List<OperationalOrderController.OrderLineRequest> lines) {
+        List<Product> products = new ArrayList<>();
+        for (OperationalOrderController.OrderLineRequest line : lines) {
+            List<Product> matches = jdbc.query("""
+                SELECT mi.id, mi.name, mi.price, mi.currency_id, c.code AS currency_code,
+                       mi.preparation_area_id, pa.code AS preparation_area_code,
+                       mi.estimated_preparation_seconds
+                FROM wok.menu_items mi
+                JOIN wok.items i ON i.id = mi.item_id
+                JOIN wok.menu_categories category ON category.id = mi.category_id AND category.active = true
+                JOIN wok.preparation_areas pa ON pa.id = mi.preparation_area_id AND pa.active = true
+                JOIN wok.currencies c ON c.id = mi.currency_id
+                WHERE mi.id = ? AND mi.status = 'ACTIVE' AND i.active = true
+                """, PRODUCT_MAPPER, line.menuItemId());
+            if (matches.isEmpty()) return List.of();
+            products.add(matches.getFirst());
+        }
+        return products;
+    }
+
+    private List<OperationalOrderController.OrderLineRequest> normalizedLines(
+            List<OperationalOrderController.OrderLineRequest> items) {
+        if (items == null || items.isEmpty() || items.size() > 50) throw new AuthException(400, "Revisa los productos enviados.");
+        if (items.stream().anyMatch(item -> item.menuItemId() == null || item.fulfillment() == null)
+                || items.stream().anyMatch(item -> "BARRIL".equalsIgnoreCase(item.fulfillment().trim())))
+            throw new AuthException(400, "Revisa el tipo de servicio de cada producto.");
+        if (new HashSet<>(items.stream().map(OperationalOrderController.OrderLineRequest::menuItemId).toList())
+                .size() != items.size())
+            throw new AuthException(400, "Cada producto debe aparecer una sola vez.");
+        return items.stream().sorted(Comparator.comparing(item -> item.menuItemId().toString())).toList();
+    }
+
+    private OrderDetails existing(UUID actor, UUID idempotencyKey, String fingerprint) {
+        List<UUID> found = jdbc.query("""
+            SELECT id FROM wok.orders WHERE opened_by = ? AND idempotency_key = ? AND request_fingerprint = ?
+            """, (rs, row) -> rs.getObject(1, UUID.class), actor, idempotencyKey, fingerprint);
+        if (!found.isEmpty()) return details(found.getFirst());
+        Integer reused = jdbc.queryForObject("""
+            SELECT count(*) FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?
+            """, Integer.class, actor, idempotencyKey);
+        if (reused != null && reused > 0) throw new AuthException(409, "La clave de pedido ya se usó con otros datos.");
+        return null;
+    }
+
+    private String fingerprint(Channel channel, String notes, int guestCount,
+                               List<OperationalOrderController.OrderLineRequest> lines) {
+        String canonical = channel.name() + "\n" + guestCount + "\n" + (notes == null ? "" : notes) + "\n"
+                + lines.stream()
+                        .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
+                                + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()))
+                        .reduce((a, b) -> a + "\n" + b).orElse("");
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    private String nextCode() {
+        Integer sequence = jdbc.queryForObject("SELECT nextval('wok.order_code_seq')", Integer.class);
+        ZonedDateTime now = ZonedDateTime.now(RESTAURANT_ZONE);
+        return "ORD-" + now.format(CODE_DATE) + "-" + String.format("%04d", sequence == null ? 1 : sequence);
+    }
+
+    private OrderReceipt receipt(OrderDetails details, boolean replay) {
+        return new OrderReceipt(details.order().id(), details.order().code(), details.order().status(),
+                details.order().channel(), details.order().subtotal(), details.order().discount(),
+                details.order().total(), details.order().currency(), details.order().rowVersion(),
+                details.items().size(), replay);
+    }
+
+    private static RowMapper<OrderSummary> summaryMapper() {
+        return (rs, row) -> new OrderSummary(
+                rs.getObject("id", UUID.class), rs.getString("code"), rs.getString("status"), rs.getString("channel"),
+                rs.getBigDecimal("subtotal"), rs.getBigDecimal("discount"), rs.getBigDecimal("total"),
+                rs.getInt("guest_count"), rs.getTimestamp("opened_at").toInstant(),
+                rs.getTimestamp("closed_at") == null ? null : rs.getTimestamp("closed_at").toInstant(),
+                rs.getInt("row_version"), rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
+                rs.getObject("dining_table_id", UUID.class), rs.getString("dining_table_name"),
+                rs.getObject("account_id", UUID.class), rs.getString("account_name"), rs.getInt("item_count"));
+    }
+
+    public enum Channel { DINE_IN, PICKUP, DELIVERY }
+
+    record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currencyCode,
+                   UUID preparationAreaId, String preparationAreaCode, int preparationSeconds) {}
+    record Account(UUID id, UUID diningTableId, String status) {}
+
+    public record OrderSummary(UUID id, String code, String status, String channel, BigDecimal subtotal,
+                               BigDecimal discount, BigDecimal total, int guestCount, Instant openedAt, Instant closedAt,
+                               int rowVersion, UUID currencyId, String currency, UUID diningTableId,
+                               String diningTableName, UUID accountId, String accountName, int itemCount) {}
+    public record OrderLine(UUID id, String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
+                            String fulfillment, String notes, UUID preparationAreaId, String stationCode) {}
+    public record KitchenTicket(UUID id, int sequence, String status, UUID claimedBy, Instant readyAt,
+                                Instant estimatedReadyAt, int rowVersion, UUID stationId, String stationCode) {}
+    public record OrderDetails(OrderSummary order, List<OrderLine> items, List<KitchenTicket> tickets) {}
+    public record OrderReceipt(UUID orderId, String code, String status, String channel, BigDecimal subtotal,
+                               BigDecimal discount, BigDecimal total, String currency, int rowVersion, int itemCount,
+                               boolean idempotentReplay) {}
+}

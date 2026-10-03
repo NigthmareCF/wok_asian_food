@@ -21,7 +21,8 @@ class TokenServiceTest {
     @Test
     void accessTokenContainsOnlyWokSessionIdentityAndExpiresWithinConfiguredWindow() {
         TokenService tokens = new TokenService(
-                new NimbusJwtEncoder(new ImmutableSecret<>(secrets.jwtKey().getEncoded())), "https://identity.wok.test", 15, 30);
+                new NimbusJwtEncoder(new ImmutableSecret<>(secrets.jwtKey().getEncoded())),
+                new AuthIssuer("https://identity.wok.test"), 15, 30);
         UUID userId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
         Instant before = Instant.now();
@@ -40,7 +41,8 @@ class TokenServiceTest {
     @Test
     void refreshTokensAreOpaqueRandomValuesAndOnlyTheirDigestIsStable() {
         TokenService tokens = new TokenService(
-                new NimbusJwtEncoder(new ImmutableSecret<>(secrets.jwtKey().getEncoded())), "https://identity.wok.test", 10, 30);
+                new NimbusJwtEncoder(new ImmutableSecret<>(secrets.jwtKey().getEncoded())),
+                new AuthIssuer("https://identity.wok.test"), 10, 30);
 
         String first = tokens.refresh();
         String second = tokens.refresh();
@@ -56,10 +58,10 @@ class TokenServiceTest {
     void rejectsInvalidTokenLifetimesAtStartup() {
         var encoder = new NimbusJwtEncoder(new ImmutableSecret<>(secrets.jwtKey().getEncoded()));
 
-        assertThrows(IllegalArgumentException.class, () -> new TokenService(encoder, "https://identity.wok.test", 16, 30));
-        assertThrows(IllegalArgumentException.class, () -> new TokenService(encoder, "https://identity.wok.test", 10, 0));
-        assertThrows(IllegalArgumentException.class, () -> new TokenService(encoder, "wok-asian-food", 10, 30));
-        assertThrows(IllegalArgumentException.class, () -> new TokenService(encoder, "http://identity.wok.test", 10, 30));
+        assertThrows(IllegalArgumentException.class, () -> new TokenService(encoder, new AuthIssuer("https://identity.wok.test"), 16, 30));
+        assertThrows(IllegalArgumentException.class, () -> new TokenService(encoder, new AuthIssuer("https://identity.wok.test"), 10, 0));
+        assertThrows(IllegalArgumentException.class, () -> new TokenService(encoder, new AuthIssuer("wok-asian-food"), 10, 30));
+        assertThrows(IllegalArgumentException.class, () -> new TokenService(encoder, new AuthIssuer("http://identity.wok.test"), 10, 30));
     }
 
     private JwtDecoder decoder() {
