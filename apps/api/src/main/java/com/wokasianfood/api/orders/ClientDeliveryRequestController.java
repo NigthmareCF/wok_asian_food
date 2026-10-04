@@ -119,7 +119,9 @@ public class ClientDeliveryRequestController {
             """, requestId, userId);
         return new DeliveryRequestReceipt(requestId, "DELIVERY", "PENDING_REVIEW", request.requestedFor(),
                 subtotal, currency, request.paymentPreference(), invoice.requested(), invoice.name(), invoice.taxId(), false,
-                "Recibimos la solicitud delivery. El equipo debe confirmar cobertura, disponibilidad y horario; todavía no es un pedido ni un pago.");
+                null,
+                "Recibimos la solicitud delivery. El equipo debe confirmar cobertura, disponibilidad y horario; todavía no es un pedido ni un pago.",
+                null, null, null);
     }
 
     @GetMapping
@@ -127,15 +129,25 @@ public class ClientDeliveryRequestController {
         UUID userId = UUID.fromString(jwt.getSubject());
         return jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference,
-                   r.invoice_requested, r.invoice_name, r.invoice_tax_id
+                   r.invoice_requested, r.invoice_name, r.invoice_tax_id, r.decision_reason,
+                   o.code AS order_code, o.status AS order_status,
+                   eta.estimated_ready_at
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
+            LEFT JOIN LATERAL (
+                SELECT max(t.estimated_ready_at) AS estimated_ready_at
+                FROM wok.kitchen_tickets t
+                WHERE t.order_id = o.id AND t.status IN ('QUEUED', 'PREPARING', 'RECALLED')
+            ) eta ON true
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
             ORDER BY r.created_at DESC, r.id DESC LIMIT 50
             """, (rs, row) -> new DeliveryRequestReceipt(rs.getObject("id", UUID.class), "DELIVERY",
                 rs.getString("status"), rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                 rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")),
                 rs.getBoolean("invoice_requested"), rs.getString("invoice_name"), rs.getString("invoice_tax_id"), false,
-                "El equipo debe confirmar cobertura, disponibilidad y horario."), userId);
+                rs.getString("decision_reason"), "El equipo debe confirmar cobertura, disponibilidad y horario.", rs.getString("order_code"),
+                rs.getString("order_status"), rs.getTimestamp("estimated_ready_at") == null ? null
+                    : rs.getTimestamp("estimated_ready_at").toInstant()), userId);
     }
 
     @GetMapping("/{requestId}")
@@ -203,8 +215,15 @@ public class ClientDeliveryRequestController {
     private DeliveryRequestReceipt existing(UUID userId, UUID key, String fingerprint) {
         List<DeliveryRequestReceipt> found = jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference,
-                   r.invoice_requested, r.invoice_name, r.invoice_tax_id, r.request_fingerprint
+                   r.invoice_requested, r.invoice_name, r.invoice_tax_id, r.decision_reason, r.request_fingerprint,
+                   o.code AS order_code, o.status AS order_status, eta.estimated_ready_at
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
+            LEFT JOIN LATERAL (
+                SELECT max(t.estimated_ready_at) AS estimated_ready_at
+                FROM wok.kitchen_tickets t
+                WHERE t.order_id = o.id AND t.status IN ('QUEUED', 'PREPARING', 'RECALLED')
+            ) eta ON true
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY' AND r.idempotency_key = ?
             """, (rs, row) -> {
                 if (!fingerprint.equals(rs.getString("request_fingerprint")))
@@ -213,7 +232,9 @@ public class ClientDeliveryRequestController {
                         rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                         rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")),
                         rs.getBoolean("invoice_requested"), rs.getString("invoice_name"), rs.getString("invoice_tax_id"), true,
-                        "Recibimos la solicitud delivery. El equipo debe confirmar cobertura y disponibilidad.");
+                        rs.getString("decision_reason"), "Recibimos la solicitud delivery. El equipo debe confirmar cobertura y disponibilidad.",
+                        rs.getString("order_code"), rs.getString("order_status"),
+                        rs.getTimestamp("estimated_ready_at") == null ? null : rs.getTimestamp("estimated_ready_at").toInstant());
             }, userId, key);
         return found.isEmpty() ? null : found.getFirst();
     }
@@ -245,7 +266,8 @@ public class ClientDeliveryRequestController {
     public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
     public record DeliveryRequestReceipt(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean invoiceRequested,
-            String invoiceName, String invoiceTaxId, boolean idempotentReplay, String message) {}
+            String invoiceName, String invoiceTaxId, boolean idempotentReplay, String decisionReason, String message,
+            String orderCode, String orderStatus, Instant estimatedReadyAt) {}
     public record DeliveryRequestDetails(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, String customerNote,
             boolean invoiceRequested, String invoiceName, String invoiceTaxId,

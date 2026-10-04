@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -133,11 +134,12 @@ class OrderRequestDecisionService {
                           OperationalOrderRequestController.DecisionRequest request) {
         OperationalOrderRequestController.Action action = request.action();
         List<Locked> rows = jdbc.query("""
-            SELECT id, status, fulfillment_type, requested_for, currency_id, order_id
+            SELECT id, status, fulfillment_type, requested_for, currency_id, order_id, subtotal
             FROM wok.order_requests WHERE id = ? FOR UPDATE
             """, (rs, row) -> new Locked(rs.getObject("id", UUID.class), rs.getString("status"),
                 rs.getString("fulfillment_type"), rs.getTimestamp("requested_for").toInstant(),
-                rs.getObject("currency_id", UUID.class), rs.getObject("order_id", UUID.class)), orderRequestId);
+                rs.getObject("currency_id", UUID.class), rs.getObject("order_id", UUID.class),
+                rs.getBigDecimal("subtotal")), orderRequestId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
         Locked current = rows.getFirst();
 
@@ -164,12 +166,15 @@ class OrderRequestDecisionService {
             return new DecisionResult(orderRequestId, "REJECTED", null, false);
         }
 
-        if (!"PICKUP".equals(current.fulfillmentType()))
-            throw new AuthException(422, "La aceptación de solicitudes delivery aún no está habilitada.");
+        if (!"PICKUP".equals(current.fulfillmentType()) && !"DELIVERY".equals(current.fulfillmentType()))
+            throw new AuthException(422, "La modalidad de esta solicitud todavía no admite aceptación operativa.");
 
         revalidate(current);
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines(orderRequestId);
-        UUID orderId = orders.createPickupOrder(actor, correlationId, "Pickup " + orderRequestId, lines);
+        boolean delivery = "DELIVERY".equals(current.fulfillmentType());
+        UUID orderId = delivery
+                ? orders.createDeliveryOrder(actor, correlationId, "Delivery " + orderRequestId, lines)
+                : orders.createPickupOrder(actor, correlationId, "Pickup " + orderRequestId, lines);
         jdbc.update("""
             UPDATE wok.order_requests
             SET status = 'ACCEPTED', decided_by = ?, decided_at = now(), decision_reason = 'ACCEPTED',
@@ -186,14 +191,17 @@ class OrderRequestDecisionService {
 
     private void revalidate(Locked request) {
         List<Revalidated> items = jdbc.query("""
-            SELECT ri.menu_item_id, ri.quantity, mi.estimated_preparation_seconds, mi.currency_id
+            SELECT ri.menu_item_id, ri.quantity, ri.unit_price, mi.price AS current_price,
+                   mi.estimated_preparation_seconds, mi.currency_id
             FROM wok.order_request_items ri
             JOIN wok.menu_items mi ON mi.id = ri.menu_item_id AND mi.status = 'ACTIVE'
             JOIN wok.items i ON i.id = mi.item_id AND i.active = true
             JOIN wok.menu_categories category ON category.id = mi.category_id AND category.active = true
             JOIN wok.preparation_areas area ON area.id = mi.preparation_area_id AND area.active = true
             WHERE ri.order_request_id = ?
+            FOR SHARE OF mi, i, category, area
             """, (rs, row) -> new Revalidated(rs.getObject("menu_item_id", UUID.class), rs.getInt("quantity"),
+                rs.getBigDecimal("unit_price"), rs.getBigDecimal("current_price"),
                 rs.getInt("estimated_preparation_seconds"), rs.getObject("currency_id", UUID.class)), request.id());
         Integer expected = jdbc.queryForObject("""
             SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?
@@ -202,6 +210,12 @@ class OrderRequestDecisionService {
             throw new AuthException(422, "Uno o más productos de la solicitud ya no están disponibles.");
         if (items.stream().anyMatch(item -> !item.currencyId().equals(request.currencyId())))
             throw new AuthException(422, "La moneda de la solicitud ya no coincide con el menú.");
+        BigDecimal currentSubtotal = items.stream()
+                .map(item -> item.currentPrice().multiply(BigDecimal.valueOf(item.quantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (currentSubtotal.compareTo(request.subtotal()) != 0
+                || items.stream().anyMatch(item -> item.currentPrice().compareTo(item.requestedPrice()) != 0))
+            throw new AuthException(409, "El precio cambió desde que se envió la solicitud. Contacta al cliente antes de aceptarla.");
         long prepSeconds = items.stream()
                 .mapToLong(item -> (long) item.preparationSeconds() * item.quantity())
                 .sum();
@@ -226,8 +240,9 @@ class OrderRequestDecisionService {
     }
 
     private record Locked(UUID id, String status, String fulfillmentType, Instant requestedFor,
-                          UUID currencyId, UUID orderId) {}
-    private record Revalidated(UUID menuItemId, int quantity, int preparationSeconds, UUID currencyId) {}
+                          UUID currencyId, UUID orderId, BigDecimal subtotal) {}
+    private record Revalidated(UUID menuItemId, int quantity, BigDecimal requestedPrice, BigDecimal currentPrice,
+                               int preparationSeconds, UUID currencyId) {}
 
     public record DecisionResult(UUID requestId, String status, UUID orderId, boolean idempotentReplay) {}
     public record OrderRequestSummary(UUID requestId, String fulfillmentType, String status, String customerName,

@@ -168,6 +168,12 @@
 - Se añadieron pruebas puras de `OperationalCapacityService`: rechaza una solicitud un segundo antes de cumplir las 3 horas, permite evaluar justo en el límite pero requiere revisión humana, y no acepta automáticamente ni grupos de 2 ni grupos de 20 a las 21:15. Mensajes públicos no indican hora obligatoria de salida.
 - `sh mvnw -q clean test` en PostgreSQL 18/Testcontainers y migraciones V1–V26 pasó 154 pruebas, 0 fallos, 0 errores, 0 omitidas. El conteo se verificó en los reportes Surefire recién generados.
 
+## 2026-10-04 — Aceptación operativa de delivery
+
+- Operaciones puede aceptar una solicitud DELIVERY pendiente y crear un pedido del canal `DELIVERY`, con cuenta sin mesa, líneas TAKEAWAY, reservas de inventario, comanda de cocina, auditoría e idempotencia en la decisión. La solicitud conserva dirección, referencia y contacto; solicitudes pickup usan el mismo constructor con su canal original.
+- Antes de aceptar se revalidan disponibilidad de productos, moneda, precio exacto contra el snapshot de solicitud y tiempo de preparación. Si cambió el precio, devuelve conflicto y deja la solicitud pendiente; no genera un pedido con total inesperado.
+- Historial Cliente delivery expone, con ownership por usuario, código/estado del pedido y ETA de cocina cuando está disponible; incluye motivo de decisión para rechazos. Suite limpia PostgreSQL 18/Testcontainers + Flyway V1–V26: 155 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
 ## 2026-10-04 — Cola Operativa para solicitudes pickup/delivery
 
 - `GET /api/v1/operational/order-requests` lista hasta 100 solicitudes y permite filtrar `status` y `fulfillmentType`; sin filtros muestra primero las pendientes. `GET /api/v1/operational/order-requests/{requestId}` devuelve snapshot de cliente/modalidad/contacto/horario/importe/notas y líneas guardadas, incluyendo dirección y referencia para delivery.
