@@ -116,3 +116,12 @@
 - Se configuró `WOK_AUTH_ISSUER` por ambiente y se fijó una URI reservada `.invalid` para desarrollo local. El valor anterior `wok-asian-food` no era un URL válido para `JwtClaimAccessor` y la validación de issuer de Spring Security.
 - Docker Compose reenvía el ajuste al contenedor API. Producción debe definir el URL HTTPS canónico de identidad antes de emitir tokens; el placeholder no es una identidad productiva.
 - Validación con las pruebas de identidad en una composición desechable de `feature/backend-foundation` y `feature/backend-auth` (Java 21, Maven; 5/5 pruebas unitarias aprobadas).
+# Progreso de desarrollo backend
+
+## 2026-10-04 — Seguimiento de pickup aceptado para Cliente
+
+- En `feature/backend-capacity-order-lifecycle` se añadió `GET /api/v1/client/orders/tracking`, protegido para rol `CLIENT`. La consulta devuelve como máximo 50 solicitudes pickup aceptadas con pedido asociado y filtra siempre por el UUID del usuario autenticado; no acepta identificadores de cliente suministrados por el navegador.
+- La respuesta expone código y estado del pedido, horario solicitado, última actualización y ETA máxima de los tickets activos sólo cuando el pedido está `SENT` o `PREPARING`. Los estados finales no publican ETA. No requiere migración: reutiliza `order_requests.order_id`, `orders` y `kitchen_tickets` de V9, V13 y V16.
+- Prueba unitaria del controlador valida el filtro de ownership, el estado aceptado y la proyección del ETA. `sh mvnw -q -DargLine=-javaagent:... -Dtest=ClientOrderTrackingControllerTest test` pasó (2 pruebas). Suite backend completa: 139 pruebas, 0 fallos/errores, 49 omitidas porque Docker no está accesible para Testcontainers.
+- Dependencia externa/red: el fetch SSH falla por permisos de `/etc/ssh/ssh_config.d/20-systemd-ssh-proxy.conf`; el fetch HTTPS dentro del sandbox no resuelve `github.com`. Con acceso de red elevado se actualizó `origin/*`; `feature/backend-capacity-order-lifecycle` es local y parte de `origin/development`, que no presentó commits nuevos respecto a su base. Esta rama aún no se ha publicado.
+- Límites: el backend sólo permite aceptar solicitudes pickup en el flujo operativo actual; el seguimiento no convierte solicitudes delivery en pedidos ni marca pagos. Falta prueba integrada contra PostgreSQL y prueba HTTP con autenticación real.
