@@ -238,6 +238,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud {item.requestId.slice(0, 8)} · {requestStatus(item.status)}</Text>
         <Text style={ui.body}>{formatMoney(item.subtotal, item.currency)} · {paymentLabel(item.paymentPreference)}</Text>
         {item.orderCode ? <Notice tone="success">Pedido {item.orderCode} · {orderStatus(item.orderStatus)}.{item.estimatedReadyAt ? ` Listo estimado: ${formatRestaurantDateTime(item.estimatedReadyAt)}.` : ""}</Notice> : null}
+        {item.dispatchStatus ? <Notice tone={item.dispatchStatus === "DELIVERY_FAILED" ? "error" : "info"}>
+          Reparto: {dispatchStatusLabel(item.dispatchStatus)}.{item.assignedAt ? ` Asignado ${formatRestaurantDateTime(item.assignedAt)}.` : ""}{item.dispatchedAt ? ` Salió del restaurante ${formatRestaurantDateTime(item.dispatchedAt)}.` : ""}{item.deliveredAt ? ` Entregado ${formatRestaurantDateTime(item.deliveredAt)}.` : ""}
+        </Notice> : null}
         {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}. Aún no emitida.</Text> : null}
         {item.message ? <Text style={ui.body}>{item.message}</Text> : null}
         {item.status === "REJECTED" && item.decisionReason ? <Notice tone="error">Motivo: {item.decisionReason}</Notice> : null}
@@ -333,4 +336,17 @@ function orderStatus(value: DeliveryRequestReceipt["orderStatus"]) {
     SERVED: "entregado", CLOSED: "cerrado", CANCELLED: "cancelado",
   };
   return value ? labels[value] : "confirmado";
+}
+
+function dispatchStatusLabel(value: NonNullable<DeliveryRequestReceipt["dispatchStatus"]>) {
+  const labels: Record<NonNullable<DeliveryRequestReceipt["dispatchStatus"]>, string> = {
+    AWAITING_KITCHEN: "en preparación",
+    READY_FOR_DISPATCH: "esperando asignación de reparto",
+    ASSIGNED: "repartidor asignado",
+    OUT_FOR_DELIVERY: "en camino",
+    DELIVERY_FAILED: "el equipo debe revisar un inconveniente",
+    DELIVERED: "entregado",
+    CANCELLED: "cancelado",
+  };
+  return labels[value];
 }

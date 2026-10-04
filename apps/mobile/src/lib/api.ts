@@ -151,6 +151,10 @@ export type DeliveryRequestReceipt = {
   orderCode: string | null;
   orderStatus: PickupOrderTracking["status"] | null;
   estimatedReadyAt: string | null;
+  dispatchStatus: "AWAITING_KITCHEN" | "READY_FOR_DISPATCH" | "ASSIGNED" | "OUT_FOR_DELIVERY" | "DELIVERY_FAILED" | "DELIVERED" | "CANCELLED" | null;
+  assignedAt: string | null;
+  dispatchedAt: string | null;
+  deliveredAt: string | null;
 };
 export type DeliveryRequestDetails = DeliveryRequestReceipt & {
   customerNote: string | null;

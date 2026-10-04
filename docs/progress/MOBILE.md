@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-04 — Seguimiento del reparto delivery
+
+- El historial Cliente consume `dispatchStatus`, `assignedAt`, `dispatchedAt` y `deliveredAt` de la solicitud propia. La pantalla comunica preparación, espera/asignación, salida, incidencias, entrega y cancelación con hora local del restaurante; no presenta como entregado hasta que la API confirma ese estado.
+- La app sólo muestra que existe una incidencia operativa, nunca el motivo interno ni datos de contacto del repartidor. El flujo sigue ligado al historial autenticado del usuario.
+- Verificación: Vitest 8/8, ESLint, TypeScript y exportaciones Expo Android/Web pasan. Las exportaciones generan bundles y rutas, no son builds instalables ni pruebas físicas.
+
 ## 2026-10-02 — Reintento idempotente de reservas después de cerrar la app
 
 - Los intentos de reserva se guardan antes del POST en SecureStore, ligados al correo de sesión (la llave de almacenamiento usa su SHA-256), UUID y payload exacto. Al reiniciar, sólo se reutiliza la clave para la misma cuenta/cuerpo; cambiar cuenta o payload crea otra clave, y registros inválidos/vencidos se descartan.
