@@ -186,6 +186,13 @@
 - Facturas del adaptador mock se etiquetan como prueba no certificada SAT. No se muestra botón de descarga porque backend todavía no conserva ni entrega XML/PDF.
 - Verificación: lint, TypeScript, Vitest 5/5 y Expo export Android/Web pasan; las exportaciones no son builds instalables ni prueba física.
 
+## 2026-10-04 — Perfiles fiscales Cliente
+
+- Mi cuenta enlaza a `/tax-profiles`, donde Cliente puede crear, editar, eliminar y elegir un perfil fiscal predeterminado. El backend guarda esos datos con ownership de cuenta y control de versiones.
+- Pickup y delivery precargan nombre/NIT desde el perfil predeterminado al solicitar factura; el cliente puede editar los datos para cada solicitud. Un fallo al leer el perfil no bloquea la entrada manual.
+- La pantalla explica que guardar/perfilar datos no emite ni certifica DTE/FEL. No se incluyen credenciales ni proveedor fiscal real.
+- Verificación: lint, TypeScript, Vitest 5/5 y Expo export Android/Web pasan; los exports no son paquetes instalables ni prueba física.
+
 ## 2026-10-04 — Seguimiento de pedidos pickup aceptados
 
 - En `feature/mobile-shell`, la pestaña Solicitudes consulta `GET /api/v1/client/orders/tracking` y muestra por separado pedidos ya aceptados por el restaurante, con código, estado operativo, hora solicitada, ETA de cocina cuando backend la entrega y hora de actualización.

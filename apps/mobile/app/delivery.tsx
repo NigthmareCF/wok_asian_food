@@ -1,9 +1,10 @@
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
+import { Link } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ApiError, apiRequest, CustomerAddress, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
@@ -41,6 +42,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [invoiceRequested, setInvoiceRequested] = useState(false);
   const [invoiceName, setInvoiceName] = useState("");
   const [invoiceTaxId, setInvoiceTaxId] = useState("");
+  const [defaultTaxProfileLabel, setDefaultTaxProfileLabel] = useState("");
   const [pending, setPending] = useState<PendingAttempt | null>(null);
   const [receipt, setReceipt] = useState<DeliveryRequestReceipt | null>(null);
   const [history, setHistory] = useState<DeliveryRequestReceipt[]>([]);
@@ -81,6 +83,23 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     void request<DeliveryRequestReceipt[]>("/api/v1/client/delivery-requests")
       .then((items) => { if (active) { setHistory(items); setHistoryOwner(session.email); setHistoryLoaded(true); setHistoryError(""); } })
       .catch((cause: unknown) => { if (active) { setHistoryError(cause instanceof ApiError ? cause.message : "No pudimos cargar tus solicitudes delivery."); setHistoryLoaded(true); } });
+    return () => { active = false; };
+  }, [request, session]);
+
+  useEffect(() => {
+    let active = true;
+    if (!session) return () => { active = false; };
+    void request<CustomerTaxProfile[]>("/api/v1/client/tax-profiles")
+      .then((profiles) => {
+        if (!active) return;
+        const preferred = profiles.find((profile) => profile.isDefault);
+        if (preferred) {
+          setDefaultTaxProfileLabel(preferred.label);
+          setInvoiceName((current) => current || preferred.customerName);
+          setInvoiceTaxId((current) => current || preferred.customerTaxId);
+        }
+      })
+      .catch(() => { /* Customers can still enter billing details manually. */ });
     return () => { active = false; };
   }, [request, session]);
 
@@ -271,6 +290,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       {invoiceRequested ? <View style={ui.section}>
         <Field label="Nombre o razón social" value={invoiceName} onChangeText={setInvoiceName} maxLength={150} />
         <Field label="NIT" value={invoiceTaxId} onChangeText={setInvoiceTaxId} maxLength={32} placeholder="CF o NIT" />
+        {defaultTaxProfileLabel ? <Text style={ui.body}>Datos precargados desde tu perfil «{defaultTaxProfileLabel}». Puedes editarlos para esta solicitud.</Text> : <Link href="/tax-profiles" style={ui.link}>Administrar perfiles fiscales</Link>}
         <Notice>Guardaremos estos datos como solicitud. La factura FEL requiere revisión y emisión posterior.</Notice>
       </View> : null}
       <Field label="Horario que prefieres (hora local)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" />

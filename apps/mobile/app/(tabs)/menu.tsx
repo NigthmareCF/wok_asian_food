@@ -1,11 +1,11 @@
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { Link } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
-import { ApiError, apiRequest, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { ApiError, apiRequest, CustomerTaxProfile, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
 const cartStorageKey = "wok.pickup.cart.v1";
@@ -44,9 +44,11 @@ export default function MenuScreen() {
   const [invoiceRequested, setInvoiceRequested] = useState(false);
   const [invoiceName, setInvoiceName] = useState("");
   const [invoiceTaxId, setInvoiceTaxId] = useState("");
+  const [defaultTaxProfileLabel, setDefaultTaxProfileLabel] = useState("");
   const [attempt, setAttempt] = useState<PickupAttempt | null>(null);
   const [sending, setSending] = useState(false);
   const [receipt, setReceipt] = useState<PickupRequestReceipt | null>(null);
+  const taxProfileOwner = useRef("");
 
   const loadMenu = useCallback(async () => {
     setLoading(true);
@@ -64,6 +66,28 @@ export default function MenuScreen() {
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const accountEmail = session?.email ?? "";
+    if (taxProfileOwner.current !== accountEmail) {
+      taxProfileOwner.current = accountEmail;
+      setInvoiceName(""); setInvoiceTaxId(""); setDefaultTaxProfileLabel("");
+    }
+    if (!session) return () => { active = false; };
+    void request<CustomerTaxProfile[]>("/api/v1/client/tax-profiles")
+      .then((profiles) => {
+        if (!active) return;
+        const preferred = profiles.find((profile) => profile.isDefault);
+        if (preferred) {
+          setDefaultTaxProfileLabel(preferred.label);
+          setInvoiceName((current) => current || preferred.customerName);
+          setInvoiceTaxId((current) => current || preferred.customerTaxId);
+        }
+      })
+      .catch(() => { /* Customers can still enter billing details manually. */ });
+    return () => { active = false; };
+  }, [request, session]);
 
   useEffect(() => {
     let mounted = true;
@@ -220,6 +244,7 @@ export default function MenuScreen() {
         {activeInvoiceRequest ? <View style={ui.section}>
           <Field label="Nombre o razón social" value={attempt?.body.invoiceName ?? invoiceName} onChangeText={setInvoiceName} maxLength={150} editable={!attempt} />
           <Field label="NIT" value={attempt?.body.invoiceTaxId ?? invoiceTaxId} onChangeText={setInvoiceTaxId} maxLength={32} editable={!attempt} placeholder="CF o NIT" />
+          {defaultTaxProfileLabel ? <Text style={ui.body}>Datos precargados desde tu perfil «{defaultTaxProfileLabel}». Puedes editarlos para esta solicitud.</Text> : <Link href="/tax-profiles" style={ui.link}>Administrar perfiles fiscales</Link>}
           <Notice>Guardaremos estos datos como solicitud. La factura FEL requiere revisión y emisión posterior.</Notice>
         </View> : null}
         {!session ? <View style={ui.section}><Notice>Para enviar tu solicitud, primero inicia sesión.</Notice><Link href="/account" style={ui.link}>Ir a Mi cuenta</Link></View> : null}

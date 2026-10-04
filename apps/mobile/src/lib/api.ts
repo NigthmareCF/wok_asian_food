@@ -162,6 +162,14 @@ export type CustomerAddress = {
   isDefault: boolean;
   version: number;
 };
+export type CustomerTaxProfile = {
+  profileId: string;
+  label: string;
+  customerName: string;
+  customerTaxId: string;
+  isDefault: boolean;
+  version: number;
+};
 export type ClientInvoiceSummary = {
   invoiceId: string;
   status: "ISSUED";
