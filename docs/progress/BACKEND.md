@@ -125,3 +125,7 @@
 - Prueba unitaria del controlador valida el filtro de ownership, el estado aceptado y la proyección del ETA. `sh mvnw -q -DargLine=-javaagent:... -Dtest=ClientOrderTrackingControllerTest test` pasó (2 pruebas). Suite backend completa: 139 pruebas, 0 fallos/errores, 49 omitidas porque Docker no está accesible para Testcontainers.
 - Dependencia externa/red: el fetch SSH falla por permisos de `/etc/ssh/ssh_config.d/20-systemd-ssh-proxy.conf`; el fetch HTTPS dentro del sandbox no resuelve `github.com`. Con acceso de red elevado se actualizó `origin/*`; `feature/backend-capacity-order-lifecycle` es local y parte de `origin/development`, que no presentó commits nuevos respecto a su base. Esta rama aún no se ha publicado.
 - Límites: el backend sólo permite aceptar solicitudes pickup en el flujo operativo actual; el seguimiento no convierte solicitudes delivery en pedidos ni marca pagos. Falta prueba integrada contra PostgreSQL y prueba HTTP con autenticación real.
+
+## 2026-10-04 — Evaluación Flyway/Liquibase
+
+- Se documentó en `docs/database/MIGRATION_TOOL_ASSESSMENT.md` la compatibilidad, diferencias funcionales, estrategia de baseline, riesgos, pasos de validación y estimación orientativa. Con PostgreSQL único y 24 migraciones SQL activas, recomendación actual: conservar Flyway. Evaluación únicamente; no se cambió Maven, configuración ni el historial de ninguna base.
