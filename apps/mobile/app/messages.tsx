@@ -1,12 +1,12 @@
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
-type Conversation = { conversationId: string; status: "OPEN" | "WAITING" | "CLOSED"; updatedAt: string };
+type Conversation = { conversationId: string; status: "OPEN" | "WAITING" | "CLOSED"; updatedAt: string; lastMessage?: string | null; lastMessageAt?: string | null };
 type Message = { messageId: string; senderType: "CUSTOMER" | "HUMAN" | "AI" | "SYSTEM"; body: string; status: string; createdAt: string };
 type PendingMessage = { key: string; body: string };
 
@@ -24,10 +24,13 @@ type ConversationScreenProps = Pick<ReturnType<typeof useSession>, "session" | "
 
 function ConversationScreen({ session, request }: ConversationScreenProps) {
   const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const selectedConversationId = useRef<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<PendingMessage | null>(null);
   const [loading, setLoading] = useState(false);
+  const [openingConversationId, setOpeningConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -36,13 +39,16 @@ function ConversationScreen({ session, request }: ConversationScreenProps) {
     if (!session) return;
     setLoading(true); setError("");
     try {
-      const conversations = await request<Conversation[]>("/api/v1/client/conversations");
-      const active = conversations.find((item) => item.status !== "CLOSED");
-      if (!active) { setConversation(null); setMessages([]); setPending(null); return; }
-      setConversation(active);
+      const history = await request<Conversation[]>("/api/v1/client/conversations");
+      setConversations(history);
+      const selected = history.find((item) => item.conversationId === selectedConversationId.current)
+        ?? history.find((item) => item.status !== "CLOSED") ?? history[0];
+      if (!selected) { selectedConversationId.current = null; setConversation(null); setMessages([]); setPending(null); return; }
+      selectedConversationId.current = selected.conversationId;
+      setConversation(selected);
       const [items, stored] = await Promise.all([
-        request<Message[]>(`/api/v1/client/conversations/${active.conversationId}/messages`),
-        SecureStore.getItemAsync(`${pendingPrefix}${active.conversationId}`),
+        request<Message[]>(`/api/v1/client/conversations/${selected.conversationId}/messages`),
+        selected.status === "CLOSED" ? Promise.resolve(null) : SecureStore.getItemAsync(`${pendingPrefix}${selected.conversationId}`),
       ]);
       setMessages(items);
       setPending(stored ? JSON.parse(stored) as PendingMessage : null);
@@ -57,11 +63,33 @@ function ConversationScreen({ session, request }: ConversationScreenProps) {
     setLoading(true); setError("");
     try {
       const opened = await request<Conversation>("/api/v1/client/conversations", { method: "POST" });
+      selectedConversationId.current = opened.conversationId;
       setConversation(opened); setMessages([]); setNotice("La conversación quedó lista para escribir al equipo WOK.");
+      setConversations((current) => [opened, ...current.filter((item) => item.conversationId !== opened.conversationId)]);
       const stored = await SecureStore.getItemAsync(`${pendingPrefix}${opened.conversationId}`);
       setPending(stored ? JSON.parse(stored) as PendingMessage : null);
     } catch (cause) { setError(cause instanceof ApiError ? cause.message : "No pudimos iniciar la conversación."); }
     finally { setLoading(false); }
+  }
+
+  async function openConversation(item: Conversation) {
+    if (item.conversationId === selectedConversationId.current) return;
+    selectedConversationId.current = item.conversationId;
+    setLoading(true); setOpeningConversationId(item.conversationId); setError(""); setNotice(""); setConversation(item); setMessages([]); setPending(null);
+    try {
+      const [items, stored] = await Promise.all([
+        request<Message[]>(`/api/v1/client/conversations/${item.conversationId}/messages`),
+        item.status === "CLOSED" ? Promise.resolve(null) : SecureStore.getItemAsync(`${pendingPrefix}${item.conversationId}`),
+      ]);
+      if (selectedConversationId.current !== item.conversationId) return;
+      setMessages(items); setPending(stored ? JSON.parse(stored) as PendingMessage : null);
+    } catch (cause) {
+      if (selectedConversationId.current === item.conversationId) {
+        selectedConversationId.current = null; setConversation(null);
+      }
+      setError(cause instanceof ApiError ? cause.message : "No pudimos abrir esa conversación.");
+    }
+    finally { setLoading(false); setOpeningConversationId(null); }
   }
 
   async function send(messageToSend: PendingMessage) {
@@ -98,6 +126,17 @@ function ConversationScreen({ session, request }: ConversationScreenProps) {
       {error ? <Notice tone="error">{error}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
       {loading && !conversation ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Cargando conversación…</Text></View></Card> : null}
+      {conversations.length > 0 ? <View style={ui.section}>
+        <Text style={{ color: palette.ink, fontSize: 18, fontWeight: "800" }}>Conversaciones recientes</Text>
+        {conversations.map((item) => <Card key={item.conversationId}>
+          <Text style={{ color: palette.ink, fontWeight: "800" }}>{statusLabels[item.status]}</Text>
+          {item.lastMessage ? <Text style={ui.body} numberOfLines={2}>{item.lastMessage}</Text> : null}
+          <Text style={ui.body}>{formatDate(item.lastMessageAt ?? item.updatedAt)}</Text>
+          {item.conversationId !== conversation?.conversationId ? <Button title="Ver conversación" secondary
+            busy={openingConversationId === item.conversationId}
+            onPress={() => void openConversation(item)} /> : <Text style={ui.pill}>Conversación seleccionada</Text>}
+        </Card>)}
+      </View> : null}
       {!conversation && !loading && !session.offline ? <Card>
         <Text style={{ color: palette.ink, fontSize: 18, fontWeight: "800" }}>¿Necesitas ayuda?</Text>
         <Text style={ui.body}>Inicia una conversación para comunicarte directamente con el equipo.</Text>

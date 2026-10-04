@@ -193,6 +193,12 @@
 - La pantalla explica que guardar/perfilar datos no emite ni certifica DTE/FEL. No se incluyen credenciales ni proveedor fiscal real.
 - Verificación: lint, TypeScript, Vitest 5/5 y Expo export Android/Web pasan; los exports no son paquetes instalables ni prueba física.
 
+## 2026-10-04 — Historial de conversaciones
+
+- Mensajes muestra los últimos 20 hilos, incluido el último mensaje y fecha cuando existen; Cliente puede abrir hilos cerrados para consulta e iniciar otro para escribir. Sólo se permite enviar en hilos activos.
+- La selección mantiene el hilo actual durante la recarga; respuestas de una apertura anterior no pueden reemplazar el hilo seleccionado. Los reintentos conservan la clave idempotente por conversación.
+- Verificación: lint, TypeScript, Vitest 5/5 y Expo export Android/Web pasan. No se implementaron adjuntos ni mensajería Meta en este slice.
+
 ## 2026-10-04 — Seguimiento de pedidos pickup aceptados
 
 - En `feature/mobile-shell`, la pestaña Solicitudes consulta `GET /api/v1/client/orders/tracking` y muestra por separado pedidos ya aceptados por el restaurante, con código, estado operativo, hora solicitada, ETA de cocina cuando backend la entrega y hora de actualización.
