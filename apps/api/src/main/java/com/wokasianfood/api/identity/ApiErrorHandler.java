@@ -4,6 +4,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -16,6 +17,11 @@ public class ApiErrorHandler {
     @ExceptionHandler(AuthException.class)
     ResponseEntity<Map<String, String>> auth(AuthException error) {
         return ResponseEntity.status(error.status()).body(Map.of("message", error.getMessage()));
+    }
+
+    @ExceptionHandler(AuthorizationDeniedException.class)
+    ResponseEntity<Map<String, String>> authorizationDenied(AuthorizationDeniedException error) {
+        return ResponseEntity.status(403).body(Map.of("message", "Acceso denegado."));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.server.ResponseStatusException;
 
 class ApiErrorHandlerTest {
@@ -15,6 +16,14 @@ class ApiErrorHandlerTest {
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("El estado cambió.", response.getBody().get("message"));
+    }
+
+    @Test
+    void mapsAuthorizationDenialsToForbidden() {
+        var response = handler.authorizationDenied(new AuthorizationDeniedException("Access Denied"));
+
+        assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+        assertEquals("Acceso denegado.", response.getBody().get("message"));
     }
 
     @Test
