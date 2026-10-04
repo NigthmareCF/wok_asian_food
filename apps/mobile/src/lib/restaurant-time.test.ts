@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRestaurantDateTime, parseRestaurantLocalDateTime } from "./restaurant-time";
+import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime } from "./restaurant-time";
 
 describe("restaurant local time", () => {
   it("converts a Guatemala wall-clock reservation time to an absolute instant", () => {
@@ -14,5 +14,6 @@ describe("restaurant local time", () => {
 
   it("formats backend instants in Guatemala time regardless of device zone", () => {
     expect(formatRestaurantDateTime("2026-10-06T00:30:00Z")).toContain("18:30");
+    expect(formatRestaurantLocalInput("2026-10-06T00:30:00Z")).toBe("2026-10-05T18:30");
   });
 });

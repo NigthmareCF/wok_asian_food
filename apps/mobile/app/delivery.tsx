@@ -5,15 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { useSession } from "@/providers/session-provider";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const pendingKey = "wok.delivery.pending.v1";
-
-function localDateTime(value: Date) {
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
-}
 
 export default function DeliveryScreen() {
   const { session, request } = useSession();
@@ -133,7 +129,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   function suggestTime() {
     const prep = selected.reduce((sum, item) => sum + item.estimatedPreparationSeconds * cart[item.id], 0);
     const apiTime = Date.parse(menu?.asOf ?? "");
-    if (!Number.isNaN(apiTime)) setRequestedFor(localDateTime(new Date(apiTime + Math.max(30 * 60, prep + 60) * 1000)));
+    if (!Number.isNaN(apiTime)) setRequestedFor(formatRestaurantLocalInput(new Date(apiTime + Math.max(30 * 60, prep + 60) * 1000).toISOString()));
   }
 
   async function submit(attempt?: PendingAttempt) {
@@ -143,11 +139,13 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     }
     let activeAttempt: PendingAttempt;
     try {
+      const deliveryInstant = parseRestaurantLocalDateTime(requestedFor);
+      if (!attempt && !deliveryInstant) throw new Error("Indica una fecha y hora válidas en la hora de Guatemala.");
       activeAttempt = attempt ?? {
         email: session.email,
         key: createIdempotencyKey(),
         body: {
-          requestedFor: new Date(requestedFor).toISOString(), customerNote: customerNote.trim() || undefined,
+          requestedFor: deliveryInstant!.toISOString(), customerNote: customerNote.trim() || undefined,
           address: address.trim(), reference: reference.trim() || undefined, contactPhone: contactPhone.trim(),
           paymentPreference, invoiceRequested,
           invoiceName: invoiceRequested ? invoiceName.trim() : undefined,
@@ -239,6 +237,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       {visibleHistory.map((item) => <View key={item.requestId} style={{ borderTopWidth: 1, borderTopColor: palette.line, paddingTop: 12, gap: 8 }}>
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud {item.requestId.slice(0, 8)} · {requestStatus(item.status)}</Text>
         <Text style={ui.body}>{formatMoney(item.subtotal, item.currency)} · {paymentLabel(item.paymentPreference)}</Text>
+        {item.orderCode ? <Notice tone="success">Pedido {item.orderCode} · {orderStatus(item.orderStatus)}.{item.estimatedReadyAt ? ` Listo estimado: ${formatRestaurantDateTime(item.estimatedReadyAt)}.` : ""}</Notice> : null}
         {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}. Aún no emitida.</Text> : null}
         {item.message ? <Text style={ui.body}>{item.message}</Text> : null}
         {item.status === "REJECTED" && item.decisionReason ? <Notice tone="error">Motivo: {item.decisionReason}</Notice> : null}
@@ -293,7 +292,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         {defaultTaxProfileLabel ? <Text style={ui.body}>Datos precargados desde tu perfil «{defaultTaxProfileLabel}». Puedes editarlos para esta solicitud.</Text> : <Link href="/tax-profiles" style={ui.link}>Administrar perfiles fiscales</Link>}
         <Notice>Guardaremos estos datos como solicitud. La factura FEL requiere revisión y emisión posterior.</Notice>
       </View> : null}
-      <Field label="Horario que prefieres (hora local)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" />
+      <Field label="Horario que prefieres (hora de Guatemala)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" />
+      <Text style={ui.body}>Zona horaria del restaurante: {restaurantTimeZone}.</Text>
       <Button title="Sugerir horario inicial" secondary onPress={suggestTime} disabled={!selected.length} />
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />
       {selected.length === 0 ? <Notice>Agrega al menos un producto.</Notice> : null}
@@ -325,4 +325,12 @@ function requestStatus(value: DeliveryRequestReceipt["status"]) {
     CANCELLED: "cancelada", EXPIRED: "vencida",
   };
   return labels[value];
+}
+
+function orderStatus(value: DeliveryRequestReceipt["orderStatus"]) {
+  const labels: Record<NonNullable<DeliveryRequestReceipt["orderStatus"]>, string> = {
+    SENT: "enviado a cocina", PREPARING: "en preparación", READY: "listo para despacho",
+    SERVED: "entregado", CLOSED: "cerrado", CANCELLED: "cancelado",
+  };
+  return value ? labels[value] : "confirmado";
 }

@@ -211,3 +211,10 @@
 - El estado distingue que una solicitud `ACCEPTED` no es por sí misma el progreso de cocina. El ETA se actualiza manualmente o cada 30 segundos mientras el pedido siga `SENT`/`PREPARING`; los estados finales no muestran ETA. Si la sesión está offline no se afirma que se consultó al servidor.
 - Sin dependencias nuevas ni persistencia sensible local. La ruta de backend requiere la misma sesión Cliente y sólo entrega pedidos del usuario autenticado.
 - Verificación: `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile`, `npm test --workspace mobile`, `npx expo export --platform android` y `npx expo export --platform web` pasaron. Los exports son bundles para revisión, no APK/IPA ni prueba en dispositivo. `npm ci` reportó 31 alertas de auditoría en el árbol del lockfile (11 moderadas y 20 altas); no se aplicó actualización automática.
+
+## 2026-10-04 — Hora y seguimiento de delivery
+
+- Delivery interpreta el horario ingresado como hora de Guatemala (`America/Guatemala`), convierte el instante al formato API y genera sugerencias en la zona del restaurante, sin depender del timezone del teléfono.
+- Al refrescar historial, la app muestra el código y estado del pedido delivery aceptado por Operaciones, y su ETA de cocina cuando existe. Un recibo recién enviado sigue indicando claramente que está pendiente y no se ha cobrado.
+- Se presenta el motivo de decisión cuando se rechaza la solicitud. El progreso se obtiene del endpoint autenticado y acotado al cliente; el teléfono no mantiene un estado estimado como fuente de verdad.
+- Verificación: ESLint, TypeScript, Vitest 8/8, export Expo Android y Web pasan. Los exports no son builds instalables ni prueba física.

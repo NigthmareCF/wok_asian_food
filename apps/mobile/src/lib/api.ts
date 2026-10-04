@@ -148,6 +148,9 @@ export type DeliveryRequestReceipt = {
   idempotentReplay: boolean;
   decisionReason: string | null;
   message: string;
+  orderCode: string | null;
+  orderStatus: PickupOrderTracking["status"] | null;
+  estimatedReadyAt: string | null;
 };
 export type DeliveryRequestDetails = DeliveryRequestReceipt & {
   customerNote: string | null;

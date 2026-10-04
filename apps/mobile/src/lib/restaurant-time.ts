@@ -39,3 +39,14 @@ export function formatRestaurantDateTime(value: string): string {
     timeZone: restaurantTimeZone, dateStyle: "medium", timeStyle: "short", hourCycle: "h23",
   });
 }
+
+export function formatRestaurantLocalInput(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: restaurantTimeZone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date).map(({ type, value: part }) => [type, part]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
