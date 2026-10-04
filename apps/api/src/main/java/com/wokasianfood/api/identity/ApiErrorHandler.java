@@ -1,6 +1,8 @@
 package com.wokasianfood.api.identity;
 
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -9,6 +11,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiErrorHandler {
+    private static final Logger LOG = LoggerFactory.getLogger(ApiErrorHandler.class);
+
     @ExceptionHandler(AuthException.class)
     ResponseEntity<Map<String, String>> auth(AuthException error) {
         return ResponseEntity.status(error.status()).body(Map.of("message", error.getMessage()));
@@ -27,7 +31,8 @@ public class ApiErrorHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    ResponseEntity<Map<String, String>> unexpected() {
+    ResponseEntity<Map<String, String>> unexpected(Exception error) {
+        LOG.error("Unexpected API failure", error);
         return ResponseEntity.internalServerError().body(Map.of("message", "Ocurrió un error interno."));
     }
 }

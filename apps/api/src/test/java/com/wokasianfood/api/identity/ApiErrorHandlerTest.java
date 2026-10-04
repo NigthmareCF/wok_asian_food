@@ -19,7 +19,7 @@ class ApiErrorHandlerTest {
 
     @Test
     void doesNotExposeUnexpectedExceptionDetails() {
-        var response = handler.unexpected();
+        var response = handler.unexpected(new IllegalStateException("sensitive database detail"));
 
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertEquals("Ocurrió un error interno.", response.getBody().get("message"));
