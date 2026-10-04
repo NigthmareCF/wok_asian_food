@@ -82,6 +82,9 @@ jobs:
       - name: Obtener codigo
         uses: actions/checkout@v6
 
+      - name: Validar scripts Bash
+        run: bash -n .github/scripts/operational-flow-smoke.sh
+
       - name: Construir y levantar API
         run: docker compose up --build --detach db api
 

@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+current_step='initialization'
+trap 'status=$?; echo "::error title=Operational smoke failed::Step: ${current_step}"; exit "$status"' ERR
+
+current_step='read Compose network'
 project=$(docker compose config --format json | jq -r '.name')
 network="${project}_app_net"
 
+current_step='seed demo data'
 docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   < database/seeds/dev_demo.sql > /dev/null
 
+current_step='seed client flow account'
 docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   > /dev/null <<'SQL'
 SET search_path = wok, public;
@@ -23,6 +29,7 @@ SQL
 
 request() {
   local method=$1 path=$2 token=${3:-} json=${4:-} idempotency_key=${5:-}
+  current_step="$method $path"
   local -a args=(--silent --show-error --request "$method" --write-out '\n%{http_code}')
   if [[ -n "$token" ]]; then args+=(--header "Authorization: Bearer $token"); fi
   if [[ -n "$json" ]]; then args+=(--header 'Content-Type: application/json' --data "$json"); fi
@@ -42,6 +49,7 @@ expect_status() {
 }
 
 db_value() {
+  current_step='query PostgreSQL fixture data'
   docker compose exec -T db sh -c \
     'psql -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
     sh "$1" | tr -d '\r'
