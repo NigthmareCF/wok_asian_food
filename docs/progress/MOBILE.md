@@ -199,6 +199,12 @@
 - La selección mantiene el hilo actual durante la recarga; respuestas de una apertura anterior no pueden reemplazar el hilo seleccionado. Los reintentos conservan la clave idempotente por conversación.
 - Verificación: lint, TypeScript, Vitest 5/5 y Expo export Android/Web pasan. No se implementaron adjuntos ni mensajería Meta en este slice.
 
+## 2026-10-04 — Zona horaria de reservas
+
+- El campo ahora se identifica explícitamente como hora de Guatemala (`America/Guatemala`) y convierte esa hora local a un instante para el backend, en vez de interpretar según la zona configurada en el dispositivo. El historial también se formatea en zona del restaurante.
+- La conversión valida formato/calendario y tiene pruebas independientes de la zona del proceso; se conservan borradores locales como hora de restaurante y los payloads pendientes como instantes idempotentes.
+- Verificación: lint, TypeScript, Vitest 8/8 y Expo export Android/Web pasan.
+
 ## 2026-10-04 — Seguimiento de pedidos pickup aceptados
 
 - En `feature/mobile-shell`, la pestaña Solicitudes consulta `GET /api/v1/client/orders/tracking` y muestra por separado pedidos ya aceptados por el restaurante, con código, estado operativo, hora solicitada, ETA de cocina cuando backend la entrega y hora de actualización.

@@ -5,6 +5,7 @@ import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-nativ
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ReservationHistoryItem, ReservationResult } from "@/lib/api";
 import { parsePendingReservationAttempt, PendingReservationAttempt, resolvePendingReservationAttempt } from "@/lib/reservation-attempt";
+import { formatRestaurantDateTime, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { useSession } from "@/providers/session-provider";
 
 export default function ReservationsScreen() {
@@ -100,10 +101,10 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   async function submit() {
     setError(""); setMessage("");
     if (!session) { setError("Inicia sesión desde Mi cuenta para enviar una solicitud."); return; }
-    const date = new Date(requestedAt);
+    const date = parseRestaurantLocalDateTime(requestedAt);
     const count = Number(guests);
     if (!Number.isInteger(count) || count < 1 || count > 50) { setError("Indica entre 1 y 50 personas."); return; }
-    if (!requestedAt || Number.isNaN(date.getTime())) { setError("Indica una fecha y hora válidas."); return; }
+    if (!date) { setError("Indica una fecha y hora válidas en la hora de Guatemala."); return; }
     if (date.getTime() < Date.now() + 3 * 60 * 60 * 1000) { setError("Las solicitudes requieren al menos 3 horas de anticipación."); return; }
     const body = JSON.stringify({ guests: count, requestedAt: date.toISOString(), preorder, notes: notes.trim() || null });
     const attempt = resolvePendingReservationAttempt(pendingRequest.current, session.email, body, createRequestKey);
@@ -162,8 +163,8 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     {draftError ? <Notice tone="error">{draftError}</Notice> : null}
     <Card>
       <Field label="Personas" keyboardType="number-pad" value={guests} onChangeText={setGuests} placeholder="2" />
-      <Field label="Fecha y hora" value={requestedAt} onChangeText={setRequestedAt} placeholder="2026-10-05T18:30" autoCapitalize="none" />
-      <Text style={{ color: "#746e67", fontSize: 13 }}>Formato local: AAAA-MM-DDTHH:mm. Solicita con al menos 3 horas de anticipación.</Text>
+      <Field label="Fecha y hora de Guatemala" value={requestedAt} onChangeText={setRequestedAt} placeholder="2026-10-05T18:30" autoCapitalize="none" />
+      <Text style={{ color: "#746e67", fontSize: 13 }}>Hora del restaurante ({restaurantTimeZone}), AAAA-MM-DDTHH:mm. Solicita con al menos 3 horas de anticipación.</Text>
       <Field label="Solicitudes especiales (opcional)" value={notes} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} maxLength={500} textAlignVertical="top" />
       <Button title={preorder ? "Preorden requerida: sí (tocar para cambiar)" : "¿Requieres preorden? No"} secondary onPress={() => setPreorder(!preorder)} />
       {preorder ? <Text style={{ color: "#746e67", fontSize: 13 }}>Esto avisa al equipo para evaluar la solicitud; aún no agrega productos.</Text> : null}
@@ -230,8 +231,7 @@ function hasReservationDraft(guests: string, requestedAt: string, notes: string,
 }
 
 function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Horario no disponible" : date.toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" });
+  return formatRestaurantDateTime(value);
 }
 
 function decisionLabel(decision: ReservationResult["decision"], status?: string | null) {
