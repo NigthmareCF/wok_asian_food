@@ -88,6 +88,10 @@ export type PublicMenuItem = {
 export type PickupRequestBody = {
   requestedFor: string;
   customerNote?: string;
+  paymentPreference: "CASH_AT_PICKUP" | "CARD_AT_PICKUP" | "TRANSFER_AT_PICKUP";
+  invoiceRequested: boolean;
+  invoiceName?: string;
+  invoiceTaxId?: string;
   items: { menuItemId: string; quantity: number }[];
 };
 export type PickupRequestReceipt = {
@@ -97,6 +101,10 @@ export type PickupRequestReceipt = {
   subtotal: number;
   currencyId: string;
   currency: string;
+  paymentPreference: PickupRequestBody["paymentPreference"] | null;
+  invoiceRequested: boolean;
+  invoiceName: string | null;
+  invoiceTaxId: string | null;
   idempotentReplay: boolean;
   decisionReason: string | null;
   message: string;
@@ -121,6 +129,9 @@ export type DeliveryRequestBody = {
   reference?: string;
   contactPhone: string;
   paymentPreference: "CASH_ON_DELIVERY" | "ONLINE_PAYMENT_REQUESTED";
+  invoiceRequested: boolean;
+  invoiceName?: string;
+  invoiceTaxId?: string;
   items: { menuItemId: string; quantity: number }[];
 };
 export type DeliveryRequestReceipt = {
@@ -131,6 +142,9 @@ export type DeliveryRequestReceipt = {
   subtotal: number;
   currency: string;
   paymentPreference: DeliveryRequestBody["paymentPreference"];
+  invoiceRequested: boolean;
+  invoiceName: string | null;
+  invoiceTaxId: string | null;
   idempotentReplay: boolean;
   decisionReason: string | null;
   message: string;

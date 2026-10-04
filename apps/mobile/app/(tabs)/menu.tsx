@@ -40,6 +40,10 @@ export default function MenuScreen() {
   const [cartRestored, setCartRestored] = useState(Platform.OS === "web");
   const [requestedFor, setRequestedFor] = useState("");
   const [customerNote, setCustomerNote] = useState("");
+  const [paymentPreference, setPaymentPreference] = useState<PickupRequestBody["paymentPreference"]>("CASH_AT_PICKUP");
+  const [invoiceRequested, setInvoiceRequested] = useState(false);
+  const [invoiceName, setInvoiceName] = useState("");
+  const [invoiceTaxId, setInvoiceTaxId] = useState("");
   const [attempt, setAttempt] = useState<PickupAttempt | null>(null);
   const [sending, setSending] = useState(false);
   const [receipt, setReceipt] = useState<PickupRequestReceipt | null>(null);
@@ -93,6 +97,8 @@ export default function MenuScreen() {
   const cartCount = cartItems.reduce((total, item) => total + cart[item.id], 0);
   const cartSubtotal = cartItems.reduce((total, item) => total + item.price * cart[item.id], 0);
   const hasItems = (menu?.categories ?? []).some((category) => category.items.length > 0);
+  const activePaymentPreference = attempt?.body.paymentPreference ?? paymentPreference;
+  const activeInvoiceRequest = attempt?.body.invoiceRequested ?? invoiceRequested;
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
     setReceipt(null);
@@ -124,10 +130,17 @@ export default function MenuScreen() {
       body: {
         requestedFor: new Date(requestedFor).toISOString(),
         customerNote: customerNote.trim() || undefined,
+        paymentPreference,
+        invoiceRequested,
+        invoiceName: invoiceRequested ? invoiceName.trim() : undefined,
+        invoiceTaxId: invoiceRequested ? invoiceTaxId.trim() : undefined,
         items: cartItems.map((item) => ({ menuItemId: item.id, quantity: cart[item.id] })),
       },
     };
     if (!activeAttempt.body.items.length) { setError("Agrega al menos un producto."); return; }
+    if (activeAttempt.body.invoiceRequested && (!activeAttempt.body.invoiceName?.trim() || !activeAttempt.body.invoiceTaxId?.trim())) {
+      setError("Completa el nombre o razón social y el NIT para solicitar factura."); return;
+    }
     if (Number.isNaN(Date.parse(activeAttempt.body.requestedFor))) { setError("Revisa la fecha y hora solicitadas."); return; }
     setError(null);
     setSending(true);
@@ -160,7 +173,7 @@ export default function MenuScreen() {
     </Card> : null}
     {loading ? <Card><Text style={ui.body}>Cargando el menú oficial…</Text></Card> : null}
     {error ? <View style={ui.section}><Notice tone="error">{error}</Notice>{!hasItems ? <Button title="Reintentar menú" secondary onPress={() => void loadMenu()} /> : null}</View> : null}
-    {receipt ? <Notice tone="success">Solicitud {receipt.requestId.slice(0, 8)} recibida. Estado: pendiente de revisión. Aún no es un pedido aceptado ni se ha cobrado.</Notice> : null}
+    {receipt ? <Notice tone="success">Solicitud {receipt.requestId.slice(0, 8)} recibida. Estado: pendiente de revisión. Preferencia: {pickupPaymentLabel(receipt.paymentPreference)}. Aún no es pedido aceptado ni se ha cobrado.{receipt.invoiceRequested ? " Los datos de factura quedaron solicitados; todavía no se emitió FEL." : ""}</Notice> : null}
     {!loading && !error && !hasItems ? <>
       <Card><Text style={{ fontWeight: "800", color: palette.ink, fontSize: 18 }}>El menú se publicará aquí</Text>
         <Text style={ui.body}>Aún no hay platillos publicados. Los productos y precios aparecerán cuando el restaurante cargue su catálogo oficial.</Text>
@@ -196,6 +209,19 @@ export default function MenuScreen() {
         <Button title="Sugerir primera hora" secondary onPress={suggestPickupTime} disabled={Boolean(attempt)} />
         <Field label="Fecha y hora solicitadas (hora local)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" editable={!attempt} />
         <Field label="Comentarios (opcional)" value={attempt?.body.customerNote ?? customerNote} onChangeText={setCustomerNote} placeholder="Indicaciones para el equipo" editable={!attempt} maxLength={500} />
+        <View style={ui.section}>
+          <Text style={{ color: palette.ink, fontWeight: "800" }}>Preferencia de pago al recoger</Text>
+          <Button title="Efectivo al recoger" secondary={activePaymentPreference !== "CASH_AT_PICKUP"} disabled={Boolean(attempt)} onPress={() => setPaymentPreference("CASH_AT_PICKUP")} />
+          <Button title="Tarjeta al recoger" secondary={activePaymentPreference !== "CARD_AT_PICKUP"} disabled={Boolean(attempt)} onPress={() => setPaymentPreference("CARD_AT_PICKUP")} />
+          <Button title="Transferencia al recoger" secondary={activePaymentPreference !== "TRANSFER_AT_PICKUP"} disabled={Boolean(attempt)} onPress={() => setPaymentPreference("TRANSFER_AT_PICKUP")} />
+          <Notice>Es una preferencia para el equipo. La app no procesa el pago en este paso.</Notice>
+        </View>
+        <Button title={activeInvoiceRequest ? "Quitar solicitud de factura" : "Solicitar factura"} secondary={!activeInvoiceRequest} disabled={Boolean(attempt)} onPress={() => setInvoiceRequested((current) => !current)} />
+        {activeInvoiceRequest ? <View style={ui.section}>
+          <Field label="Nombre o razón social" value={attempt?.body.invoiceName ?? invoiceName} onChangeText={setInvoiceName} maxLength={150} editable={!attempt} />
+          <Field label="NIT" value={attempt?.body.invoiceTaxId ?? invoiceTaxId} onChangeText={setInvoiceTaxId} maxLength={32} editable={!attempt} placeholder="CF o NIT" />
+          <Notice>Guardaremos estos datos como solicitud. La factura FEL requiere revisión y emisión posterior.</Notice>
+        </View> : null}
         {!session ? <View style={ui.section}><Notice>Para enviar tu solicitud, primero inicia sesión.</Notice><Link href="/account" style={ui.link}>Ir a Mi cuenta</Link></View> : null}
         {session?.offline ? <Notice>Estás sin conexión. La solicitud requiere confirmación del servidor y no se enviará automáticamente.</Notice> : null}
         {attempt ? <Notice>Hay un envío cuyo resultado no se confirmó. Reintenta exactamente la misma solicitud; la app conserva su clave para evitar duplicados.</Notice> : null}
@@ -204,4 +230,10 @@ export default function MenuScreen() {
       </Card>
     </View> : null}
   </Page></ScrollView>;
+}
+
+function pickupPaymentLabel(value: PickupRequestBody["paymentPreference"] | null) {
+  if (value === "CARD_AT_PICKUP") return "tarjeta al recoger";
+  if (value === "TRANSFER_AT_PICKUP") return "transferencia al recoger";
+  return "efectivo al recoger";
 }

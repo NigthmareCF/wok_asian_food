@@ -38,6 +38,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [addressNotice, setAddressNotice] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [paymentPreference, setPaymentPreference] = useState<DeliveryRequestBody["paymentPreference"]>("CASH_ON_DELIVERY");
+  const [invoiceRequested, setInvoiceRequested] = useState(false);
+  const [invoiceName, setInvoiceName] = useState("");
+  const [invoiceTaxId, setInvoiceTaxId] = useState("");
   const [pending, setPending] = useState<PendingAttempt | null>(null);
   const [receipt, setReceipt] = useState<DeliveryRequestReceipt | null>(null);
   const [history, setHistory] = useState<DeliveryRequestReceipt[]>([]);
@@ -127,11 +130,17 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         body: {
           requestedFor: new Date(requestedFor).toISOString(), customerNote: customerNote.trim() || undefined,
           address: address.trim(), reference: reference.trim() || undefined, contactPhone: contactPhone.trim(),
-          paymentPreference, items: selected.map((item) => ({ menuItemId: item.id, quantity: cart[item.id] })),
+          paymentPreference, invoiceRequested,
+          invoiceName: invoiceRequested ? invoiceName.trim() : undefined,
+          invoiceTaxId: invoiceRequested ? invoiceTaxId.trim() : undefined,
+          items: selected.map((item) => ({ menuItemId: item.id, quantity: cart[item.id] })),
         },
       };
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo preparar la solicitud."); return;
+    }
+    if (activeAttempt.body.invoiceRequested && (!activeAttempt.body.invoiceName?.trim() || !activeAttempt.body.invoiceTaxId?.trim())) {
+      setError("Completa el nombre o razón social y el NIT para solicitar factura."); return;
     }
     if (activeAttempt.email !== session.email) { setError(`Inicia sesión con ${activeAttempt.email} para reintentar la solicitud protegida.`); return; }
     setSending(true); setError(""); setNotice("");
@@ -202,7 +211,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     {session?.offline ? <Notice>Sin conexión: conserva la solicitud para reintentar manualmente cuando vuelva el acceso al servidor.</Notice> : null}
     {error ? <Notice tone="error">{error}</Notice> : null}
     {notice ? <Notice tone="success">{notice}</Notice> : null}
-    {receipt ? <Card><Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud recibida · {receipt.requestId.slice(0, 8)}</Text><Text style={ui.body}>Estado: pendiente de revisión. Preferencia de pago: {paymentLabel(receipt.paymentPreference)}. No se ha realizado ningún pago.</Text></Card> : null}
+    {receipt ? <Card><Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud recibida · {receipt.requestId.slice(0, 8)}</Text><Text style={ui.body}>Estado: pendiente de revisión. Preferencia de pago: {paymentLabel(receipt.paymentPreference)}. No se ha realizado ningún pago.{receipt.invoiceRequested ? " Los datos de factura quedaron solicitados; todavía no se emitió FEL." : ""}</Text></Card> : null}
     {session ? <Card>
       <Heading eyebrow="Historial">Tus solicitudes delivery</Heading>
       {historyError ? <Notice tone="error">{historyError}</Notice> : null}
@@ -211,12 +220,14 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       {visibleHistory.map((item) => <View key={item.requestId} style={{ borderTopWidth: 1, borderTopColor: palette.line, paddingTop: 12, gap: 8 }}>
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud {item.requestId.slice(0, 8)} · {requestStatus(item.status)}</Text>
         <Text style={ui.body}>{formatMoney(item.subtotal, item.currency)} · {paymentLabel(item.paymentPreference)}</Text>
+        {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}. Aún no emitida.</Text> : null}
         {item.message ? <Text style={ui.body}>{item.message}</Text> : null}
         {item.status === "REJECTED" && item.decisionReason ? <Notice tone="error">Motivo: {item.decisionReason}</Notice> : null}
         <Button title={details?.requestId === item.requestId ? "Ocultar detalle" : "Ver detalle"} secondary busy={detailsLoading === item.requestId} onPress={() => void toggleDetails(item.requestId)} />
         {details?.requestId === item.requestId ? <View style={ui.section}>
           <Text style={ui.body}>Horario solicitado: {new Date(details.requestedFor).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })}</Text>
           {details.customerNote ? <Text style={ui.body}>Comentario: {details.customerNote}</Text> : null}
+          {details.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {details.invoiceName} · NIT {details.invoiceTaxId}. Aún no emitida.</Text> : null}
           {details.items.map((line, index) => <Text key={`${line.name}-${index}`} style={ui.body}>{line.quantity} × {line.name} · {formatMoney(line.lineTotal, item.currency)}</Text>)}
           <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal: {formatMoney(details.subtotal, details.currency)}</Text>
           <Notice>Los precios mostrados son la captura de tu solicitud. El equipo debe revisar cobertura y confirmar antes de que exista un pedido aceptado.</Notice>
@@ -256,6 +267,12 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       <Button title="Efectivo al recibir" secondary={paymentPreference !== "CASH_ON_DELIVERY"} onPress={() => setPaymentPreference("CASH_ON_DELIVERY")} />
       <Button title="Solicitar pago en línea" secondary={paymentPreference !== "ONLINE_PAYMENT_REQUESTED"} onPress={() => setPaymentPreference("ONLINE_PAYMENT_REQUESTED")} />
       {paymentPreference === "ONLINE_PAYMENT_REQUESTED" ? <Notice>Esta opción sólo registra tu preferencia. El cobro en línea no está habilitado aquí.</Notice> : null}
+      <Button title={invoiceRequested ? "Quitar solicitud de factura" : "Solicitar factura"} secondary={!invoiceRequested} onPress={() => setInvoiceRequested((current) => !current)} />
+      {invoiceRequested ? <View style={ui.section}>
+        <Field label="Nombre o razón social" value={invoiceName} onChangeText={setInvoiceName} maxLength={150} />
+        <Field label="NIT" value={invoiceTaxId} onChangeText={setInvoiceTaxId} maxLength={32} placeholder="CF o NIT" />
+        <Notice>Guardaremos estos datos como solicitud. La factura FEL requiere revisión y emisión posterior.</Notice>
+      </View> : null}
       <Field label="Horario que prefieres (hora local)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" />
       <Button title="Sugerir horario inicial" secondary onPress={suggestTime} disabled={!selected.length} />
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />
