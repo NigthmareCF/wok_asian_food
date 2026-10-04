@@ -120,11 +120,18 @@ class CustomerMessagingService {
     List<ConversationSummary> listForCustomer(UUID userId) {
         UUID customerId = requireActiveCustomer(userId);
         return jdbc.query("""
-            SELECT c.id, c.status, c.handling_mode, c.updated_at
-            FROM wok.conversations c WHERE c.customer_id = ? AND c.channel = 'APP'
+            SELECT c.id, c.status, c.handling_mode, c.updated_at,
+                   latest.body AS last_message, latest.created_at AS last_message_at
+            FROM wok.conversations c
+            LEFT JOIN LATERAL (
+                SELECT m.body, m.created_at FROM wok.messages m WHERE m.conversation_id = c.id
+                ORDER BY m.created_at DESC, m.id DESC LIMIT 1
+            ) latest ON true
+            WHERE c.customer_id = ? AND c.channel = 'APP'
             ORDER BY c.updated_at DESC, c.id DESC LIMIT 20
             """, (rs, row) -> new ConversationSummary(rs.getObject("id", UUID.class), rs.getString("status"),
-                rs.getString("handling_mode"), rs.getTimestamp("updated_at").toInstant(), null, null, null), customerId);
+                rs.getString("handling_mode"), rs.getTimestamp("updated_at").toInstant(), null, rs.getString("last_message"),
+                rs.getTimestamp("last_message_at") == null ? null : rs.getTimestamp("last_message_at").toInstant()), customerId);
     }
 
     List<MessageItem> messagesForCustomer(UUID userId, UUID conversationId) {

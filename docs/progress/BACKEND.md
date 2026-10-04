@@ -157,6 +157,12 @@
 - Las pruebas HTTP con PostgreSQL 18 cubren migración desde cero, propiedad cruzada, permiso de rol, exclusividad del predeterminado, cambios/versiones, eliminación y validación. Suite completa: 151 pruebas, 0 fallos, 0 errores, 0 omitidas.
 - No es un módulo de facturación ni conserva/autoriza pagos: estos perfiles sólo son datos guardados que Cliente puede reutilizar al solicitar una factura.
 
+## 2026-10-04 — Historial de conversaciones Cliente
+
+- `GET /api/v1/client/conversations` ya incluye el texto/fecha del último mensaje mediante una subconsulta lateral, junto con el estado y fecha de actividad. Mantiene el límite de 20 hilos y la selección por perfil Cliente del subject autenticado.
+- La prueba PostgreSQL abre una conversación cerrada, agrega respuesta humana y verifica que el historial propio incluya esa última respuesta. No se exponen conversaciones ajenas.
+- Suite completa con PostgreSQL 18 y Flyway V1–V26: 152 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
 ## 2026-10-04 — Cola Operativa para solicitudes pickup/delivery
 
 - `GET /api/v1/operational/order-requests` lista hasta 100 solicitudes y permite filtrar `status` y `fulfillmentType`; sin filtros muestra primero las pendientes. `GET /api/v1/operational/order-requests/{requestId}` devuelve snapshot de cliente/modalidad/contacto/horario/importe/notas y líneas guardadas, incluyendo dirección y referencia para delivery.
