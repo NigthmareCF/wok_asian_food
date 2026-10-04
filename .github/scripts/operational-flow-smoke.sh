@@ -43,7 +43,8 @@ request() {
 
 expect_status() {
   if [[ "$http_status" != "$1" ]]; then
-    printf 'Expected HTTP %s, got %s: %s\n' "$1" "$http_status" "$http_body" >&2
+    printf 'Step %s: expected HTTP %s, got %s: %s\n' \
+      "$current_step" "$1" "$http_status" "$http_body" >&2
     exit 1
   fi
 }
