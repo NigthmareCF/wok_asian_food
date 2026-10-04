@@ -14,6 +14,12 @@
 - Sigue siendo un borrador `DRAFT`; no se emite factura automáticamente. La ruta requiere `invoices:manage` y no expone estos datos en otros detalles Operativos.
 - Prueba de integración Testcontainers verifica request aceptado → pedido/cuenta → borrador con datos fiscales. Suite completa 147/147 pasa con PostgreSQL 18.
 
+## 2026-10-04 — Consulta Cliente de facturas emitidas
+
+- `GET /api/v1/client/invoices` y `GET /api/v1/client/invoices/{invoiceId}` muestran únicamente facturas emitidas vinculadas a pickup aceptado del Cliente autenticado. El filtro exige que todos los pedidos de la cuenta pertenezcan a solicitudes aceptadas de esa persona; si la cuenta mezcla pedidos sin ownership demostrado, no se revela el documento.
+- Devuelve resumen y líneas/datos fiscales mínimos. Documentos del `MockFiscalProvider` se marcan `testDocument`; no existe todavía descarga de PDF/XML. La autorización productiva depende de una integración FEL real.
+- Prueba integrada cubre emisión mock, lectura propia, aislamiento entre clientes y rol no permitido. Suite backend completa 148/148 contra PostgreSQL 18/Testcontainers; V1–V25 aplican desde cero.
+
 ## 2026-10-02 — Fase 5 Facturación electrónica mock y outbox (rama de tarea)
 
 - Rama `feature/invoices-outbox`, apilada sobre `feature/mixed-payments-tips` para conservar pagos/propina/caja y Testcontainers. Cierra `FEL-01` (`NEXT-2`) sin certificador real: el adaptador SAT queda `BLOCKED`, por lo que se define un puerto `FiscalProvider` con sólo el adaptador `MockFiscalProvider` (`wok.fiscal.mode=mock`).

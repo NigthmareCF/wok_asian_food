@@ -83,6 +83,33 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void clientCanReadOnlyIssuedInvoicesForTheirEntirelyOwnedPickupAccount() {
+        UUID actor = createUserWithRole("factura-cliente-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String operator = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta Cliente factura");
+        MenuItemSeed menu = seedMenuItem("Wok cliente factura", "42.00");
+        UUID orderId = closedOrderWithItem(accountId, actor, menu, "Wok cliente factura", 1, "42.00", "42.00");
+        UUID customer = createUserWithRole("cliente-factura-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID otherCustomer = createUserWithRole("otro-cliente-factura-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        linkAcceptedPickup(orderId, customer, actor);
+        UUID invoiceId = draft(operator, accountId);
+        body(post(issuePath(invoiceId), operator, null, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        invoiceIssuance.issueNext();
+
+        JsonNode history = body(get("/api/v1/client/invoices", tokenFor(customer)));
+        assertThat(history).hasSize(1);
+        assertThat(history.get(0).path("invoiceId").asText()).isEqualTo(invoiceId.toString());
+        assertThat(history.get(0).path("testDocument").asBoolean()).isTrue();
+
+        JsonNode details = body(get("/api/v1/client/invoices/" + invoiceId, tokenFor(customer)));
+        assertThat(details.path("customerTaxId").asText()).isEqualTo("11223344");
+        assertThat(details.path("items")).hasSize(1);
+        assertThat(get("/api/v1/client/invoices", tokenFor(otherCustomer)).body()).isEqualTo("[]");
+        assertThat(get("/api/v1/client/invoices/" + invoiceId, tokenFor(otherCustomer)).statusCode()).isEqualTo(404);
+        assertThat(get("/api/v1/client/invoices", operator).statusCode()).isEqualTo(403);
+    }
+
+    @Test
     void rejectsDraftsWithoutConsumptionAndWithoutPermission() {
         UUID actor = createUserWithRole("factura-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
@@ -212,6 +239,18 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
                 VALUES (?, ?, 'OPEN', ?, ?, ?)
                 """, id, name, actor, actor, actor);
         return id;
+    }
+
+    private void linkAcceptedPickup(UUID orderId, UUID customerId, UUID actor) {
+        UUID currencyId = jdbc.queryForObject("SELECT id FROM wok.currencies WHERE code = 'GTQ'", UUID.class);
+        jdbc.update("""
+            INSERT INTO wok.order_requests
+                (customer_user_id, status, idempotency_key, request_fingerprint, requested_for,
+                 subtotal, currency_id, decided_by, decided_at, decision_reason, order_id,
+                 invoice_requested, invoice_name, invoice_tax_id)
+            VALUES (?, 'ACCEPTED', ?, repeat('b', 64), now() + interval '1 hour', 42.00, ?, ?, now(),
+                    'ACCEPTED', ?, true, 'Cliente Factura', '11223344')
+            """, customerId, UUID.randomUUID(), currencyId, actor, orderId);
     }
 
     private UUID closedOrderWithItem(UUID accountId, UUID actor, MenuItemSeed menu, String name, int quantity,
