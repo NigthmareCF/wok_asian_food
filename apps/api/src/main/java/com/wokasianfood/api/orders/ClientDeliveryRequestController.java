@@ -121,7 +121,7 @@ public class ClientDeliveryRequestController {
                 subtotal, currency, request.paymentPreference(), invoice.requested(), invoice.name(), invoice.taxId(), false,
                 null,
                 "Recibimos la solicitud delivery. El equipo debe confirmar cobertura, disponibilidad y horario; todavía no es un pedido ni un pago.",
-                null, null, null);
+                null, null, null, null, null, null, null);
     }
 
     @GetMapping
@@ -131,9 +131,10 @@ public class ClientDeliveryRequestController {
             SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference,
                    r.invoice_requested, r.invoice_name, r.invoice_tax_id, r.decision_reason,
                    o.code AS order_code, o.status AS order_status,
-                   eta.estimated_ready_at
+                   eta.estimated_ready_at, d.status AS dispatch_status, d.assigned_at, d.dispatched_at, d.delivered_at
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             LEFT JOIN wok.orders o ON o.id = r.order_id
+            LEFT JOIN wok.delivery_dispatches d ON d.order_id = o.id
             LEFT JOIN LATERAL (
                 SELECT max(t.estimated_ready_at) AS estimated_ready_at
                 FROM wok.kitchen_tickets t
@@ -147,7 +148,8 @@ public class ClientDeliveryRequestController {
                 rs.getBoolean("invoice_requested"), rs.getString("invoice_name"), rs.getString("invoice_tax_id"), false,
                 rs.getString("decision_reason"), "El equipo debe confirmar cobertura, disponibilidad y horario.", rs.getString("order_code"),
                 rs.getString("order_status"), rs.getTimestamp("estimated_ready_at") == null ? null
-                    : rs.getTimestamp("estimated_ready_at").toInstant()), userId);
+                    : rs.getTimestamp("estimated_ready_at").toInstant(), rs.getString("dispatch_status"),
+                instant(rs, "assigned_at"), instant(rs, "dispatched_at"), instant(rs, "delivered_at")), userId);
     }
 
     @GetMapping("/{requestId}")
@@ -216,9 +218,11 @@ public class ClientDeliveryRequestController {
         List<DeliveryRequestReceipt> found = jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference,
                    r.invoice_requested, r.invoice_name, r.invoice_tax_id, r.decision_reason, r.request_fingerprint,
-                   o.code AS order_code, o.status AS order_status, eta.estimated_ready_at
+                   o.code AS order_code, o.status AS order_status, eta.estimated_ready_at,
+                   d.status AS dispatch_status, d.assigned_at, d.dispatched_at, d.delivered_at
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             LEFT JOIN wok.orders o ON o.id = r.order_id
+            LEFT JOIN wok.delivery_dispatches d ON d.order_id = o.id
             LEFT JOIN LATERAL (
                 SELECT max(t.estimated_ready_at) AS estimated_ready_at
                 FROM wok.kitchen_tickets t
@@ -234,7 +238,9 @@ public class ClientDeliveryRequestController {
                         rs.getBoolean("invoice_requested"), rs.getString("invoice_name"), rs.getString("invoice_tax_id"), true,
                         rs.getString("decision_reason"), "Recibimos la solicitud delivery. El equipo debe confirmar cobertura y disponibilidad.",
                         rs.getString("order_code"), rs.getString("order_status"),
-                        rs.getTimestamp("estimated_ready_at") == null ? null : rs.getTimestamp("estimated_ready_at").toInstant());
+                        rs.getTimestamp("estimated_ready_at") == null ? null : rs.getTimestamp("estimated_ready_at").toInstant(),
+                        rs.getString("dispatch_status"), instant(rs, "assigned_at"), instant(rs, "dispatched_at"),
+                        instant(rs, "delivered_at"));
             }, userId, key);
         return found.isEmpty() ? null : found.getFirst();
     }
@@ -252,6 +258,11 @@ public class ClientDeliveryRequestController {
 
     private String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
 
+    private Instant instant(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+        var timestamp = rs.getTimestamp(column);
+        return timestamp == null ? null : timestamp.toInstant();
+    }
+
     public record DeliveryRequest(@NotNull Instant requestedFor, @Size(max = 500) String customerNote,
             @NotBlank @Size(min = 5, max = 500) String address, @Size(max = 300) String reference,
             @NotBlank @Pattern(regexp = "[0-9+() .-]{7,32}") String contactPhone,
@@ -267,7 +278,8 @@ public class ClientDeliveryRequestController {
     public record DeliveryRequestReceipt(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean invoiceRequested,
             String invoiceName, String invoiceTaxId, boolean idempotentReplay, String decisionReason, String message,
-            String orderCode, String orderStatus, Instant estimatedReadyAt) {}
+            String orderCode, String orderStatus, Instant estimatedReadyAt, String dispatchStatus,
+            Instant assignedAt, Instant dispatchedAt, Instant deliveredAt) {}
     public record DeliveryRequestDetails(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, String customerNote,
             boolean invoiceRequested, String invoiceName, String invoiceTaxId,

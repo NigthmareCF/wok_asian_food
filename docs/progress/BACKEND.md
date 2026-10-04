@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-04 — Ciclo operativo de despacho delivery
+
+- Flyway V27 añade `delivery_dispatches` y su historial de eventos, con constraints para estados, asignación de repartidor, salida, entrega e incidencias.
+- Al aceptar una solicitud delivery se crea despacho `AWAITING_KITCHEN`; cuando todas las comandas están listas, cocina lo avanza a `READY_FOR_DISPATCH`. Operaciones puede asignar una cuenta activa operativa/admin, despachar, marcar entrega, registrar fallo con motivo y devolverlo a la cola para reintento. Cada transición usa `expectedVersion`, evento y auditoría; entregar también marca la orden `SERVED`.
+- Cancelar la orden cancela el despacho abierto y registra su transición. El historial Cliente propio incluye estado/horas de despacho, sin exponer motivo interno ni datos de otros clientes.
+- Verificación: `KitchenServiceTest`, `OrderServiceTest` y `OrderRequestDecisionIntegrationTest` pasan (32 pruebas; Testcontainers valida Flyway V1–V27, aceptación, cancelación, ownership y ciclo asignar/despachar/fallar/reintentar/entregar). `sh mvnw clean test`: 156 pruebas, 0 fallos/errores/omitidas.
+
 ## 2026-10-04 — Preferencias de pago y factura en solicitudes Cliente
 
 - Migración Flyway `V25__order_request_payment_and_invoice_preferences.sql`: añade a `wok.order_requests` la solicitud de factura y su snapshot (`invoice_name`, `invoice_tax_id`), y permite registrar para pickup efectivo/tarjeta/transferencia al recoger. No crea pagos ni facturas FEL.

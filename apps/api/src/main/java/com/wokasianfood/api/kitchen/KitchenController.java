@@ -225,6 +225,19 @@ class KitchenService {
                 INSERT INTO wok.order_status_history (order_id, from_status, to_status, reason, actor_user_id, request_id)
                 VALUES (?, 'PREPARING', 'READY', 'ALL_STATIONS_READY', ?, ?)
                 """, orderId, actor, requestId);
+            List<UUID> dispatches = jdbc.query("""
+                UPDATE wok.delivery_dispatches
+                SET status = 'READY_FOR_DISPATCH', updated_at = now(), row_version = row_version + 1
+                WHERE order_id = ? AND status = 'AWAITING_KITCHEN'
+                RETURNING id
+                """, (rs, row) -> rs.getObject(1, UUID.class), orderId);
+            for (UUID dispatchId : dispatches) {
+                jdbc.update("""
+                    INSERT INTO wok.delivery_dispatch_events
+                        (dispatch_id, from_status, to_status, actor_user_id, reason, request_id)
+                    VALUES (?, 'AWAITING_KITCHEN', 'READY_FOR_DISPATCH', ?, 'ALL_KITCHEN_TICKETS_READY', ?)
+                    """, dispatchId, actor, requestId);
+            }
         }
     }
 

@@ -206,6 +206,94 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         assertThat(trackedRequest.path("orderCode").asText()).isEqualTo(
                 jdbc.queryForObject("SELECT code FROM wok.orders WHERE id = ?", String.class, orderId));
         assertThat(trackedRequest.path("orderStatus").asText()).isEqualTo("SENT");
+        assertThat(trackedRequest.path("dispatchStatus").asText()).isEqualTo("AWAITING_KITCHEN");
+
+        int orderVersion = jdbc.queryForObject("SELECT row_version FROM wok.orders WHERE id = ?", Integer.class, orderId);
+        assertThat(patch("/api/v1/operational/orders/" + orderId + "/status", operator,
+                "{\"status\":\"CANCELLED\",\"expectedVersion\":%d,\"reason\":\"Cliente solicitó cancelar\"}".formatted(orderVersion))
+                .statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.delivery_dispatches WHERE order_id = ?", String.class,
+                orderId)).isEqualTo("CANCELLED");
+        assertThat(count("SELECT count(*) FROM wok.delivery_dispatch_events WHERE dispatch_id = (SELECT id FROM wok.delivery_dispatches WHERE order_id = ?)",
+                orderId)).isEqualTo(2);
+    }
+
+    @Test
+    void dispatchesAcceptedDeliveryWithCourierFailureRetryAndCompletionHistory() {
+        UUID menuItemId = seedMenuItem("Wok Delivery Lifecycle", "21.00", "WOK_DELIVERY_LIFECYCLE", 60);
+        String client = tokenForRole("CLIENT");
+        UUID requestId = UUID.fromString(submit(client, menuItemId, 1,
+                Instant.now().plusSeconds(900).toString()).path("requestId").asText());
+        jdbc.update("""
+            UPDATE wok.order_requests SET fulfillment_type = 'DELIVERY', delivery_address = 'Zona 4',
+                contact_phone = '+502 5555-0101', payment_preference = 'CASH_ON_DELIVERY' WHERE id = ?
+            """, requestId);
+        String operator = tokenForRole("OPERATIONAL");
+        JsonNode accepted = body(post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
+                "{\"action\":\"ACCEPT\"}"));
+        UUID orderId = UUID.fromString(accepted.path("orderId").asText());
+        UUID courier = createUserWithRole("courier-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        UUID dispatchId = jdbc.queryForObject("SELECT id FROM wok.delivery_dispatches WHERE order_id = ?", UUID.class, orderId);
+
+        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"DISPATCH\",\"expectedVersion\":1}").statusCode()).isEqualTo(409);
+        jdbc.update("UPDATE wok.orders SET status = 'READY' WHERE id = ?", orderId);
+        jdbc.update("UPDATE wok.delivery_dispatches SET status = 'READY_FOR_DISPATCH', row_version = row_version + 1 WHERE id = ?",
+                dispatchId);
+        JsonNode queue = body(get("/api/v1/operational/deliveries?status=READY_FOR_DISPATCH", operator));
+        assertThat(queue.findValuesAsText("orderId")).contains(orderId.toString());
+        JsonNode couriers = body(get("/api/v1/operational/deliveries/eligible-couriers", operator));
+        assertThat(couriers.findValuesAsText("userId")).contains(courier.toString());
+        UUID clientUser = createUserWithRole("not-courier-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"ASSIGN\",\"assignedToUserId\":\"%s\",\"expectedVersion\":2}"
+                        .formatted(clientUser)).statusCode()).isEqualTo(422);
+
+        JsonNode assigned = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"ASSIGN\",\"assignedToUserId\":\"%s\",\"expectedVersion\":2}".formatted(courier)));
+        assertThat(assigned.path("status").asText()).isEqualTo("ASSIGNED");
+        assertThat(assigned.path("assignedToUserId").asText()).isEqualTo(courier.toString());
+        assertThat(assigned.path("rowVersion").asInt()).isEqualTo(3);
+
+        JsonNode dispatched = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"DISPATCH\",\"expectedVersion\":3}"));
+        assertThat(dispatched.path("status").asText()).isEqualTo("OUT_FOR_DELIVERY");
+        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"FAIL\",\"expectedVersion\":4}").statusCode()).isEqualTo(422);
+
+        JsonNode failed = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"FAIL\",\"expectedVersion\":4,\"reason\":\"No respondió\"}"));
+        assertThat(failed.path("status").asText()).isEqualTo("DELIVERY_FAILED");
+        JsonNode retried = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"RETRY\",\"expectedVersion\":5,\"reason\":\"Cliente confirmó nueva entrega\"}"));
+        assertThat(retried.path("status").asText()).isEqualTo("READY_FOR_DISPATCH");
+        assertThat(retried.hasNonNull("assignedToUserId")).isFalse();
+        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"ASSIGN\",\"assignedToUserId\":\"%s\",\"expectedVersion\":5}".formatted(courier))
+                .statusCode()).isEqualTo(409);
+
+        JsonNode reassigned = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"ASSIGN\",\"assignedToUserId\":\"%s\",\"expectedVersion\":6}".formatted(courier)));
+        JsonNode secondDispatch = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"DISPATCH\",\"expectedVersion\":7}"));
+        JsonNode delivered = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+                "{\"action\":\"DELIVER\",\"expectedVersion\":8}"));
+        assertThat(reassigned.path("status").asText()).isEqualTo("ASSIGNED");
+        assertThat(secondDispatch.path("status").asText()).isEqualTo("OUT_FOR_DELIVERY");
+        assertThat(delivered.path("status").asText()).isEqualTo("DELIVERED");
+        assertThat(delivered.path("deliveredAt").isNull()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, orderId)).isEqualTo("SERVED");
+        assertThat(count("SELECT count(*) FROM wok.delivery_dispatch_events WHERE dispatch_id = ?", dispatchId)).isEqualTo(8);
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'DELIVERY_DISPATCH_TRANSITIONED'",
+                dispatchId)).isEqualTo(7);
+        JsonNode history = body(get("/api/v1/client/delivery-requests", client));
+        JsonNode trackedRequest = null;
+        for (JsonNode item : history) {
+            if (requestId.toString().equals(item.path("requestId").asText())) trackedRequest = item;
+        }
+        assertThat(trackedRequest).isNotNull();
+        assertThat(trackedRequest.path("dispatchStatus").asText()).isEqualTo("DELIVERED");
+        assertThat(trackedRequest.path("deliveredAt").isTextual()).isTrue();
     }
 
     @Test

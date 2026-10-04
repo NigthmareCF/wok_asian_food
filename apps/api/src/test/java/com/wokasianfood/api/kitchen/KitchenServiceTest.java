@@ -86,6 +86,8 @@ class KitchenServiceTest {
                 .thenReturn(List.of());
         when(jdbc.query(contains("SET status = 'READY'"), any(RowMapper.class), eq(actor), eq(ticketId)))
                 .thenReturn(List.of(orderId));
+        when(jdbc.query(contains("UPDATE wok.delivery_dispatches"), any(RowMapper.class), eq(orderId)))
+                .thenReturn(List.of());
         when(jdbc.update(contains("INSERT INTO wok.order_status_history"), any(Object[].class))).thenReturn(1);
         stubView(ticketId, "READY", 4);
 
@@ -95,6 +97,7 @@ class KitchenServiceTest {
         assertEquals("READY", result.status());
         assertNotNull(result.readyAt());
         verify(jdbc).update(contains("INSERT INTO wok.order_status_history"), eq(orderId), eq(actor), any(UUID.class));
+        verify(jdbc).query(contains("UPDATE wok.delivery_dispatches"), any(RowMapper.class), eq(orderId));
     }
 
     @Test

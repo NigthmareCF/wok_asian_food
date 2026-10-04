@@ -365,6 +365,18 @@ class OrderService {
             VALUES (?, 'ORDER_OPENED', 'ORDER', ?,
                     jsonb_build_object('status', 'SENT', 'channel', ?, 'lines', ?), 'SUCCESS', ?)
             """, actor, orderId, channel.name(), lines.size(), requestId);
+        if (channel == Channel.DELIVERY) {
+            UUID dispatchId = UUID.randomUUID();
+            jdbc.update("""
+                INSERT INTO wok.delivery_dispatches (id, order_id, status)
+                VALUES (?, ?, 'AWAITING_KITCHEN')
+                """, dispatchId, orderId);
+            jdbc.update("""
+                INSERT INTO wok.delivery_dispatch_events
+                    (dispatch_id, from_status, to_status, actor_user_id, reason, request_id)
+                VALUES (?, NULL, 'AWAITING_KITCHEN', ?, 'DELIVERY_ORDER_ACCEPTED', ?)
+                """, dispatchId, actor, requestId);
+        }
         return orderId;
     }
 
@@ -395,6 +407,7 @@ class OrderService {
         if (request.status() == OrderStatus.CANCELLED) {
             cancelTickets(actor, requestId, orderId);
             reservations.release(orderId);
+            cancelDeliveryDispatches(actor, requestId, orderId);
         }
         if (request.status() == OrderStatus.SERVED) {
             reservations.consume(actor, requestId, orderId);
@@ -416,6 +429,31 @@ class OrderService {
 
         return summary(orderId);
     }
+
+    private void cancelDeliveryDispatches(UUID actor, UUID requestId, UUID orderId) {
+        List<DeliveryDispatchCancellation> dispatches = jdbc.query("""
+            SELECT id, status, assigned_to_user_id, row_version
+            FROM wok.delivery_dispatches
+            WHERE order_id = ? AND status NOT IN ('DELIVERED', 'CANCELLED')
+            FOR UPDATE
+            """, (rs, row) -> new DeliveryDispatchCancellation(rs.getObject("id", UUID.class),
+                rs.getString("status"), rs.getObject("assigned_to_user_id", UUID.class), rs.getInt("row_version")), orderId);
+        for (DeliveryDispatchCancellation dispatch : dispatches) {
+            int changed = jdbc.update("""
+                UPDATE wok.delivery_dispatches
+                SET status = 'CANCELLED', updated_at = now(), row_version = row_version + 1
+                WHERE id = ? AND row_version = ?
+                """, dispatch.id(), dispatch.rowVersion());
+            if (changed != 1) throw new AuthException(409, "El despacho cambió. Actualiza el pedido.");
+            jdbc.update("""
+                INSERT INTO wok.delivery_dispatch_events
+                    (dispatch_id, from_status, to_status, actor_user_id, assigned_to_user_id, reason, request_id)
+                VALUES (?, ?, 'CANCELLED', ?, ?, 'ORDER_CANCELLED', ?)
+                """, dispatch.id(), dispatch.status(), actor, dispatch.assignedTo(), requestId);
+        }
+    }
+
+    private record DeliveryDispatchCancellation(UUID id, String status, UUID assignedTo, int rowVersion) {}
 
     private void reserveStock(UUID actor, UUID requestId, UUID orderId, List<NewLine> newLines) {
         reservations.reserve(actor, requestId, orderId, newLines.stream()

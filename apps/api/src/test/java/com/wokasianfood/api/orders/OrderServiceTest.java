@@ -252,6 +252,8 @@ class OrderServiceTest {
         when(jdbc.update(contains("kitchen_ticket_status_history"), any(Object[].class))).thenReturn(1);
         when(jdbc.query(contains("WHERE order_id = ? AND status IN ('QUEUED', 'PREPARING')"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(ticketId));
+        when(jdbc.query(contains("FROM wok.delivery_dispatches"), any(RowMapper.class), eq(orderId)))
+                .thenReturn(List.of());
         when(jdbc.query(contains("JOIN wok.currencies c ON c.id = o.currency_id"), any(RowMapper.class), eq(orderId)))
                 .thenReturn(List.of(summary(orderId, "CANCELLED", 4)));
 
@@ -260,6 +262,7 @@ class OrderServiceTest {
 
         assertEquals("CANCELLED", result.status());
         verify(jdbc).update(contains("SET status = 'CANCELLED', claimed_by = NULL"), eq(ticketId));
+        verify(jdbc).query(contains("FROM wok.delivery_dispatches"), any(RowMapper.class), eq(orderId));
     }
 
     @Test
