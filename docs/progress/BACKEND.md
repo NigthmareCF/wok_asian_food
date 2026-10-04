@@ -150,6 +150,13 @@
 
 - Se documentó en `docs/database/MIGRATION_TOOL_ASSESSMENT.md` la compatibilidad, diferencias funcionales, estrategia de baseline, riesgos, pasos de validación y estimación orientativa. Con PostgreSQL único y 25 migraciones SQL activas, recomendación actual: conservar Flyway. Evaluación únicamente; no se cambió Maven, configuración ni el historial de ninguna base.
 
+## 2026-10-04 — Perfiles fiscales Cliente
+
+- Se añadió Flyway V26 `customer_tax_profiles` con identidad fiscal guardada por cliente, etiquetas únicas por cuenta, versión optimista y máximo un perfil predeterminado por cliente.
+- `GET/POST /api/v1/client/tax-profiles`, `PUT/DELETE /{profileId}` requiere rol CLIENT. Consultas y mutaciones siempre limitan por el `sub` autenticado; se serializan cambios por cliente y la edición exige `expectedVersion`. La API limita la respuesta a 20 perfiles y no expone columnas internas/auditoría.
+- Las pruebas HTTP con PostgreSQL 18 cubren migración desde cero, propiedad cruzada, permiso de rol, exclusividad del predeterminado, cambios/versiones, eliminación y validación. Suite completa: 151 pruebas, 0 fallos, 0 errores, 0 omitidas.
+- No es un módulo de facturación ni conserva/autoriza pagos: estos perfiles sólo son datos guardados que Cliente puede reutilizar al solicitar una factura.
+
 ## 2026-10-04 — Cola Operativa para solicitudes pickup/delivery
 
 - `GET /api/v1/operational/order-requests` lista hasta 100 solicitudes y permite filtrar `status` y `fulfillmentType`; sin filtros muestra primero las pendientes. `GET /api/v1/operational/order-requests/{requestId}` devuelve snapshot de cliente/modalidad/contacto/horario/importe/notas y líneas guardadas, incluyendo dirección y referencia para delivery.
