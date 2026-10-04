@@ -148,6 +148,45 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 .isNull();
     }
 
+    @Test
+    void listsAndLoadsOperationalDeliveryRequestDetailsWithPermissionChecks() {
+        UUID menuItemId = seedMenuItem("Wok Delivery Review", "18.00", "WOK_DELIVERY_REVIEW", 60);
+        String client = tokenForRole("CLIENT");
+        UUID requestId = UUID.fromString(submit(client, menuItemId, 2,
+                Instant.now().plusSeconds(900).toString()).path("requestId").asText());
+        jdbc.update("""
+                UPDATE wok.order_requests
+                SET fulfillment_type = 'DELIVERY', delivery_address = 'Zona 1, Ciudad de Guatemala',
+                    delivery_reference = 'Portón negro', contact_phone = '+502 5555-0101',
+                    payment_preference = 'CASH_ON_DELIVERY'
+                WHERE id = ?
+                """, requestId);
+        String operator = tokenForRole("OPERATIONAL");
+
+        var listResponse = get("/api/v1/operational/order-requests?status=PENDING_REVIEW&fulfillmentType=delivery", operator);
+        assertThat(listResponse.statusCode()).isEqualTo(200);
+        JsonNode list = body(listResponse);
+        JsonNode listedRequest = null;
+        for (JsonNode item : list) {
+            if (requestId.toString().equals(item.path("requestId").asText())) listedRequest = item;
+        }
+        assertThat(listedRequest).isNotNull();
+        assertThat(listedRequest.path("fulfillmentType").asText()).isEqualTo("DELIVERY");
+        assertThat(listedRequest.path("deliveryAddress").asText()).isEqualTo("Zona 1, Ciudad de Guatemala");
+        assertThat(listedRequest.path("contactPhone").asText()).isEqualTo("+502 5555-0101");
+
+        var detailsResponse = get("/api/v1/operational/order-requests/" + requestId, operator);
+        assertThat(detailsResponse.statusCode()).isEqualTo(200);
+        JsonNode details = body(detailsResponse);
+        assertThat(details.path("request").path("paymentPreference").asText()).isEqualTo("CASH_ON_DELIVERY");
+        assertThat(details.path("request").path("deliveryReference").asText()).isEqualTo("Portón negro");
+        assertThat(details.path("items")).hasSize(1);
+        assertThat(details.path("items").get(0).path("quantity").asInt()).isEqualTo(2);
+
+        assertThat(get("/api/v1/operational/order-requests/" + requestId, client).statusCode()).isEqualTo(403);
+        assertThat(get("/api/v1/operational/order-requests?status=UNKNOWN", operator).statusCode()).isEqualTo(400);
+    }
+
     private JsonNode body(HttpResponse<String> response) {
         assertThat(response.statusCode()).as("body %s", response.body()).isBetween(200, 299);
         try {

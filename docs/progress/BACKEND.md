@@ -129,3 +129,10 @@
 ## 2026-10-04 — Evaluación Flyway/Liquibase
 
 - Se documentó en `docs/database/MIGRATION_TOOL_ASSESSMENT.md` la compatibilidad, diferencias funcionales, estrategia de baseline, riesgos, pasos de validación y estimación orientativa. Con PostgreSQL único y 24 migraciones SQL activas, recomendación actual: conservar Flyway. Evaluación únicamente; no se cambió Maven, configuración ni el historial de ninguna base.
+
+## 2026-10-04 — Cola Operativa para solicitudes pickup/delivery
+
+- `GET /api/v1/operational/order-requests` lista hasta 100 solicitudes y permite filtrar `status` y `fulfillmentType`; sin filtros muestra primero las pendientes. `GET /api/v1/operational/order-requests/{requestId}` devuelve snapshot de cliente/modalidad/contacto/horario/importe/notas y líneas guardadas, incluyendo dirección y referencia para delivery.
+- Ambos endpoints exigen `orders:manage`, validan filtros contra listas permitidas y no reciben IDs de usuario para ampliar alcance. Se añadió prueba HTTP/PostgreSQL para filtro, detalle delivery, items, rol Cliente prohibido y filtro inválido.
+- La rama contiene explícitamente el límite previo: aceptar una solicitud DELIVERY sigue respondiendo 422; consulta del Operativo no equivale a soporte de reparto, autorización contra entrega o cobro externo.
+- PostgreSQL 18 aplicó Flyway V1–V24 en la prueba efímera. Clase focal: 5/5 pruebas; suite completa: 140 pruebas, 0 fallos, 0 errores, 0 omitidas. Docker/Testcontainers disponible en la corrida con acceso elevado.

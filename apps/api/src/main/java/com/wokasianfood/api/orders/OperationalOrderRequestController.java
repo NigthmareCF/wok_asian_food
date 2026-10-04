@@ -4,10 +4,12 @@ import com.wokasianfood.api.identity.AuthException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -27,6 +30,18 @@ public class OperationalOrderRequestController {
     private final OrderRequestDecisionService decisions;
 
     public OperationalOrderRequestController(OrderRequestDecisionService decisions) { this.decisions = decisions; }
+
+    @GetMapping
+    public List<OrderRequestDecisionService.OrderRequestSummary> list(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String fulfillmentType) {
+        return decisions.list(status, fulfillmentType);
+    }
+
+    @GetMapping("/{requestId}")
+    public OrderRequestDecisionService.OrderRequestDetails details(@PathVariable UUID requestId) {
+        return decisions.details(requestId);
+    }
 
     @PostMapping("/{requestId}/decision")
     public OrderRequestDecisionService.DecisionResult decide(@AuthenticationPrincipal Jwt jwt,
@@ -47,9 +62,70 @@ class OrderRequestDecisionService {
     private final JdbcTemplate jdbc;
     private final OrderService orders;
 
+    private static final org.springframework.jdbc.core.RowMapper<OrderRequestSummary> SUMMARY_MAPPER = (rs, row) ->
+            new OrderRequestSummary(rs.getObject("request_id", UUID.class), rs.getString("fulfillment_type"),
+                    rs.getString("status"), rs.getString("customer_name"), rs.getString("contact_phone"),
+                    rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
+                    rs.getString("currency_code"), rs.getString("customer_note"),
+                    rs.getString("delivery_address"), rs.getString("delivery_reference"),
+                    rs.getString("payment_preference"), rs.getTimestamp("submitted_at").toInstant(),
+                    rs.getString("decision_reason"), rs.getObject("order_id", UUID.class));
+
     OrderRequestDecisionService(JdbcTemplate jdbc, OrderService orders) {
         this.jdbc = jdbc;
         this.orders = orders;
+    }
+
+    List<OrderRequestSummary> list(String rawStatus, String rawFulfillmentType) {
+        String status = normalizeFilter(rawStatus, List.of("PENDING_REVIEW", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED"), "estado");
+        String fulfillmentType = normalizeFilter(rawFulfillmentType, List.of("PICKUP", "DELIVERY"), "modalidad");
+        return jdbc.query("""
+                SELECT r.id AS request_id, r.fulfillment_type, r.status,
+                       COALESCE(cp.full_name, u.display_name) AS customer_name,
+                       CASE WHEN r.fulfillment_type = 'DELIVERY' THEN r.contact_phone ELSE COALESCE(cp.guest_phone, u.phone) END AS contact_phone,
+                       r.requested_for, r.subtotal, c.code AS currency_code, r.customer_note,
+                       r.delivery_address, r.delivery_reference, r.payment_preference,
+                       r.created_at AS submitted_at, r.decision_reason, r.order_id
+                FROM wok.order_requests r
+                JOIN wok.users u ON u.id = r.customer_user_id
+                LEFT JOIN wok.customer_profiles cp ON cp.user_id = u.id
+                JOIN wok.currencies c ON c.id = r.currency_id
+                WHERE (CAST(? AS text) IS NULL OR r.status = CAST(? AS text))
+                  AND (CAST(? AS text) IS NULL OR r.fulfillment_type = CAST(? AS text))
+                ORDER BY CASE WHEN r.status = 'PENDING_REVIEW' THEN 0 ELSE 1 END,
+                         r.created_at, r.id
+                LIMIT 100
+                """, SUMMARY_MAPPER, status, status, fulfillmentType, fulfillmentType);
+    }
+
+    OrderRequestDetails details(UUID requestId) {
+        List<OrderRequestSummary> found = jdbc.query("""
+                SELECT r.id AS request_id, r.fulfillment_type, r.status,
+                       COALESCE(cp.full_name, u.display_name) AS customer_name,
+                       CASE WHEN r.fulfillment_type = 'DELIVERY' THEN r.contact_phone ELSE COALESCE(cp.guest_phone, u.phone) END AS contact_phone,
+                       r.requested_for, r.subtotal, c.code AS currency_code, r.customer_note,
+                       r.delivery_address, r.delivery_reference, r.payment_preference,
+                       r.created_at AS submitted_at, r.decision_reason, r.order_id
+                FROM wok.order_requests r
+                JOIN wok.users u ON u.id = r.customer_user_id
+                LEFT JOIN wok.customer_profiles cp ON cp.user_id = u.id
+                JOIN wok.currencies c ON c.id = r.currency_id
+                WHERE r.id = ?
+                """, SUMMARY_MAPPER, requestId);
+        if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
+        List<OrderRequestLine> items = jdbc.query("""
+                SELECT name_snapshot, quantity, unit_price, line_total
+                FROM wok.order_request_items WHERE order_request_id = ? ORDER BY created_at, id
+                """, (rs, row) -> new OrderRequestLine(rs.getString("name_snapshot"), rs.getInt("quantity"),
+                        rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total")), requestId);
+        return new OrderRequestDetails(found.getFirst(), items);
+    }
+
+    private String normalizeFilter(String raw, List<String> allowed, String label) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!allowed.contains(value)) throw new AuthException(400, "El filtro de " + label + " no es válido.");
+        return value;
     }
 
     @Transactional
@@ -154,4 +230,10 @@ class OrderRequestDecisionService {
     private record Revalidated(UUID menuItemId, int quantity, int preparationSeconds, UUID currencyId) {}
 
     public record DecisionResult(UUID requestId, String status, UUID orderId, boolean idempotentReplay) {}
+    public record OrderRequestSummary(UUID requestId, String fulfillmentType, String status, String customerName,
+            String contactPhone, Instant requestedFor, BigDecimal subtotal, String currency, String customerNote,
+            String deliveryAddress, String deliveryReference, String paymentPreference, Instant submittedAt,
+            String decisionReason, UUID orderId) {}
+    public record OrderRequestDetails(OrderRequestSummary request, List<OrderRequestLine> items) {}
+    public record OrderRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
 }
