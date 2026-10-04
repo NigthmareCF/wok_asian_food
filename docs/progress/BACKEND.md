@@ -6,7 +6,13 @@
 - Pickup y delivery aceptan los datos de facturación solicitados, los normalizan, incorporan al fingerprint idempotente y los devuelven sólo en recursos propios del Cliente. Los datos fiscales se limitan a nombre (150) y NIT (32), en línea con la entidad de factura existente.
 - La cola Operativa (`orders:manage`) sólo ve `invoiceRequested`; endpoint separado `GET /api/v1/operational/order-requests/{id}/invoice-request` requiere `invoices:manage` para revelar nombre/NIT.
 - Límites preservados: `ONLINE_PAYMENT_REQUESTED` sólo expresa preferencia; la solicitud permanece pendiente de revisión, no cobra ni emite FEL. Delivery aún no se puede aceptar como pedido desde el flujo Operativo.
-- Verificación: Testcontainers PostgreSQL 18 aplicó V1–V25 desde esquema vacío. Suite completa `sh mvnw -q test`: 146 pruebas, 0 fallos, 0 errores, 0 omitidas. Integración prueba persistencia pickup/delivery, que no se crea factura al solicitarla, y separación de permisos entre `orders:manage`/`invoices:manage`.
+- Verificación: Testcontainers PostgreSQL 18 aplicó V1–V25 desde esquema vacío. Suite completa `sh mvnw -q test`: 147 pruebas, 0 fallos, 0 errores, 0 omitidas. Integración prueba persistencia pickup/delivery, que no se crea factura al solicitarla, prefill de un borrador desde pickup aceptado y separación de permisos entre `orders:manage`/`invoices:manage`.
+
+## 2026-10-04 — Prefill fiscal del borrador FEL desde pickup aceptado
+
+- Al crear un borrador de factura para una cuenta con pickup aceptado, el backend completa los campos vacíos de nombre/NIT desde la solicitud Cliente marcada para facturar. Un valor enviado por el personal prevalece. Si la cuenta agrupa solicitudes con datos fiscales distintos, responde 409 para revisión manual.
+- Sigue siendo un borrador `DRAFT`; no se emite factura automáticamente. La ruta requiere `invoices:manage` y no expone estos datos en otros detalles Operativos.
+- Prueba de integración Testcontainers verifica request aceptado → pedido/cuenta → borrador con datos fiscales. Suite completa 147/147 pasa con PostgreSQL 18.
 
 ## 2026-10-02 — Fase 5 Facturación electrónica mock y outbox (rama de tarea)
 

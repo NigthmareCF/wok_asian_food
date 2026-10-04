@@ -89,6 +89,13 @@ class InvoiceService {
         if (claim.replay()) return details(claim.resourceId());
 
         requireAccount(accountId, true);
+        if (customerName == null || customerTaxId == null) {
+            RequestedBilling requestedBilling = requestedBilling(accountId);
+            if (requestedBilling != null) {
+                if (customerName == null) customerName = requestedBilling.customerName();
+                if (customerTaxId == null) customerTaxId = requestedBilling.customerTaxId();
+            }
+        }
         Billing billing = billing(accountId);
         if (billing.lineCount() == 0) throw new AuthException(422, "La cuenta no tiene consumos facturables.");
         if (billing.currencyCount() != 1) throw new AuthException(422, "No se pueden facturar cuentas con varias monedas.");
@@ -197,6 +204,21 @@ class InvoiceService {
         return new Billing(summary.total(), summary.lineCount(), summary.currencyCount(), summary.currencyId(), lines);
     }
 
+    private RequestedBilling requestedBilling(UUID accountId) {
+        List<RequestedBilling> requested = jdbc.query("""
+            SELECT DISTINCT r.invoice_name, r.invoice_tax_id
+            FROM wok.order_requests r
+            JOIN wok.orders o ON o.id = r.order_id
+            WHERE o.account_id = ? AND r.status = 'ACCEPTED' AND r.invoice_requested = true
+            ORDER BY r.invoice_name, r.invoice_tax_id
+            LIMIT 2
+            """, (rs, row) -> new RequestedBilling(rs.getString("invoice_name"),
+                rs.getString("invoice_tax_id")), accountId);
+        if (requested.size() > 1)
+            throw new AuthException(409, "La cuenta reúne solicitudes de factura con distintos datos. Confirma los datos manualmente.");
+        return requested.isEmpty() ? null : requested.getFirst();
+    }
+
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
@@ -212,6 +234,8 @@ class InvoiceService {
     }
 
     private record Billing(BigDecimal total, int lineCount, int currencyCount, UUID currencyId, List<Line> lines) {}
+
+    private record RequestedBilling(String customerName, String customerTaxId) {}
 
     private record Line(UUID orderItemId, String description, int quantity, BigDecimal unitPrice) {}
 

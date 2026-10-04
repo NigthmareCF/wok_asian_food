@@ -55,6 +55,34 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void preloadsFiscalDataRequestedByAcceptedPickupIntoInvoiceDraft() {
+        UUID actor = createUserWithRole("factura-prefill-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta pickup con factura solicitada");
+        MenuItemSeed menu = seedMenuItem("Wok prefill", "35.00");
+        UUID orderId = closedOrderWithItem(accountId, actor, menu, "Wok prefill", 1, "35.00", "35.00");
+        UUID customer = createUserWithRole("cliente-prefill-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID currencyId = jdbc.queryForObject("SELECT id FROM wok.currencies WHERE code = 'GTQ'", UUID.class);
+        jdbc.update("""
+            INSERT INTO wok.order_requests
+                (customer_user_id, status, idempotency_key, request_fingerprint, requested_for,
+                 subtotal, currency_id, decided_by, decided_at, decision_reason, order_id,
+                 invoice_requested, invoice_name, invoice_tax_id)
+            VALUES (?, 'ACCEPTED', ?, repeat('a', 64), now() + interval '1 hour', 35.00, ?, ?, now(),
+                    'ACCEPTED', ?, true, 'Cliente Pickup', '11223344')
+            """, customer, UUID.randomUUID(), currencyId, actor, orderId);
+
+        JsonNode draft = body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, "{}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        assertThat(draft.path("status").asText()).isEqualTo("DRAFT");
+        assertThat(draft.path("customerName").asText()).isEqualTo("Cliente Pickup");
+        assertThat(draft.path("customerTaxId").asText()).isEqualTo("11223344");
+        assertThat(jdbc.queryForObject("SELECT invoice_requested FROM wok.order_requests WHERE order_id = ?",
+                Boolean.class, orderId)).isTrue();
+    }
+
+    @Test
     void rejectsDraftsWithoutConsumptionAndWithoutPermission() {
         UUID actor = createUserWithRole("factura-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
@@ -186,7 +214,7 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
         return id;
     }
 
-    private void closedOrderWithItem(UUID accountId, UUID actor, MenuItemSeed menu, String name, int quantity,
+    private UUID closedOrderWithItem(UUID accountId, UUID actor, MenuItemSeed menu, String name, int quantity,
                                      String unitPrice, String total) {
         UUID orderId = UUID.randomUUID();
         jdbc.update("""
@@ -201,6 +229,7 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
                     (order_id, menu_item_id, name_snapshot, quantity, unit_price, preparation_area_id)
                 VALUES (?, ?, ?, ?, ?::numeric, ?)
                 """, orderId, menu.menuItemId(), name, quantity, unitPrice, menu.areaId());
+        return orderId;
     }
 
     private MenuItemSeed seedMenuItem(String name, String price) {
