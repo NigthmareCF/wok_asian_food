@@ -161,7 +161,12 @@
 
 - `GET /api/v1/client/conversations` ya incluye el texto/fecha del último mensaje mediante una subconsulta lateral, junto con el estado y fecha de actividad. Mantiene el límite de 20 hilos y la selección por perfil Cliente del subject autenticado.
 - La prueba PostgreSQL abre una conversación cerrada, agrega respuesta humana y verifica que el historial propio incluya esa última respuesta. No se exponen conversaciones ajenas.
-- Suite completa con PostgreSQL 18 y Flyway V1–V26: 152 pruebas, 0 fallos, 0 errores, 0 omitidas.
+- Suite completa con PostgreSQL 18 y Flyway V1–V26: 151 pruebas, 0 fallos, 0 errores, 0 omitidas (`clean test`, conteo limpio).
+
+## 2026-10-04 — Verificación de capacidad y anticipación
+
+- Se añadieron pruebas puras de `OperationalCapacityService`: rechaza una solicitud un segundo antes de cumplir las 3 horas, permite evaluar justo en el límite pero requiere revisión humana, y no acepta automáticamente ni grupos de 2 ni grupos de 20 a las 21:15. Mensajes públicos no indican hora obligatoria de salida.
+- `sh mvnw -q clean test` en PostgreSQL 18/Testcontainers y migraciones V1–V26 pasó 154 pruebas, 0 fallos, 0 errores, 0 omitidas. El conteo se verificó en los reportes Surefire recién generados.
 
 ## 2026-10-04 — Cola Operativa para solicitudes pickup/delivery
 
