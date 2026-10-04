@@ -106,6 +106,14 @@ export type PickupRequestDetails = PickupRequestState & {
   customerNote: string | null;
   items: { name: string; quantity: number; unitPrice: number; lineTotal: number; currencyId: string }[];
 };
+export type PickupOrderTracking = {
+  requestId: string;
+  orderCode: string;
+  status: "SENT" | "PREPARING" | "READY" | "SERVED" | "CLOSED" | "CANCELLED";
+  requestedFor: string;
+  estimatedReadyAt: string | null;
+  updatedAt: string;
+};
 export type DeliveryRequestBody = {
   requestedFor: string;
   customerNote?: string;

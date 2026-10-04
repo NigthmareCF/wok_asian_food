@@ -2,12 +2,16 @@ import { Link } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { PickupRequestDetails, PickupRequestState } from "@/lib/api";
+import { PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
   PENDING_REVIEW: "Pendiente de revisión", ACCEPTED: "Aceptada por el restaurante",
   REJECTED: "No aceptada", CANCELLED: "Cancelada", EXPIRED: "Vencida",
+};
+const orderStatusLabels: Record<PickupOrderTracking["status"], string> = {
+  SENT: "Recibido por cocina", PREPARING: "En preparación", READY: "Listo para recoger",
+  SERVED: "Entregado", CLOSED: "Cerrado", CANCELLED: "Cancelado",
 };
 
 function formatDate(value: string) {
@@ -23,12 +27,15 @@ function formatMoney(amount: number, currency: string) {
 export default function PickupRequestsScreen() {
   const { session, request } = useSession();
   const [requests, setRequests] = useState<PickupRequestState[]>([]);
+  const [trackedOrders, setTrackedOrders] = useState<PickupOrderTracking[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [details, setDetails] = useState<Record<string, PickupRequestDetails>>({});
   const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
+  const [trackingLoading, setTrackingLoading] = useState(false);
+  const [trackingError, setTrackingError] = useState("");
 
   const refresh = useCallback(async () => {
     if (!session) { setRequests([]); setError(""); return; }
@@ -39,6 +46,21 @@ export default function PickupRequestsScreen() {
   }, [request, session]);
 
   useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
+
+  const refreshTracking = useCallback(async () => {
+    if (!session || session.offline) { setTrackedOrders([]); setTrackingError(""); return; }
+    setTrackingLoading(true); setTrackingError("");
+    try { setTrackedOrders(await request<PickupOrderTracking[]>("/api/v1/client/orders/tracking")); }
+    catch (cause) { setTrackingError(cause instanceof Error ? cause.message : "No pudimos actualizar el seguimiento."); }
+    finally { setTrackingLoading(false); }
+  }, [request, session]);
+
+  useEffect(() => { void Promise.resolve().then(refreshTracking); }, [refreshTracking]);
+  useEffect(() => {
+    if (!session || session.offline || !trackedOrders.some((order) => order.status === "SENT" || order.status === "PREPARING")) return;
+    const timer = setInterval(() => { void refreshTracking(); }, 30_000);
+    return () => clearInterval(timer);
+  }, [refreshTracking, session, trackedOrders]);
 
   async function cancel(requestId: string) {
     setCancelling(requestId); setError(""); setNotice("");
@@ -70,6 +92,22 @@ export default function PickupRequestsScreen() {
       {session.offline ? <Notice>Sin conexión. El historial requiere consultar el servidor y no se modifica sin confirmación.</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
+      <View style={ui.section}>
+        <Heading eyebrow="Seguimiento">Pedidos aceptados</Heading>
+        {trackingError ? <Notice tone="error">{trackingError}</Notice> : null}
+        {trackingLoading && trackedOrders.length === 0 ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Consultando pedidos aceptados…</Text></View></Card> : null}
+        {!trackingLoading && !trackingError && trackedOrders.length === 0 ? <Notice>Aún no tienes pedidos pickup aceptados para seguimiento.</Notice> : null}
+        {trackedOrders.map((order) => <Card key={order.requestId}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <Text style={{ flex: 1, color: palette.ink, fontWeight: "800", fontSize: 17 }}>{order.orderCode}</Text>
+            <Text style={ui.pill}>{orderStatusLabels[order.status] ?? "Estado actualizado"}</Text>
+          </View>
+          <Text style={ui.body}>Hora solicitada para recoger: {formatDate(order.requestedFor)}</Text>
+          {order.estimatedReadyAt ? <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>Estimación de cocina: {formatDate(order.estimatedReadyAt)}</Text> : null}
+          <Text style={ui.body}>Actualizado: {formatDate(order.updatedAt)}</Text>
+        </Card>)}
+        <Button title="Actualizar seguimiento" secondary busy={trackingLoading} onPress={() => void refreshTracking()} />
+      </View>
       {loading && requests.length === 0 ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Cargando tus solicitudes…</Text></View></Card> : null}
       {!loading && !error && requests.length === 0 ? <Card><Notice>Aún no tienes solicitudes pickup.</Notice><Link href="/(tabs)/menu" style={ui.link}>Explorar menú</Link></Card> : null}
       {requests.map((item) => <Card key={item.requestId}>
