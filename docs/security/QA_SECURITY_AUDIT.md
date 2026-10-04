@@ -24,6 +24,10 @@ El sistema aún no debe presentarse como una integración completa de todos los 
 | Build API Spring Boot | Aprobado | `mvnw verify -DskipTests` con Eclipse Temurin JDK 21. |
 | Docker integrado | Pendiente de entorno | Docker Desktop no expuso el motor Linux durante la auditoría. |
 
+## Corrección de CI
+
+La verificación integrada de GitHub Actions identificó que los hashes BCrypt de las dos cuentas demo no correspondían a las contraseñas publicadas en `database/seeds/dev_demo.sql`. El smoke test operativo se detenía durante el primer inicio de sesión. Se regeneraron ambos hashes con coste 12 y se añadió una prueba unitaria que confirma esta correspondencia antes de publicar cambios.
+
 ## Hallazgo corregido
 
 ### QA-SEC-001: navegación mostraba permisos de demostración
