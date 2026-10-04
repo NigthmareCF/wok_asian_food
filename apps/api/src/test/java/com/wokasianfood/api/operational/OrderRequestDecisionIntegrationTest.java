@@ -187,6 +187,76 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         assertThat(get("/api/v1/operational/order-requests?status=UNKNOWN", operator).statusCode()).isEqualTo(400);
     }
 
+    @Test
+    void pickupInvoicePreferencePersistsButTaxDetailsRequireInvoicePermission() {
+        UUID menuItemId = seedMenuItem("Wok Invoice Preference", "18.00", "WOK_INVOICE_PREF", 60);
+        String client = tokenForRole("CLIENT");
+        UUID requestId = UUID.fromString(body(post("/api/v1/client/order-requests", client, """
+                {"requestedFor":"%s","paymentPreference":"CARD_AT_PICKUP","invoiceRequested":true,
+                 "invoiceName":"Cliente WOK","invoiceTaxId":"1234567",
+                 "items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(Instant.now().plusSeconds(3600), menuItemId),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()))).path("requestId").asText());
+
+        var ownDetails = body(get("/api/v1/client/order-requests/" + requestId, client));
+        assertThat(ownDetails.path("paymentPreference").asText()).isEqualTo("CARD_AT_PICKUP");
+        assertThat(ownDetails.path("invoiceRequested").asBoolean()).isTrue();
+        assertThat(ownDetails.path("invoiceTaxId").asText()).isEqualTo("1234567");
+
+        String ordersRole = "ORDERS_ONLY_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        jdbc.update("INSERT INTO wok.roles (code, name) VALUES (?, ?)", ordersRole, "Pedidos solamente");
+        jdbc.update("""
+                INSERT INTO wok.role_permissions (role_id, permission_id)
+                SELECT r.id, p.id FROM wok.roles r JOIN wok.permissions p ON p.code = 'orders:manage'
+                WHERE r.code = ?
+                """, ordersRole);
+        String orderOperator = tokenForRole(ordersRole);
+        JsonNode queueDetails = body(get("/api/v1/operational/order-requests/" + requestId, orderOperator));
+        assertThat(queueDetails.path("request").path("invoiceRequested").asBoolean()).isTrue();
+        assertThat(queueDetails.toString()).doesNotContain("1234567", "Cliente WOK");
+        assertThat(get("/api/v1/operational/order-requests/" + requestId + "/invoice-request", orderOperator)
+                .statusCode()).isEqualTo(403);
+
+        String invoiceRole = "INVOICES_ONLY_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        jdbc.update("INSERT INTO wok.roles (code, name) VALUES (?, ?)", invoiceRole, "Facturación solamente");
+        jdbc.update("""
+                INSERT INTO wok.role_permissions (role_id, permission_id)
+                SELECT r.id, p.id FROM wok.roles r JOIN wok.permissions p ON p.code = 'invoices:manage'
+                WHERE r.code = ?
+                """, invoiceRole);
+        var fiscalData = body(get("/api/v1/operational/order-requests/" + requestId + "/invoice-request",
+                tokenForRole(invoiceRole)));
+        assertThat(fiscalData.path("invoiceTaxId").asText()).isEqualTo("1234567");
+        assertThat(fiscalData.path("invoiceName").asText()).isEqualTo("Cliente WOK");
+    }
+
+    @Test
+    void deliveryInvoicePreferenceIsStoredWithTheRequestWithoutIssuingAnInvoice() {
+        UUID menuItemId = seedMenuItem("Wok Delivery Invoice", "19.00", "WOK_DELIVERY_INVOICE", 60);
+        String client = tokenForRole("CLIENT");
+        int invoiceCountBefore = jdbc.queryForObject("SELECT count(*) FROM wok.invoices", Integer.class);
+        JsonNode submitted = body(post("/api/v1/client/delivery-requests", client, """
+                {"requestedFor":"%s","address":"Zona 10, Ciudad de Guatemala",
+                 "reference":"Portón negro","contactPhone":"+502 5555-0101",
+                 "paymentPreference":"ONLINE_PAYMENT_REQUESTED","invoiceRequested":true,
+                 "invoiceName":"Cliente Delivery","invoiceTaxId":"7654321",
+                 "items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(Instant.now().plusSeconds(3600), menuItemId),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID requestId = UUID.fromString(submitted.path("requestId").asText());
+
+        assertThat(submitted.path("invoiceRequested").asBoolean()).isTrue();
+        assertThat(submitted.path("invoiceTaxId").asText()).isEqualTo("7654321");
+        assertThat(submitted.path("message").asText()).contains("todavía no es un pedido ni un pago");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, requestId))
+                .isEqualTo("PENDING_REVIEW");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.invoices", Integer.class)).isEqualTo(invoiceCountBefore);
+
+        JsonNode ownDetails = body(get("/api/v1/client/delivery-requests/" + requestId, client));
+        assertThat(ownDetails.path("invoiceName").asText()).isEqualTo("Cliente Delivery");
+        assertThat(ownDetails.path("invoiceTaxId").asText()).isEqualTo("7654321");
+    }
+
     private JsonNode body(HttpResponse<String> response) {
         assertThat(response.statusCode()).as("body %s", response.body()).isBetween(200, 299);
         try {

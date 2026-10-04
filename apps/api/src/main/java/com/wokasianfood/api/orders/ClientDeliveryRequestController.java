@@ -56,6 +56,7 @@ public class ClientDeliveryRequestController {
         String phone = request.contactPhone().trim();
         String reference = request.reference() == null || request.reference().isBlank() ? null : request.reference().trim();
         String note = request.customerNote() == null || request.customerNote().isBlank() ? null : request.customerNote().trim();
+        InvoiceRequest invoice = invoiceRequest(request.invoiceRequested(), request.invoiceName(), request.invoiceTaxId());
         List<RequestedItem> lines = normalize(request.items());
         String fingerprint = fingerprint(request, address, reference, phone, note, lines);
         DeliveryRequestReceipt previous = existing(userId, idempotencyKey, fingerprint);
@@ -91,12 +92,13 @@ public class ClientDeliveryRequestController {
         List<UUID> created = jdbc.query("""
             INSERT INTO wok.order_requests
               (customer_user_id, fulfillment_type, idempotency_key, request_fingerprint, requested_for,
-               customer_note, subtotal, currency_id, delivery_address, delivery_reference, contact_phone, payment_preference)
-            VALUES (?, 'DELIVERY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               customer_note, subtotal, currency_id, delivery_address, delivery_reference, contact_phone,
+               payment_preference, invoice_requested, invoice_name, invoice_tax_id)
+            VALUES (?, 'DELIVERY', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (customer_user_id, idempotency_key) DO NOTHING RETURNING id
             """, (rs, row) -> rs.getObject(1, UUID.class), userId, idempotencyKey, fingerprint,
                 Timestamp.from(request.requestedFor()), note, subtotal, currencyId, address, reference, phone,
-                request.paymentPreference().name());
+                request.paymentPreference().name(), invoice.requested(), invoice.name(), invoice.taxId());
         if (created.isEmpty()) {
             previous = existing(userId, idempotencyKey, fingerprint);
             if (previous != null) return previous;
@@ -116,7 +118,7 @@ public class ClientDeliveryRequestController {
             VALUES (?, 'SUBMITTED', ?)
             """, requestId, userId);
         return new DeliveryRequestReceipt(requestId, "DELIVERY", "PENDING_REVIEW", request.requestedFor(),
-                subtotal, currency, request.paymentPreference(), false,
+                subtotal, currency, request.paymentPreference(), invoice.requested(), invoice.name(), invoice.taxId(), false,
                 "Recibimos la solicitud delivery. El equipo debe confirmar cobertura, disponibilidad y horario; todavía no es un pedido ni un pago.");
     }
 
@@ -124,13 +126,15 @@ public class ClientDeliveryRequestController {
     public List<DeliveryRequestReceipt> history(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
         return jdbc.query("""
-            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference
+            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference,
+                   r.invoice_requested, r.invoice_name, r.invoice_tax_id
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
             ORDER BY r.created_at DESC, r.id DESC LIMIT 50
             """, (rs, row) -> new DeliveryRequestReceipt(rs.getObject("id", UUID.class), "DELIVERY",
                 rs.getString("status"), rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
-                rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")), false,
+                rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")),
+                rs.getBoolean("invoice_requested"), rs.getString("invoice_name"), rs.getString("invoice_tax_id"), false,
                 "El equipo debe confirmar cobertura, disponibilidad y horario."), userId);
     }
 
@@ -139,13 +143,14 @@ public class ClientDeliveryRequestController {
         UUID userId = UUID.fromString(jwt.getSubject());
         List<DeliveryRequestDetails> found = jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code,
-                   r.payment_preference, r.customer_note
+                   r.payment_preference, r.customer_note, r.invoice_requested, r.invoice_name, r.invoice_tax_id
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
             """, (rs, row) -> new DeliveryRequestDetails(rs.getObject("id", UUID.class), "DELIVERY",
                 rs.getString("status"), rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                 rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")),
-                rs.getString("customer_note"), List.of()), requestId, userId);
+                rs.getString("customer_note"), rs.getBoolean("invoice_requested"), rs.getString("invoice_name"),
+                rs.getString("invoice_tax_id"), List.of()), requestId, userId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
         List<DeliveryRequestLine> items = jdbc.query("""
             SELECT name_snapshot, quantity, unit_price, line_total
@@ -155,7 +160,7 @@ public class ClientDeliveryRequestController {
         DeliveryRequestDetails request = found.getFirst();
         return new DeliveryRequestDetails(request.requestId(), request.fulfillmentType(), request.status(),
                 request.requestedFor(), request.subtotal(), request.currency(), request.paymentPreference(),
-                request.customerNote(), items);
+                request.customerNote(), request.invoiceRequested(), request.invoiceName(), request.invoiceTaxId(), items);
     }
 
     private List<Product> loadProducts(List<RequestedItem> lines) {
@@ -188,6 +193,8 @@ public class ClientDeliveryRequestController {
             List<RequestedItem> lines) {
         String canonical = request.requestedFor() + "\n" + address + "\n" + (reference == null ? "" : reference)
                 + "\n" + phone + "\n" + request.paymentPreference() + "\n" + (note == null ? "" : note) + "\n"
+                + (Boolean.TRUE.equals(request.invoiceRequested())
+                    ? "true\n" + clean(request.invoiceName()) + "\n" + clean(request.invoiceTaxId()) + "\n" : "")
                 + lines.stream().map(line -> line.menuItemId() + ":" + line.quantity()).reduce((a, b) -> a + "\n" + b).orElse("");
         try { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8))); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
@@ -195,7 +202,8 @@ public class ClientDeliveryRequestController {
 
     private DeliveryRequestReceipt existing(UUID userId, UUID key, String fingerprint) {
         List<DeliveryRequestReceipt> found = jdbc.query("""
-            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference, r.request_fingerprint
+            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference,
+                   r.invoice_requested, r.invoice_name, r.invoice_tax_id, r.request_fingerprint
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY' AND r.idempotency_key = ?
             """, (rs, row) -> {
@@ -203,24 +211,47 @@ public class ClientDeliveryRequestController {
                     throw new AuthException(409, "La clave de solicitud ya se usó con otros datos.");
                 return new DeliveryRequestReceipt(rs.getObject("id", UUID.class), "DELIVERY", rs.getString("status"),
                         rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
-                        rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")), true,
+                        rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")),
+                        rs.getBoolean("invoice_requested"), rs.getString("invoice_name"), rs.getString("invoice_tax_id"), true,
                         "Recibimos la solicitud delivery. El equipo debe confirmar cobertura y disponibilidad.");
             }, userId, key);
         return found.isEmpty() ? null : found.getFirst();
     }
 
+    private InvoiceRequest invoiceRequest(Boolean requested, String rawName, String rawTaxId) {
+        boolean invoiceRequested = Boolean.TRUE.equals(requested);
+        String name = clean(rawName);
+        String taxId = clean(rawTaxId);
+        if (!invoiceRequested && (name != null || taxId != null))
+            throw new AuthException(400, "Indica si necesitas factura antes de enviar los datos fiscales.");
+        if (invoiceRequested && (name == null || taxId == null))
+            throw new AuthException(400, "Completa el nombre o razón social y el NIT para solicitar factura.");
+        return new InvoiceRequest(invoiceRequested, name, taxId);
+    }
+
+    private String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
+
     public record DeliveryRequest(@NotNull Instant requestedFor, @Size(max = 500) String customerNote,
             @NotBlank @Size(min = 5, max = 500) String address, @Size(max = 300) String reference,
             @NotBlank @Pattern(regexp = "[0-9+() .-]{7,32}") String contactPhone,
             @NotNull PaymentPreference paymentPreference,
-            @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {}
+            Boolean invoiceRequested, @Size(max = 150) String invoiceName, @Size(max = 32) String invoiceTaxId,
+            @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {
+        public DeliveryRequest(Instant requestedFor, String customerNote, String address, String reference,
+                String contactPhone, PaymentPreference paymentPreference, List<RequestedItem> items) {
+            this(requestedFor, customerNote, address, reference, contactPhone, paymentPreference, null, null, null, items);
+        }
+    }
     public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
     public record DeliveryRequestReceipt(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
-            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean idempotentReplay, String message) {}
+            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean invoiceRequested,
+            String invoiceName, String invoiceTaxId, boolean idempotentReplay, String message) {}
     public record DeliveryRequestDetails(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, String customerNote,
+            boolean invoiceRequested, String invoiceName, String invoiceTaxId,
             List<DeliveryRequestLine> items) {}
     public record DeliveryRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
     public enum PaymentPreference { CASH_ON_DELIVERY, ONLINE_PAYMENT_REQUESTED }
+    private record InvoiceRequest(boolean requested, String name, String taxId) {}
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currency, int preparationSeconds) {}
 }

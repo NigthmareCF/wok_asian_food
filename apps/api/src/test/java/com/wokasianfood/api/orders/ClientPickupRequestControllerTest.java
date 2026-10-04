@@ -24,6 +24,28 @@ class ClientPickupRequestControllerTest {
     @Mock JdbcTemplate jdbc;
 
     @Test
+    void rejectsFiscalDataUnlessInvoiceWasRequested() {
+        var request = new ClientPickupRequestController.PickupRequest(Instant.now().plusSeconds(3600), null,
+                ClientPickupRequestController.PaymentPreference.CASH_AT_PICKUP, false, "WOK Cliente", "1234567",
+                List.of(new ClientPickupRequestController.RequestedItem(UUID.randomUUID(), 1)));
+        AuthException error = assertThrows(AuthException.class, () -> new ClientPickupRequestController(jdbc)
+                .submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request));
+        assertEquals(400, error.status());
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void requiresCompleteFiscalDetailsWhenInvoiceIsRequested() {
+        var request = new ClientPickupRequestController.PickupRequest(Instant.now().plusSeconds(3600), null,
+                ClientPickupRequestController.PaymentPreference.CARD_AT_PICKUP, true, "WOK Cliente", null,
+                List.of(new ClientPickupRequestController.RequestedItem(UUID.randomUUID(), 1)));
+        AuthException error = assertThrows(AuthException.class, () -> new ClientPickupRequestController(jdbc)
+                .submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request));
+        assertEquals(400, error.status());
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
     void submitsPendingPickupRequestUsingCurrentBackendPriceSnapshots() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID menuItemId = UUID.randomUUID();

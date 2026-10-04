@@ -1,5 +1,13 @@
 # Progreso de planificación backend
 
+## 2026-10-04 — Preferencias de pago y factura en solicitudes Cliente
+
+- Migración Flyway `V25__order_request_payment_and_invoice_preferences.sql`: añade a `wok.order_requests` la solicitud de factura y su snapshot (`invoice_name`, `invoice_tax_id`), y permite registrar para pickup efectivo/tarjeta/transferencia al recoger. No crea pagos ni facturas FEL.
+- Pickup y delivery aceptan los datos de facturación solicitados, los normalizan, incorporan al fingerprint idempotente y los devuelven sólo en recursos propios del Cliente. Los datos fiscales se limitan a nombre (150) y NIT (32), en línea con la entidad de factura existente.
+- La cola Operativa (`orders:manage`) sólo ve `invoiceRequested`; endpoint separado `GET /api/v1/operational/order-requests/{id}/invoice-request` requiere `invoices:manage` para revelar nombre/NIT.
+- Límites preservados: `ONLINE_PAYMENT_REQUESTED` sólo expresa preferencia; la solicitud permanece pendiente de revisión, no cobra ni emite FEL. Delivery aún no se puede aceptar como pedido desde el flujo Operativo.
+- Verificación: Testcontainers PostgreSQL 18 aplicó V1–V25 desde esquema vacío. Suite completa `sh mvnw -q test`: 146 pruebas, 0 fallos, 0 errores, 0 omitidas. Integración prueba persistencia pickup/delivery, que no se crea factura al solicitarla, y separación de permisos entre `orders:manage`/`invoices:manage`.
+
 ## 2026-10-02 — Fase 5 Facturación electrónica mock y outbox (rama de tarea)
 
 - Rama `feature/invoices-outbox`, apilada sobre `feature/mixed-payments-tips` para conservar pagos/propina/caja y Testcontainers. Cierra `FEL-01` (`NEXT-2`) sin certificador real: el adaptador SAT queda `BLOCKED`, por lo que se define un puerto `FiscalProvider` con sólo el adaptador `MockFiscalProvider` (`wok.fiscal.mode=mock`).

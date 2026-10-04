@@ -29,6 +29,18 @@ class ClientDeliveryRequestControllerTest {
     @Mock JdbcTemplate jdbc;
 
     @Test
+    void requiresFiscalDataToBeCompleteWhenRequested() {
+        var request = new ClientDeliveryRequestController.DeliveryRequest(Instant.now().plusSeconds(7200), null,
+                "Zona 10, Ciudad de Guatemala", null, "+502 5555-1234",
+                ClientDeliveryRequestController.PaymentPreference.CASH_ON_DELIVERY, true, "WOK Cliente", null,
+                List.of(new ClientDeliveryRequestController.RequestedItem(UUID.randomUUID(), 1)));
+        AuthException error = assertThrows(AuthException.class, () -> new ClientDeliveryRequestController(jdbc)
+                .submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request));
+        assertEquals(400, error.status());
+        org.mockito.Mockito.verifyNoInteractions(jdbc);
+    }
+
+    @Test
     void deliveryDetailsAreScopedToTheAuthenticatedCustomerAndFulfillmentType() {
         UUID requestId = UUID.randomUUID();
         UUID customerId = UUID.randomUUID();

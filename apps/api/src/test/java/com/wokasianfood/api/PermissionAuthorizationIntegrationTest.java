@@ -26,6 +26,20 @@ class PermissionAuthorizationIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void invoiceRequestTaxDataRequiresInvoicePermission() {
+        String ordersRole = "ORDERS_ONLY_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        createRoleWithPermissions(ordersRole, "orders:manage");
+        String invoicesRole = "INVOICES_ONLY_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        createRoleWithPermissions(invoicesRole, "invoices:manage");
+        UUID requestId = UUID.randomUUID();
+
+        assertThat(get("/api/v1/operational/order-requests/" + requestId + "/invoice-request",
+                tokenForRole(ordersRole)).statusCode()).isEqualTo(403);
+        assertThat(get("/api/v1/operational/order-requests/" + requestId + "/invoice-request",
+                tokenForRole(invoicesRole)).statusCode()).isEqualTo(404);
+    }
+
+    @Test
     void opensAndClosesAccountsWithAccountsPermission() {
         String roleCode = "ACCOUNTS_ONLY_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         createRoleWithPermissions(roleCode, "tables:manage", "accounts:manage");

@@ -68,7 +68,7 @@ class OrderRequestDecisionService {
                     rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                     rs.getString("currency_code"), rs.getString("customer_note"),
                     rs.getString("delivery_address"), rs.getString("delivery_reference"),
-                    rs.getString("payment_preference"), rs.getTimestamp("submitted_at").toInstant(),
+                    rs.getString("payment_preference"), rs.getBoolean("invoice_requested"), rs.getTimestamp("submitted_at").toInstant(),
                     rs.getString("decision_reason"), rs.getObject("order_id", UUID.class));
 
     OrderRequestDecisionService(JdbcTemplate jdbc, OrderService orders) {
@@ -84,7 +84,7 @@ class OrderRequestDecisionService {
                        COALESCE(cp.full_name, u.display_name) AS customer_name,
                        CASE WHEN r.fulfillment_type = 'DELIVERY' THEN r.contact_phone ELSE COALESCE(cp.guest_phone, u.phone) END AS contact_phone,
                        r.requested_for, r.subtotal, c.code AS currency_code, r.customer_note,
-                       r.delivery_address, r.delivery_reference, r.payment_preference,
+                       r.delivery_address, r.delivery_reference, r.payment_preference, r.invoice_requested,
                        r.created_at AS submitted_at, r.decision_reason, r.order_id
                 FROM wok.order_requests r
                 JOIN wok.users u ON u.id = r.customer_user_id
@@ -104,7 +104,7 @@ class OrderRequestDecisionService {
                        COALESCE(cp.full_name, u.display_name) AS customer_name,
                        CASE WHEN r.fulfillment_type = 'DELIVERY' THEN r.contact_phone ELSE COALESCE(cp.guest_phone, u.phone) END AS contact_phone,
                        r.requested_for, r.subtotal, c.code AS currency_code, r.customer_note,
-                       r.delivery_address, r.delivery_reference, r.payment_preference,
+                       r.delivery_address, r.delivery_reference, r.payment_preference, r.invoice_requested,
                        r.created_at AS submitted_at, r.decision_reason, r.order_id
                 FROM wok.order_requests r
                 JOIN wok.users u ON u.id = r.customer_user_id
@@ -232,8 +232,8 @@ class OrderRequestDecisionService {
     public record DecisionResult(UUID requestId, String status, UUID orderId, boolean idempotentReplay) {}
     public record OrderRequestSummary(UUID requestId, String fulfillmentType, String status, String customerName,
             String contactPhone, Instant requestedFor, BigDecimal subtotal, String currency, String customerNote,
-            String deliveryAddress, String deliveryReference, String paymentPreference, Instant submittedAt,
-            String decisionReason, UUID orderId) {}
+            String deliveryAddress, String deliveryReference, String paymentPreference, boolean invoiceRequested,
+            Instant submittedAt, String decisionReason, UUID orderId) {}
     public record OrderRequestDetails(OrderRequestSummary request, List<OrderRequestLine> items) {}
     public record OrderRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
 }
