@@ -24,6 +24,12 @@ function formatMoney(amount: number, currency: string) {
   catch { return `${currency} ${amount.toFixed(2)}`; }
 }
 
+function pickupPaymentLabel(value: PickupRequestState["paymentPreference"]) {
+  if (value === "CARD_AT_PICKUP") return "Tarjeta al recoger";
+  if (value === "TRANSFER_AT_PICKUP") return "Transferencia al recoger";
+  return value === "CASH_AT_PICKUP" ? "Efectivo al recoger" : "Sin preferencia registrada";
+}
+
 export default function PickupRequestsScreen() {
   const { session, request } = useSession();
   const [requests, setRequests] = useState<PickupRequestState[]>([]);
@@ -117,11 +123,14 @@ export default function PickupRequestsScreen() {
         </View>
         <Text style={ui.body}>Hora solicitada: {formatDate(item.requestedFor)}</Text>
         <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>Subtotal informado: {formatMoney(item.subtotal, item.currency)}</Text>
+        <Text style={ui.body}>Preferencia de pago: {pickupPaymentLabel(item.paymentPreference)}</Text>
+        {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}. Aún no emitida.</Text> : null}
         <Text style={ui.body}>{item.message}</Text>
         {item.status === "REJECTED" && item.decisionReason ? <Notice tone="error">Motivo: {item.decisionReason}</Notice> : null}
         <Button title={details[item.requestId] ? "Ocultar productos" : "Ver productos"} secondary busy={loadingDetails === item.requestId} onPress={() => void toggleDetails(item.requestId)} />
         {details[item.requestId] ? <View style={ui.section}>
           {details[item.requestId].customerNote ? <Text style={ui.body}>Comentario: {details[item.requestId].customerNote}</Text> : null}
+          {details[item.requestId].invoiceRequested ? <Text style={ui.body}>Datos fiscales solicitados: {details[item.requestId].invoiceName} · NIT {details[item.requestId].invoiceTaxId}</Text> : null}
           {details[item.requestId].items.map((line, index) => <View key={`${item.requestId}-${index}`} style={ui.row}>
             <Text style={[ui.body, { flex: 1 }]}>{line.quantity} × {line.name}</Text>
             <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>{formatMoney(line.lineTotal, item.currency)}</Text>

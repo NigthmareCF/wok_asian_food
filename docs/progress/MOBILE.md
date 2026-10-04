@@ -177,6 +177,7 @@
 - Pickup permite elegir efectivo, tarjeta o transferencia al recoger y enviar opcionalmente nombre/NIT para pedir factura. Delivery conserva efectivo al recibir o solicitud de pago en línea y añade los mismos datos fiscales.
 - La app explica que la preferencia no procesa cobro y que solicitar factura no emite un DTE/FEL. Los datos quedan ligados al contenido idempotente de la solicitud; un reintento repite exactamente el mismo payload.
 - En delivery, el recibo, historial y detalle muestran si se pidió factura y el snapshot fiscal devuelto por backend.
+- El historial pickup muestra la preferencia de pago y el snapshot fiscal propio, además de los productos y estado previamente disponibles.
 - Verificación: ESLint, TypeScript, Vitest (5 pruebas), export Expo Android y Web pasan. Las exportaciones verifican bundle y rutas; no son paquetes instalables ni pruebas físicas.
 
 ## 2026-10-04 — Seguimiento de pedidos pickup aceptados
