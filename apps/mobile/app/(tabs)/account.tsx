@@ -112,6 +112,7 @@ export default function AccountScreen() {
         })} />
       </> : null}
       <Button title="Administrar direcciones guardadas" secondary onPress={() => router.push("/addresses")} />
+      <Button title="Consultar mis facturas emitidas" secondary onPress={() => router.push("/invoices")} />
       <Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice>
       {session.offline ? <Notice>Sin conexión: conservamos tu sesión y tus borradores en este dispositivo. Podrás reintentar las acciones del servidor cuando recuperes conexión.</Notice> : null}
       <View style={{ gap: 10 }}>

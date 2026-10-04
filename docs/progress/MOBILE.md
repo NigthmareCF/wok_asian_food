@@ -180,6 +180,12 @@
 - El historial pickup muestra la preferencia de pago y el snapshot fiscal propio, además de los productos y estado previamente disponibles.
 - Verificación: ESLint, TypeScript, Vitest (5 pruebas), export Expo Android y Web pasan. Las exportaciones verifican bundle y rutas; no son paquetes instalables ni pruebas físicas.
 
+## 2026-10-04 — Historial Cliente de facturas emitidas
+
+- Mi cuenta enlaza a `/invoices`, que lista facturas emitidas propias y abre el detalle con receptor, NIT, subtotal/impuestos/total y líneas. Una solicitud de facturación pendiente no se presenta como documento emitido.
+- Facturas del adaptador mock se etiquetan como prueba no certificada SAT. No se muestra botón de descarga porque backend todavía no conserva ni entrega XML/PDF.
+- Verificación: lint, TypeScript, Vitest 5/5 y Expo export Android/Web pasan; las exportaciones no son builds instalables ni prueba física.
+
 ## 2026-10-04 — Seguimiento de pedidos pickup aceptados
 
 - En `feature/mobile-shell`, la pestaña Solicitudes consulta `GET /api/v1/client/orders/tracking` y muestra por separado pedidos ya aceptados por el restaurante, con código, estado operativo, hora solicitada, ETA de cocina cuando backend la entrega y hora de actualización.

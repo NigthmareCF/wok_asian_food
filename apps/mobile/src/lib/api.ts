@@ -162,3 +162,20 @@ export type CustomerAddress = {
   isDefault: boolean;
   version: number;
 };
+export type ClientInvoiceSummary = {
+  invoiceId: string;
+  status: "ISSUED";
+  currency: string;
+  total: number;
+  authorizationNumber: string | null;
+  dteUuid: string | null;
+  issuedAt: string;
+  customerName: string | null;
+  customerTaxId: string | null;
+  testDocument: boolean;
+};
+export type ClientInvoiceDetails = ClientInvoiceSummary & {
+  subtotal: number;
+  taxTotal: number;
+  items: { description: string; quantity: number; unitPrice: number; lineTotal: number }[];
+};
