@@ -11,7 +11,7 @@ Liquibase es técnicamente viable con la base actual: Spring Boot ofrece integra
 
 - `apps/api/pom.xml` declara `spring-boot-starter-flyway` y `flyway-database-postgresql`.
 - `apps/api/src/main/resources/application.yml` habilita Flyway y lee `database/migrations` desde el sistema de archivos.
-- Hay 24 archivos Flyway (`V1`–`V24`), escritos como SQL PostgreSQL. Las pruebas Testcontainers aplican esa secuencia.
+- Hay 25 archivos Flyway (`V1`–`V25`), escritos como SQL PostgreSQL bajo `database/migrations`; Docker monta esa carpeta en `/database/migrations` y Testcontainers aplica la secuencia.
 - El acceso de negocio usa JDBC y SQL explícito; no hay changelogs Liquibase ni Hibernate/JPA que justifiquen cambios declarativos.
 - La especificación del proyecto se orienta a PostgreSQL, no a varios motores.
 
@@ -28,7 +28,7 @@ Liquibase es técnicamente viable con la base actual: Spring Boot ofrece integra
 
 ## Riesgo y esfuerzo estimado
 
-La conversión es factible, pero el riesgo principal está en el historial ya aplicado, no en agregar la dependencia. Liquibase no debe arrancar sobre una base existente suponiendo que sus 24 cambios no se ejecutaron: intentaría crear objetos ya presentes. Antes de cualquier conversión se necesita inventariar bases y versiones, comparar cada esquema con una base limpia construida desde V1–V24 y acordar un baseline Liquibase. `changelog-sync` puede marcar changesets como ejecutados, pero sólo debe ejecutarse después de verificar que el esquema real coincide con ellos; no corrige ni detecta por sí solo divergencias de modelo.
+La conversión es factible, pero el riesgo principal está en el historial ya aplicado, no en agregar la dependencia. Liquibase no debe arrancar sobre una base existente suponiendo que sus 25 cambios no se ejecutaron: intentaría crear objetos ya presentes. Antes de cualquier conversión se necesita inventariar bases y versiones, comparar cada esquema con una base limpia construida desde V1–V25 y acordar un baseline Liquibase. `changelog-sync` puede marcar changesets como ejecutados, pero sólo debe ejecutarse después de verificar que el esquema real coincide con ellos; no corrige ni detecta por sí solo divergencias de modelo.
 
 Estimación de planificación, no compromiso: 1–2 días para una conversión controlada con bases de desarrollo desechables; 3–5 días si hay que conservar y migrar varias bases con datos, validar historia, Compose/CI, pruebas desde cero y procedimiento de vuelta. Una base desplegada con datos reales requiere además respaldo restaurable y ventana de mantenimiento.
 
@@ -36,7 +36,7 @@ Estimación de planificación, no compromiso: 1–2 días para una conversión c
 
 1. Congelar cambios de esquema durante la conversión y enumerar todos los entornos y versiones Flyway aplicadas.
 2. Elegir una sola fuente de verdad y un formato (SQL formatted para conservar SQL, o XML/YAML sólo si se desea modelado declarativo). No mantener Flyway y Liquibase aplicando cambios en paralelo.
-3. Generar una base PostgreSQL limpia con Flyway V1–V24 y comparar tablas, índices, constraints, funciones, permisos y seeds relevantes con cada entorno.
+3. Generar una base PostgreSQL limpia con Flyway V1–V25 y comparar tablas, índices, constraints, funciones, permisos y seeds relevantes con cada entorno.
 4. Crear changelog baseline y probarlo en DB limpia y copia de datos; usar `changelog-sync` únicamente en copias verificadas, tras revisar el SQL generado.
 5. Probar arranque, idempotencia operacional, fallos a mitad de changeset, restore desde backup y migraciones futuras; cambiar Compose, configuración Spring, tests y documentación juntos.
 6. Retirar Flyway sólo cuando todos los entornos tengan el historial Liquibase consistente y un rollback operativo probado. No editar ni borrar migraciones Flyway ya aplicadas como parte de cambios rutinarios.
