@@ -17,7 +17,7 @@
 | FIN-02  | NEXT   | Pagos mixtos, propina y conciliación; mock `PaymentGateway` ya crea intent Cliente para delivery aceptado sin capturar | ORD-01; proveedor real, checkout/3DS y webhook `BLOCKED` |
 | FEL-01  | NEXT   | pool por atención, múltiples drafts, emisión individual, outbox y mock                          | FIN-01; certificador real `BLOCKED`       |
 | MSG-01  | NEXT   | conversaciones por canal, webhooks dedup, identidad externa, STT y handoff                      | IAM-01; Meta real `BLOCKED`               |
-| AI-01   | NOW    | Gateway/tool broker, mock, scope guard, fallback y aislamiento sin DB                           | CORE-01; GPU/modelo real `BLOCKED`        |
+| AI-01   | NEXT   | Gateway/tool broker, mock, scope guard inicial, fallback y aislamiento sin DB verificados; falta runtime real, defensa adversarial, cola/handoff persistido y benchmark | CORE-01; GPU/modelo real `BLOCKED` |
 | MOB-01  | NEXT   | App Cliente completa por slices, misma API y sesión WOK                                         | IAM-01, contratos; ver plan móvil         |
 | QA-01   | NOW    | auth, ownership, concurrencia, voucher, prompt injection, LAN/WAN y recuperación sin duplicados | Ejecutar junto a cada slice               |
 

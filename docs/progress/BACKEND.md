@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+# 2026-10-04 — IA — gateway aislado con mock
+
+- Se integró selectivamente la base de `origin/feature/ai` y se fortalecieron sus contratos: el broker sólo expone `getOpeningHours`/`getCurrentServiceStatus` en DTOs tipados; no acepta SQL ni recursos de clientes. Respuestas deterministas se calculan dentro del backend antes de llamar al proveedor.
+- `/internal/ai/chat` y `/internal/ai/tools` requieren `X-WOK-AI-TOKEN` con secreto de 32+ caracteres; falta de configuración cierra con 503 y token inválido con 401. Nginx no reenvía `/internal`, y Docker Compose no publica el puerto API al host. `WOK_AI_MODE` queda en `disabled` por defecto; `mock` no representa runtime productivo.
+- Se registra `AI_TOOL_EXECUTED` por invocación exitosa, con sólo nombre de herramienta y etiqueta del servicio. La guarda léxica bloquea consultas ajenas e intentos comunes de inyección en inglés/español; sigue siendo una protección inicial y requiere evaluación adversarial antes de activar un modelo real.
+- Verificación focal con Java 21, Docker y PostgreSQL 18/Testcontainers: `AiGatewayTest` 4/4, `InternalAiControllerTest` 3/3, `AiToolBrokerIntegrationTest` 2/2; Flyway V1–V33 aplicado desde base vacía. Suite completa limpia: 188 pruebas, 0 fallos, 0 errores, 0 omitidas. La documentación de límites y trabajo productivo está en `docs/ai/ARCHITECTURE.md`.
+
 ## 2026-10-04 — Devoluciones manuales y reapertura de saldo
 
 - Flyway V28 añade payment_refunds, conserva el cobro original y amplía los estados de pago a PARTIALLY_REFUNDED/REFUNDED. Se registra motivo, responsable, referencia, importes de venta/propina, sesión de caja y solicitud idempotente.

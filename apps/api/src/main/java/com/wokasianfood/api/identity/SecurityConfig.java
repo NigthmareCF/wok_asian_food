@@ -110,6 +110,7 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/actuator/health/**",
                     "/actuator/info",
+                    "/internal/ai/**",
                     "/api/v1/openapi/**",
                     "/swagger-ui.html",
                     "/swagger-ui/**").permitAll()

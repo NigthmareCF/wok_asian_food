@@ -45,6 +45,8 @@ wok:
     refresh-days: 30
   ai:
     mode: ${WOK_AI_MODE:disabled}
+    # Required service-to-service secret (minimum 32 characters); keep blank when no internal caller is configured.
+    service-token: ${WOK_AI_SERVICE_TOKEN:}
   email:
     mode: ${WOK_EMAIL_MODE:mock}
   fiscal:
