@@ -6,7 +6,7 @@ Aplicación React Native con Expo SDK 57 y Expo Router. Las rutas viven en `app/
 
 1. Desde la raíz del repositorio: `npm install`.
 2. Copia `.env.example` como `.env` y configura `EXPO_PUBLIC_API_BASE_URL` con una dirección alcanzable desde el teléfono. No uses `localhost` en un dispositivo físico.
-3. `npm run start --workspace mobile`, luego escanea el QR con Expo Go para las funciones normales de Cliente.
+3. `npm run start --workspace mobile`, luego escanea el QR con Expo Go para las funciones normales de Cliente. El comando fuerza Expo Go incluso con `expo-dev-client` instalado.
 
 ## Google Sign-In nativo
 
@@ -17,6 +17,7 @@ Después de configurar variables y credenciales, genera el proyecto nativo y eje
 ```bash
 npx expo prebuild
 npx expo run:android
+npm run start:dev-client --workspace mobile
 ```
 
 El backend emite un nonce criptográfico de un solo uso; la app lo pasa al SDK de Google y envía el ID token, nonce y tipo de cliente al backend WOK. La app sólo conserva el refresh token WOK en SecureStore y el access token WOK en memoria. No guarda tokens Google.

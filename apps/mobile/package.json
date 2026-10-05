@@ -33,9 +33,10 @@
     "vitest": "^4.1.2"
   },
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "start": "expo start --go",
+    "start:dev-client": "expo start --dev-client",
+    "android": "expo start --android --go",
+    "ios": "expo start --ios --go",
     "web": "expo start --web",
     "lint": "eslint src app",
     "test": "vitest run src/lib/*.test.ts",

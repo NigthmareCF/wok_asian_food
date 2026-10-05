@@ -4,6 +4,7 @@
 
 - `Mi cuenta` inicia Google con Android Credential Manager/iOS Sign-In mediante Nitro, solicita un nonce de un solo uso al backend, envía el ID token y el nonce a WOK y guarda sólo los tokens WOK (refresh en SecureStore, access en memoria). La sesión se registra como `MOBILE`; para cuentas nuevas se inicia primero con credenciales WOK y después se vincula Google en una sesión autenticada.
 - Configuración OAuth externa por `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` y `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME`; no se añadió ningún ID real. Google permanece deshabilitado sin ambos valores. Expo Go no incluye el módulo nativo; se necesita development build, SHA-1 registrado para Android y clientes OAuth válidos. El botón muestra un error claro si se intenta sin esa configuración.
+- Se conserva explícitamente `npm run start --workspace mobile` en modo Expo Go para el resto de la app y se agrega `start:dev-client` para una instalación nativa de desarrollo.
 - El contrato backend cambia el nonce de Base64URL a 64 caracteres hexadecimales para el SDK nativo; el servidor guarda sólo el hash, consume el nonce una sola vez y compara exactamente el claim OIDC. El endpoint de vinculación exige sesión WOK activa, correo verificado igual en ambas cuentas, evita asociar un `sub` a otra cuenta y registra evento de seguridad.
 - Verificación móvil: lint, TypeScript, Vitest 33/33 y configuración Expo con/sin variables OAuth aprobados. Pendiente prueba instalada en Android/iOS y configurar clientes OAuth reales.
 
