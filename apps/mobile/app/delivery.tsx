@@ -7,6 +7,7 @@ import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/compo
 import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { useSession } from "@/providers/session-provider";
+import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const pendingKey = "wok.delivery.pending.v1";
@@ -134,6 +135,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   async function submit(attempt?: PendingAttempt) {
     if (!session) { setError("Inicia sesión para enviar una solicitud de delivery."); return; }
+    if (!attempt && !isValidGuatemalaPhone(contactPhone)) {
+      setError("Ingresa un teléfono de Guatemala válido: 8 dígitos en formato 0000 0000."); return;
+    }
     if (!attempt && (!selected.length || !address.trim() || !contactPhone.trim() || !requestedFor)) {
       setError("Completa productos, dirección, teléfono y horario solicitado."); return;
     }
@@ -203,8 +207,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   async function saveAddress() {
     if (!session) { setAddressError("Inicia sesión para guardar una dirección."); return; }
-    if (!addressLabel.trim() || address.trim().length < 5 || !contactPhone.trim()) {
-      setAddressError("Completa un nombre, dirección y teléfono válidos antes de guardar."); return;
+    if (!addressLabel.trim() || address.trim().length < 5 || !isValidGuatemalaPhone(contactPhone)) {
+      setAddressError("Completa nombre, dirección y teléfono de Guatemala (8 dígitos en formato 0000 0000)."); return;
     }
     setSavingAddress(true); setAddressError(""); setAddressNotice("");
     try {
@@ -272,18 +276,19 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Usar una dirección guardada</Text>
         {savedAddresses.map((item) => <Button key={item.addressId} title={`${item.label}${item.isDefault ? " · Predeterminada" : ""}`} secondary={selectedAddress?.addressId !== item.addressId} onPress={() => {
           setSelectedAddress(item); setAddressLabel(item.label); setAddress(item.address); setReference(item.reference ?? "");
-          setContactPhone(item.contactPhone); setSaveAsDefault(item.isDefault);
+          setContactPhone(formatGuatemalaPhone(item.contactPhone)); setSaveAsDefault(item.isDefault);
         }} />)}
       </View> : null}
       <Field label="Dirección completa" value={address} onChangeText={setAddress} multiline maxLength={500} placeholder="Zona, calle/avenida, número o referencias de ubicación" />
       <Field label="Referencia para encontrar el lugar (opcional)" value={reference} onChangeText={setReference} maxLength={300} placeholder="Color de portón, nivel, local…" />
-      <Field label="Teléfono de contacto" value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" maxLength={32} placeholder="+502 0000-0000" />
+      <Field label="Teléfono de contacto · Guatemala" value={contactPhone} onChangeText={(value) => setContactPhone(formatGuatemalaPhone(value))} keyboardType="phone-pad" maxLength={9} placeholder="0000 0000" />
+      {contactPhone && !isValidGuatemalaPhone(contactPhone) ? <Notice tone="error">Ingresa 8 dígitos en grupos de cuatro, por ejemplo 5555 0101.</Notice> : null}
       {session ? <View style={ui.section}>
         <Field label="Nombre para guardar la dirección" value={addressLabel} onChangeText={setAddressLabel} maxLength={80} />
         <Button title={saveAsDefault ? "Predeterminada para delivery · Cambiar" : "Usar como dirección predeterminada"} secondary onPress={() => setSaveAsDefault((current) => !current)} />
         {addressError ? <Notice tone="error">{addressError}</Notice> : null}
         {addressNotice ? <Notice tone="success">{addressNotice}</Notice> : null}
-        <Button title={selectedAddress ? "Actualizar dirección guardada" : "Guardar dirección en mi cuenta"} secondary busy={savingAddress} disabled={!address.trim() || !contactPhone.trim()} onPress={() => void saveAddress()} />
+        <Button title={selectedAddress ? "Actualizar dirección guardada" : "Guardar dirección en mi cuenta"} secondary busy={savingAddress} disabled={!address.trim() || !isValidGuatemalaPhone(contactPhone)} onPress={() => void saveAddress()} />
       </View> : null}
       <Button title="Efectivo al recibir" secondary={paymentPreference !== "CASH_ON_DELIVERY"} onPress={() => setPaymentPreference("CASH_ON_DELIVERY")} />
       <Button title="Solicitar pago en línea" secondary={paymentPreference !== "ONLINE_PAYMENT_REQUESTED"} onPress={() => setPaymentPreference("ONLINE_PAYMENT_REQUESTED")} />

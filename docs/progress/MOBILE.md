@@ -184,6 +184,12 @@
 - Git: documentación local; sin commit, push, cambio de rama, merge ni publicación.
 # Progreso de la aplicación móvil Cliente
 
+## 2026-10-04 — Formato y validación local del teléfono GT
+
+- Perfil, direcciones y formulario delivery muestran/formatean teléfono como `0000 0000`; al seleccionar un dato guardado se normalizan dígitos y prefijo `+502`. Se rechazan envíos con menos/más de ocho dígitos y se explica el formato junto al campo.
+- La API vuelve a validar ese formato antes de guardar. Los registros previos no se reescriben automáticamente; al editarlos la app los presenta agrupados.
+- Vitest 12/12, ESLint, TypeScript `--noEmit` y exports Expo Android/Web pasan. Los exports son bundles de revisión, no paquetes instalables ni pruebas físicas.
+
 ## 2026-10-04 — Recuperación del estado del intento de pago
 
 - El historial de delivery vuelve a leer desde `GET /api/v1/client/delivery-requests/{requestId}/payment-intents/current` los intentos activos del Cliente y reconstruye la tarjeta de estado después de una recarga. Sólo consulta pedidos aceptados que pidieron cobro online; solicitudes sin intento no crean ninguno.

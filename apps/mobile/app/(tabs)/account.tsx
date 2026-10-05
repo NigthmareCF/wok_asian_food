@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, ClientProfile, ClientSession } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
+import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
 
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
 
@@ -34,7 +35,7 @@ function AccountContent() {
     void request<ClientProfile>("/api/v1/client/profile")
       .then((result) => {
         if (!active) return;
-        setProfile(result); setProfileName(result.displayName); setProfilePhone(result.phone ?? ""); setError("");
+        setProfile(result); setProfileName(result.displayName); setProfilePhone(result.phone ? formatGuatemalaPhone(result.phone) : ""); setError("");
       })
       .catch((reason) => {
         if (active) setError(reason instanceof ApiError ? reason.message : "No se pudo cargar tu perfil.");
@@ -65,7 +66,7 @@ function AccountContent() {
   async function run(action: () => Promise<void>) {
     setBusy(true); setError(""); setMessage("");
     try { await action(); }
-    catch (reason) { setError(reason instanceof ApiError ? reason.message : "No se pudo completar la acción."); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "No se pudo completar la acción."); }
     finally { setBusy(false); }
   }
 
@@ -103,16 +104,18 @@ function AccountContent() {
       {!profile && !error ? <Notice>Cargando tu perfil…</Notice> : null}
       {profile ? <>
         <Field label="Nombre" value={profileName} onChangeText={setProfileName} autoComplete="name" />
-        <Field label="Teléfono (opcional)" value={profilePhone} onChangeText={setProfilePhone} keyboardType="phone-pad" autoComplete="tel" />
+        <Field label="Teléfono (opcional) · Guatemala" value={profilePhone} onChangeText={(value) => setProfilePhone(formatGuatemalaPhone(value))} keyboardType="phone-pad" autoComplete="tel" maxLength={9} placeholder="0000 0000" />
+        {profilePhone && !isValidGuatemalaPhone(profilePhone) ? <Notice tone="error">Ingresa 8 dígitos en grupos de cuatro, por ejemplo 5555 0101.</Notice> : null}
         {message ? <Notice tone="success">{message}</Notice> : null}
         {error ? <Notice tone="error">{error}</Notice> : null}
-        <Button title="Guardar perfil" secondary busy={busy} onPress={() => void run(async () => {
+        <Button title="Guardar perfil" secondary busy={busy} disabled={Boolean(profilePhone && !isValidGuatemalaPhone(profilePhone))} onPress={() => void run(async () => {
           setMessage("");
+          if (profilePhone && !isValidGuatemalaPhone(profilePhone)) throw new Error("Ingresa un teléfono de Guatemala válido: 8 dígitos en formato 0000 0000.");
           const updated = await request<ClientProfile>("/api/v1/client/profile", {
             method: "PUT",
             body: JSON.stringify({ displayName: profileName.trim(), phone: profilePhone.trim(), expectedVersion: profile.version }),
           });
-          setProfile(updated); setProfileName(updated.displayName); setProfilePhone(updated.phone ?? "");
+          setProfile(updated); setProfileName(updated.displayName); setProfilePhone(updated.phone ? formatGuatemalaPhone(updated.phone) : "");
           setMessage("Tus datos se guardaron correctamente.");
         })} />
       </> : null}

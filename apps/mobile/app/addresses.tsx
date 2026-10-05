@@ -3,6 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import { ApiError, CustomerAddress } from "@/lib/api";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
+import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
 
 type AddressDraft = { label: string; address: string; reference: string; contactPhone: string; isDefault: boolean };
 const emptyDraft: AddressDraft = { label: "", address: "", reference: "", contactPhone: "", isDefault: false };
@@ -38,7 +39,7 @@ function AddressBook({ session, request }: AddressBookProps) {
     setCreating(false);
     setEditingId(address.addressId);
     setDeleteId(null);
-    setDraft({ label: address.label, address: address.address, reference: address.reference ?? "", contactPhone: address.contactPhone, isDefault: address.isDefault });
+    setDraft({ label: address.label, address: address.address, reference: address.reference ?? "", contactPhone: formatGuatemalaPhone(address.contactPhone), isDefault: address.isDefault });
     setError(""); setNotice("");
   }
 
@@ -48,8 +49,8 @@ function AddressBook({ session, request }: AddressBookProps) {
   }
 
   async function save() {
-    if (!draft.label.trim() || draft.address.trim().length < 5 || !/^[0-9+() .-]{7,32}$/.test(draft.contactPhone.trim())) {
-      setError("Revisa el nombre, la dirección y un teléfono válido (7 a 32 caracteres)."); return;
+    if (!draft.label.trim() || draft.address.trim().length < 5 || !isValidGuatemalaPhone(draft.contactPhone)) {
+      setError("Revisa el nombre, la dirección y el teléfono de Guatemala (8 dígitos en formato 0000 0000)."); return;
     }
     setSaving(true); setError(""); setNotice("");
     try {
@@ -87,7 +88,7 @@ function AddressBook({ session, request }: AddressBookProps) {
       <Text style={{ color: palette.ink, fontSize: 17, fontWeight: "800" }}>{item.label}{item.isDefault ? " · Predeterminada" : ""}</Text>
       <Text style={ui.body}>{item.address}</Text>
       {item.reference ? <Text style={ui.body}>Referencia: {item.reference}</Text> : null}
-      <Text style={ui.body}>Teléfono: {item.contactPhone}</Text>
+      <Text style={ui.body}>Teléfono: {formatGuatemalaPhone(item.contactPhone)}</Text>
       {deleteId === item.addressId ? <>
         <Notice>¿Eliminar esta dirección guardada? Esta acción no se puede deshacer.</Notice>
         <Button title="Sí, eliminar dirección" busy={saving} onPress={() => void remove(item.addressId)} />
@@ -106,9 +107,10 @@ function AddressBook({ session, request }: AddressBookProps) {
       <Field label="Nombre" value={draft.label} onChangeText={(label) => setDraft((current) => ({ ...current, label }))} maxLength={80} placeholder="Casa, trabajo…" />
       <Field label="Dirección completa" value={draft.address} onChangeText={(address) => setDraft((current) => ({ ...current, address }))} multiline maxLength={500} placeholder="Zona, calle/avenida, número" />
       <Field label="Referencia (opcional)" value={draft.reference} onChangeText={(reference) => setDraft((current) => ({ ...current, reference }))} maxLength={300} />
-      <Field label="Teléfono de contacto" value={draft.contactPhone} onChangeText={(contactPhone) => setDraft((current) => ({ ...current, contactPhone }))} keyboardType="phone-pad" maxLength={32} />
+      <Field label="Teléfono de contacto · Guatemala" value={draft.contactPhone} onChangeText={(value) => setDraft((current) => ({ ...current, contactPhone: formatGuatemalaPhone(value) }))} keyboardType="phone-pad" maxLength={9} placeholder="0000 0000" />
+      {draft.contactPhone && !isValidGuatemalaPhone(draft.contactPhone) ? <Notice tone="error">Ingresa 8 dígitos en grupos de cuatro, por ejemplo 5555 0101.</Notice> : null}
       <Button title={draft.isDefault ? "Dirección predeterminada ✓" : "Usar como predeterminada"} secondary onPress={() => setDraft((current) => ({ ...current, isDefault: !current.isDefault }))} />
-      <Button title="Guardar dirección" busy={saving} onPress={() => void save()} />
+      <Button title="Guardar dirección" busy={saving} disabled={!isValidGuatemalaPhone(draft.contactPhone)} onPress={() => void save()} />
     </Card> : null}
     {!loading ? <Button title="Actualizar lista" secondary busy={saving} onPress={() => void loadAddresses()} /> : null}
   </Page></ScrollView>;
