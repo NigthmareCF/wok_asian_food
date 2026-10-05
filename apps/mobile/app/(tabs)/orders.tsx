@@ -6,6 +6,7 @@ import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/u
 import { DeliveryRequestReceipt, OrderChangeRequestReceipt, PaymentIntentReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 import { recoverCurrentPaymentIntents } from "@/lib/payment-intents";
+import { useFocusedPolling } from "@/lib/use-focused-polling";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
   PENDING_REVIEW: "Pendiente de revisión", ACCEPTED: "Aceptada por el restaurante",
@@ -100,12 +101,8 @@ function OrderHistory() {
   }, [request, session]);
 
   useEffect(() => { void Promise.resolve().then(refreshDelivery); }, [refreshDelivery]);
-  useEffect(() => {
-    if (!session || session.offline || !deliveryRequests.some((item) =>
-      item.status === "ACCEPTED" && item.dispatchStatus !== "DELIVERED" && item.dispatchStatus !== "CANCELLED")) return;
-    const timer = setInterval(() => { void refreshDelivery(); }, 30_000);
-    return () => clearInterval(timer);
-  }, [deliveryRequests, refreshDelivery, session]);
+  useFocusedPolling(refreshDelivery, 30_000, Boolean(session && !session.offline && deliveryRequests.some((item) =>
+    item.status === "ACCEPTED" && item.dispatchStatus !== "DELIVERED" && item.dispatchStatus !== "CANCELLED")));
 
   const refreshTracking = useCallback(async () => {
     if (!session || session.offline) { setTrackedOrders([]); setTrackingError(""); return; }
@@ -131,12 +128,13 @@ function OrderHistory() {
   }, [refresh, refreshDelivery, refreshTracking, request, session]);
 
   useEffect(() => { void Promise.resolve().then(refreshChangeRequests); }, [refreshChangeRequests]);
-  useEffect(() => {
-    if (!session || session.offline || (!trackedOrders.some((order) => order.status === "SENT" || order.status === "PREPARING" || order.status === "READY")
-      && !changeRequests.some((item) => item.status === "PENDING_REVIEW"))) return;
-    const timer = setInterval(() => { void refreshTracking(); void refreshChangeRequests(); }, 30_000);
-    return () => clearInterval(timer);
-  }, [changeRequests, refreshChangeRequests, refreshTracking, session, trackedOrders]);
+  const refreshOrderUpdates = useCallback(() => {
+    void refreshTracking();
+    void refreshChangeRequests();
+  }, [refreshChangeRequests, refreshTracking]);
+  useFocusedPolling(refreshOrderUpdates, 30_000, Boolean(session && !session.offline &&
+    (trackedOrders.some((order) => order.status === "SENT" || order.status === "PREPARING" || order.status === "READY")
+      || changeRequests.some((item) => item.status === "PENDING_REVIEW"))));
 
   async function cancel(requestId: string) {
     setCancelling(requestId); setError(""); setNotice("");

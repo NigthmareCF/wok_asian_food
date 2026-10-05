@@ -1,11 +1,11 @@
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
+import { useFocusedPolling } from "@/lib/use-focused-polling";
 
 type Conversation = { conversationId: string; status: "OPEN" | "WAITING" | "CLOSED"; updatedAt: string; lastMessage?: string | null; lastMessageAt?: string | null };
 type Message = { messageId: string; senderType: "CUSTOMER" | "HUMAN" | "AI" | "SYSTEM"; body: string; status: string; createdAt: string };
@@ -60,28 +60,25 @@ function ConversationScreen({ session, request }: ConversationScreenProps) {
 
   useEffect(() => { void Promise.resolve().then(loadConversation); }, [loadConversation]);
 
-  useFocusEffect(useCallback(() => {
+  const refreshMessages = useCallback(async () => {
     const conversationId = conversation?.conversationId;
-    if (!session || session.offline || !conversationId || conversation?.status === "CLOSED") return;
-    let active = true;
-    const refreshMessages = async () => {
-      try {
-        const [history, items] = await Promise.all([
-          request<Conversation[]>("/api/v1/client/conversations"),
-          request<Message[]>(`/api/v1/client/conversations/${conversationId}/messages`),
-        ]);
-        if (!active || selectedConversationId.current !== conversationId) return;
-        setConversations(history);
-        const updated = history.find((item) => item.conversationId === conversationId);
-        if (updated) setConversation(updated);
-        setMessages(items);
-      } catch {
-        // Keep the last confirmed conversation visible; manual refresh reports connection errors.
-      }
-    };
-    const interval = setInterval(() => { void refreshMessages(); }, 15_000);
-    return () => { active = false; clearInterval(interval); };
-  }, [conversation?.conversationId, conversation?.status, request, session]));
+    if (!conversationId) return;
+    try {
+      const [history, items] = await Promise.all([
+        request<Conversation[]>("/api/v1/client/conversations"),
+        request<Message[]>(`/api/v1/client/conversations/${conversationId}/messages`),
+      ]);
+      if (selectedConversationId.current !== conversationId) return;
+      setConversations(history);
+      const updated = history.find((item) => item.conversationId === conversationId);
+      if (updated) setConversation(updated);
+      setMessages(items);
+    } catch {
+      // Keep the last confirmed conversation visible; manual refresh reports connection errors.
+    }
+  }, [conversation?.conversationId, request]);
+  useFocusedPolling(refreshMessages, 15_000,
+    Boolean(session && !session.offline && conversation?.conversationId && conversation.status !== "CLOSED"));
 
   async function startConversation() {
     setLoading(true); setError("");

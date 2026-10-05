@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-05 — Polling sólo en pantalla enfocada y app activa
+
+- Seguimiento de pedidos, solicitudes de cancelación, delivery, reservas pendientes y mensajes comparten `useFocusedPolling`: el intervalo se detiene al cambiar de pantalla, mandar la app al fondo o perder conexión, y se activa sólo si la vista enfocada sigue necesitando actualización.
+- Se conserva la carga inicial y actualización manual. Este cambio evita llamadas periódicas cuando el usuario no está viendo esa vista; no habilita confirmaciones offline.
+- Verificación: Vitest 41/41, ESLint, TypeScript y `npx expo export --platform android --platform web` (17 rutas).
+
 ## 2026-10-05 — Preorden de productos en solicitud de reserva
 
 - La pantalla de reservas carga el menú público al activar preorden, permite seleccionar productos y opciones requeridas, conserva el borrador en SecureStore y envía líneas con cantidad/modificadores bajo la misma clave idempotente de reserva. El historial muestra los snapshots pedidos y sus opciones.

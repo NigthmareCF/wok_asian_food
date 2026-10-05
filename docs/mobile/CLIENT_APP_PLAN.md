@@ -17,7 +17,7 @@ La rama especializada `feature/mobile-shell` integra sesión WOK y varios recorr
 | APP-07 Atención | Conversaciones y mensajes de texto propios, reintento idempotente y refresco mientras la vista está enfocada | Adjuntos, notificaciones push, handoff verificable y pruebas de retención/aislamiento extendidas |
 | APP-08 Calidad | Helpers probados, ESLint, TypeScript y bundles Expo Android/Web | E2E/contract tests amplios, ownership A/B transversal y validación física de Android e iOS |
 
-La verificación más reciente alcanzó Vitest 38/38, ESLint, TypeScript y export Expo Android/Web. Google OIDC incluye login para identidades vinculadas y linking autenticado desde una sesión WOK; sigue desactivado hasta configurar IDs OAuth públicos. Las exports sólo verifican que Metro empaqueta plataformas y rutas; no acreditan binarios instalables ni UX real en dispositivos. No afirmar porcentaje global cerrado hasta medir requisitos con evidencia de cada slice.
+La verificación más reciente alcanzó Vitest 41/41, ESLint, TypeScript y export Expo Android/Web. El polling de conversaciones, pedidos y reservas se suspende cuando la pantalla pierde foco, la app pasa a segundo plano o la sesión queda offline. Google OIDC incluye login para identidades vinculadas y linking autenticado desde una sesión WOK; sigue desactivado hasta configurar IDs OAuth públicos. Las exports sólo verifican que Metro empaqueta plataformas y rutas; no acreditan binarios instalables ni UX real en dispositivos. No afirmar porcentaje global cerrado hasta medir requisitos con evidencia de cada slice.
 
 ## Arquitectura vigente
 

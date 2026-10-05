@@ -1,6 +1,5 @@
 import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useFocusEffect } from "expo-router";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, PublicMenu, ReservationCapacityEvaluation, ReservationHistoryItem, ReservationPreorderItem, ReservationResult, apiRequest } from "@/lib/api";
@@ -11,6 +10,7 @@ import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { buildReservationPreorderItems } from "@/lib/reservation-preorder";
 import { useSession } from "@/providers/session-provider";
+import { useFocusedPolling } from "@/lib/use-focused-polling";
 
 export default function ReservationsScreen() {
   const { session, request } = useSession();
@@ -131,11 +131,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   useEffect(() => { void Promise.resolve().then(refreshHistory); }, [refreshHistory]);
 
   const hasPendingReservations = history.some((item) => item.reservationStatus === "REQUESTED");
-  useFocusEffect(useCallback(() => {
-    if (!session || session.offline || !hasPendingReservations) return;
-    const timer = setInterval(() => { void refreshHistory(); }, 30_000);
-    return () => clearInterval(timer);
-  }, [hasPendingReservations, refreshHistory, session]));
+  useFocusedPolling(refreshHistory, 30_000, Boolean(session && !session.offline && hasPendingReservations));
 
   async function evaluateSchedule() {
     setEvaluation(null); setEvaluationError("");
