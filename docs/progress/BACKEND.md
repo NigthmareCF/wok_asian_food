@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-04 — Validación server-side de teléfonos Guatemala
+
+- Los contratos Cliente para perfil, dirección y solicitud delivery ahora aceptan sólo teléfonos GT con ocho dígitos agrupados en dos bloques de cuatro (`5555 0101`, con prefijo `+502` opcional). La validación ocurre al recibir la API antes de persistir; los valores guardados previamente no se reescriben.
+- `GuatemalaPhoneValidationIntegrationTest` confirma rechazo de números incompletos/no agrupados, ausencia de persistencia y aceptación del formato válido en dirección; `GuatemalaPhoneTest` cubre variantes. Suite focal contra PostgreSQL 18/Testcontainers: 13/13 sin fallos.
+- Suite backend completa tras el cambio: 192 pruebas, 0 fallos, 0 errores, 0 omitidas; Flyway V1–V33 aplicado a PostgreSQL 18/Testcontainers.
+- Las constraints SQL preexistentes son históricamente más permisivas y no se migraron en este slice para evitar invalidar registros antiguos durante operaciones de otros estados.
+
 ## 2026-10-04 — Consulta del intento de pago online delivery
 
 - `GET /api/v1/client/delivery-requests/{requestId}/payment-intents/current` permite recuperar el intento más reciente desde el backend. Comprueba ownership antes de responder; solicitud ajena da 404 y una solicitud propia sin intento da 204. No crea intentos ni pagos y nunca da el pedido por cobrado.

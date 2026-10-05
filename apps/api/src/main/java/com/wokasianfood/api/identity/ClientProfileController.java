@@ -1,5 +1,6 @@
 package com.wokasianfood.api.identity;
 
+import com.wokasianfood.api.platform.GuatemalaPhone;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -41,7 +42,7 @@ public class ClientProfileController {
     }
 
     public record UpdateProfile(@NotBlank @Size(min = 2, max = 100) String displayName,
-                                @Pattern(regexp = "^$|^[+0-9() .-]{7,25}$") String phone,
+                                @Pattern(regexp = GuatemalaPhone.OPTIONAL_PATTERN) String phone,
                                 @Positive int expectedVersion) {}
 
     public record ClientProfile(UUID userId, String email, String displayName, String phone, int version) {}

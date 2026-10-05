@@ -1,5 +1,6 @@
 package com.wokasianfood.api.customers;
 
+import com.wokasianfood.api.platform.GuatemalaPhone;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -122,10 +123,10 @@ public class CustomerAddressController {
 
     public record AddressInput(@NotBlank @Size(max = 80) String label,
             @NotBlank @Size(min = 5, max = 500) String address, @Size(max = 300) String reference,
-            @NotBlank @Pattern(regexp = "[0-9+() .-]{7,32}") String contactPhone, boolean isDefault) {}
+            @NotBlank @Pattern(regexp = "^" + GuatemalaPhone.PATTERN + "$") String contactPhone, boolean isDefault) {}
     public record AddressUpdate(@NotBlank @Size(max = 80) String label,
             @NotBlank @Size(min = 5, max = 500) String address, @Size(max = 300) String reference,
-            @NotBlank @Pattern(regexp = "[0-9+() .-]{7,32}") String contactPhone, boolean isDefault,
+            @NotBlank @Pattern(regexp = "^" + GuatemalaPhone.PATTERN + "$") String contactPhone, boolean isDefault,
             @Positive int expectedVersion) {}
     public record CustomerAddress(UUID addressId, String label, String address, String reference,
             String contactPhone, boolean isDefault, int version) {}

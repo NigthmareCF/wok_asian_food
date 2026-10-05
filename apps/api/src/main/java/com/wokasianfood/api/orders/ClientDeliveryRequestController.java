@@ -1,6 +1,7 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.platform.GuatemalaPhone;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -265,7 +266,7 @@ public class ClientDeliveryRequestController {
 
     public record DeliveryRequest(@NotNull Instant requestedFor, @Size(max = 500) String customerNote,
             @NotBlank @Size(min = 5, max = 500) String address, @Size(max = 300) String reference,
-            @NotBlank @Pattern(regexp = "[0-9+() .-]{7,32}") String contactPhone,
+            @NotBlank @Pattern(regexp = "^" + GuatemalaPhone.PATTERN + "$") String contactPhone,
             @NotNull PaymentPreference paymentPreference,
             Boolean invoiceRequested, @Size(max = 150) String invoiceName, @Size(max = 32) String invoiceTaxId,
             @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {
