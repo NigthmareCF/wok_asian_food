@@ -12,7 +12,7 @@ La rama especializada `feature/mobile-shell` ya integra sesión WOK y varios rec
 | APP-02 Identidad | Registro/verificación/login/reset, refresh seguro, logout, perfil, sesiones y validación de correo/teléfono | Google OIDC móvil, MFA y prueba de revocación/recuperación en dispositivos |
 | APP-03 Catálogo | Menú público, grupos de opciones, validación min/max, snapshots de selección/precio y consulta de disponibilidad estimada para el carrito completo de pickup/delivery | Prueba integrada en PostgreSQL; seed oficial y recetas reales bloqueados por coordinación |
 | APP-04 Reservas | Solicitud con mínimo 3 h, borrador/clave de reintento, historial y cancelación pendiente | Disponibilidad real avanzada, elección de horario sugerido/preorden y pruebas de concurrencia/dispositivo |
-| APP-05 Pedidos | Solicitudes pickup/delivery, opciones guardadas en cada renglón, direcciones, historial, cancelación pendiente, tracking de cocina/despacho y polling | Cambios de pedido aceptado sujetos a Operativo y pruebas integrales con el equipo operativo |
+| APP-05 Pedidos | Solicitudes pickup/delivery, opciones guardadas en cada renglón, direcciones, historial, tracking de cocina/despacho, polling y solicitud revisable para cancelar pedido aceptado | Cambios de líneas sujetos a Operativo; pruebas integrales con el equipo operativo |
 | APP-06 Finanzas | Consulta de intents mock para delivery aceptado; perfiles fiscales y facturas propias emitidas/detalle | Checkout, 3DS, webhooks/conciliación y FEL productivo; integraciones reales requieren proveedor |
 | APP-07 Atención | Conversaciones y mensajes de texto propios, reintento idempotente y refresco mientras la vista está enfocada | Adjuntos, notificaciones push, handoff verificable y pruebas de retención/aislamiento extendidas |
 | APP-08 Calidad | Helpers probados, ESLint, TypeScript y bundles Expo Android/Web | E2E/contract tests amplios, ownership A/B transversal y validación física de Android e iOS |
@@ -31,7 +31,7 @@ React Native + Expo + TypeScript + Expo Router. TanStack Query administra datos 
 | APP-02 Identidad | registro CLIENT, verificación, login, Google, reset, sesión, logout y perfil                | IAM, email mock/real              |
 | APP-03 Catálogo  | menú público, modificadores, carrito local y disponibilidad estimada por producto/cantidad/opciones | catálogo e inventario; menú real |
 | APP-04 Reservas  | formal y mesa digital, 3 h, horarios compatibles, preorden, solicitudes y política          | capacidad/reservas                |
-| APP-05 Pedidos   | pickup/delivery, dirección y contacto, checkout, ETA, seguimiento e historial               | pedidos/KDS/ownership             |
+| APP-05 Pedidos   | pickup/delivery, dirección y contacto, checkout de solicitudes, ETA, seguimiento, historial y solicitud de cancelación aceptada con revisión Operativa | pedidos/KDS/ownership; cambios de líneas posteriores |
 | APP-06 Finanzas  | pasarela segura/3DS, métodos habilitados, facturas propias y perfiles fiscales              | pagos/FEL; adapter real pendiente |
 | APP-07 Atención  | mensajes, adjuntos permitidos, estado humano/IA y notificaciones                            | messaging/AI Gateway              |
 | APP-08 Calidad   | ownership A/B, doble envío, WAN, refresh reuse, accesibilidad Android/iOS y build instalado | todos los slices                  |
@@ -134,7 +134,7 @@ Todas las rutas son propuestas bajo `/api/v1`, no endpoints existentes confirmad
 | `GET /orders?scope=mine`, `/orders/{id}`                             | Lista/detalle propio, estado operativo, pago separado y ETA        | El backend limita propiedad; el parámetro no concede acceso  |
 | Consulta/reintento de operación                                      | Misma clave, hash y resultado estable                              | Resolver timeout sin crear un segundo envío                  |
 
-Si el backend permite cancelar una solicitud pendiente, agregar un comando explícito con control concurrente frente a aceptación. No ofrecer “Cancelar pedido confirmado” sin reglas y endpoint implementados.
+Las solicitudes pendientes se cancelan mediante su endpoint explícito y control concurrente con la aceptación. Para pedidos aceptados, sólo ofrecer “Solicitar cancelación”: requiere motivo, idempotencia y revisión Operativa; la app conserva el pedido como activo hasta la decisión y no procesa reembolsos.
 
 Convenciones: UUID/string, fechas ISO con zona, dinero como string decimal y moneda, enums técnicos en inglés, textos visibles en español. Usar código de error estable y `requestId`; no mostrar trazas Java al usuario. Diferenciar 401 (sesión), 403 (permiso), 409 (conflicto), 422 (regla), 503 (servicio no disponible).
 
