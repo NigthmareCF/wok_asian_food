@@ -14,6 +14,8 @@ Los casos de uso coordinan transacciones cortas, repositorios y puertos. Los ada
 
 Reserva formal y solicitud digital de mesa exigen 3 h de anticipación. El umbral es condición necesaria, no aceptación automática. La tolerancia normal es 20 min. La ventana de servicio se consulta de `business_hours`; la configuración base es 14:00–22:00 de martes a domingo, con último ingreso normal ~21:15 y delivery externo ~21:00. El horario de cocina y la capacidad real aún requieren fuentes operativas configurables. Grupos grandes cerca del cierre requieren evaluación humana. El cierre se usa internamente, sin mensajes de expulsión al cliente. `POST /api/v1/public/reservations/evaluate` es público y orientativo; enviar la solicitud vuelve a evaluar y no confirma.
 
+Los horarios se mantienen desde `GET /api/v1/admin/business-hours` y `PUT /api/v1/admin/business-hours/{serviceType}/{weekday}`. El endpoint requiere el permiso exclusivo `hours:manage` (concedido inicialmente a ADMIN), valida ventana y zona horaria, registra motivo/auditoría y aplica `expectedVersion` (cero crea, versiones positivas actualizan). Hay una sola fila por servicio/día; los cierres se representan con `active=false`. La evaluación de capacidad lee las filas activas sin confiar en configuración del cliente.
+
 `OccupancyEstimator` usa rangos iniciales configurables: 1 persona 75–105 min; 2, 90–120; 3–4, 105–150; 5–8, 120–180; 9–12, 150–210; 13+, cálculo especial. No multiplica el baseline por persona. Guarda estimado y duración real para calibración.
 
 ## Flujos y invariantes

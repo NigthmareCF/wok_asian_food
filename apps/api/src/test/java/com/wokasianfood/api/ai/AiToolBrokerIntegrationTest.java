@@ -26,6 +26,7 @@ class AiToolBrokerIntegrationTest extends PostgresIntegrationTest {
         jdbc.update("""
                 INSERT INTO wok.business_hours (service_type, weekday, opens_at, closes_at, timezone_name)
                 VALUES ('RESTAURANT', 2, '14:00', '22:00', 'America/Guatemala')
+                ON CONFLICT (service_type, weekday) DO NOTHING
                 """);
         jdbc.update("""
                 INSERT INTO wok.service_capabilities (code, status)

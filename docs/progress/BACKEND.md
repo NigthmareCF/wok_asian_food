@@ -306,3 +306,9 @@
 - Se corrigió Spring Security para permitir anónimamente `POST /api/v1/public/reservations/evaluate`, que ya estaba presentado como endpoint público. La app Cliente ahora puede evaluar horario y estancia estimada antes de enviar; se aclara que la solicitud se evalúa de nuevo y no queda confirmada.
 - Verificación: prueba HTTP/PostgreSQL sobre override `DINE_IN`, 7 pruebas unitarias de capacidad y suite completa limpia con PostgreSQL 18/Testcontainers/Flyway V1–V36: 207 pruebas, 0 fallos, 0 errores, 0 omitidas.
 - La evaluación sugiere hasta tres fechas/horas posteriores que respetan apertura y mínimo de 3 h. Esas alternativas se persisten en `reservation_evaluations.alternatives`, aparecen en el historial Cliente y se conservan en un replay idempotente. Prueba HTTP confirma persistencia/replay y orden elegible; suite completa tras ampliar cobertura: 209 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
+## 2026-10-05 — Administración versionada de horarios
+
+- Flyway V37 crea unicidad por servicio/día y agrega `hours:manage`, asignado inicialmente sólo a ADMIN. `GET /api/v1/admin/business-hours` lista la agenda; `PUT /api/v1/admin/business-hours/{serviceType}/{weekday}` crea o actualiza una ventana, permite cerrarla con `active=false`, valida horas y zona IANA, exige motivo y `expectedVersion`, y registra auditoría.
+- Se separó este permiso de `service:manage`, que también tiene Operativo, para evitar que el personal operativo cambie política de horarios. El evaluador de reservaciones ya consume esta misma tabla.
+- Pruebas de integración en PostgreSQL 18/Testcontainers: creación/actualización/auditoría, conflicto de versión, validación de horas/zona y acceso exclusivo de Admin: 3/3. Se ajustó el fixture del broker IA para respetar la unicidad del horario semillado. Suite completa limpia con Flyway V1–V37: 212 pruebas, 0 fallos, 0 errores, 0 omitidas.
