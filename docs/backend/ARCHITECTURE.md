@@ -33,6 +33,8 @@ Los teléfonos Cliente/delivery de Guatemala se validan en los DTO de perfil, di
 
 Los cierres de caja también requieren `Idempotency-Key`: si la respuesta se pierde después del commit, repetir el mismo payload devuelve el cierre existente; reutilizar la clave con otro monto o versión produce `409`. La clave y el cierre se confirman en la misma transacción para evitar arqueos finales o auditorías duplicadas.
 
+La administración de catálogo usa `/api/v1/admin/catalog/menu-items` bajo `catalog:manage` (ADMIN). Lista productos configurados —incluidos estado de item de inventario y área de preparación— y actualiza precio/moneda, visibilidad, estado, descripción, orden y preparación con control `row_version` y auditoría before/after. No fabrica productos ni crea recetas; menu seed, altas de recursos base y grupos de modificadores siguen pendientes.
+
 WOK es emisor de sesión: access JWT firmado de 10–15 min configurable; refresh opaco aleatorio y hash persistido por familia/sesión, rotado en cada uso con detección de reuse. `iss` debe ser una URI válida; `WOK_AUTH_ISSUER` configura el URL canónico por ambiente y el valor `.invalid` sólo permite desarrollo local. Registro público sólo CLIENT y `PENDING_VERIFICATION` hasta challenge de un uso. Google OIDC usa `sub`, requiere nonce server-issued de un solo uso y nunca asigna roles WOK; correos existentes no se vinculan automáticamente. Staff crítico puede acceder con método local durante corte WAN.
 
 ## Operación local y salud

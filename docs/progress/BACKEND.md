@@ -172,6 +172,13 @@
 - Validación con las pruebas de identidad en una composición desechable de `feature/backend-foundation` y `feature/backend-auth` (Java 21, Maven; 5/5 pruebas unitarias aprobadas).
 # Progreso de desarrollo backend
 
+## 2026-10-04 — Administración básica de items de menú
+
+- Nueva migración V34 agrega `catalog:manage` sólo a ADMIN. `GET /api/v1/admin/catalog/menu-items` lista items configurados con categoría, precio/moneda, visibilidad, estado y señales de item base/área de preparación activa.
+- `PUT /api/v1/admin/catalog/menu-items/{id}` actualiza campos de presentación/precio con `expectedVersion`; audita snapshots estructurados before/after y motivo. Responde 404 para item inexistente y 409 para versión obsoleta. No crea datos ficticios ni recetas.
+- Validado con PostgreSQL 18 en Testcontainers: Flyway aplicó desde cero V1–V34; `AdminCatalogIntegrationTest` cubre listado/actualización, snapshots de auditoría, conflicto por versión obsoleta y denegación para CLIENT/OPERATIONAL (2 pruebas). Se corrigió la consulta de moneda para el esquema real (`currencies` no tiene bandera `active`) y se tiparon explícitamente los valores posiblemente nulos en `jsonb_build_object` para evitar parámetros SQL sin tipo inferible.
+- Suite completa backend: `sh mvnw -q test` — 194 tests, 0 fallos, 0 errores, 0 omitidos. El catálogo completo sigue parcial: faltan creación de recursos/categorías, modificadores validados en pedidos, reglas de disponibilidad y menú real.
+
 ## 2026-10-04 — Recuperación idempotente del cierre de caja
 
 - `POST /api/v1/operational/cash-sessions/{sessionId}/close` requiere `Idempotency-Key`; un reintento idéntico devuelve el estado cerrado actual sin insertar otro arqueo final ni duplicar auditoría. Reusar la clave con otro monto/versión devuelve 409.
