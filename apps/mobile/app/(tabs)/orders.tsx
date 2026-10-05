@@ -1,6 +1,6 @@
 import { Link } from "expo-router";
 import * as Crypto from "expo-crypto";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { DeliveryRequestReceipt, OrderChangeRequestReceipt, PaymentIntentReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
@@ -68,6 +68,7 @@ function OrderHistory() {
   const [creatingPaymentIntentFor, setCreatingPaymentIntentFor] = useState<string | null>(null);
   const [paymentIntents, setPaymentIntents] = useState<Record<string, PaymentIntentReceipt>>({});
   const [changeRequests, setChangeRequests] = useState<OrderChangeRequestReceipt[]>([]);
+  const changeRequestsRef = useRef<OrderChangeRequestReceipt[]>([]);
   const [changeReason, setChangeReason] = useState("");
   const [selectedChangeRequest, setSelectedChangeRequest] = useState<string | null>(null);
   const [submittingChange, setSubmittingChange] = useState<string | null>(null);
@@ -117,9 +118,16 @@ function OrderHistory() {
 
   const refreshChangeRequests = useCallback(async () => {
     if (!session || session.offline) { setChangeRequests([]); return; }
-    try { setChangeRequests(await request<OrderChangeRequestReceipt[]>("/api/v1/client/order-requests/change-requests")); }
+    try {
+      const next = await request<OrderChangeRequestReceipt[]>("/api/v1/client/order-requests/change-requests");
+      const wasPending = changeRequestsRef.current.some((item) => item.status === "PENDING_REVIEW");
+      const decisionArrived = wasPending && next.some((item) => item.status === "APPROVED" || item.status === "REJECTED");
+      changeRequestsRef.current = next;
+      setChangeRequests(next);
+      if (decisionArrived) void Promise.all([refresh(), refreshDelivery(), refreshTracking()]);
+    }
     catch { /* Keep order tracking usable when the optional review history is unavailable. */ }
-  }, [request, session]);
+  }, [refresh, refreshDelivery, refreshTracking, request, session]);
 
   useEffect(() => { void Promise.resolve().then(refreshChangeRequests); }, [refreshChangeRequests]);
   useEffect(() => {
@@ -179,7 +187,9 @@ function OrderHistory() {
         `/api/v1/client/order-requests/${orderRequestId}/change-requests`,
         { method: "POST", headers: { "Idempotency-Key": Crypto.randomUUID() }, body: JSON.stringify({ reason }) },
       );
-      setChangeRequests((current) => [receipt, ...current.filter((item) => item.orderRequestId !== orderRequestId)]);
+      const next = [receipt, ...changeRequestsRef.current.filter((item) => item.orderRequestId !== orderRequestId)];
+      changeRequestsRef.current = next;
+      setChangeRequests(next);
       setSelectedChangeRequest(null); setChangeReason("");
       setNotice("Enviamos tu solicitud al equipo. El pedido sigue activo hasta que el equipo la revise.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "No pudimos enviar la solicitud de cancelación."); }
