@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-05 — Selección de opciones en solicitudes pickup/delivery
+
+- `GET /api/v1/public/menu` publica los grupos de modificadores y opciones activas por platillo en una consulta agrupada. `ModifierSelectionService` valida en el servidor scope, unicidad, actividad y mínimos/máximos; el mismo servicio vuelve a validar al aceptar la solicitud.
+- V35 agrega snapshots por renglón en solicitud y pedido. Pickup/delivery agregan deltas al precio autoritativo, incluyen opciones en fingerprint idempotente y exponen detalle propio con grupo/nombre/precio. Operaciones puede revisar la selección; al aceptar, se copia a `order_items`, el KDS recibe nombres en notas y se recalcula el total de la orden. Los impactos de disponibilidad configurados se suman/restan a reservas de receta bajo locks de balance ordenados.
+- Prueba de integración PostgreSQL cubre menú público, selección obligatoria, precio, replay/conflicto idempotente, detalles Cliente/Operativo, copia al pedido y total recalculado. Flyway V1–V35 aplicó desde un esquema vacío; `OrderRequestDecisionIntegrationTest` pasa y la suite completa suma 199 pruebas, 0 fallos, 0 errores y 0 omitidas con Testcontainers/PostgreSQL 18 y Byte Buddy agent explícito.
+- Pendiente de catálogo: CRUD administrativo de grupos/opciones, disponibilidad en la vista de selección, impacto complejo por recetas y menú real; no se inventaron datos productivos.
+
 ## 2026-10-04 — Validación server-side de teléfonos Guatemala
 
 - Los contratos Cliente para perfil, dirección y solicitud delivery ahora aceptan sólo teléfonos GT con ocho dígitos agrupados en dos bloques de cuatro (`5555 0101`, con prefijo `+502` opcional). La validación ocurre al recibir la API antes de persistir; los valores guardados previamente no se reescriben.

@@ -1,6 +1,8 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.catalog.ModifierSelectionService;
+import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
 import com.wokasianfood.api.platform.GuatemalaPhone;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -20,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -45,8 +48,14 @@ public class ClientDeliveryRequestController {
             rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
             rs.getInt("estimated_preparation_seconds"));
     private final JdbcTemplate jdbc;
+    private final ModifierSelectionService modifiers;
 
-    public ClientDeliveryRequestController(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    @Autowired
+    public ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
+        this.jdbc = jdbc; this.modifiers = modifiers;
+    }
+
+    ClientDeliveryRequestController(JdbcTemplate jdbc) { this(jdbc, new ModifierSelectionService(jdbc)); }
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -72,6 +81,9 @@ public class ClientDeliveryRequestController {
         if (serviceStatuses.isEmpty() || "PAUSED".equals(serviceStatuses.getFirst()) || "DISABLED".equals(serviceStatuses.getFirst()))
             throw new AuthException(503, "La solicitud delivery está temporalmente indisponible.");
 
+        List<List<SelectedModifier>> selections = lines.stream()
+                .map(line -> modifiers.validate(line.menuItemId(), line.modifierIds())).toList();
+
         List<Product> products = loadProducts(lines);
         if (products.size() != lines.size()) throw new AuthException(422, "Uno o más productos ya no están publicados.");
         UUID currencyId = products.getFirst().currencyId;
@@ -86,7 +98,7 @@ public class ClientDeliveryRequestController {
             int quantity = lines.get(index).quantity();
             preparationSeconds = Math.addExact(preparationSeconds,
                     Math.multiplyExact((long) product.preparationSeconds, quantity));
-            subtotal = subtotal.add(product.price.multiply(BigDecimal.valueOf(quantity)));
+            subtotal = subtotal.add(effectivePrice(product.price, selections.get(index)).multiply(BigDecimal.valueOf(quantity)));
         }
         if (preparationSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(preparationSeconds)))
             throw new AuthException(422, "El horario solicitado es anterior al tiempo mínimo de preparación.");
@@ -109,11 +121,13 @@ public class ClientDeliveryRequestController {
         UUID requestId = created.getFirst();
         for (int index = 0; index < products.size(); index++) {
             Product product = products.get(index);
-            jdbc.update("""
+            UUID requestItemId = jdbc.query("""
                 INSERT INTO wok.order_request_items
                   (order_request_id, menu_item_id, name_snapshot, quantity, unit_price, currency_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, requestId, product.id, product.name, lines.get(index).quantity(), product.price, product.currencyId);
+                VALUES (?, ?, ?, ?, ?, ?) RETURNING id
+                """, (rs, row) -> rs.getObject(1, UUID.class), requestId, product.id, product.name,
+                    lines.get(index).quantity(), effectivePrice(product.price, selections.get(index)), product.currencyId).getFirst();
+            saveRequestModifiers(requestItemId, selections.get(index));
         }
         jdbc.update("""
             INSERT INTO wok.order_request_events(order_request_id, event_type, actor_user_id)
@@ -168,11 +182,13 @@ public class ClientDeliveryRequestController {
                 rs.getString("customer_note"), rs.getBoolean("invoice_requested"), rs.getString("invoice_name"),
                 rs.getString("invoice_tax_id"), List.of()), requestId, userId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
-        List<DeliveryRequestLine> items = jdbc.query("""
-            SELECT name_snapshot, quantity, unit_price, line_total
+        List<PersistedRequestLine> storedItems = jdbc.query("""
+            SELECT id, name_snapshot, quantity, unit_price, line_total
             FROM wok.order_request_items WHERE order_request_id = ? ORDER BY created_at, id
-            """, (rs, row) -> new DeliveryRequestLine(rs.getString("name_snapshot"), rs.getInt("quantity"),
-                rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total")), requestId);
+            """, (rs, row) -> new PersistedRequestLine(rs.getObject("id", UUID.class), rs.getString("name_snapshot"),
+                rs.getInt("quantity"), rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total")), requestId);
+        List<DeliveryRequestLine> items = storedItems.stream().map(item -> new DeliveryRequestLine(item.name(),
+                item.quantity(), item.unitPrice(), item.lineTotal(), requestModifiers(item.id()))).toList();
         DeliveryRequestDetails request = found.getFirst();
         return new DeliveryRequestDetails(request.requestId(), request.fulfillmentType(), request.status(),
                 request.requestedFor(), request.subtotal(), request.currency(), request.paymentPreference(),
@@ -229,7 +245,30 @@ public class ClientDeliveryRequestController {
         if (items.stream().map(RequestedItem::menuItemId).anyMatch(id -> id == null)
                 || new HashSet<>(items.stream().map(RequestedItem::menuItemId).toList()).size() != items.size())
             throw new AuthException(400, "Cada producto debe aparecer una sola vez.");
-        return items.stream().sorted(Comparator.comparing(item -> item.menuItemId().toString())).toList();
+        return items.stream().map(item -> new RequestedItem(item.menuItemId(), item.quantity(),
+                item.modifierIds() == null ? List.of() : item.modifierIds().stream().sorted().toList()))
+                .sorted(Comparator.comparing(item -> item.menuItemId().toString())).toList();
+    }
+
+    private BigDecimal effectivePrice(BigDecimal basePrice, List<SelectedModifier> selected) {
+        return selected.stream().map(SelectedModifier::priceDelta).reduce(basePrice, BigDecimal::add);
+    }
+
+    private void saveRequestModifiers(UUID requestItemId, List<SelectedModifier> selected) {
+        for (SelectedModifier modifier : selected) jdbc.update("""
+            INSERT INTO wok.order_request_item_modifiers
+                (order_request_item_id, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta)
+            VALUES (?, ?, ?, ?, ?)
+            """, requestItemId, modifier.id(), modifier.groupName(), modifier.name(), modifier.priceDelta());
+    }
+
+    private List<ModifierSnapshot> requestModifiers(UUID requestItemId) {
+        return jdbc.query("""
+            SELECT group_name_snapshot, modifier_name_snapshot, price_delta
+            FROM wok.order_request_item_modifiers WHERE order_request_item_id = ?
+            ORDER BY group_name_snapshot, modifier_name_snapshot, modifier_id
+            """, (rs, row) -> new ModifierSnapshot(rs.getString("group_name_snapshot"),
+                rs.getString("modifier_name_snapshot"), rs.getBigDecimal("price_delta")), requestItemId);
     }
 
     private String fingerprint(DeliveryRequest request, String address, String reference, String phone, String note,
@@ -238,7 +277,11 @@ public class ClientDeliveryRequestController {
                 + "\n" + phone + "\n" + request.paymentPreference() + "\n" + (note == null ? "" : note) + "\n"
                 + (Boolean.TRUE.equals(request.invoiceRequested())
                     ? "true\n" + clean(request.invoiceName()) + "\n" + clean(request.invoiceTaxId()) + "\n" : "")
-                + lines.stream().map(line -> line.menuItemId() + ":" + line.quantity()).reduce((a, b) -> a + "\n" + b).orElse("");
+                + lines.stream().map(line -> {
+                    String selected = line.modifierIds().stream().map(UUID::toString).sorted()
+                            .reduce((a, b) -> a + "," + b).orElse("");
+                    return line.menuItemId() + ":" + line.quantity() + ":" + selected;
+                }).reduce((a, b) -> a + "\n" + b).orElse("");
         try { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8))); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
@@ -303,7 +346,12 @@ public class ClientDeliveryRequestController {
             this(requestedFor, customerNote, address, reference, contactPhone, paymentPreference, null, null, null, items);
         }
     }
-    public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
+    public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity,
+                                @Size(max = 30) List<@NotNull UUID> modifierIds) {
+        public RequestedItem { modifierIds = modifierIds == null ? List.of()
+                : java.util.Collections.unmodifiableList(new ArrayList<>(modifierIds)); }
+        public RequestedItem(UUID menuItemId, int quantity) { this(menuItemId, quantity, List.of()); }
+    }
     public record DeliveryRequestReceipt(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean invoiceRequested,
             String invoiceName, String invoiceTaxId, boolean idempotentReplay, String decisionReason, String message,
@@ -313,7 +361,10 @@ public class ClientDeliveryRequestController {
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, String customerNote,
             boolean invoiceRequested, String invoiceName, String invoiceTaxId,
             List<DeliveryRequestLine> items) {}
-    public record DeliveryRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
+    public record DeliveryRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
+                                      List<ModifierSnapshot> modifiers) {}
+    public record ModifierSnapshot(String group, String name, BigDecimal priceDelta) {}
+    private record PersistedRequestLine(UUID id, String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
     public record DeliveryCancellationReceipt(UUID requestId, String status) {}
     public enum PaymentPreference { CASH_ON_DELIVERY, ONLINE_PAYMENT_REQUESTED }
     private record InvoiceRequest(boolean requested, String name, String taxId) {}

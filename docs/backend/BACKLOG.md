@@ -11,8 +11,8 @@
 | OPS-01  | NOW    | service capability individual, override auditado y salud externa separada                       | CORE-01                                   |
 | CAP-01  | NOW    | motor de capacidad y estimador de ocupación con reason codes/alternativas                       | OPS-01, mesas/turnos                      |
 | RES-01  | NOW    | reserva y mesa digital: 3 h, horarios, 20 min, preorden/condiciones y autorización humana       | CAP-01, IAM-01                            |
-| CAT-01  | NEXT   | lectura pública; administración puede listar/actualizar items existentes con permisos, versión y auditoría; faltan altas de recursos, modificadores, disponibilidad e integración de menú real | Semilla real `BLOCKED`; continuar contratos/dominio |
-| ORD-01  | NEXT   | pickup/delivery/local: solicitud idempotente, aceptación, cambios con revisión y KDS            | CAT-01, CAP-01, inventario                |
+| CAT-01  | NEXT   | lectura pública; selección pickup/delivery valida grupos y precio en servidor; alta/edición administrativa de grupos/opciones, disponibilidad y menú oficial siguen pendientes | Semilla real `BLOCKED`; continuar contratos/dominio |
+| ORD-01  | NEXT   | pickup/delivery idempotentes, decisiones Operativas con revalidación de opciones/precio, snapshots y propagación de opciones a orden/KDS | CAT-01, CAP-01, inventario                |
 | FIN-01  | NOW    | Caja interna: apertura/ledger/arqueo/cierre persistentes e idempotentes; conectar ventas desde ORD-01 | V6; `feature/payments` cash slice parcial |
 | FIN-02  | NEXT   | Pagos mixtos, propina y conciliación; mock `PaymentGateway` crea y Cliente recupera intent para delivery aceptado sin capturar | ORD-01; proveedor real, checkout/3DS y webhook `BLOCKED` |
 | FEL-01  | NEXT   | pool por atención, múltiples drafts, emisión individual, outbox y mock                          | FIN-01; certificador real `BLOCKED`       |

@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,10 +21,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/public/menu")
 public class PublicMenuController {
     private final JdbcTemplate jdbc;
+    private final ModifierSelectionService modifiers;
 
-    public PublicMenuController(JdbcTemplate jdbc) {
+    @Autowired
+    public PublicMenuController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
         this.jdbc = jdbc;
+        this.modifiers = modifiers;
     }
+
+    PublicMenuController(JdbcTemplate jdbc) { this(jdbc, new ModifierSelectionService(jdbc)); }
 
     @GetMapping
     public MenuResponse readMenu() {
@@ -42,7 +48,9 @@ public class PublicMenuController {
             ORDER BY c.display_order, c.name, m.display_order, m.name, m.id
             """, (RowCallbackHandler) rs -> appendRow(categories, rs));
 
-        List<Category> result = categories.values().stream().map(CategoryBuilder::build).toList();
+        List<UUID> menuItemIds = categories.values().stream().flatMap(category -> category.items.keySet().stream()).toList();
+        Map<UUID, List<ModifierSelectionService.ModifierGroup>> groups = modifiers.groupsForMenuItems(menuItemIds);
+        List<Category> result = categories.values().stream().map(category -> category.build(groups)).toList();
         return new MenuResponse(result, Instant.now());
     }
 
@@ -52,9 +60,9 @@ public class PublicMenuController {
                 ignored -> new CategoryBuilder(categoryId, value(rs, "category_name"), rsInt(rs, "category_order")));
         UUID menuItemId = rs.getObject("menu_item_id", UUID.class);
         if (menuItemId == null) return;
-        category.items.add(new MenuItem(menuItemId, value(rs, "menu_item_name"),
-                rs.getString("menu_item_description"), rs.getBigDecimal("price"),
-                value(rs, "currency_code"), rs.getString("image_reference"),
+        category.items.computeIfAbsent(menuItemId, ignored -> new MenuItemBuilder(menuItemId,
+                value(rs, "menu_item_name"), rsString(rs, "menu_item_description"), rsDecimal(rs, "price"),
+                value(rs, "currency_code"), rsString(rs, "image_reference"),
                 rsInt(rs, "estimated_preparation_seconds"), rsInt(rs, "menu_item_order")));
     }
 
@@ -68,19 +76,56 @@ public class PublicMenuController {
         catch (SQLException error) { throw new IllegalStateException("Unable to read public menu", error); }
     }
 
+    private static String rsString(ResultSet rs, String column) {
+        try { return rs.getString(column); }
+        catch (SQLException error) { throw new IllegalStateException("Unable to read public menu", error); }
+    }
+
+    private static BigDecimal rsDecimal(ResultSet rs, String column) {
+        try { return rs.getBigDecimal(column); }
+        catch (SQLException error) { throw new IllegalStateException("Unable to read public menu", error); }
+    }
+
     private static final class CategoryBuilder {
         private final UUID id;
         private final String name;
         private final int displayOrder;
-        private final List<MenuItem> items = new ArrayList<>();
+        private final Map<UUID, MenuItemBuilder> items = new LinkedHashMap<>();
         private CategoryBuilder(UUID id, String name, int displayOrder) {
             this.id = id; this.name = name; this.displayOrder = displayOrder;
         }
-        private Category build() { return new Category(id, name, displayOrder, List.copyOf(items)); }
+        private Category build(Map<UUID, List<ModifierSelectionService.ModifierGroup>> groups) {
+            return new Category(id, name, displayOrder, items.values()
+                    .stream().map(item -> item.build(groups.getOrDefault(item.id, List.of()))).toList());
+        }
+    }
+
+    private static final class MenuItemBuilder {
+        private final UUID id;
+        private final String name;
+        private final String description;
+        private final BigDecimal price;
+        private final String currency;
+        private final String imageReference;
+        private final int estimatedPreparationSeconds;
+        private final int displayOrder;
+
+        private MenuItemBuilder(UUID id, String name, String description, BigDecimal price, String currency,
+                                String imageReference, int estimatedPreparationSeconds, int displayOrder) {
+            this.id = id; this.name = name; this.description = description; this.price = price;
+            this.currency = currency; this.imageReference = imageReference;
+            this.estimatedPreparationSeconds = estimatedPreparationSeconds; this.displayOrder = displayOrder;
+        }
+
+        private MenuItem build(List<ModifierSelectionService.ModifierGroup> groups) {
+            return new MenuItem(id, name, description, price, currency, imageReference,
+                    estimatedPreparationSeconds, displayOrder, groups);
+        }
     }
 
     public record MenuResponse(List<Category> categories, Instant asOf) {}
     public record Category(UUID id, String name, int displayOrder, List<MenuItem> items) {}
     public record MenuItem(UUID id, String name, String description, BigDecimal price, String currency,
-                           String imageReference, int estimatedPreparationSeconds, int displayOrder) {}
+                           String imageReference, int estimatedPreparationSeconds, int displayOrder,
+                           List<ModifierSelectionService.ModifierGroup> modifierGroups) {}
 }

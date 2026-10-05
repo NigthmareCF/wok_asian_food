@@ -1,6 +1,9 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.catalog.ModifierSelectionService;
+import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
+import com.wokasianfood.api.inventory.InventoryReservationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -62,6 +65,8 @@ public class OperationalOrderRequestController {
 class OrderRequestDecisionService {
     private final JdbcTemplate jdbc;
     private final OrderService orders;
+    private final ModifierSelectionService modifiers;
+    private final InventoryReservationService inventory;
 
     private static final org.springframework.jdbc.core.RowMapper<OrderRequestSummary> SUMMARY_MAPPER = (rs, row) ->
             new OrderRequestSummary(rs.getObject("request_id", UUID.class), rs.getString("fulfillment_type"),
@@ -72,9 +77,12 @@ class OrderRequestDecisionService {
                     rs.getString("payment_preference"), rs.getBoolean("invoice_requested"), rs.getTimestamp("submitted_at").toInstant(),
                     rs.getString("decision_reason"), rs.getObject("order_id", UUID.class));
 
-    OrderRequestDecisionService(JdbcTemplate jdbc, OrderService orders) {
+    OrderRequestDecisionService(JdbcTemplate jdbc, OrderService orders, ModifierSelectionService modifiers,
+                                InventoryReservationService inventory) {
         this.jdbc = jdbc;
         this.orders = orders;
+        this.modifiers = modifiers;
+        this.inventory = inventory;
     }
 
     List<OrderRequestSummary> list(String rawStatus, String rawFulfillmentType) {
@@ -114,11 +122,18 @@ class OrderRequestDecisionService {
                 WHERE r.id = ?
                 """, SUMMARY_MAPPER, requestId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
-        List<OrderRequestLine> items = jdbc.query("""
-                SELECT name_snapshot, quantity, unit_price, line_total
+        List<RequestLineRow> rows = jdbc.query("""
+                SELECT id, name_snapshot, quantity, unit_price, line_total
                 FROM wok.order_request_items WHERE order_request_id = ? ORDER BY created_at, id
-                """, (rs, row) -> new OrderRequestLine(rs.getString("name_snapshot"), rs.getInt("quantity"),
-                        rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total")), requestId);
+                """, (rs, row) -> new RequestLineRow(rs.getString("name_snapshot"), rs.getInt("quantity"),
+                        rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"), rs.getObject("id", UUID.class)), requestId);
+        List<OrderRequestLine> items = rows.stream().map(line -> new OrderRequestLine(line.name(), line.quantity(),
+                line.unitPrice(), line.lineTotal(), jdbc.query("""
+                    SELECT group_name_snapshot, modifier_name_snapshot, price_delta
+                    FROM wok.order_request_item_modifiers WHERE order_request_item_id = ?
+                    ORDER BY group_name_snapshot, modifier_name_snapshot, modifier_id
+                    """, (rs, row) -> new OrderRequestModifier(rs.getString("group_name_snapshot"),
+                        rs.getString("modifier_name_snapshot"), rs.getBigDecimal("price_delta")), line.requestItemId()))).toList();
         return new OrderRequestDetails(found.getFirst(), items);
     }
 
@@ -175,6 +190,7 @@ class OrderRequestDecisionService {
         UUID orderId = delivery
                 ? orders.createDeliveryOrder(actor, correlationId, "Delivery " + orderRequestId, lines)
                 : orders.createPickupOrder(actor, correlationId, "Pickup " + orderRequestId, lines);
+        applyAcceptedModifiers(actor, correlationId, orderRequestId, orderId);
         jdbc.update("""
             UPDATE wok.order_requests
             SET status = 'ACCEPTED', decided_by = ?, decided_at = now(), decision_reason = 'ACCEPTED',
@@ -210,17 +226,81 @@ class OrderRequestDecisionService {
             throw new AuthException(422, "Uno o más productos de la solicitud ya no están disponibles.");
         if (items.stream().anyMatch(item -> !item.currencyId().equals(request.currencyId())))
             throw new AuthException(422, "La moneda de la solicitud ya no coincide con el menú.");
-        BigDecimal currentSubtotal = items.stream()
-                .map(item -> item.currentPrice().multiply(BigDecimal.valueOf(item.quantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (currentSubtotal.compareTo(request.subtotal()) != 0
-                || items.stream().anyMatch(item -> item.currentPrice().compareTo(item.requestedPrice()) != 0))
+        BigDecimal currentSubtotal = BigDecimal.ZERO;
+        for (Revalidated item : items) {
+            List<UUID> selectedIds = jdbc.query("""
+                SELECT selected.modifier_id FROM wok.order_request_item_modifiers selected
+                JOIN wok.order_request_items request_item ON request_item.id = selected.order_request_item_id
+                WHERE request_item.order_request_id = ? AND request_item.menu_item_id = ?
+                ORDER BY selected.modifier_id
+                """, (rs, row) -> rs.getObject(1, UUID.class), request.id(), item.menuItemId());
+            List<SelectedModifier> selected;
+            try { selected = modifiers.validate(item.menuItemId(), selectedIds); }
+            catch (AuthException invalidSelection) {
+                throw new AuthException(409, "Las opciones de un producto cambiaron. Contacta al cliente antes de aceptar.");
+            }
+            BigDecimal currentUnitPrice = selected.stream().map(SelectedModifier::priceDelta)
+                    .reduce(item.currentPrice(), BigDecimal::add);
+            if (currentUnitPrice.compareTo(item.requestedPrice()) != 0)
+                throw new AuthException(409, "El precio de un producto o sus opciones cambió. Contacta al cliente antes de aceptar.");
+            currentSubtotal = currentSubtotal.add(currentUnitPrice.multiply(BigDecimal.valueOf(item.quantity())));
+        }
+        if (currentSubtotal.compareTo(request.subtotal()) != 0)
             throw new AuthException(409, "El precio cambió desde que se envió la solicitud. Contacta al cliente antes de aceptarla.");
         long prepSeconds = items.stream()
                 .mapToLong(item -> (long) item.preparationSeconds() * item.quantity())
                 .sum();
         if (prepSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(prepSeconds)))
             throw new AuthException(422, "El horario solicitado ya no alcanza para preparar la solicitud.");
+    }
+
+    private void applyAcceptedModifiers(UUID actor, UUID requestId, UUID orderRequestId, UUID orderId) {
+        List<AcceptedLine> lines = jdbc.query("""
+            SELECT request_item.id AS request_item_id, order_item.id AS order_item_id,
+                   request_item.unit_price, request_item.quantity
+            FROM wok.order_request_items request_item
+            JOIN wok.order_items order_item ON order_item.order_id = ?
+                AND order_item.menu_item_id = request_item.menu_item_id
+            WHERE request_item.order_request_id = ?
+            ORDER BY order_item.id
+            """, (rs, row) -> new AcceptedLine(rs.getObject("request_item_id", UUID.class),
+                rs.getObject("order_item_id", UUID.class), rs.getBigDecimal("unit_price"), rs.getInt("quantity")),
+                orderId, orderRequestId);
+        Integer expected = jdbc.queryForObject("""
+            SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?
+            """, Integer.class, orderRequestId);
+        if (expected == null || lines.size() != expected)
+            throw new AuthException(409, "No se pudieron vincular todas las opciones del pedido.");
+
+        for (AcceptedLine line : lines) {
+            List<String> names = jdbc.query("""
+                SELECT group_name_snapshot || ': ' || modifier_name_snapshot
+                FROM wok.order_request_item_modifiers WHERE order_request_item_id = ?
+                ORDER BY group_name_snapshot, modifier_name_snapshot, modifier_id
+                """, (rs, row) -> rs.getString(1), line.requestItemId());
+            String notes = names.isEmpty() ? null : "Opciones: " + String.join(", ", names);
+            jdbc.update("""
+                UPDATE wok.order_items SET unit_price = ?, notes = CASE WHEN CAST(? AS text) IS NULL THEN notes
+                    WHEN notes IS NULL OR btrim(notes) = '' THEN ? ELSE notes || E'\\n' || ? END,
+                    updated_at = now(), row_version = row_version + 1
+                WHERE id = ?
+                """, line.unitPrice(), notes, notes, notes, line.orderItemId());
+            jdbc.update("""
+                INSERT INTO wok.order_item_modifiers
+                    (order_item_id, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta)
+                SELECT ?, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta
+                FROM wok.order_request_item_modifiers WHERE order_request_item_id = ?
+                """, line.orderItemId(), line.requestItemId());
+        }
+        inventory.reserveModifierImpacts(actor, requestId, orderId, orderRequestId);
+        jdbc.update("""
+            UPDATE wok.orders order_row
+            SET subtotal = totals.subtotal, total = totals.subtotal - order_row.discount,
+                updated_at = now(), updated_by = ?, row_version = row_version + 1
+            FROM (SELECT COALESCE(sum(line_total), 0) AS subtotal
+                  FROM wok.order_items WHERE order_id = ?) totals
+            WHERE order_row.id = ?
+            """, actor, orderId, orderId);
     }
 
     private List<OperationalOrderController.OrderLineRequest> requestedLines(UUID orderRequestId) {
@@ -241,6 +321,7 @@ class OrderRequestDecisionService {
 
     private record Locked(UUID id, String status, String fulfillmentType, Instant requestedFor,
                           UUID currencyId, UUID orderId, BigDecimal subtotal) {}
+    private record AcceptedLine(UUID requestItemId, UUID orderItemId, BigDecimal unitPrice, int quantity) {}
     private record Revalidated(UUID menuItemId, int quantity, BigDecimal requestedPrice, BigDecimal currentPrice,
                                int preparationSeconds, UUID currencyId) {}
 
@@ -250,5 +331,9 @@ class OrderRequestDecisionService {
             String deliveryAddress, String deliveryReference, String paymentPreference, boolean invoiceRequested,
             Instant submittedAt, String decisionReason, UUID orderId) {}
     public record OrderRequestDetails(OrderRequestSummary request, List<OrderRequestLine> items) {}
-    public record OrderRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
+    private record RequestLineRow(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
+                                  UUID requestItemId) {}
+    public record OrderRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
+                                   List<OrderRequestModifier> modifiers) {}
+    public record OrderRequestModifier(String group, String name, BigDecimal priceDelta) {}
 }

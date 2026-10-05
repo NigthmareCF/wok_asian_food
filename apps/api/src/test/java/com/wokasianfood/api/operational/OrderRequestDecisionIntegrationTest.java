@@ -149,6 +149,79 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void validatesModifierSelectionSnapshotsPriceAndCarriesChoicesIntoAcceptedOrder() {
+        UUID menuItemId = seedMenuItem("Wok with Options", "25.00", "WOK_MODIFIER", 60);
+        UUID groupId = jdbc.queryForObject("""
+                INSERT INTO wok.modifier_groups (name, min_selection, max_selection, required)
+                VALUES ('Proteína', 1, 1, true) RETURNING id
+                """, UUID.class);
+        UUID tofuId = jdbc.queryForObject("""
+                INSERT INTO wok.modifiers (group_id, name, price_delta) VALUES (?, 'Tofu', 5.00) RETURNING id
+                """, UUID.class, groupId);
+        UUID chickenId = jdbc.queryForObject("""
+                INSERT INTO wok.modifiers (group_id, name, price_delta) VALUES (?, 'Pollo', 8.00) RETURNING id
+                """, UUID.class, groupId);
+        jdbc.update("INSERT INTO wok.menu_item_modifier_groups (menu_item_id, group_id) VALUES (?, ?)", menuItemId, groupId);
+
+        JsonNode menu = body(get("/api/v1/public/menu", null));
+        JsonNode publicItem = null;
+        for (JsonNode category : menu.path("categories")) {
+            for (JsonNode item : category.path("items")) {
+                if (menuItemId.toString().equals(item.path("id").asText())) publicItem = item;
+            }
+        }
+        assertThat(publicItem).isNotNull();
+        assertThat(publicItem.path("modifierGroups").get(0).path("minSelection").asInt()).isEqualTo(1);
+        assertThat(publicItem.path("modifierGroups").get(0).path("options")).hasSize(2);
+
+        String client = tokenForRole("CLIENT");
+        String operator = tokenForRole("OPERATIONAL");
+        String requestedFor = Instant.now().plusSeconds(900).toString();
+        String missingOptions = """
+                {"requestedFor":"%s","items":[{"menuItemId":"%s","quantity":2,"modifierIds":[]}]}
+                """.formatted(requestedFor, menuItemId);
+        assertThat(post("/api/v1/client/order-requests", client, missingOptions,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())).statusCode()).isEqualTo(422);
+
+        UUID key = UUID.randomUUID();
+        JsonNode submitted = submitWithModifier(client, menuItemId, tofuId, 2, requestedFor, key);
+        UUID requestId = UUID.fromString(submitted.path("requestId").asText());
+        assertThat(submitted.path("subtotal").decimalValue()).isEqualByComparingTo("60.00");
+        JsonNode replay = submitWithModifier(client, menuItemId, tofuId, 2, requestedFor, key);
+        assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(post("/api/v1/client/order-requests", client,
+                """
+                {"requestedFor":"%s","items":[{"menuItemId":"%s","quantity":2,"modifierIds":["%s"]}]}
+                """.formatted(requestedFor, menuItemId, chickenId),
+                Map.of("Idempotency-Key", key.toString())).statusCode()).isEqualTo(409);
+
+        JsonNode clientDetails = body(get("/api/v1/client/order-requests/" + requestId, client));
+        assertThat(clientDetails.path("items").get(0).path("unitPrice").decimalValue()).isEqualByComparingTo("30.00");
+        assertThat(clientDetails.path("items").get(0).path("modifiers").get(0).path("name").asText()).isEqualTo("Tofu");
+        JsonNode operationalDetails = body(get("/api/v1/operational/order-requests/" + requestId, operator));
+        assertThat(operationalDetails.path("items").get(0).path("modifiers").get(0).path("group").asText())
+                .isEqualTo("Proteína");
+        assertThat(operationalDetails.path("items").get(0).path("modifiers").get(0).path("name").asText())
+                .isEqualTo("Tofu");
+
+        JsonNode decision = body(post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
+                """
+                {"action":"ACCEPT"}
+                """));
+        UUID orderId = UUID.fromString(decision.path("orderId").asText());
+        var orderItem = jdbc.queryForMap("SELECT unit_price, line_total, notes FROM wok.order_items WHERE order_id = ?", orderId);
+        assertThat((BigDecimal) orderItem.get("unit_price")).isEqualByComparingTo("30.00");
+        assertThat((BigDecimal) orderItem.get("line_total")).isEqualByComparingTo("60.00");
+        assertThat((String) orderItem.get("notes")).contains("Proteína: Tofu");
+        assertThat(jdbc.queryForObject("SELECT subtotal FROM wok.orders WHERE id = ?", BigDecimal.class, orderId))
+                .isEqualByComparingTo("60.00");
+        assertThat(count("SELECT count(*) FROM wok.order_item_modifiers WHERE order_item_id = (SELECT id FROM wok.order_items WHERE order_id = ?)",
+                orderId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT modifier_name_snapshot FROM wok.order_item_modifiers WHERE order_item_id = (SELECT id FROM wok.order_items WHERE order_id = ?)",
+                String.class, orderId)).isEqualTo("Tofu");
+    }
+
+    @Test
     void acceptsDeliveryRequestAsDeliveryOrderAndReplaysDecision() {
         UUID menuItemId = seedMenuItem("Wok Delivery", "18.00", "WOK_DELIVERY_DECISION", 60);
         String client = tokenForRole("CLIENT");
@@ -422,6 +495,14 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 {"requestedFor":"%s","customerNote":"prueba","items":[{"menuItemId":"%s","quantity":%d}]}
                 """.formatted(requestedFor, menuItemId, quantity),
                 Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+    }
+
+    private JsonNode submitWithModifier(String token, UUID menuItemId, UUID modifierId, int quantity,
+                                        String requestedFor, UUID idempotencyKey) {
+        return body(post("/api/v1/client/order-requests", token, """
+                {"requestedFor":"%s","customerNote":"opción probada","items":[{"menuItemId":"%s","quantity":%d,"modifierIds":["%s"]}]}
+                """.formatted(requestedFor, menuItemId, quantity, modifierId),
+                Map.of("Idempotency-Key", idempotencyKey.toString())));
     }
 
     private int count(String sql, Object... arguments) {

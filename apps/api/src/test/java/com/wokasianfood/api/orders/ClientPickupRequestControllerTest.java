@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.catalog.ModifierSelectionService;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
@@ -12,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,13 +24,19 @@ import org.springframework.security.oauth2.jwt.Jwt;
 @ExtendWith(MockitoExtension.class)
 class ClientPickupRequestControllerTest {
     @Mock JdbcTemplate jdbc;
+    @Mock ModifierSelectionService modifiers;
+
+    @BeforeEach
+    void allowItemsWithoutConfiguredModifierGroups() {
+        org.mockito.Mockito.lenient().when(modifiers.validate(any(UUID.class), anyList())).thenReturn(List.of());
+    }
 
     @Test
     void rejectsFiscalDataUnlessInvoiceWasRequested() {
         var request = new ClientPickupRequestController.PickupRequest(Instant.now().plusSeconds(3600), null,
                 ClientPickupRequestController.PaymentPreference.CASH_AT_PICKUP, false, "WOK Cliente", "1234567",
                 List.of(new ClientPickupRequestController.RequestedItem(UUID.randomUUID(), 1)));
-        AuthException error = assertThrows(AuthException.class, () -> new ClientPickupRequestController(jdbc)
+        AuthException error = assertThrows(AuthException.class, () -> new ClientPickupRequestController(jdbc, modifiers)
                 .submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request));
         assertEquals(400, error.status());
         verifyNoInteractions(jdbc);
@@ -39,7 +47,7 @@ class ClientPickupRequestControllerTest {
         var request = new ClientPickupRequestController.PickupRequest(Instant.now().plusSeconds(3600), null,
                 ClientPickupRequestController.PaymentPreference.CARD_AT_PICKUP, true, "WOK Cliente", null,
                 List.of(new ClientPickupRequestController.RequestedItem(UUID.randomUUID(), 1)));
-        AuthException error = assertThrows(AuthException.class, () -> new ClientPickupRequestController(jdbc)
+        AuthException error = assertThrows(AuthException.class, () -> new ClientPickupRequestController(jdbc, modifiers)
                 .submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request));
         assertEquals(400, error.status());
         verifyNoInteractions(jdbc);
@@ -56,15 +64,15 @@ class ClientPickupRequestControllerTest {
         var request = new ClientPickupRequestController.PickupRequest(requestedFor, "Sin cebolla",
                 List.of(new ClientPickupRequestController.RequestedItem(menuItemId, 2)));
 
-        var result = new ClientPickupRequestController(jdbc).submit(jwt(userId), UUID.randomUUID(), request);
+        var result = new ClientPickupRequestController(jdbc, modifiers).submit(jwt(userId), UUID.randomUUID(), request);
 
         assertEquals(requestId, result.requestId());
         assertEquals("PENDING_REVIEW", result.status());
         assertEquals(new BigDecimal("20.50"), result.subtotal());
         assertFalse(result.idempotentReplay());
         assertTrue(result.message().contains("confirmar disponibilidad"));
-        verify(jdbc).update(contains("order_request_items"), eq(requestId), eq(menuItemId),
-                eq("Pad Thai"), eq(2), eq(new BigDecimal("10.25")), eq(currencyId));
+        verify(jdbc).query(contains("INSERT INTO wok.order_request_items"), any(RowMapper.class),
+                eq(requestId), eq(menuItemId), eq("Pad Thai"), eq(2), eq(new BigDecimal("10.25")), eq(currencyId));
         verify(jdbc).update(contains("order_request_events"), eq(requestId), eq(userId));
     }
 
@@ -77,7 +85,7 @@ class ClientPickupRequestControllerTest {
                 List.of(new ClientPickupRequestController.RequestedItem(menuItemId, 1)));
 
         AuthException error = assertThrows(AuthException.class, () ->
-                new ClientPickupRequestController(jdbc).submit(jwt(userId), UUID.randomUUID(), request));
+                new ClientPickupRequestController(jdbc, modifiers).submit(jwt(userId), UUID.randomUUID(), request));
 
         assertEquals(422, error.status());
         verify(jdbc, never()).update(contains("order_request_items"), any(Object[].class));
@@ -91,7 +99,7 @@ class ClientPickupRequestControllerTest {
         stubRequestStatus("PENDING_REVIEW");
         when(jdbc.update(contains("SET status = 'CANCELLED'"), any(Object[].class))).thenReturn(1);
 
-        var result = new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId);
+        var result = new ClientPickupRequestController(jdbc, modifiers).cancel(jwt(userId), requestId);
 
         assertEquals(new ClientPickupRequestController.OrderRequestState(requestId, "CANCELLED"), result);
         verify(jdbc).update(contains("order_request_events"), eq(requestId), eq(userId));
@@ -104,7 +112,7 @@ class ClientPickupRequestControllerTest {
         stubRequestStatus(null);
 
         AuthException error = assertThrows(AuthException.class, () ->
-                new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId));
+                new ClientPickupRequestController(jdbc, modifiers).cancel(jwt(userId), requestId));
 
         assertEquals(404, error.status());
         verify(jdbc, never()).update(anyString(), any(Object[].class));
@@ -116,7 +124,7 @@ class ClientPickupRequestControllerTest {
         UUID requestId = UUID.randomUUID();
         stubRequestStatus("CANCELLED");
 
-        var result = new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId);
+        var result = new ClientPickupRequestController(jdbc, modifiers).cancel(jwt(userId), requestId);
 
         assertEquals("CANCELLED", result.status());
         verify(jdbc, never()).update(anyString(), any(Object[].class));
@@ -132,7 +140,9 @@ class ClientPickupRequestControllerTest {
             String sql = invocation.getArgument(0);
             @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
             ResultSet rs = mock(ResultSet.class);
+            if (sql.contains("order_request_item_modifiers")) return List.of();
             if (sql.contains("order_request_items")) {
+                when(rs.getObject("id", UUID.class)).thenReturn(UUID.randomUUID());
                 when(rs.getString("name_snapshot")).thenReturn("Pad Thai");
                 when(rs.getInt("quantity")).thenReturn(2);
                 when(rs.getBigDecimal("unit_price")).thenReturn(new BigDecimal("10.25"));
@@ -150,7 +160,7 @@ class ClientPickupRequestControllerTest {
             return List.of(mapper.mapRow(rs, 0));
         }).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
 
-        var result = new ClientPickupRequestController(jdbc).details(jwt(userId), requestId);
+        var result = new ClientPickupRequestController(jdbc, modifiers).details(jwt(userId), requestId);
 
         assertEquals("Sin cebolla", result.customerNote());
         assertEquals("Pad Thai", result.items().getFirst().name());
@@ -162,7 +172,7 @@ class ClientPickupRequestControllerTest {
         doAnswer(invocation -> List.of()).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
 
         AuthException error = assertThrows(AuthException.class, () ->
-                new ClientPickupRequestController(jdbc).details(jwt(UUID.randomUUID()), UUID.randomUUID()));
+                new ClientPickupRequestController(jdbc, modifiers).details(jwt(UUID.randomUUID()), UUID.randomUUID()));
 
         assertEquals(404, error.status());
         verify(jdbc, times(1)).query(anyString(), any(RowMapper.class), any(Object[].class));

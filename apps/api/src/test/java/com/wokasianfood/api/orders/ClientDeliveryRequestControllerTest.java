@@ -15,8 +15,10 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import com.wokasianfood.api.catalog.ModifierSelectionService;
 import com.wokasianfood.api.identity.AuthException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,6 +29,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
 @ExtendWith(MockitoExtension.class)
 class ClientDeliveryRequestControllerTest {
     @Mock JdbcTemplate jdbc;
+    @Mock ModifierSelectionService modifiers;
+
+    @BeforeEach
+    void allowItemsWithoutConfiguredModifierGroups() {
+        org.mockito.Mockito.lenient().when(modifiers.validate(org.mockito.ArgumentMatchers.any(UUID.class),
+                org.mockito.ArgumentMatchers.anyList())).thenReturn(List.of());
+    }
 
     @Test
     void requiresFiscalDataToBeCompleteWhenRequested() {
@@ -34,7 +43,7 @@ class ClientDeliveryRequestControllerTest {
                 "Zona 10, Ciudad de Guatemala", null, "+502 5555-1234",
                 ClientDeliveryRequestController.PaymentPreference.CASH_ON_DELIVERY, true, "WOK Cliente", null,
                 List.of(new ClientDeliveryRequestController.RequestedItem(UUID.randomUUID(), 1)));
-        AuthException error = assertThrows(AuthException.class, () -> new ClientDeliveryRequestController(jdbc)
+        AuthException error = assertThrows(AuthException.class, () -> new ClientDeliveryRequestController(jdbc, modifiers)
                 .submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request));
         assertEquals(400, error.status());
         org.mockito.Mockito.verifyNoInteractions(jdbc);
@@ -46,7 +55,7 @@ class ClientDeliveryRequestControllerTest {
         UUID customerId = UUID.randomUUID();
         doReturn(List.of()).when(jdbc).query(contains("r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'"),
                 any(RowMapper.class), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.eq(customerId));
-        var controller = new ClientDeliveryRequestController(jdbc);
+        var controller = new ClientDeliveryRequestController(jdbc, modifiers);
 
         AuthException error = assertThrows(AuthException.class, () -> controller.details(jwt(customerId), requestId));
 
@@ -65,6 +74,7 @@ class ClientDeliveryRequestControllerTest {
             String sql = invocation.getArgument(0);
             @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
             ResultSet rs = org.mockito.Mockito.mock(ResultSet.class);
+            if (sql.contains("order_request_item_modifiers")) return List.of();
             if (sql.contains("FROM wok.order_requests")) {
                 when(rs.getObject("id", UUID.class)).thenReturn(requestId);
                 when(rs.getString("status")).thenReturn("PENDING_REVIEW");
@@ -82,7 +92,7 @@ class ClientDeliveryRequestControllerTest {
             return List.of(mapper.mapRow(rs, 0));
         }).when(jdbc).query(org.mockito.ArgumentMatchers.anyString(), any(RowMapper.class), any(Object[].class));
 
-        var details = new ClientDeliveryRequestController(jdbc).details(jwt(customerId), requestId);
+        var details = new ClientDeliveryRequestController(jdbc, modifiers).details(jwt(customerId), requestId);
 
         assertEquals("PENDING_REVIEW", details.status());
         assertEquals(requestedFor, details.requestedFor());
@@ -97,7 +107,7 @@ class ClientDeliveryRequestControllerTest {
     void pausedDeliveryServiceRejectsTheRequestBeforeProductLookupOrPersistence() {
         doReturn(List.of()).when(jdbc).query(contains("request_fingerprint"), any(RowMapper.class), any(Object[].class));
         doReturn(List.of("PAUSED")).when(jdbc).query(contains("code = 'DELIVERY'"), any(RowMapper.class));
-        var controller = new ClientDeliveryRequestController(jdbc);
+        var controller = new ClientDeliveryRequestController(jdbc, modifiers);
         UUID userId = UUID.randomUUID();
         var request = new ClientDeliveryRequestController.DeliveryRequest(Instant.now().plusSeconds(7200), null,
                 "Zona 10, Ciudad de Guatemala", null, "+502 5555-1234",
@@ -141,14 +151,14 @@ class ClientDeliveryRequestControllerTest {
                 "Zona 10, Ciudad de Guatemala", "Casa con portón negro", "+502 5555-1234",
                 ClientDeliveryRequestController.PaymentPreference.ONLINE_PAYMENT_REQUESTED,
                 List.of(new ClientDeliveryRequestController.RequestedItem(menuItemId, 2)));
-        var receipt = new ClientDeliveryRequestController(jdbc).submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request);
+        var receipt = new ClientDeliveryRequestController(jdbc, modifiers).submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request);
 
         assertEquals(requestId, receipt.requestId());
         assertEquals("DELIVERY", receipt.fulfillmentType());
         assertEquals("PENDING_REVIEW", receipt.status());
         assertEquals(new BigDecimal("96.00"), receipt.subtotal());
         assertEquals(ClientDeliveryRequestController.PaymentPreference.ONLINE_PAYMENT_REQUESTED, receipt.paymentPreference());
-        verify(jdbc).update(contains("INSERT INTO wok.order_request_items"), any(Object[].class));
+        verify(jdbc).query(contains("INSERT INTO wok.order_request_items"), any(RowMapper.class), any(Object[].class));
         verify(jdbc).update(contains("INSERT INTO wok.order_request_events"), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.any());
     }
 

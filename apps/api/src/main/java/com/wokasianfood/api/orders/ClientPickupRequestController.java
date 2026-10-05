@@ -1,6 +1,8 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.catalog.ModifierSelectionService;
+import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/api/v1/client/order-requests")
@@ -42,8 +45,14 @@ public class ClientPickupRequestController {
             rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
             rs.getInt("estimated_preparation_seconds"));
     private final JdbcTemplate jdbc;
+    private final ModifierSelectionService modifiers;
 
-    public ClientPickupRequestController(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    @Autowired
+    public ClientPickupRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
+        this.jdbc = jdbc; this.modifiers = modifiers;
+    }
+
+    ClientPickupRequestController(JdbcTemplate jdbc) { this(jdbc, new ModifierSelectionService(jdbc)); }
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -62,6 +71,9 @@ public class ClientPickupRequestController {
         PickupRequestReceipt previous = existing(customerId, idempotencyKey, fingerprint, true);
         if (previous != null) return previous;
 
+        List<List<SelectedModifier>> selections = lines.stream()
+                .map(line -> modifiers.validate(line.menuItemId(), line.modifierIds())).toList();
+
         List<Product> products = loadProducts(lines);
         if (products.size() != lines.size()) throw new AuthException(422, "Uno o más productos ya no están publicados.");
         UUID currencyId = products.getFirst().currencyId;
@@ -75,7 +87,7 @@ public class ClientPickupRequestController {
             Product product = products.get(i);
             int quantity = lines.get(i).quantity();
             prepSeconds = Math.addExact(prepSeconds, Math.multiplyExact((long) product.preparationSeconds, quantity));
-            subtotal = subtotal.add(product.price.multiply(BigDecimal.valueOf(quantity)));
+            subtotal = subtotal.add(effectivePrice(product.price, selections.get(i)).multiply(BigDecimal.valueOf(quantity)));
         }
         if (prepSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(prepSeconds)))
             throw new AuthException(422, "El horario solicitado es anterior al tiempo mínimo de preparación indicado.");
@@ -97,11 +109,13 @@ public class ClientPickupRequestController {
         UUID requestId = inserted.getFirst();
         for (int i = 0; i < products.size(); i++) {
             Product product = products.get(i);
-            jdbc.update("""
+            UUID requestItemId = jdbc.query("""
                 INSERT INTO wok.order_request_items
                   (order_request_id, menu_item_id, name_snapshot, quantity, unit_price, currency_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, requestId, product.id, product.name, lines.get(i).quantity(), product.price, product.currencyId);
+                VALUES (?, ?, ?, ?, ?, ?) RETURNING id
+                """, (rs, row) -> rs.getObject(1, UUID.class), requestId, product.id, product.name,
+                    lines.get(i).quantity(), effectivePrice(product.price, selections.get(i)), product.currencyId).getFirst();
+            saveRequestModifiers(requestItemId, selections.get(i));
         }
         jdbc.update("""
             INSERT INTO wok.order_request_events(order_request_id, event_type, actor_user_id)
@@ -141,11 +155,14 @@ public class ClientPickupRequestController {
                 rs.getString("invoice_name"), rs.getString("invoice_tax_id"),
                 customerDecisionReason(rs.getString("status"), rs.getString("decision_reason")), List.of()), requestId, customerId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
-        List<PickupRequestLine> items = jdbc.query("""
-            SELECT name_snapshot, quantity, unit_price, line_total, currency_id
+        List<PersistedRequestLine> storedItems = jdbc.query("""
+            SELECT id, name_snapshot, quantity, unit_price, line_total, currency_id
             FROM wok.order_request_items WHERE order_request_id = ? ORDER BY created_at, id
-            """, (rs, row) -> new PickupRequestLine(rs.getString("name_snapshot"), rs.getInt("quantity"),
-                rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"), rs.getObject("currency_id", UUID.class)), requestId);
+            """, (rs, row) -> new PersistedRequestLine(rs.getObject("id", UUID.class),
+                rs.getString("name_snapshot"), rs.getInt("quantity"), rs.getBigDecimal("unit_price"),
+                rs.getBigDecimal("line_total"), rs.getObject("currency_id", UUID.class)), requestId);
+        List<PickupRequestLine> items = storedItems.stream().map(item -> new PickupRequestLine(item.name(),
+                item.quantity(), item.unitPrice(), item.lineTotal(), item.currencyId(), requestModifiers(item.id()))).toList();
         PickupRequestDetails request = found.getFirst();
         return new PickupRequestDetails(request.requestId(), request.status(), request.requestedFor(),
                 request.subtotal(), request.currencyId(), request.currency(), request.customerNote(),
@@ -202,18 +219,44 @@ public class ClientPickupRequestController {
         if (items.stream().map(RequestedItem::menuItemId).anyMatch(id -> id == null)
                 || new HashSet<>(items.stream().map(RequestedItem::menuItemId).toList()).size() != items.size())
             throw new AuthException(400, "Cada producto debe aparecer una sola vez.");
-        return items.stream().sorted(Comparator.comparing(item -> item.menuItemId().toString())).toList();
+        return items.stream().map(item -> new RequestedItem(item.menuItemId(), item.quantity(),
+                item.modifierIds() == null ? List.of() : item.modifierIds().stream().sorted().toList()))
+                .sorted(Comparator.comparing(item -> item.menuItemId().toString())).toList();
+    }
+
+    private BigDecimal effectivePrice(BigDecimal basePrice, List<SelectedModifier> selected) {
+        return selected.stream().map(SelectedModifier::priceDelta).reduce(basePrice, BigDecimal::add);
+    }
+
+    private void saveRequestModifiers(UUID requestItemId, List<SelectedModifier> selected) {
+        for (SelectedModifier modifier : selected) jdbc.update("""
+            INSERT INTO wok.order_request_item_modifiers
+                (order_request_item_id, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta)
+            VALUES (?, ?, ?, ?, ?)
+            """, requestItemId, modifier.id(), modifier.groupName(), modifier.name(), modifier.priceDelta());
+    }
+
+    private List<ModifierSnapshot> requestModifiers(UUID requestItemId) {
+        return jdbc.query("""
+            SELECT group_name_snapshot, modifier_name_snapshot, price_delta
+            FROM wok.order_request_item_modifiers WHERE order_request_item_id = ?
+            ORDER BY group_name_snapshot, modifier_name_snapshot, modifier_id
+            """, (rs, row) -> new ModifierSnapshot(rs.getString("group_name_snapshot"),
+                rs.getString("modifier_name_snapshot"), rs.getBigDecimal("price_delta")), requestItemId);
     }
 
     private String fingerprint(Instant requestedFor, String note, String paymentPreference, InvoiceRequest invoice,
-                               List<RequestedItem> lines) {
+                              List<RequestedItem> lines) {
         String canonical = requestedFor.toString() + "\n" + (note == null ? "" : note) + "\n";
         if (paymentPreference != null || invoice.requested())
             canonical += (paymentPreference == null ? "" : paymentPreference) + "\n" + invoice.requested() + "\n"
                     + (invoice.name() == null ? "" : invoice.name()) + "\n"
                     + (invoice.taxId() == null ? "" : invoice.taxId()) + "\n";
-        canonical += lines.stream().map(line -> line.menuItemId() + ":" + line.quantity())
-                .reduce((a, b) -> a + "\n" + b).orElse("");
+        canonical += lines.stream().map(line -> {
+            String selected = line.modifierIds().stream().map(UUID::toString).sorted()
+                    .reduce((a, b) -> a + "," + b).orElse("");
+            return line.menuItemId() + ":" + line.quantity() + ":" + selected;
+        }).reduce((a, b) -> a + "\n" + b).orElse("");
         try {
             byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -287,7 +330,12 @@ public class ClientPickupRequestController {
     }
     public enum PaymentPreference { CASH_AT_PICKUP, CARD_AT_PICKUP, TRANSFER_AT_PICKUP }
     private record InvoiceRequest(boolean requested, String name, String taxId) {}
-    public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
+    public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity,
+                                @Size(max = 30) List<@NotNull UUID> modifierIds) {
+        public RequestedItem { modifierIds = modifierIds == null ? List.of()
+                : java.util.Collections.unmodifiableList(new ArrayList<>(modifierIds)); }
+        public RequestedItem(UUID menuItemId, int quantity) { this(menuItemId, quantity, List.of()); }
+    }
     public record PickupRequestReceipt(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
             UUID currencyId, String currency, String paymentPreference, boolean invoiceRequested,
             String invoiceName, String invoiceTaxId, boolean idempotentReplay, String decisionReason, String message) {}
@@ -295,7 +343,11 @@ public class ClientPickupRequestController {
     public record PickupRequestDetails(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
             UUID currencyId, String currency, String customerNote, String paymentPreference, boolean invoiceRequested,
             String invoiceName, String invoiceTaxId, String decisionReason, List<PickupRequestLine> items) {}
-    public record PickupRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal, UUID currencyId) {}
+    public record PickupRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
+                                   UUID currencyId, List<ModifierSnapshot> modifiers) {}
+    public record ModifierSnapshot(String group, String name, BigDecimal priceDelta) {}
+    private record PersistedRequestLine(UUID id, String name, int quantity, BigDecimal unitPrice,
+                                        BigDecimal lineTotal, UUID currencyId) {}
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currencyCode,
             int preparationSeconds) {}
 }
