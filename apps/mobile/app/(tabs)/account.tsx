@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { router } from "expo-router";
-import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
+import { Button, Card, Field, Heading, Notice, Page, useUiTheme } from "@/components/ui";
 import { ApiError, ClientProfile, ClientSession } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
 
 export default function AccountScreen() {
+  const { colors, ui } = useUiTheme();
   const { session, login, register, verify, resendVerification, requestPasswordReset, completePasswordReset, request, logout } = useSession();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -92,8 +92,8 @@ export default function AccountScreen() {
     "reset-request": "Enviar código", "reset-complete": "Actualizar contraseña",
   };
 
-  if (session) return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Tu perfil">Mi cuenta</Heading>
-    <Card><Text style={{ fontSize: 18, fontWeight: "800", color: palette.ink }}>Perfil Cliente</Text>
+  if (session) return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page safeTop><Heading eyebrow="Tu perfil">Mi cuenta</Heading>
+    <Card><Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>Perfil Cliente</Text>
       <Text style={ui.body}>{profile?.email ?? session.email}</Text>
       {!profile && !error ? <Notice>Cargando tu perfil…</Notice> : null}
       {profile ? <>
@@ -111,16 +111,15 @@ export default function AccountScreen() {
           setMessage("Tus datos se guardaron correctamente.");
         })} />
       </> : null}
-      <Button title="Administrar direcciones guardadas" secondary onPress={() => router.push("/addresses")} />
       <Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice>
       {session.offline ? <Notice>Sin conexión: conservamos tu sesión y tus borradores en este dispositivo. Podrás reintentar las acciones del servidor cuando recuperes conexión.</Notice> : null}
       <View style={{ gap: 10 }}>
-        <Text style={{ fontSize: 18, fontWeight: "800", color: palette.ink }}>Sesiones activas</Text>
+        <Text style={{ fontSize: 18, fontWeight: "800", color: colors.foreground }}>Sesiones activas</Text>
         <Text style={ui.body}>Revisa dónde está abierta tu cuenta y cierra sesiones que no reconozcas.</Text>
         {sessionsLoading && sessions.length === 0 ? <Notice>Cargando sesiones…</Notice> : null}
         {!sessionsLoading && sessions.length === 0 ? <Notice>No hay sesiones activas disponibles.</Notice> : null}
-        {sessions.map((item) => <View key={item.sessionId} style={{ borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 12, gap: 6 }}>
-          <Text style={{ color: palette.ink, fontWeight: "800" }}>{item.deviceName || sessionTypeLabel(item.clientType)}{item.current ? " · Este dispositivo" : ""}</Text>
+        {sessions.map((item) => <View key={item.sessionId} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, gap: 6 }}>
+          <Text style={{ color: colors.foreground, fontWeight: "800" }}>{item.deviceName || sessionTypeLabel(item.clientType)}{item.current ? " · Este dispositivo" : ""}</Text>
           <Text style={ui.body}>Última actividad: {formatSessionDate(item.lastActivityAt)}</Text>
           {!item.current ? <Button title="Cerrar sesión" secondary busy={busy} onPress={() => void run(async () => {
             await request<void>(`/api/v1/client/sessions/${item.sessionId}`, { method: "DELETE" });
@@ -135,7 +134,7 @@ export default function AccountScreen() {
       })} busy={busy} /></Card>
   </Page></ScrollView>;
 
-  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Acceso Cliente">{title[mode]}</Heading>
+  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page safeTop><Heading eyebrow="Acceso Cliente">{title[mode]}</Heading>
     <Text style={ui.body}>{mode === "reset-request" || mode === "reset-complete"
       ? "Te enviaremos un código si existe una cuenta activa con ese correo."
       : "Usa una cuenta Cliente de WOK. Las cuentas nuevas necesitan verificación por correo."}</Text>

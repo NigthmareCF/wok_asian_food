@@ -1,15 +1,14 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
-import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
+import { FlatList, Text, View } from "react-native";
+import { Button, Card, Heading, Notice, Page, Skeleton } from "@/components/ui";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 type Capability = { code: string; status: "ENABLED" | "MANUAL_APPROVAL" | "PAUSED" | "DISABLED" };
 const serviceNames: Record<string, string> = {
   LOCAL: "Servicio en el restaurante", RESERVATIONS: "Reservas", DINE_IN_ONLINE: "Pedidos en mesa",
-  PICKUP: "Para recoger", DELIVERY: "Delivery", ONLINE_ORDERS: "Pedidos en línea", MESSAGING: "Mensajes",
-  ONLINE_PAYMENTS: "Pagos en línea",
+  PICKUP: "Para recoger", ONLINE_ORDERS: "Pedidos en línea", MESSAGING: "Mensajes",
 };
 const publicServiceCodes = new Set(Object.keys(serviceNames));
 const statusNames: Record<Capability["status"], string> = {
@@ -43,23 +42,48 @@ export default function HomeScreen() {
     finally { setRefreshing(false); }
   }
 
-  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
-    <View style={{ paddingTop: 18, gap: 18 }}>
-      <Text style={{ color: palette.red, fontWeight: "900", fontSize: 15, letterSpacing: 2 }}>WOK ASIAN FOOD</Text>
-      <Heading eyebrow="Sabor para compartir">Tu próxima visita empieza aquí.</Heading>
-      <Text style={ui.body}>Consulta el menú y solicita una reserva directamente al restaurante.</Text>
-    </View>
-    <Card><Text style={{ fontSize: 20, fontWeight: "800", color: palette.ink }}>Estado del restaurante</Text>
-      {capabilities?.length ? capabilities.map((item) => <View key={item.code} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, borderBottomWidth: 1, borderBottomColor: "#eadfce", paddingVertical: 8 }}>
-        <Text style={[ui.body, { flex: 1, color: palette.ink }]}>{serviceNames[item.code] ?? item.code}</Text>
-        <Text style={{ color: item.status === "ENABLED" ? palette.green : palette.muted, fontWeight: "700", textAlign: "right" }}>{statusNames[item.status]}</Text>
-      </View>) : null}
-      {!capabilities?.length && !statusError ? <Notice>{capabilities ? "El restaurante todavía no publicó servicios." : "Consultando el estado actual…"}</Notice> : null}
-      {statusError ? <Notice tone="error">{statusError}</Notice> : null}
-      <Button title="Actualizar estado" secondary busy={refreshing} onPress={() => void refreshStatus()} />
-      <Text style={{ color: palette.muted, fontSize: 12 }}>Una solicitud de reserva requiere confirmación del equipo.</Text>
-    </Card>
-    <Card><Text style={{ fontSize: 20, fontWeight: "800", color: palette.ink }}>¿Qué te gustaría hacer?</Text><Button title="Explorar menú" onPress={() => router.push("/(tabs)/menu")} /><Button title="Solicitar una reserva" secondary onPress={() => router.push("/(tabs)/reservations")} /><Button title="Solicitar delivery" secondary onPress={() => router.push("/delivery")} /><Button title={session ? "Contactar al equipo WOK" : "Mensajes y atención"} secondary onPress={() => router.push("/messages")} /></Card>
-    <Text style={[ui.body, { fontSize: 12 }]}>Aplicación Cliente · versión inicial conectada a servicios disponibles.</Text>
-  </Page></ScrollView>;
+  return <Page safeTop>
+    <FlatList
+      className="flex-1"
+      contentContainerClassName="pb-6"
+      data={capabilities ?? []}
+      keyExtractor={(item) => item.code}
+      ListHeaderComponent={<>
+        <View className="mb-6 gap-6 lg:flex-row lg:items-center">
+          <View className="flex-1 gap-4">
+            <Text className="font-sans text-base font-extrabold tracking-eyebrow text-primary">WOK ASIAN FOOD</Text>
+            <Heading eyebrow="Sabor para compartir">Tu próxima visita empieza aquí.</Heading>
+            <Text className="font-sans text-base leading-6 text-muted-foreground">Consulta el menú y solicita una reserva directamente al restaurante.</Text>
+          </View>
+          <Card className="lg:flex-1">
+            <Text accessibilityRole="header" className="font-sans text-xl font-extrabold text-foreground">¿Qué te gustaría hacer?</Text>
+            <Button title="Explorar menú" onPress={() => router.push("/(tabs)/menu")} />
+            <Button title="Solicitar una reserva" secondary onPress={() => router.push("/(tabs)/reservations")} />
+            <Button title={session ? "Contactar al equipo WOK" : "Mensajes y atención"} secondary onPress={() => router.push("/messages")} />
+          </Card>
+        </View>
+        <View className="rounded-t-lg border-x border-t border-border bg-surface p-4 sm:p-6">
+          <Text accessibilityRole="header" className="font-sans text-xl font-extrabold text-foreground">Estado del restaurante</Text>
+          {!capabilities && !statusError ? <View className="mt-4 gap-3" accessibilityLabel="Consultando el estado del restaurante">
+            <Skeleton className="h-4 w-3/4" /><Skeleton /><Skeleton className="h-4 w-1/2" />
+          </View> : null}
+        </View>
+      </>}
+      renderItem={({ item }) => <View className="border-x border-border bg-surface px-4 sm:px-6">
+        <View className="flex-row flex-wrap items-start justify-between gap-3 border-b border-border py-3">
+          <Text className="flex-1 font-sans text-base leading-6 text-foreground">{serviceNames[item.code] ?? item.code}</Text>
+          <Text className={`max-w-40 text-right font-sans text-sm font-bold ${item.status === "ENABLED" ? "text-success-foreground" : "text-muted-foreground"}`}>{statusNames[item.status]}</Text>
+        </View>
+      </View>}
+      ListFooterComponent={<>
+        <View className="gap-3 rounded-b-lg border-x border-b border-border bg-surface p-4 sm:p-6">
+          {!capabilities?.length && !statusError ? <Notice>{capabilities ? "El restaurante todavía no publicó servicios." : "Consultando el estado actual…"}</Notice> : null}
+          {statusError ? <Notice tone="error">{statusError}</Notice> : null}
+          <Button title="Actualizar estado" secondary busy={refreshing} onPress={() => void refreshStatus()} />
+          <Text className="font-sans text-xs leading-4 text-muted-foreground">Una solicitud de reserva requiere confirmación del equipo.</Text>
+        </View>
+        <Text className="mt-6 font-sans text-xs leading-4 text-muted-foreground">Aplicación Cliente · versión inicial conectada a servicios disponibles.</Text>
+      </>}
+    />
+  </Page>;
 }

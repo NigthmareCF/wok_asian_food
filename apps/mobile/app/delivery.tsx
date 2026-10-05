@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
-import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
+import { Button, Card, Field, Heading, Notice, Page, useUiTheme } from "@/components/ui";
 import { ApiError, apiRequest, CustomerAddress, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
@@ -22,6 +22,7 @@ export default function DeliveryScreen() {
 type DeliveryRequestProps = Pick<ReturnType<typeof useSession>, "session" | "request">;
 
 function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
+  const { colors, ui } = useUiTheme();
   const [menu, setMenu] = useState<PublicMenu | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [requestedFor, setRequestedFor] = useState("");
@@ -202,21 +203,21 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     {session?.offline ? <Notice>Sin conexión: conserva la solicitud para reintentar manualmente cuando vuelva el acceso al servidor.</Notice> : null}
     {error ? <Notice tone="error">{error}</Notice> : null}
     {notice ? <Notice tone="success">{notice}</Notice> : null}
-    {receipt ? <Card><Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud recibida · {receipt.requestId.slice(0, 8)}</Text><Text style={ui.body}>Estado: pendiente de revisión. Preferencia de pago: {paymentLabel(receipt.paymentPreference)}. No se ha realizado ningún pago.</Text></Card> : null}
+    {receipt ? <Card><Text style={{ color: colors.foreground, fontWeight: "800" }}>Solicitud recibida · {receipt.requestId.slice(0, 8)}</Text><Text style={ui.body}>Estado: pendiente de revisión. Preferencia de pago: {paymentLabel(receipt.paymentPreference)}. No se ha realizado ningún pago.</Text></Card> : null}
     {session ? <Card>
       <Heading eyebrow="Historial">Tus solicitudes delivery</Heading>
       {historyError ? <Notice tone="error">{historyError}</Notice> : null}
       {(!historyLoaded || historyLoading) && !visibleHistory.length ? <Text style={ui.body}>Cargando solicitudes…</Text> : null}
       {historyLoaded && !historyLoading && !visibleHistory.length ? <Text style={ui.body}>Aún no tienes solicitudes delivery.</Text> : null}
-      {visibleHistory.map((item) => <View key={item.requestId} style={{ borderTopWidth: 1, borderTopColor: palette.line, paddingTop: 12, gap: 8 }}>
-        <Text style={{ color: palette.ink, fontWeight: "800" }}>Solicitud {item.requestId.slice(0, 8)} · {requestStatus(item.status)}</Text>
+      {visibleHistory.map((item) => <View key={item.requestId} style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, gap: 8 }}>
+        <Text style={{ color: colors.foreground, fontWeight: "800" }}>Solicitud {item.requestId.slice(0, 8)} · {requestStatus(item.status)}</Text>
         <Text style={ui.body}>{formatMoney(item.subtotal, item.currency)} · {paymentLabel(item.paymentPreference)}</Text>
         <Button title={details?.requestId === item.requestId ? "Ocultar detalle" : "Ver detalle"} secondary busy={detailsLoading === item.requestId} onPress={() => void toggleDetails(item.requestId)} />
         {details?.requestId === item.requestId ? <View style={ui.section}>
           <Text style={ui.body}>Horario solicitado: {new Date(details.requestedFor).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })}</Text>
           {details.customerNote ? <Text style={ui.body}>Comentario: {details.customerNote}</Text> : null}
           {details.items.map((line, index) => <Text key={`${line.name}-${index}`} style={ui.body}>{line.quantity} × {line.name} · {formatMoney(line.lineTotal, item.currency)}</Text>)}
-          <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal: {formatMoney(details.subtotal, details.currency)}</Text>
+          <Text style={{ color: colors.foreground, fontWeight: "800" }}>Subtotal: {formatMoney(details.subtotal, details.currency)}</Text>
           <Notice>Los precios mostrados son la captura de tu solicitud. El equipo debe revisar cobertura y confirmar antes de que exista un pedido aceptado.</Notice>
         </View> : null}
         {item.status === "PENDING_REVIEW" ? <Button title="Cancelar solicitud" secondary busy={cancelling === item.requestId} disabled={Boolean(cancelling)} onPress={() => void cancelRequest(item.requestId)} /> : null}
@@ -226,16 +227,16 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     {pending ? <Card><Notice>Hay una solicitud sin resultado confirmado, protegida para {pending.email}. Reintenta el mismo contenido para evitar duplicados.</Notice>
       {session?.email === pending.email ? <Button title="Reintentar solicitud delivery" busy={sending} onPress={() => void submit(pending)} /> : null}</Card> : null}
     {loading ? <Card><Text style={ui.body}>Cargando menú oficial…</Text></Card> : null}
-    {!loading && !products.length && !error ? <Card><Text style={{ color: palette.ink, fontWeight: "800" }}>Aún no hay productos publicados</Text><Text style={ui.body}>El catálogo aparecerá cuando el restaurante publique su menú.</Text></Card> : null}
+    {!loading && !products.length && !error ? <Card><Text style={{ color: colors.foreground, fontWeight: "800" }}>Aún no hay productos publicados</Text><Text style={ui.body}>El catálogo aparecerá cuando el restaurante publique su menú.</Text></Card> : null}
     {products.map((item) => <Card key={item.id}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}><Text style={{ flex: 1, color: palette.ink, fontWeight: "800" }}>{item.name}</Text><Text style={{ color: palette.red, fontWeight: "800" }}>{formatMoney(item.price, item.currency)}</Text></View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}><Text style={{ flex: 1, color: colors.foreground, fontWeight: "800" }}>{item.name}</Text><Text style={{ color: colors.primary, fontWeight: "800" }}>{formatMoney(item.price, item.currency)}</Text></View>
       {item.description ? <Text style={ui.body}>{item.description}</Text> : null}
       <View style={ui.row}><Button title="−" secondary disabled={!cart[item.id]} onPress={() => changeQuantity(item, -1)} /><Text style={ui.body}>{cart[item.id] ?? 0}</Text><Button title="Agregar" disabled={Boolean(pending)} onPress={() => changeQuantity(item, 1)} /></View>
     </Card>)}
     {!pending ? <Card>
       <Heading eyebrow="Datos de entrega">¿A dónde lo llevamos?</Heading>
       {session && addressOwner === session.email && savedAddresses.length ? <View style={ui.section}>
-        <Text style={{ color: palette.ink, fontWeight: "800" }}>Usar una dirección guardada</Text>
+        <Text style={{ color: colors.foreground, fontWeight: "800" }}>Usar una dirección guardada</Text>
         {savedAddresses.map((item) => <Button key={item.addressId} title={`${item.label}${item.isDefault ? " · Predeterminada" : ""}`} secondary={selectedAddress?.addressId !== item.addressId} onPress={() => {
           setSelectedAddress(item); setAddressLabel(item.label); setAddress(item.address); setReference(item.reference ?? "");
           setContactPhone(item.contactPhone); setSaveAsDefault(item.isDefault);

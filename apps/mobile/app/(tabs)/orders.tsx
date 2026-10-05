@@ -1,7 +1,7 @@
 import { Link } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
-import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
+import { Button, Card, Heading, Notice, Page, useUiTheme } from "@/components/ui";
 import { PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
@@ -21,6 +21,7 @@ function formatMoney(amount: number, currency: string) {
 }
 
 export default function PickupRequestsScreen() {
+  const { colors, ui } = useUiTheme();
   const { session, request } = useSession();
   const [requests, setRequests] = useState<PickupRequestState[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,29 +64,29 @@ export default function PickupRequestsScreen() {
     finally { setLoadingDetails(null); }
   }
 
-  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
+  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page safeTop>
     <Heading eyebrow="Pickup">Mis solicitudes</Heading>
     <Text style={ui.body}>Consulta el estado de las solicitudes para recoger y cancela las que aún esperan revisión.</Text>
     {!session ? <Card><Notice>Inicia sesión con una cuenta Cliente para consultar tus solicitudes.</Notice><Link href="/account" style={ui.link}>Ir a Mi cuenta</Link></Card> : <>
       {session.offline ? <Notice>Sin conexión. El historial requiere consultar el servidor y no se modifica sin confirmación.</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
-      {loading && requests.length === 0 ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Cargando tus solicitudes…</Text></View></Card> : null}
+      {loading && requests.length === 0 ? <Card><View style={ui.row}><ActivityIndicator color={colors.primary} /><Text style={ui.body}>Cargando tus solicitudes…</Text></View></Card> : null}
       {!loading && !error && requests.length === 0 ? <Card><Notice>Aún no tienes solicitudes pickup.</Notice><Link href="/(tabs)/menu" style={ui.link}>Explorar menú</Link></Card> : null}
       {requests.map((item) => <Card key={item.requestId}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-          <Text style={{ flex: 1, color: palette.ink, fontWeight: "800", fontSize: 17 }}>{statusLabels[item.status] ?? "Estado actualizado"}</Text>
+          <Text style={{ flex: 1, color: colors.foreground, fontWeight: "800", fontSize: 17 }}>{statusLabels[item.status] ?? "Estado actualizado"}</Text>
           <Text style={ui.pill}>{item.requestId.slice(0, 8)}</Text>
         </View>
         <Text style={ui.body}>Hora solicitada: {formatDate(item.requestedFor)}</Text>
-        <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>Subtotal informado: {formatMoney(item.subtotal, item.currency)}</Text>
+        <Text style={[ui.body, { color: colors.foreground, fontWeight: "700" }]}>Subtotal informado: {formatMoney(item.subtotal, item.currency)}</Text>
         <Text style={ui.body}>{item.message}</Text>
         <Button title={details[item.requestId] ? "Ocultar productos" : "Ver productos"} secondary busy={loadingDetails === item.requestId} onPress={() => void toggleDetails(item.requestId)} />
         {details[item.requestId] ? <View style={ui.section}>
           {details[item.requestId].customerNote ? <Text style={ui.body}>Comentario: {details[item.requestId].customerNote}</Text> : null}
           {details[item.requestId].items.map((line, index) => <View key={`${item.requestId}-${index}`} style={ui.row}>
             <Text style={[ui.body, { flex: 1 }]}>{line.quantity} × {line.name}</Text>
-            <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>{formatMoney(line.lineTotal, item.currency)}</Text>
+            <Text style={[ui.body, { color: colors.foreground, fontWeight: "700" }]}>{formatMoney(line.lineTotal, item.currency)}</Text>
           </View>)}
         </View> : null}
         {item.status === "PENDING_REVIEW" ? <>

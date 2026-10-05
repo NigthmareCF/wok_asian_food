@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
-import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
+import { Button, Card, Field, Heading, Notice, Page, useUiTheme } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
@@ -23,6 +23,7 @@ export default function MessagesScreen() {
 type ConversationScreenProps = Pick<ReturnType<typeof useSession>, "session" | "request">;
 
 function ConversationScreen({ session, request }: ConversationScreenProps) {
+  const { colors, ui } = useUiTheme();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
@@ -97,25 +98,25 @@ function ConversationScreen({ session, request }: ConversationScreenProps) {
       {session.offline ? <Notice>Sin conexión. Los mensajes no se envían sin confirmación del servidor.</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
-      {loading && !conversation ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Cargando conversación…</Text></View></Card> : null}
+      {loading && !conversation ? <Card><View style={ui.row}><ActivityIndicator color={colors.primary} /><Text style={ui.body}>Cargando conversación…</Text></View></Card> : null}
       {!conversation && !loading && !session.offline ? <Card>
-        <Text style={{ color: palette.ink, fontSize: 18, fontWeight: "800" }}>¿Necesitas ayuda?</Text>
+        <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "800" }}>¿Necesitas ayuda?</Text>
         <Text style={ui.body}>Inicia una conversación para comunicarte directamente con el equipo.</Text>
         <Button title="Iniciar conversación" busy={loading} onPress={() => void startConversation()} />
       </Card> : null}
       {conversation ? <>
         <Card>
           <View style={ui.row}>
-            <Text style={{ flex: 1, color: palette.ink, fontWeight: "800", fontSize: 17 }}>Equipo WOK</Text>
+            <Text style={{ flex: 1, color: colors.foreground, fontWeight: "800", fontSize: 17 }}>Equipo WOK</Text>
             <Text style={ui.pill}>{statusLabels[conversation.status]}</Text>
           </View>
-          {messages.length === 0 ? <Notice>Aún no hay mensajes. Cuéntanos cómo podemos ayudarte.</Notice> : messages.map((item) => <View key={item.messageId} style={{ alignSelf: item.senderType === "CUSTOMER" ? "flex-end" : "flex-start", maxWidth: "88%", backgroundColor: item.senderType === "CUSTOMER" ? "#f5e7d2" : "#f2f0ed", borderRadius: 14, padding: 12, gap: 5 }}>
-            <Text style={{ color: palette.ink, fontSize: 11, fontWeight: "800" }}>{item.senderType === "CUSTOMER" ? "Tú" : item.senderType === "AI" ? "Asistente WOK" : "Equipo WOK"}</Text>
-            <Text style={{ color: palette.ink, fontSize: 15, lineHeight: 21 }}>{item.body}</Text>
-            <Text style={{ color: palette.muted, fontSize: 11 }}>{formatDate(item.createdAt)}</Text>
+          {messages.length === 0 ? <Notice>Aún no hay mensajes. Cuéntanos cómo podemos ayudarte.</Notice> : messages.map((item) => <View key={item.messageId} style={{ alignSelf: item.senderType === "CUSTOMER" ? "flex-end" : "flex-start", maxWidth: "88%", backgroundColor: item.senderType === "CUSTOMER" ? colors.surfaceElevated : colors.surface, borderRadius: 14, padding: 12, gap: 5 }}>
+            <Text style={{ color: colors.foreground, fontSize: 11, fontWeight: "800" }}>{item.senderType === "CUSTOMER" ? "Tú" : item.senderType === "AI" ? "Asistente WOK" : "Equipo WOK"}</Text>
+            <Text style={{ color: colors.foreground, fontSize: 15, lineHeight: 21 }}>{item.body}</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 11 }}>{formatDate(item.createdAt)}</Text>
           </View>)}
           {pending ? <Notice tone="error">El envío no se confirmó. Conservamos el mensaje para reintentar sin duplicarlo.</Notice> : null}
-          {canWrite && !pending ? <Field label="Tu mensaje" value={draft} onChangeText={setDraft} multiline maxLength={4000} textAlignVertical="top" placeholder="Escribe aquí…" style={{ minHeight: 110, paddingTop: 12 }} /> : null}
+          {canWrite && !pending ? <Field label="Tu mensaje" value={draft} onChangeText={setDraft} multiline maxLength={4000} textAlignVertical="top" placeholder="Escribe aquí…" className="min-h-28" /> : null}
           {pending && canWrite ? <Button title={session?.offline ? "Reintentar conexión y envío" : "Reintentar envío"} busy={sending} onPress={() => void send(pending)} /> : null}
           {!pending && canWrite ? <Button title="Enviar mensaje" disabled={!draft.trim()} busy={sending} onPress={() => void submit()} /> : null}
           {!canWrite && conversation.status === "CLOSED" ? <Notice>Esta conversación está cerrada. Puedes iniciar otra si necesitas ayuda.</Notice> : null}

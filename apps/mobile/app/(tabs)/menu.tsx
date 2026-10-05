@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 import { Link } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
-import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
+import { Button, Card, Field, Heading, Notice, Page, useUiTheme } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
 import { ApiError, apiRequest, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 
@@ -34,6 +34,7 @@ function validCart(value: unknown): Record<string, number> {
 }
 
 export default function MenuScreen() {
+  const { colors, ui } = useUiTheme();
   const { session, request } = useSession();
   const [menu, setMenu] = useState<PublicMenu | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,7 +154,7 @@ export default function MenuScreen() {
     } finally { setSending(false); }
   }
 
-  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
+  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page safeTop>
     <Heading eyebrow="Catálogo">Menú WOK</Heading>
     {attempt ? <Card>
       <Notice>Solicitud sin confirmar para {attempt.email}. Reintenta esta misma solicitud antes de editarla o enviar otra.</Notice>
@@ -164,24 +165,24 @@ export default function MenuScreen() {
     {error ? <View style={ui.section}><Notice tone="error">{error}</Notice>{!hasItems ? <Button title="Reintentar menú" secondary onPress={() => void loadMenu()} /> : null}</View> : null}
     {receipt ? <Notice tone="success">Solicitud {receipt.requestId.slice(0, 8)} recibida. Estado: pendiente de revisión. Aún no es un pedido aceptado ni se ha cobrado.</Notice> : null}
     {!loading && !error && !hasItems ? <>
-      <Card><Text style={{ fontWeight: "800", color: palette.ink, fontSize: 18 }}>El menú se publicará aquí</Text>
+      <Card><Text style={{ fontWeight: "800", color: colors.foreground, fontSize: 18 }}>El menú se publicará aquí</Text>
         <Text style={ui.body}>Aún no hay platillos publicados. Los productos y precios aparecerán cuando el restaurante cargue su catálogo oficial.</Text>
       </Card>
       <Notice>No mostramos datos de ejemplo como si fueran productos reales.</Notice>
     </> : null}
     {!loading && !error && hasItems ? (menu?.categories ?? []).filter((category) => category.items.length > 0).map((category) =>
       <View key={category.id} style={ui.section}>
-        <Text accessibilityRole="header" style={{ color: palette.ink, fontSize: 20, fontWeight: "800" }}>{category.name}</Text>
+        <Text accessibilityRole="header" style={{ color: colors.foreground, fontSize: 20, fontWeight: "800" }}>{category.name}</Text>
         {category.items.map((item) => <Card key={item.id}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-            <Text style={{ flex: 1, color: palette.ink, fontSize: 17, fontWeight: "800" }}>{item.name}</Text>
-            <Text style={{ color: palette.red, fontWeight: "800" }}>{formatPrice(item)}</Text>
+            <Text style={{ flex: 1, color: colors.foreground, fontSize: 17, fontWeight: "800" }}>{item.name}</Text>
+            <Text style={{ color: colors.primary, fontWeight: "800" }}>{formatPrice(item)}</Text>
           </View>
           {item.description ? <Text style={ui.body}>{item.description}</Text> : null}
           <View style={ui.row}>
-            <Button title="−" secondary disabled={!cart[item.id]} onPress={() => changeQuantity(item, -1)} />
-            <Text accessibilityLiveRegion="polite" style={{ color: palette.ink, fontWeight: "800" }}>{cart[item.id] ?? 0}</Text>
-            <Button title="Agregar" onPress={() => changeQuantity(item, 1)} disabled={Boolean(attempt)} />
+            <Button title="−" accessibilityLabel={`Quitar una unidad de ${item.name}`} secondary disabled={!cart[item.id]} onPress={() => changeQuantity(item, -1)} />
+            <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground, fontWeight: "800" }}>{cart[item.id] ?? 0}</Text>
+            <Button title="Agregar" accessibilityLabel={`Agregar una unidad de ${item.name}`} onPress={() => changeQuantity(item, 1)} disabled={Boolean(attempt)} />
           </View>
         </Card>)}
       </View>,
@@ -190,10 +191,10 @@ export default function MenuScreen() {
       <Heading eyebrow="Solicitud">Pickup · {cartCount} productos</Heading>
       <Card>
         {cartItems.map((item) => <View key={item.id} style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
-          <Text style={{ flex: 1, color: palette.ink }}>{cart[item.id]} × {item.name}</Text>
-          <Text style={{ color: palette.ink, fontWeight: "700" }}>{formatPrice({ ...item, price: item.price * cart[item.id] })}</Text>
+          <Text style={{ flex: 1, color: colors.foreground }}>{cart[item.id]} × {item.name}</Text>
+          <Text style={{ color: colors.foreground, fontWeight: "700" }}>{formatPrice({ ...item, price: item.price * cart[item.id] })}</Text>
         </View>)}
-        <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal actual: {new Intl.NumberFormat("es-GT", { style: "currency", currency: cartItems[0].currency }).format(cartSubtotal)}</Text>
+        <Text style={{ color: colors.foreground, fontWeight: "800" }}>Subtotal actual: {new Intl.NumberFormat("es-GT", { style: "currency", currency: cartItems[0].currency }).format(cartSubtotal)}</Text>
         <Text style={ui.body}>El backend vuelve a validar precios. El carrito no reserva inventario ni confirma un pedido.</Text>
         <Button title="Sugerir primera hora" secondary onPress={suggestPickupTime} disabled={Boolean(attempt)} />
         <Field label="Fecha y hora solicitadas (hora local)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" editable={!attempt} />

@@ -1,11 +1,12 @@
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
-import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
+import { Button, Card, Field, Heading, Notice, Page, useUiTheme } from "@/components/ui";
 import { ReservationHistoryItem, ReservationResult } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 export default function ReservationsScreen() {
+  const { colors, ui } = useUiTheme();
   const { session, request } = useSession();
   const [guests, setGuests] = useState("2");
   const [requestedAt, setRequestedAt] = useState("");
@@ -118,7 +119,7 @@ export default function ReservationsScreen() {
     finally { setCancellingReservationId(null); }
   }
 
-  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Planifica tu visita">Solicitar reserva</Heading>
+  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page safeTop><Heading eyebrow="Planifica tu visita">Solicitar reserva</Heading>
     <Text style={ui.body}>El restaurante revisará capacidad y horario. Enviar una solicitud no confirma la reserva.</Text>
     {session?.offline ? <Notice>Sin conexión al restaurante. Puedes revisar tu borrador; enviar requiere conexión y confirmación del servidor.</Notice> : null}
     {draftRestored ? <Notice tone="success">Restauramos tu borrador guardado en este dispositivo.</Notice> : null}
@@ -127,25 +128,25 @@ export default function ReservationsScreen() {
     <Card>
       <Field label="Personas" keyboardType="number-pad" value={guests} onChangeText={setGuests} placeholder="2" />
       <Field label="Fecha y hora" value={requestedAt} onChangeText={setRequestedAt} placeholder="2026-10-05T18:30" autoCapitalize="none" />
-      <Text style={{ color: "#746e67", fontSize: 13 }}>Formato local: AAAA-MM-DDTHH:mm. Solicita con al menos 3 horas de anticipación.</Text>
+      <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>Formato local: AAAA-MM-DDTHH:mm. Solicita con al menos 3 horas de anticipación.</Text>
       <Field label="Solicitudes especiales (opcional)" value={notes} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} maxLength={500} textAlignVertical="top" />
       <Button title={preorder ? "Preorden requerida: sí (tocar para cambiar)" : "¿Requieres preorden? No"} secondary onPress={() => setPreorder(!preorder)} />
-      {preorder ? <Text style={{ color: "#746e67", fontSize: 13 }}>Esto avisa al equipo para evaluar la solicitud; aún no agrega productos.</Text> : null}
+      {preorder ? <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>Esto avisa al equipo para evaluar la solicitud; aún no agrega productos.</Text> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {message ? <Notice tone={messageTone}>{message}</Notice> : null}
       <Button title="Enviar solicitud" busy={busy} onPress={submit} />
     </Card>
     {session ? <Card>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <Text style={{ color: palette.ink, fontSize: 20, fontWeight: "800", flex: 1 }}>Mis solicitudes</Text>
-        {historyLoading ? <ActivityIndicator accessibilityLabel="Cargando solicitudes" color={palette.red} /> : null}
+        <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: "800", flex: 1 }}>Mis solicitudes</Text>
+        {historyLoading ? <ActivityIndicator accessibilityLabel="Cargando solicitudes" color={colors.primary} /> : null}
       </View>
       {historyError ? <Notice tone="error">{historyError}</Notice> : null}
       {cancellationError ? <Notice tone="error">{cancellationError}</Notice> : null}
       {cancellationNotice ? <Notice tone="success">{cancellationNotice}</Notice> : null}
       {!historyLoading && !historyError && history.length === 0 ? <Notice>Aún no tienes solicitudes de reserva.</Notice> : null}
-      {history.map((item) => <View key={item.requestId} style={{ borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 14, gap: 6 }}>
-        <Text style={{ color: palette.ink, fontWeight: "800" }}>{item.requestedAt ? formatDate(item.requestedAt) : "Horario no disponible"}</Text>
+      {history.map((item) => <View key={item.requestId} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, gap: 6 }}>
+        <Text style={{ color: colors.foreground, fontWeight: "800" }}>{item.requestedAt ? formatDate(item.requestedAt) : "Horario no disponible"}</Text>
         <Text style={ui.body}>{item.guests ? `${item.guests} ${item.guests === 1 ? "persona" : "personas"}` : "Tamaño de grupo no disponible"}</Text>
         <Text style={ui.pill}>{decisionLabel(item.decision, item.reservationStatus)}</Text>
         <Text style={ui.body}>{item.message}</Text>

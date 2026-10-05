@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { ApiError, CustomerAddress } from "@/lib/api";
-import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
+import { Button, Card, Field, Heading, Notice, Page, useUiTheme } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
 
 type AddressDraft = { label: string; address: string; reference: string; contactPhone: string; isDefault: boolean };
@@ -15,6 +15,7 @@ export default function AddressesScreen() {
 type AddressBookProps = Pick<ReturnType<typeof useSession>, "session" | "request">;
 
 function AddressBook({ session, request }: AddressBookProps) {
+  const { colors, ui } = useUiTheme();
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,7 +85,7 @@ function AddressBook({ session, request }: AddressBookProps) {
     {loading ? <Notice>Cargando tus direcciones…</Notice> : null}
     {!loading && addresses.length === 0 ? <Card><Notice>Aún no tienes direcciones guardadas.</Notice></Card> : null}
     <View style={ui.section}>{addresses.map((item) => <Card key={item.addressId}>
-      <Text style={{ color: palette.ink, fontSize: 17, fontWeight: "800" }}>{item.label}{item.isDefault ? " · Predeterminada" : ""}</Text>
+      <Text style={{ color: colors.foreground, fontSize: 17, fontWeight: "800" }}>{item.label}{item.isDefault ? " · Predeterminada" : ""}</Text>
       <Text style={ui.body}>{item.address}</Text>
       {item.reference ? <Text style={ui.body}>Referencia: {item.reference}</Text> : null}
       <Text style={ui.body}>Teléfono: {item.contactPhone}</Text>
@@ -102,7 +103,7 @@ function AddressBook({ session, request }: AddressBookProps) {
       else startCreate();
     }} />
     {(editingId || creating) ? <Card>
-      <Text style={{ color: palette.ink, fontSize: 18, fontWeight: "800" }}>{editingId ? "Editar dirección" : "Nueva dirección"}</Text>
+      <Text style={{ color: colors.foreground, fontSize: 18, fontWeight: "800" }}>{editingId ? "Editar dirección" : "Nueva dirección"}</Text>
       <Field label="Nombre" value={draft.label} onChangeText={(label) => setDraft((current) => ({ ...current, label }))} maxLength={80} placeholder="Casa, trabajo…" />
       <Field label="Dirección completa" value={draft.address} onChangeText={(address) => setDraft((current) => ({ ...current, address }))} multiline maxLength={500} placeholder="Zona, calle/avenida, número" />
       <Field label="Referencia (opcional)" value={draft.reference} onChangeText={(reference) => setDraft((current) => ({ ...current, reference }))} maxLength={300} />
