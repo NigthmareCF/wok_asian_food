@@ -317,3 +317,9 @@
 
 - La decisión Operativa de confirmar vuelve a comprobar bajo bloqueo de la reserva que la hora siga al menos a tres horas y dentro del horario activo/último ingreso configurado. Si la agenda cambió mientras estaba pendiente, responde `409`, mantiene el estado `REQUESTED` y deja al personal coordinar/rechazar sin aceptar bajo reglas obsoletas. La decisión de rechazo sigue disponible.
 - Pruebas PostgreSQL 18/Testcontainers: confirmación en ventana válida y conflicto tras cambiar el horario, 2/2. Suite limpia completa con Flyway V1–V37: 214 pruebas, 0 fallos, 0 errores, 0 omitidas.
+## 2026-10-05 — Verificación integral PostgreSQL 18 / V37
+
+- Se ejecutó la suite backend completa desde `apps/api` con Testcontainers y Docker local accesible. En este JDK restringido se pasó el agente de Byte Buddy a la JVM de pruebas para evitar el auto-attach de Mockito.
+- Flyway validó y aplicó/confirmó V1–V37 contra PostgreSQL 18; resultado: 214 pruebas, 0 fallos, 0 errores y 0 omitidas.
+- En este entorno fue necesario pasar Byte Buddy como agente explícito porque el auto-attach de Mockito está restringido. La primera ejecución sin Docker/agente no es evidencia válida de fallo funcional; produjo 102 errores de inicialización de Mockito y omitió las pruebas Testcontainers. Con Docker y el agente, toda la suite quedó verde.
+- `feature/backend-capacity-order-lifecycle` se sincronizó con su remoto antes de esta revisión y no tenía commits pendientes del remoto. `development` avanzó remotamente y permanece sin modificar.
