@@ -11,7 +11,7 @@
 | OPS-01  | NOW    | service capability individual, override auditado y salud externa separada                       | CORE-01                                   |
 | CAP-01  | NOW    | motor de capacidad y estimador de ocupación con reason codes/alternativas                       | OPS-01, mesas/turnos                      |
 | RES-01  | NOW    | reserva y mesa digital: 3 h, horarios, 20 min, preorden/condiciones y autorización humana       | CAP-01, IAM-01                            |
-| CAT-01  | NOW    | Lectura pública, selección pickup/delivery y CRUD ADMIN auditado de grupos/opciones/vínculos están implementados; falta disponibilidad contra inventario en la experiencia, editor de impactos y seed del menú oficial | Catálogo/impactos; semilla real `BLOCKED` |
+| CAT-01  | NOW    | Lectura pública, selección pickup/delivery, CRUD ADMIN auditado de grupos/opciones/vínculos e impactos están implementados; falta disponibilidad viva contra inventario en la experiencia y seed del menú oficial | Servicio de disponibilidad; semilla real `BLOCKED` |
 | ORD-01  | NOW    | Solicitudes pickup/delivery idempotentes; decisión operativa vuelve a validar productos/opciones/precio, crea orden, snapshot de opciones y datos KDS. Faltan cambios/anulaciones aceptadas y el ciclo de pedido completo | CAT-01, CAP-01, inventario                |
 | FIN-01  | NOW    | Caja interna: apertura/ledger/arqueo/cierre persistentes e idempotentes; conectar ventas desde ORD-01 | V6; `feature/payments` cash slice parcial |
 | FIN-02  | NEXT   | Pagos mixtos, propina y conciliación; mock `PaymentGateway` crea y Cliente recupera intent para delivery aceptado sin capturar | ORD-01; proveedor real, checkout/3DS y webhook `BLOCKED` |

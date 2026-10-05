@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-05 — Impactos de inventario para modificadores
+
+- ADMIN reemplaza atómicamente los impactos por opción (`PUT .../inventory-impacts`), con permiso, versión optimista, motivo/auditoría, bloqueo del grupo/opción/insumos y validación de insumo activo con tracking, unicidad y delta no cero. La consulta administrativa devuelve el detalle configurado.
+- Pruebas PostgreSQL verifican persistencia/versionado/auditoría y que el impacto positivo (0.25 × cantidad 2) crea una reserva de inventario 0.5 al aceptar la solicitud. Sin stock suficiente, la aceptación devuelve 409, no crea orden y mantiene la solicitud pendiente. `AdminCatalogIntegrationTest` 3/3, `OrderRequestDecisionIntegrationTest` 10/10; suite completa 200/200, Flyway V1–V35.
+- Sin migración nueva: utiliza `modifier_item_impacts` existente. Falta reflejar disponibilidad vigente al consultar el catálogo público.
+
 ## 2026-10-05 — Administración segura de grupos y opciones del catálogo
 
 - `/api/v1/admin/catalog/modifier-groups` permite consultar, crear y versionar grupos. Sus opciones se pueden crear/actualizar (incluyendo desactivación lógica) y los grupos se pueden vincular/reemplazar por producto usando versión optimista.

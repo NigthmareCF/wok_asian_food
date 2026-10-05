@@ -162,6 +162,12 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 INSERT INTO wok.modifiers (group_id, name, price_delta) VALUES (?, 'Pollo', 8.00) RETURNING id
                 """, UUID.class, groupId);
         jdbc.update("INSERT INTO wok.menu_item_modifier_groups (menu_item_id, group_id) VALUES (?, ?)", menuItemId, groupId);
+        UUID inventoryItemId = seedInventoryItem(menuItemId);
+        jdbc.update("INSERT INTO wok.inventory_balances (item_id, quantity_on_hand) VALUES (?, 10)", inventoryItemId);
+        jdbc.update("""
+                INSERT INTO wok.modifier_item_impacts (modifier_id, item_id, quantity_delta, affects_availability)
+                VALUES (?, ?, 0.250000, true)
+                """, tofuId, inventoryItemId);
 
         JsonNode menu = body(get("/api/v1/public/menu", null));
         JsonNode publicItem = null;
@@ -219,6 +225,18 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 orderId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT modifier_name_snapshot FROM wok.order_item_modifiers WHERE order_item_id = (SELECT id FROM wok.order_items WHERE order_id = ?)",
                 String.class, orderId)).isEqualTo("Tofu");
+        assertThat(jdbc.queryForObject("SELECT quantity FROM wok.inventory_reservations WHERE order_id = ? AND item_id = ? "
+                + "AND status = 'ACTIVE'", BigDecimal.class, orderId, inventoryItemId)).isEqualByComparingTo("0.500000");
+
+        UUID secondRequestId = UUID.fromString(submitWithModifier(client, menuItemId, tofuId, 1,
+                Instant.now().plusSeconds(900).toString(), UUID.randomUUID()).path("requestId").asText());
+        jdbc.update("UPDATE wok.inventory_balances SET quantity_on_hand = 0 WHERE item_id = ?", inventoryItemId);
+        int orderCountBeforeUnavailableAcceptance = count("SELECT count(*) FROM wok.orders");
+        assertThat(post("/api/v1/operational/order-requests/" + secondRequestId + "/decision", operator,
+                "{\"action\":\"ACCEPT\"}").statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, secondRequestId))
+                .isEqualTo("PENDING_REVIEW");
+        assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(orderCountBeforeUnavailableAcceptance);
     }
 
     @Test
@@ -503,6 +521,18 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 {"requestedFor":"%s","customerNote":"opción probada","items":[{"menuItemId":"%s","quantity":%d,"modifierIds":["%s"]}]}
                 """.formatted(requestedFor, menuItemId, quantity, modifierId),
                 Map.of("Idempotency-Key", idempotencyKey.toString())));
+    }
+
+    private UUID seedInventoryItem(UUID menuItemId) {
+        UUID parentItemId = jdbc.queryForObject("SELECT item_id FROM wok.menu_items WHERE id = ?", UUID.class, menuItemId);
+        UUID itemTypeId = jdbc.queryForObject("SELECT item_type_id FROM wok.items WHERE id = ?", UUID.class, parentItemId);
+        UUID unitId = jdbc.queryForObject("SELECT base_unit_id FROM wok.items WHERE id = ?", UUID.class, parentItemId);
+        UUID inventoryItemId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO wok.items (id, sku, name, item_type_id, base_unit_id, track_inventory, active)
+            VALUES (?, ?, 'Proteína de prueba', ?, ?, true, true)
+            """, inventoryItemId, "MOD_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(), itemTypeId, unitId);
+        return inventoryItemId;
     }
 
     private int count(String sql, Object... arguments) {

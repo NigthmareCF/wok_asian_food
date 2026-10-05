@@ -125,6 +125,44 @@ public class AdminModifierController {
         return after;
     }
 
+    @PutMapping("/modifier-groups/{groupId}/options/{optionId}/inventory-impacts")
+    @Transactional
+    public List<ModifierItemImpact> replaceInventoryImpacts(@PathVariable UUID groupId,
+            @PathVariable UUID optionId, @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody ModifierImpactsUpdate request) {
+        lockedGroup(groupId, null);
+        ModifierOption option = lockedOption(groupId, optionId, request.expectedVersion());
+        List<UUID> itemIds = request.impacts().stream().map(ModifierImpactInput::itemId).toList();
+        if (itemIds.stream().distinct().count() != itemIds.size())
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "No repitas insumos en los impactos.");
+        for (ModifierImpactInput impact : request.impacts()) {
+            if (impact.quantityDelta().signum() == 0)
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Cada impacto debe cambiar una cantidad distinta de cero.");
+        }
+        if (!itemIds.isEmpty()) {
+            String placeholders = String.join(",", java.util.Collections.nCopies(itemIds.size(), "?"));
+            List<UUID> validItems = jdbc.query("SELECT id FROM wok.items WHERE active = true " +
+                    "AND track_inventory = true AND id IN (" + placeholders + ") ORDER BY id FOR SHARE",
+                    (rs, row) -> rs.getObject(1, UUID.class), itemIds.toArray());
+            if (validItems.size() != itemIds.size())
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Todos los insumos deben existir, estar activos y llevar inventario.");
+        }
+        List<ModifierItemImpact> before = impacts(optionId);
+        jdbc.update("DELETE FROM wok.modifier_item_impacts WHERE modifier_id = ?", optionId);
+        for (ModifierImpactInput impact : request.impacts())
+            jdbc.update("""
+                INSERT INTO wok.modifier_item_impacts (modifier_id, item_id, quantity_delta, affects_availability)
+                VALUES (?, ?, ?, ?)
+                """, optionId, impact.itemId(), impact.quantityDelta(), impact.affectsAvailability());
+        jdbc.update("UPDATE wok.modifiers SET updated_at = now(), row_version = row_version + 1 WHERE id = ?", optionId);
+        List<ModifierItemImpact> after = impacts(optionId);
+        audit(actor(jwt), requestId, "MODIFIER_INVENTORY_IMPACTS_REPLACED", "MODIFIER", optionId,
+                impactsSnapshot(before), impactsSnapshot(after), request.reason());
+        return after;
+    }
+
     @PutMapping("/menu-items/{menuItemId}/modifier-groups")
     @Transactional
     public List<ModifierGroup> replaceMenuItemGroups(@PathVariable UUID menuItemId, @AuthenticationPrincipal Jwt jwt,
@@ -233,20 +271,37 @@ public class AdminModifierController {
         return jdbc.query("""
             SELECT id, group_id, name, price_delta, active, row_version, updated_at
             FROM wok.modifiers WHERE group_id = ? ORDER BY name, id
-            """, (rs, row) -> mapOption(rs), groupId);
+            """, (rs, row) -> mapOption(rs), groupId).stream()
+                .map(option -> withImpacts(option)).toList();
+    }
+
+    private List<ModifierItemImpact> impacts(UUID optionId) {
+        return jdbc.query("""
+            SELECT impact.item_id, item.name AS item_name, impact.quantity_delta, impact.affects_availability
+            FROM wok.modifier_item_impacts impact JOIN wok.items item ON item.id = impact.item_id
+            WHERE impact.modifier_id = ? ORDER BY item.name, item.id
+            """, (rs, row) -> new ModifierItemImpact(rs.getObject("item_id", UUID.class),
+                rs.getString("item_name"), rs.getBigDecimal("quantity_delta"),
+                rs.getBoolean("affects_availability")), optionId);
     }
 
     private ModifierOption option(UUID groupId, UUID optionId) {
-        return jdbc.query("""
+        ModifierOption found = jdbc.query("""
             SELECT id, group_id, name, price_delta, active, row_version, updated_at
             FROM wok.modifiers WHERE id = ? AND group_id = ?
             """, (rs, row) -> mapOption(rs), optionId, groupId).getFirst();
+        return withImpacts(found);
+    }
+
+    private ModifierOption withImpacts(ModifierOption option) {
+        return new ModifierOption(option.id(), option.groupId(), option.name(), option.priceDelta(), option.active(),
+                option.rowVersion(), option.updatedAt(), impacts(option.id()));
     }
 
     private static ModifierOption mapOption(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new ModifierOption(rs.getObject("id", UUID.class), rs.getObject("group_id", UUID.class),
                 rs.getString("name"), rs.getBigDecimal("price_delta"), rs.getBoolean("active"),
-                rs.getInt("row_version"), rs.getTimestamp("updated_at").toInstant());
+                rs.getInt("row_version"), rs.getTimestamp("updated_at").toInstant(), List.of());
     }
 
     private void audit(UUID actor, UUID requestId, String action, String entityType, UUID entityId,
@@ -273,6 +328,13 @@ public class AdminModifierController {
         return "{\"groupIds\":[" + ids.stream().map(id -> "\"" + id + "\"").collect(java.util.stream.Collectors.joining(",")) + "]}";
     }
 
+    private static String impactsSnapshot(List<ModifierItemImpact> impacts) {
+        return "{\"impacts\":[" + impacts.stream().map(impact -> "{\"itemId\":\"" + impact.itemId() +
+                "\",\"quantityDelta\":" + impact.quantityDelta().toPlainString() +
+                ",\"affectsAvailability\":" + impact.affectsAvailability() + "}")
+                .collect(java.util.stream.Collectors.joining(",")) + "]}";
+    }
+
     private static String json(String value) {
         StringBuilder escaped = new StringBuilder(value.length());
         for (int index = 0; index < value.length(); index++) {
@@ -289,7 +351,9 @@ public class AdminModifierController {
     public record ModifierGroup(UUID id, String name, int minSelection, int maxSelection, boolean required,
                                 int rowVersion, Instant updatedAt, List<ModifierOption> options) {}
     public record ModifierOption(UUID id, UUID groupId, String name, BigDecimal priceDelta, boolean active,
-                                 int rowVersion, Instant updatedAt) {}
+                                 int rowVersion, Instant updatedAt, List<ModifierItemImpact> inventoryImpacts) {}
+    public record ModifierItemImpact(UUID itemId, String itemName, BigDecimal quantityDelta,
+                                     boolean affectsAvailability) {}
     public record ModifierGroupCreate(@NotBlank @Size(max = 100) String name, @Min(0) int minSelection,
             @Positive @Max(30) int maxSelection, boolean required, @NotBlank @Size(min = 3, max = 500) String reason) {}
     public record ModifierGroupUpdate(@NotBlank @Size(max = 100) String name, @Min(0) int minSelection,
@@ -302,5 +366,10 @@ public class AdminModifierController {
             @NotNull @DecimalMin("0.00") @Digits(integer = 12, fraction = 2) BigDecimal priceDelta,
             boolean active, @Positive int expectedVersion, @NotBlank @Size(min = 3, max = 500) String reason) {}
     public record MenuItemGroupsUpdate(@NotNull @Size(max = 30) List<@NotNull UUID> groupIds,
+            @Positive int expectedVersion, @NotBlank @Size(min = 3, max = 500) String reason) {}
+    public record ModifierImpactInput(@NotNull UUID itemId,
+            @NotNull @Digits(integer = 12, fraction = 6) BigDecimal quantityDelta,
+            boolean affectsAvailability) {}
+    public record ModifierImpactsUpdate(@NotNull @Size(max = 30) List<@Valid ModifierImpactInput> impacts,
             @Positive int expectedVersion, @NotBlank @Size(min = 3, max = 500) String reason) {}
 }

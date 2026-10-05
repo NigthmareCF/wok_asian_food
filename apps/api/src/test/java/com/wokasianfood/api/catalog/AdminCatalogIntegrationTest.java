@@ -109,6 +109,30 @@ class AdminCatalogIntegrationTest extends PostgresIntegrationTest {
             {"name":"Tofu","priceDelta":5.00,"active":true,"expectedVersion":1,"reason":"dato obsoleto"}
             """, Map.of()).statusCode()).isEqualTo(409);
 
+        UUID inventoryItemId = createInventoryItem(menuItemId);
+        String impactsUrl = groupsUrl + "/" + groupId + "/options/" + tofuId + "/inventory-impacts";
+        body(send("PUT", impactsUrl, admin, """
+            {"impacts":[{"itemId":"%s","quantityDelta":0.250000,"affectsAvailability":true}],
+             "expectedVersion":2,"reason":"definir consumo de ingrediente"}
+            """.formatted(inventoryItemId), Map.of()));
+        assertThat(jdbc.queryForObject("SELECT quantity_delta FROM wok.modifier_item_impacts "
+                + "WHERE modifier_id = ? AND item_id = ?", BigDecimal.class, tofuId, inventoryItemId))
+                .isEqualByComparingTo("0.250000");
+        JsonNode configuredGroups = body(get(groupsUrl, admin));
+        JsonNode configuredGroup = StreamSupport.stream(configuredGroups.spliterator(), false)
+                .filter(value -> value.path("id").asText().equals(groupId.toString())).findFirst().orElseThrow();
+        JsonNode configuredTofu = StreamSupport.stream(configuredGroup.path("options").spliterator(), false)
+                .filter(value -> value.path("id").asText().equals(tofuId.toString())).findFirst().orElseThrow();
+        assertThat(configuredTofu.path("inventoryImpacts").get(0).path("itemId").asText())
+                .isEqualTo(inventoryItemId.toString());
+        assertThat(jdbc.queryForObject("SELECT after_data -> 'impacts' -> 0 ->> 'quantityDelta' "
+                + "FROM wok.audit_logs WHERE entity_id = ? AND action = 'MODIFIER_INVENTORY_IMPACTS_REPLACED'",
+                String.class, tofuId)).isEqualTo("0.250000");
+        assertThat(send("PUT", impactsUrl, admin, """
+            {"impacts":[{"itemId":"%s","quantityDelta":0.250000,"affectsAvailability":true}],
+             "expectedVersion":2,"reason":"versión obsoleta"}
+            """.formatted(inventoryItemId), Map.of()).statusCode()).isEqualTo(409);
+
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE action IN "
                 + "('MODIFIER_GROUP_CREATED','MODIFIER_OPTION_CREATED','MODIFIER_OPTION_UPDATED',"
                 + "'MENU_ITEM_MODIFIER_GROUPS_REPLACED')", Integer.class))
@@ -120,7 +144,7 @@ class AdminCatalogIntegrationTest extends PostgresIntegrationTest {
              "reason":"retirar opción temporalmente"}
             """, Map.of()).statusCode()).isEqualTo(200);
         assertThat(send("PUT", groupsUrl + "/" + groupId + "/options/" + tofuId, admin, """
-            {"name":"Tofu firme","priceDelta":6.00,"active":false,"expectedVersion":2,
+            {"name":"Tofu firme","priceDelta":6.00,"active":false,"expectedVersion":3,
              "reason":"retirar última opción"}
             """, Map.of()).statusCode()).isEqualTo(422);
     }
@@ -155,6 +179,18 @@ class AdminCatalogIntegrationTest extends PostgresIntegrationTest {
             VALUES (?, ?, ?, ?, 'Noodles de prueba', 'Descripción inicial', 58.00, ?, 'PUBLIC', 'ACTIVE', 600)
             """, menuItem, inventoryItem, category, area, currency);
         return menuItem;
+    }
+
+    private UUID createInventoryItem(UUID menuItemId) {
+        UUID parentId = jdbc.queryForObject("SELECT item_id FROM wok.menu_items WHERE id = ?", UUID.class, menuItemId);
+        UUID itemTypeId = jdbc.queryForObject("SELECT item_type_id FROM wok.items WHERE id = ?", UUID.class, parentId);
+        UUID unitId = jdbc.queryForObject("SELECT base_unit_id FROM wok.items WHERE id = ?", UUID.class, parentId);
+        UUID inventoryItemId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO wok.items (id, sku, name, item_type_id, base_unit_id, track_inventory, active)
+            VALUES (?, ?, 'Tofu para prueba', ?, ?, true, true)
+                """, inventoryItemId, "INV_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(), itemTypeId, unitId);
+        return inventoryItemId;
     }
 
     private JsonNode body(HttpResponse<String> response) {
