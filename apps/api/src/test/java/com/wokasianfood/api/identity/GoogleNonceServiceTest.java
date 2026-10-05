@@ -18,14 +18,14 @@ class GoogleNonceServiceTest {
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
 
     @Test
-    void issuesCryptographicallySizedUrlSafeNonceAndStoresOnlyItsHash() {
+    void issuesCryptographicallySizedHexNonceAndStoresOnlyItsHash() {
         when(jdbc.update(contains("DELETE FROM wok.google_oidc_nonce_challenges"), any(Object[].class))).thenReturn(0);
         when(jdbc.update(startsWith("INSERT INTO wok.google_oidc_nonce_challenges"), any(Object[].class))).thenReturn(1);
 
         GoogleNonceService.IssuedNonce issued = new GoogleNonceService(jdbc).issue();
 
-        assertEquals(43, issued.nonce().length());
-        assertTrue(issued.nonce().matches("[A-Za-z0-9_-]{43}"));
+        assertEquals(64, issued.nonce().length());
+        assertTrue(issued.nonce().matches("[0-9a-f]{64}"));
         assertEquals(300, issued.expiresInSeconds());
         ArgumentCaptor<String> storedHash = ArgumentCaptor.forClass(String.class);
         verify(jdbc).update(startsWith("INSERT INTO wok.google_oidc_nonce_challenges"), storedHash.capture());

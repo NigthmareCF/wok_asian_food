@@ -12,8 +12,10 @@ import com.wokasianfood.api.identity.AuthDtos.GoogleLogin;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -75,6 +77,24 @@ class GoogleLoginAccountLinkTest {
 
         assertEquals(401, error.status());
         verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void recordsMobileClientTypeForAValidLinkedGoogleIdentity() {
+        UUID userId = UUID.randomUUID();
+        when(googleVerifier.verify("google-id-token", "nonce-123")).thenReturn(
+                new GoogleIdentityVerifier.VerifiedIdentity("google-subject", "customer@example.com", true));
+        when(jdbc.query(contains("provider_subject"), anyRowMapper(), eq("google-subject"))).thenReturn(List.of(userId));
+        when(tokens.refreshExpiry()).thenReturn(Instant.now().plusSeconds(3600));
+        when(tokens.refresh()).thenReturn("refresh-token");
+        when(tokens.access(any(UUID.class), any(UUID.class))).thenReturn("access-token");
+        when(tokens.accessSeconds()).thenReturn(600L);
+
+        auth.google(new GoogleLogin("google-id-token", "nonce-123", "MOBILE"));
+
+        ArgumentCaptor<Object[]> sessionArguments = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(contains("INSERT INTO wok.auth_sessions"), sessionArguments.capture());
+        assertEquals("MOBILE", sessionArguments.getValue()[2]);
     }
 
     @SuppressWarnings("unchecked")

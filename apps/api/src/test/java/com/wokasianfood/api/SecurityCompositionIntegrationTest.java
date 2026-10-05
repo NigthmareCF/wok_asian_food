@@ -40,7 +40,7 @@ class SecurityCompositionIntegrationTest extends PostgresIntegrationTest {
         assertThat(response.statusCode()).isEqualTo(200);
         JsonNode body = json.readTree(response.body());
         String nonce = body.path("nonce").asText();
-        assertThat(nonce).matches("[A-Za-z0-9_-]{43}");
+        assertThat(nonce).matches("[0-9a-f]{64}");
         assertThat(body.path("expiresInSeconds").asInt()).isEqualTo(300);
         String storedHash = jdbc.queryForObject("""
                 SELECT nonce_hash FROM wok.google_oidc_nonce_challenges
@@ -48,6 +48,15 @@ class SecurityCompositionIntegrationTest extends PostgresIntegrationTest {
                 ORDER BY created_at DESC LIMIT 1
                 """, String.class);
         assertThat(storedHash).hasSize(64).isNotEqualTo(nonce);
+    }
+
+    @Test
+    void requiresAnActiveWokSessionToLinkGoogleIdentity() throws Exception {
+        var response = post("/api/v1/auth/google/link", null, """
+                {"idToken":"google-id-token","nonce":"%s"}
+                """.formatted("a".repeat(64)));
+
+        assertThat(response.statusCode()).isEqualTo(401);
     }
 
     @Test

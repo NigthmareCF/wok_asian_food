@@ -186,7 +186,44 @@ public class AuthService {
             WHERE ai.provider = 'GOOGLE' AND ai.provider_subject = ? AND u.status = 'ACTIVE'
             """, (rs, row) -> rs.getObject(1, UUID.class), identity.subject());
         if (ids.isEmpty()) throw new AuthException(409, "Vincula tu cuenta WOK antes de ingresar con Google.");
-        return createSession(ids.getFirst(), "WEB");
+        return createSession(ids.getFirst(), request.clientType() == null ? "WEB" : request.clientType());
+    }
+
+    @Transactional(noRollbackFor = AuthException.class)
+    public void linkGoogle(UUID userId, UUID sessionId, GoogleLogin request) {
+        GoogleIdentityVerifier.VerifiedIdentity identity = googleVerifier.verify(request.idToken(), request.nonce());
+        if (!googleNonces.consume(request.nonce()))
+            throw new AuthException(401, "Identidad externa inválida o vencida.");
+        if (identity.subject() == null || identity.subject().isBlank() || !identity.emailVerified())
+            throw new AuthException(401, "Identidad externa inválida.");
+
+        List<String> accountEmails = jdbc.query("""
+            SELECT email FROM wok.users
+            WHERE id = ? AND status = 'ACTIVE' AND email_verified_at IS NOT NULL
+            """, (rs, row) -> rs.getString("email"), userId);
+        if (accountEmails.isEmpty()) throw new AuthException(401, "Sesión inválida.");
+        String accountEmail = normalize(accountEmails.getFirst());
+        if (!accountEmail.equals(normalize(identity.email())))
+            throw new AuthException(403, "La cuenta Google debe usar el correo verificado de tu cuenta WOK.");
+
+        List<UUID> linkedUsers = jdbc.query("""
+            SELECT user_id FROM wok.auth_identities
+            WHERE provider = 'GOOGLE' AND provider_subject = ?
+            """, (rs, row) -> rs.getObject("user_id", UUID.class), identity.subject());
+        if (!linkedUsers.isEmpty()) {
+            if (linkedUsers.getFirst().equals(userId)) return;
+            throw new AuthException(409, "Esta identidad Google ya está vinculada a otra cuenta WOK.");
+        }
+        int inserted = jdbc.update("""
+            INSERT INTO wok.auth_identities (user_id, provider, provider_subject, email_at_link)
+            VALUES (?, 'GOOGLE', ?, ?)
+            ON CONFLICT (provider, provider_subject) DO NOTHING
+        """, userId, identity.subject(), accountEmail);
+        if (inserted != 1) throw new AuthException(409, "Esta identidad Google ya está vinculada a otra cuenta WOK.");
+        jdbc.update("""
+            INSERT INTO wok.security_events (actor_user_id, session_id, event_type, severity, details)
+            VALUES (?, ?, 'GOOGLE_IDENTITY_LINKED', 'INFO', jsonb_build_object('provider', 'GOOGLE'))
+            """, userId, sessionId);
     }
 
     private TokenPair createSession(UUID userId, String clientType) {

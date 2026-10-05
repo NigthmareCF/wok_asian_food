@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -63,6 +64,14 @@ public class AuthController {
     public TokenPair google(@Valid @RequestBody GoogleLogin request, HttpServletRequest http) {
         rateLimiter.check(AuthRateLimiter.Action.GOOGLE_LOGIN, null, clientIp(http));
         return auth.google(request);
+    }
+
+    @PostMapping("/google/link")
+    public Message linkGoogle(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody GoogleLogin request,
+                              HttpServletRequest http) {
+        rateLimiter.check(AuthRateLimiter.Action.GOOGLE_LOGIN, null, clientIp(http));
+        auth.linkGoogle(UUID.fromString(jwt.getSubject()), UUID.fromString(jwt.getClaimAsString("sid")), request);
+        return new Message("La cuenta Google quedó vinculada a tu cuenta WOK.");
     }
 
     @PostMapping("/reset/request")

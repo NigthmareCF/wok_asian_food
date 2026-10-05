@@ -4,7 +4,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.Base64;
 import java.util.HexFormat;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -25,7 +24,9 @@ public class GoogleNonceService {
     public IssuedNonce issue() {
         byte[] bytes = new byte[NONCE_BYTES];
         random.nextBytes(bytes);
-        String value = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        // Google native SDKs expect a SHA-256 hex nonce. The random value itself is
+        // already an independent 256-bit challenge; only its hash is persisted.
+        String value = HexFormat.of().formatHex(bytes);
         jdbc.update("DELETE FROM wok.google_oidc_nonce_challenges WHERE expires_at <= now() OR consumed_at IS NOT NULL");
         jdbc.update("INSERT INTO wok.google_oidc_nonce_challenges (nonce_hash, expires_at) VALUES (?, now() + interval '5 minutes')",
                 hash(value));
@@ -34,7 +35,7 @@ public class GoogleNonceService {
 
     /** Returns true once only, and only while the server-issued challenge remains valid. */
     public boolean consume(String value) {
-        if (value == null || value.length() != 43) return false;
+        if (value == null || !value.matches("[0-9a-f]{64}")) return false;
         return jdbc.update("""
                 UPDATE wok.google_oidc_nonce_challenges
                 SET consumed_at = now()

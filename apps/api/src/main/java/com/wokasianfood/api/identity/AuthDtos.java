@@ -19,7 +19,10 @@ public final class AuthDtos {
     public record ResetRequest(@Email @NotBlank String email) {}
     public record ResetComplete(@Email @NotBlank String email, @Pattern(regexp = "[0-9]{6}") String code,
                                 @NotBlank @Size(min = 12, max = 128) String newPassword) {}
-    public record GoogleLogin(@NotBlank String idToken, @NotBlank @Size(max = 256) String nonce) {}
+    public record GoogleLogin(@NotBlank String idToken, @NotBlank @Size(max = 256) String nonce,
+                              @Pattern(regexp = "WEB|MOBILE|DESKTOP") String clientType) {
+        public GoogleLogin(String idToken, String nonce) { this(idToken, nonce, "WEB"); }
+    }
     public record GoogleNonce(String nonce, int expiresInSeconds) {}
     public record TokenPair(String accessToken, String refreshToken, String tokenType, long expiresInSeconds) {}
     public record CurrentUser(UUID userId, String email, String displayName, String status,
