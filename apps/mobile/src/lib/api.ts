@@ -84,7 +84,19 @@ export type PublicMenuItem = {
   imageReference?: string | null;
   estimatedPreparationSeconds: number;
   displayOrder: number;
+  modifierGroups?: MenuModifierGroup[];
 };
+export type MenuModifierGroup = {
+  id: string;
+  name: string;
+  minSelection: number;
+  maxSelection: number;
+  required: boolean;
+  displayOrder: number;
+  options: MenuModifierOption[];
+};
+export type MenuModifierOption = { id: string; name: string; priceDelta: number };
+export type RequestModifierSnapshot = { group: string; name: string; priceDelta: number };
 export type PickupRequestBody = {
   requestedFor: string;
   customerNote?: string;
@@ -92,7 +104,7 @@ export type PickupRequestBody = {
   invoiceRequested: boolean;
   invoiceName?: string;
   invoiceTaxId?: string;
-  items: { menuItemId: string; quantity: number }[];
+  items: { menuItemId: string; quantity: number; modifierIds: string[] }[];
 };
 export type PickupRequestReceipt = {
   requestId: string;
@@ -112,7 +124,7 @@ export type PickupRequestReceipt = {
 export type PickupRequestState = PickupRequestReceipt;
 export type PickupRequestDetails = PickupRequestState & {
   customerNote: string | null;
-  items: { name: string; quantity: number; unitPrice: number; lineTotal: number; currencyId: string }[];
+  items: { name: string; quantity: number; unitPrice: number; lineTotal: number; currencyId: string; modifiers: RequestModifierSnapshot[] }[];
 };
 export type PickupOrderTracking = {
   requestId: string;
@@ -144,7 +156,7 @@ export type DeliveryRequestBody = {
   invoiceRequested: boolean;
   invoiceName?: string;
   invoiceTaxId?: string;
-  items: { menuItemId: string; quantity: number }[];
+  items: { menuItemId: string; quantity: number; modifierIds: string[] }[];
 };
 export type DeliveryRequestReceipt = {
   requestId: string;
@@ -170,7 +182,7 @@ export type DeliveryRequestReceipt = {
 };
 export type DeliveryRequestDetails = DeliveryRequestReceipt & {
   customerNote: string | null;
-  items: { name: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  items: { name: string; quantity: number; unitPrice: number; lineTotal: number; modifiers: RequestModifierSnapshot[] }[];
 };
 export type CustomerAddress = {
   addressId: string;

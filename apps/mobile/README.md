@@ -19,11 +19,12 @@ La URL y los flags `EXPO_PUBLIC_*` son visibles en el paquete de la app y nunca 
 - Administración de sesiones activas: consulta y cierre de sesiones propias desde Mi cuenta.
 - Refresh rotativo al restaurar la app: access token en memoria y refresh token con Expo SecureStore. Las rotaciones se comparten sólo para el mismo token y las escrituras/eliminaciones locales quedan serializadas para evitar restaurar una sesión antigua al cambiar de cuenta o cerrar sesión.
 - Solicitud real de reserva en `/api/v1/client/reservations`, con clave idempotente reusada tras errores de transporte, límite local de 3 horas y texto explícito de revisión humana.
-- Catálogo público, solicitud de pickup, historial/detalle/cancelación de solicitudes pendientes, y mensajería autenticada de la app.
-- Solicitud de delivery con menú, dirección, teléfono, preferencia de pago, historial/detalle/cancelación, además de libreta de direcciones propia.
+- Catálogo público con opciones configurables por grupos y límites; pickup y delivery conservan carrito/opciones en SecureStore, muestran un subtotal estimado y envían las elecciones dentro de solicitudes idempotentes.
+- Historial/detalle de pickup y delivery muestra snapshots de opciones del servidor junto con cantidades y precios; las solicitudes pendientes pueden cancelarse y no se presentan como pedidos aceptados.
+- Solicitud de delivery con dirección, teléfono GT validado, preferencia de pago, historial/detalle/cancelación y libreta de direcciones propia; mensajería autenticada de la app.
 - Errores de conexión no confirman ni reenvían solicitudes automáticamente.
 
-El catálogo sólo mostrará artículos publicados por backend; falta recibir e ingresar el menú real. Las solicitudes pickup/delivery continúan pendientes de revisión y no equivalen a pedidos aceptados. No existe pago en línea, factura/FEL, Google OIDC, seguimiento de órdenes aceptadas, notificaciones push ni pruebas E2E instaladas en dispositivos. Mensajes requieren red y no prometen respuesta en tiempo real. Estas limitaciones no se presentan como integraciones productivas.
+El catálogo sólo muestra artículos y opciones publicados por backend; falta recibir e ingresar el menú real y validar disponibilidad contra inventario real en selección. Las solicitudes pickup/delivery continúan pendientes de revisión y no equivalen a pedidos aceptados. No existe cobro en línea productivo, Google OIDC móvil, notificaciones push ni pruebas E2E instaladas en dispositivos. Mensajes requieren red y no prometen respuesta en tiempo real. Estas limitaciones no se presentan como integraciones productivas.
 
 ## Verificación
 

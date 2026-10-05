@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-05 — Modificadores configurables en pickup y delivery
+
+- El catálogo móvil presenta grupos/opciones publicados por la API, obliga a satisfacer mínimo/máximo antes de agregar el platillo y calcula el precio estimado con los deltas seleccionados. Pickup y delivery persisten carrito y opciones localmente en SecureStore; el payload de solicitud incluye los IDs ordenados dentro del mismo intento idempotente.
+- Pickup y delivery resumen las opciones seleccionadas; los detalles de solicitudes muestran snapshots de grupo, opción y precio devueltos por el servidor. Un éxito limpia carrito/opciones. La app nunca es autoridad para el importe final ni para disponibilidad.
+- Verificación: Vitest 30/30, ESLint, TypeScript y `expo export` Android/Web pasan. Las exportaciones verifican bundles/rutas, no una instalación en dispositivo. El contrato integrado API/PostgreSQL fue validado en `feature/backend-capacity-order-lifecycle`: Flyway V1–V35 desde cero y suite backend completa 199/199 con PostgreSQL 18/Testcontainers.
+
 ## 2026-10-04 — Vista unificada de pedidos Cliente
 
 - La pestaña Pedidos ahora consulta el historial propio de pickup y delivery junto al tracking pickup/delivery; muestra estado de solicitud, ETA de cocina y estado/marcas de tiempo del despacho. Las solicitudes delivery activas se actualizan cada 30 segundos, y pueden cancelarse mientras siguen pendientes de revisión.

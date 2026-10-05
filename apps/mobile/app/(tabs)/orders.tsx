@@ -234,7 +234,8 @@ function OrderHistory() {
           {details[item.requestId].customerNote ? <Text style={ui.body}>Comentario: {details[item.requestId].customerNote}</Text> : null}
           {details[item.requestId].invoiceRequested ? <Text style={ui.body}>Datos fiscales solicitados: {details[item.requestId].invoiceName} · NIT {details[item.requestId].invoiceTaxId}</Text> : null}
           {details[item.requestId].items.map((line, index) => <View key={`${item.requestId}-${index}`} style={ui.row}>
-            <Text style={[ui.body, { flex: 1 }]}>{line.quantity} × {line.name}</Text>
+            <Text style={[ui.body, { flex: 1 }]}>{line.quantity} × {line.name}{line.modifiers?.length
+              ? ` · ${line.modifiers.map((modifier) => `${modifier.group}: ${modifier.name}`).join(", ")}` : ""}</Text>
             <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>{formatMoney(line.lineTotal, item.currency)}</Text>
           </View>)}
         </View> : null}

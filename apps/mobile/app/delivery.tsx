@@ -8,9 +8,13 @@ import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequ
 import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { useSession } from "@/providers/session-provider";
 import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
+import { MenuItemOptions } from "@/components/menu-item-options";
+import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const pendingKey = "wok.delivery.pending.v1";
+const cartStorageKey = "wok.delivery.cart.v1";
+const modifierStorageKey = "wok.delivery.modifiers.v1";
 
 export default function DeliveryScreen() {
   const { session, request } = useSession();
@@ -22,6 +26,8 @@ type DeliveryRequestProps = Pick<ReturnType<typeof useSession>, "session" | "req
 function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [menu, setMenu] = useState<PublicMenu | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({});
+  const [cartRestored, setCartRestored] = useState(false);
   const [requestedFor, setRequestedFor] = useState("");
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
@@ -57,11 +63,20 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   useEffect(() => {
     let active = true;
-    Promise.allSettled([fetchMenu(), SecureStore.getItemAsync(pendingKey)])
-      .then(([menuResult, attemptResult]) => {
+    Promise.allSettled([fetchMenu(), SecureStore.getItemAsync(cartStorageKey),
+      SecureStore.getItemAsync(modifierStorageKey), SecureStore.getItemAsync(pendingKey)])
+      .then(([menuResult, cartResult, modifiersResult, attemptResult]) => {
         if (!active) return;
         if (menuResult.status === "fulfilled") setMenu(menuResult.value);
         else setError(menuResult.reason instanceof ApiError ? menuResult.reason.message : "No pudimos cargar el menú para delivery.");
+        if (cartResult.status === "fulfilled" && cartResult.value) {
+          try { setCart(validCart(JSON.parse(cartResult.value) as unknown)); }
+          catch { void SecureStore.deleteItemAsync(cartStorageKey); }
+        }
+        if (modifiersResult.status === "fulfilled" && modifiersResult.value) {
+          try { setSelectedModifiers(validModifierSelections(JSON.parse(modifiersResult.value) as unknown)); }
+          catch { void SecureStore.deleteItemAsync(modifierStorageKey); }
+        }
         if (attemptResult.status === "fulfilled" && attemptResult.value) {
           try {
             const parsed = JSON.parse(attemptResult.value) as PendingAttempt;
@@ -70,9 +85,19 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
           } catch { void SecureStore.deleteItemAsync(pendingKey); }
         }
       })
-      .finally(() => { if (active) setLoading(false); });
+      .finally(() => { if (active) { setLoading(false); setCartRestored(true); } });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!cartRestored) return;
+    void SecureStore.setItemAsync(cartStorageKey, JSON.stringify(cart));
+  }, [cart, cartRestored]);
+
+  useEffect(() => {
+    if (!cartRestored) return;
+    void SecureStore.setItemAsync(modifierStorageKey, JSON.stringify(selectedModifiers));
+  }, [selectedModifiers, cartRestored]);
 
   useEffect(() => {
     let active = true;
@@ -115,9 +140,19 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   const products = useMemo(() => (menu?.categories ?? []).flatMap((category) => category.items), [menu]);
   const selected = products.filter((item) => (cart[item.id] ?? 0) > 0);
+  const selectionsValid = selected.every((item) => menuModifiersAreValid(item.modifierGroups, selectedModifiers[item.id]));
+  const subtotal = selected.reduce((total, item) => total + menuItemUnitPrice(item, selectedModifiers[item.id]) * cart[item.id], 0);
   const visibleHistory = session?.email === historyOwner ? history : [];
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
+    if (pending) return;
+    if ((cart[item.id] ?? 0) + delta < 1) {
+      setSelectedModifiers((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+    }
     setCart((current) => {
       const next = { ...current };
       const quantity = (next[item.id] ?? 0) + delta;
@@ -125,6 +160,11 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       else if (quantity <= 50) next[item.id] = quantity;
       return next;
     });
+  }
+
+  function changeModifiers(item: PublicMenuItem, ids: string[]) {
+    if (pending) return;
+    setSelectedModifiers((current) => ({ ...current, [item.id]: ids }));
   }
 
   function suggestTime() {
@@ -135,6 +175,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   async function submit(attempt?: PendingAttempt) {
     if (!session) { setError("Inicia sesión para enviar una solicitud de delivery."); return; }
+    if (!attempt && !selectionsValid) {
+      setError("Completa las opciones requeridas para cada platillo antes de enviar."); return;
+    }
     if (!attempt && !isValidGuatemalaPhone(contactPhone)) {
       setError("Ingresa un teléfono de Guatemala válido: 8 dígitos en formato 0000 0000."); return;
     }
@@ -154,7 +197,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
           paymentPreference, invoiceRequested,
           invoiceName: invoiceRequested ? invoiceName.trim() : undefined,
           invoiceTaxId: invoiceRequested ? invoiceTaxId.trim() : undefined,
-          items: selected.map((item) => ({ menuItemId: item.id, quantity: cart[item.id] })),
+          items: selected.map((item) => ({ menuItemId: item.id, quantity: cart[item.id],
+            modifierIds: [...(selectedModifiers[item.id] ?? [])].sort() })),
         },
       };
     } catch (cause) {
@@ -171,7 +215,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         method: "POST", headers: { "Idempotency-Key": activeAttempt.key }, body: JSON.stringify(activeAttempt.body),
       });
       await SecureStore.deleteItemAsync(pendingKey);
-      setPending(null); setReceipt(result); setHistory((current) => [result, ...current.filter((item) => item.requestId !== result.requestId)]); setHistoryOwner(session.email); setHistoryLoaded(true); setNotice("El restaurante recibió tu solicitud y debe revisar cobertura y disponibilidad.");
+      setPending(null); setReceipt(result); setCart({}); setSelectedModifiers({});
+      await Promise.all([SecureStore.deleteItemAsync(cartStorageKey), SecureStore.deleteItemAsync(modifierStorageKey)]);
+      setHistory((current) => [result, ...current.filter((item) => item.requestId !== result.requestId)]); setHistoryOwner(session.email); setHistoryLoaded(true); setNotice("El restaurante recibió tu solicitud y debe revisar cobertura y disponibilidad.");
     } catch (cause) {
       setPending(activeAttempt);
       setError(cause instanceof ApiError ? cause.message : "No se confirmó el resultado. Reintenta la misma solicitud.");
@@ -253,7 +299,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
           <Text style={ui.body}>Horario solicitado: {new Date(details.requestedFor).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })}</Text>
           {details.customerNote ? <Text style={ui.body}>Comentario: {details.customerNote}</Text> : null}
           {details.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {details.invoiceName} · NIT {details.invoiceTaxId}. Aún no emitida.</Text> : null}
-          {details.items.map((line, index) => <Text key={`${line.name}-${index}`} style={ui.body}>{line.quantity} × {line.name} · {formatMoney(line.lineTotal, item.currency)}</Text>)}
+          {details.items.map((line, index) => <Text key={`${line.name}-${index}`} style={ui.body}>
+            {line.quantity} × {line.name}{line.modifiers.length ? ` · ${line.modifiers.map((modifier) => `${modifier.group}: ${modifier.name}`).join(", ")}` : ""} · {formatMoney(line.lineTotal, item.currency)}
+          </Text>)}
           <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal: {formatMoney(details.subtotal, details.currency)}</Text>
           <Notice>Los precios mostrados son la captura de tu solicitud. El equipo debe revisar cobertura y confirmar antes de que exista un pedido aceptado.</Notice>
         </View> : null}
@@ -266,12 +314,25 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     {loading ? <Card><Text style={ui.body}>Cargando menú oficial…</Text></Card> : null}
     {!loading && !products.length && !error ? <Card><Text style={{ color: palette.ink, fontWeight: "800" }}>Aún no hay productos publicados</Text><Text style={ui.body}>El catálogo aparecerá cuando el restaurante publique su menú.</Text></Card> : null}
     {products.map((item) => <Card key={item.id}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}><Text style={{ flex: 1, color: palette.ink, fontWeight: "800" }}>{item.name}</Text><Text style={{ color: palette.red, fontWeight: "800" }}>{formatMoney(item.price, item.currency)}</Text></View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}><Text style={{ flex: 1, color: palette.ink, fontWeight: "800" }}>{item.name}</Text><Text style={{ color: palette.red, fontWeight: "800" }}>{formatMoney(menuItemUnitPrice(item, selectedModifiers[item.id]), item.currency)}</Text></View>
       {item.description ? <Text style={ui.body}>{item.description}</Text> : null}
-      <View style={ui.row}><Button title="−" secondary disabled={!cart[item.id]} onPress={() => changeQuantity(item, -1)} /><Text style={ui.body}>{cart[item.id] ?? 0}</Text><Button title="Agregar" disabled={Boolean(pending)} onPress={() => changeQuantity(item, 1)} /></View>
+      <MenuItemOptions item={item} selectedIds={selectedModifiers[item.id] ?? []}
+        onChange={(ids) => changeModifiers(item, ids)} disabled={Boolean(pending)} />
+      <View style={ui.row}><Button title="−" secondary disabled={Boolean(pending) || !cart[item.id]} onPress={() => changeQuantity(item, -1)} /><Text style={ui.body}>{cart[item.id] ?? 0}</Text><Button title="Agregar" disabled={Boolean(pending) || !menuModifiersAreValid(item.modifierGroups, selectedModifiers[item.id])} onPress={() => changeQuantity(item, 1)} /></View>
     </Card>)}
     {!pending ? <Card>
       <Heading eyebrow="Datos de entrega">¿A dónde lo llevamos?</Heading>
+      {selected.length ? <View style={ui.section}>
+        <Text style={{ color: palette.ink, fontWeight: "800" }}>Resumen del pedido</Text>
+        {selected.map((item) => {
+          const names = (item.modifierGroups ?? []).flatMap((group) => group.options
+            .filter((option) => (selectedModifiers[item.id] ?? []).includes(option.id)).map((option) => option.name));
+          return <Text key={item.id} style={ui.body}>{cart[item.id]} × {item.name}{names.length ? ` · ${names.join(", ")}` : ""} · {formatMoney(menuItemUnitPrice(item, selectedModifiers[item.id]) * cart[item.id], item.currency)}</Text>;
+        })}
+        <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal estimado: {formatMoney(subtotal, selected[0].currency)}</Text>
+        <Text style={ui.body}>El backend vuelve a validar precios. El carrito no reserva inventario y la solicitud requiere revisión del restaurante.</Text>
+        {!selectionsValid ? <Notice tone="error">Completa las opciones requeridas para cada platillo.</Notice> : null}
+      </View> : null}
       {session && addressOwner === session.email && savedAddresses.length ? <View style={ui.section}>
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Usar una dirección guardada</Text>
         {savedAddresses.map((item) => <Button key={item.addressId} title={`${item.label}${item.isDefault ? " · Predeterminada" : ""}`} secondary={selectedAddress?.addressId !== item.addressId} onPress={() => {
@@ -305,13 +366,29 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       <Button title="Sugerir horario inicial" secondary onPress={suggestTime} disabled={!selected.length} />
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />
       {selected.length === 0 ? <Notice>Agrega al menos un producto.</Notice> : null}
-      <Button title="Enviar solicitud de delivery" busy={sending} disabled={!session || !selected.length} onPress={() => void submit()} />
+      <Button title="Enviar solicitud de delivery" busy={sending} disabled={!session || !selected.length || !selectionsValid} onPress={() => void submit()} />
     </Card> : null}
   </Page></ScrollView>;
 }
 
 async function fetchMenu() {
   return apiRequest<PublicMenu>("/api/v1/public/menu");
+}
+
+function validCart(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([id, quantity]) =>
+    /^[0-9a-f-]{36}$/i.test(id) && typeof quantity === "number"
+      && Number.isInteger(quantity) && quantity > 0 && quantity <= 50,
+  )) as Record<string, number>;
+}
+
+function validModifierSelections(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([itemId, ids]) =>
+    /^[0-9a-f-]{36}$/i.test(itemId) && Array.isArray(ids) && ids.length <= 30
+      && ids.every((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)),
+  ).map(([itemId, ids]) => [itemId, [...new Set(ids as string[])]]));
 }
 
 function createIdempotencyKey() {

@@ -6,10 +6,13 @@ import { Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
 import { ApiError, apiRequest, CustomerTaxProfile, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { MenuItemOptions } from "@/components/menu-item-options";
+import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
 const cartStorageKey = "wok.pickup.cart.v1";
+const modifierStorageKey = "wok.pickup.modifiers.v1";
 const attemptStorageKey = "wok.pickup.pending.v1";
 
 function formatPrice(item: PublicMenuItem) {
@@ -33,6 +36,7 @@ export default function MenuScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({});
   const [cartRestored, setCartRestored] = useState(Platform.OS === "web");
   const [requestedFor, setRequestedFor] = useState("");
   const [customerNote, setCustomerNote] = useState("");
@@ -88,12 +92,16 @@ export default function MenuScreen() {
   useEffect(() => {
     let mounted = true;
     if (Platform.OS === "web") return;
-    Promise.all([SecureStore.getItemAsync(cartStorageKey), SecureStore.getItemAsync(attemptStorageKey)])
-      .then(([storedCart, storedAttempt]) => {
+    Promise.all([SecureStore.getItemAsync(cartStorageKey), SecureStore.getItemAsync(modifierStorageKey), SecureStore.getItemAsync(attemptStorageKey)])
+      .then(([storedCart, storedModifiers, storedAttempt]) => {
         if (!mounted) return;
         if (storedCart) {
           try { setCart(validCart(JSON.parse(storedCart) as unknown)); }
           catch { void SecureStore.deleteItemAsync(cartStorageKey); }
+        }
+        if (storedModifiers) {
+          try { setSelectedModifiers(validModifierSelections(JSON.parse(storedModifiers) as unknown)); }
+          catch { void SecureStore.deleteItemAsync(modifierStorageKey); }
         }
         if (storedAttempt) {
           try {
@@ -112,23 +120,32 @@ export default function MenuScreen() {
     void SecureStore.setItemAsync(cartStorageKey, JSON.stringify(cart));
   }, [cart, cartRestored]);
 
+  useEffect(() => {
+    if (!cartRestored || Platform.OS === "web") return;
+    void SecureStore.setItemAsync(modifierStorageKey, JSON.stringify(selectedModifiers));
+  }, [selectedModifiers, cartRestored]);
+
   const products = useMemo(() => (menu?.categories ?? []).flatMap((category) => category.items), [menu]);
   const cartItems = products.filter((item) => (cart[item.id] ?? 0) > 0);
   const cartCount = cartItems.reduce((total, item) => total + cart[item.id], 0);
-  const cartSubtotal = cartItems.reduce((total, item) => total + item.price * cart[item.id], 0);
+  const cartSubtotal = cartItems.reduce((total, item) => total + menuItemUnitPrice(item, selectedModifiers[item.id]) * cart[item.id], 0);
+  const cartSelectionsValid = cartItems.every((item) => menuModifiersAreValid(item.modifierGroups, selectedModifiers[item.id]));
   const hasItems = (menu?.categories ?? []).some((category) => category.items.length > 0);
   const activePaymentPreference = attempt?.body.paymentPreference ?? paymentPreference;
   const activeInvoiceRequest = attempt?.body.invoiceRequested ?? invoiceRequested;
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
     setReceipt(null);
-    setCart((current) => {
-      const next = { ...current };
-      const quantity = (next[item.id] ?? 0) + delta;
-      if (quantity <= 0) delete next[item.id];
-      else if (quantity <= 50) next[item.id] = quantity;
-      return next;
-    });
+    const quantity = (cart[item.id] ?? 0) + delta;
+    if (quantity <= 0) {
+      const next = { ...cart }; delete next[item.id]; setCart(next);
+      setSelectedModifiers((current) => { const selected = { ...current }; delete selected[item.id]; return selected; });
+    } else if (quantity <= 50) setCart({ ...cart, [item.id]: quantity });
+  }
+
+  function changeModifiers(item: PublicMenuItem, ids: string[]) {
+    setReceipt(null);
+    setSelectedModifiers((current) => ({ ...current, [item.id]: ids }));
   }
 
   function suggestPickupTime() {
@@ -156,7 +173,8 @@ export default function MenuScreen() {
         invoiceRequested,
         invoiceName: invoiceRequested ? invoiceName.trim() : undefined,
         invoiceTaxId: invoiceRequested ? invoiceTaxId.trim() : undefined,
-        items: cartItems.map((item) => ({ menuItemId: item.id, quantity: cart[item.id] })),
+        items: cartItems.map((item) => ({ menuItemId: item.id, quantity: cart[item.id],
+          modifierIds: [...(selectedModifiers[item.id] ?? [])].sort() })),
       },
     };
     if (!activeAttempt.body.items.length) { setError("Agrega al menos un producto."); return; }
@@ -174,11 +192,13 @@ export default function MenuScreen() {
         body: JSON.stringify(activeAttempt.body),
       });
       if (Platform.OS !== "web") {
-        await Promise.all([SecureStore.deleteItemAsync(attemptStorageKey), SecureStore.deleteItemAsync(cartStorageKey)]);
+        await Promise.all([SecureStore.deleteItemAsync(attemptStorageKey), SecureStore.deleteItemAsync(cartStorageKey),
+          SecureStore.deleteItemAsync(modifierStorageKey)]);
       }
       setAttempt(null);
       setReceipt(result);
       setCart({});
+      setSelectedModifiers({});
       setCustomerNote("");
     } catch (cause) {
       setAttempt(activeAttempt);
@@ -211,10 +231,13 @@ export default function MenuScreen() {
             <Text style={{ color: palette.red, fontWeight: "800" }}>{formatPrice(item)}</Text>
           </View>
           {item.description ? <Text style={ui.body}>{item.description}</Text> : null}
+          <MenuItemOptions item={item} selectedIds={selectedModifiers[item.id] ?? []}
+            onChange={(ids) => changeModifiers(item, ids)} disabled={Boolean(attempt)} />
           <View style={ui.row}>
             <Button title="−" secondary disabled={!cart[item.id]} onPress={() => changeQuantity(item, -1)} />
             <Text accessibilityLiveRegion="polite" style={{ color: palette.ink, fontWeight: "800" }}>{cart[item.id] ?? 0}</Text>
-            <Button title="Agregar" onPress={() => changeQuantity(item, 1)} disabled={Boolean(attempt)} />
+            <Button title="Agregar" onPress={() => changeQuantity(item, 1)}
+              disabled={Boolean(attempt) || !menuModifiersAreValid(item.modifierGroups, selectedModifiers[item.id])} />
           </View>
         </Card>)}
       </View>,
@@ -223,8 +246,9 @@ export default function MenuScreen() {
       <Heading eyebrow="Solicitud">Pickup · {cartCount} productos</Heading>
       <Card>
         {cartItems.map((item) => <View key={item.id} style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
-          <Text style={{ flex: 1, color: palette.ink }}>{cart[item.id]} × {item.name}</Text>
-          <Text style={{ color: palette.ink, fontWeight: "700" }}>{formatPrice({ ...item, price: item.price * cart[item.id] })}</Text>
+          <Text style={{ flex: 1, color: palette.ink }}>{cart[item.id]} × {item.name}
+            {selectedModifierNames(item, selectedModifiers[item.id]).length ? ` · ${selectedModifierNames(item, selectedModifiers[item.id]).join(", ")}` : ""}</Text>
+          <Text style={{ color: palette.ink, fontWeight: "700" }}>{new Intl.NumberFormat("es-GT", { style: "currency", currency: item.currency }).format(menuItemUnitPrice(item, selectedModifiers[item.id]) * cart[item.id])}</Text>
         </View>)}
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal actual: {new Intl.NumberFormat("es-GT", { style: "currency", currency: cartItems[0].currency }).format(cartSubtotal)}</Text>
         <Text style={ui.body}>El backend vuelve a validar precios. El carrito no reserva inventario ni confirma un pedido.</Text>
@@ -248,11 +272,25 @@ export default function MenuScreen() {
         {!session ? <View style={ui.section}><Notice>Para enviar tu solicitud, primero inicia sesión.</Notice><Link href="/account" style={ui.link}>Ir a Mi cuenta</Link></View> : null}
         {session?.offline ? <Notice>Estás sin conexión. La solicitud requiere confirmación del servidor y no se enviará automáticamente.</Notice> : null}
         {attempt ? <Notice>Hay un envío cuyo resultado no se confirmó. Reintenta exactamente la misma solicitud; la app conserva su clave para evitar duplicados.</Notice> : null}
+        {!cartSelectionsValid ? <Notice tone="error">Completa las opciones requeridas para cada platillo antes de enviar.</Notice> : null}
         <Button title={attempt ? "Reintentar solicitud pendiente" : "Enviar solicitud de pickup"}
-          onPress={() => void submitPickup()} busy={sending} disabled={!session || (session.offline && !process.env.EXPO_PUBLIC_API_BASE_URL)} />
+          onPress={() => void submitPickup()} busy={sending} disabled={!session || !cartSelectionsValid || (session.offline && !process.env.EXPO_PUBLIC_API_BASE_URL)} />
       </Card>
     </View> : null}
   </Page></ScrollView>;
+}
+
+function validModifierSelections(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([itemId, ids]) =>
+    /^[0-9a-f-]{36}$/i.test(itemId) && Array.isArray(ids) && ids.length <= 30
+      && ids.every((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)),
+  ).map(([itemId, ids]) => [itemId, [...new Set(ids as string[])]]));
+}
+
+function selectedModifierNames(item: PublicMenuItem, selectedIds: string[] = []) {
+  return (item.modifierGroups ?? []).flatMap((group) => group.options
+    .filter((option) => selectedIds.includes(option.id)).map((option) => option.name));
 }
 
 function pickupPaymentLabel(value: PickupRequestBody["paymentPreference"] | null) {
