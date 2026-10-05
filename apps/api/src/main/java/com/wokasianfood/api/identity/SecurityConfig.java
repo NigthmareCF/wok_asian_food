@@ -118,7 +118,8 @@ public class SecurityConfig {
                     "/api/v1/auth/refresh", "/api/v1/auth/reset/request", "/api/v1/auth/reset/complete",
                     "/api/v1/auth/google", "/api/v1/auth/google/nonce").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/public/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/public/menu/availability").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/public/menu/availability",
+                    "/api/v1/public/reservations/evaluate").permitAll()
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(decoder)
                 .jwtAuthenticationConverter(token -> authorities(token, jdbc))))
