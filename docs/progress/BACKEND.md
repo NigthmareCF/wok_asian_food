@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-05 — Estimación pública de disponibilidad de menú
+
+- `POST /api/v1/public/menu/availability` estima disponibilidad por carrito (máximo 20 productos, 50 unidades por producto), usando receta, impactos de opciones elegidas y reservas activas dentro de una transacción `REPEATABLE_READ`. La respuesta distingue `AVAILABLE_ESTIMATE`, `UNAVAILABLE_ESTIMATE` y `NOT_TRACKED`, no revela cantidades internas y nunca crea/libera reservas.
+- Sólo esta ruta POST queda pública; las selecciones vuelven a validarse contra el catálogo y productos no publicados se rechazan. La aceptación de pickup/delivery sigue comprobando stock bajo locks.
+- `PublicMenuAvailabilityIntegrationTest` 1/1 y suite completa PostgreSQL 18/Testcontainers + Flyway V1–V35 201/201 aprobadas, sin fallos, errores ni omitidas. Cubre recetas, reserva activa previa, impacto positivo/negativo, producto sin seguimiento, opciones inválidas, no filtración de cantidades y ausencia de escrituras de reserva.
+
 ## 2026-10-05 — Impactos de inventario para modificadores
 
 - ADMIN reemplaza atómicamente los impactos por opción (`PUT .../inventory-impacts`), con permiso, versión optimista, motivo/auditoría, bloqueo del grupo/opción/insumos y validación de insumo activo con tracking, unicidad y delta no cero. La consulta administrativa devuelve el detalle configurado.
