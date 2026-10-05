@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 import { PropsWithChildren } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps, View, ViewProps } from "react-native";
+=======
+import { PropsWithChildren, Ref } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps, View, ViewProps, useColorScheme } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getThemeColors } from "@/theme/colors";
+>>>>>>> 9997cf0e (fix(mobile): adjust BFF, add cart/menu flows, UI components, hooks and tests)
 
 export const palette = { ink: "#24221f", muted: "#746e67", paper: "#fffaf2", card: "#ffffff", red: "#a72d21", gold: "#d78c23", line: "#eadfce", green: "#246b4b" };
 
@@ -19,8 +26,17 @@ export function Button({ title, onPress, secondary = false, disabled = false, bu
   </Pressable>;
 }
 
+<<<<<<< HEAD
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput placeholderTextColor="#918a80" accessibilityLabel={label} style={styles.input} {...props} /></View>;
+=======
+export function Field({ label, className = "", style, ref, ...props }: TextInputProps & { label: string; ref?: Ref<TextInput> }) {
+  return <View className="gap-2">
+    <Text className="font-sans text-sm font-bold text-foreground">{label}</Text>
+    <TextInput ref={ref} {...props} accessibilityLabel={props.accessibilityLabel ?? label}
+      className={`min-h-12 rounded-md border border-border bg-surface-elevated px-3 py-3 font-sans text-base text-foreground placeholder:text-subtle-foreground focus:border-ring ${props.multiline ? "min-h-28" : ""} ${className}`} style={style} />
+  </View>;
+>>>>>>> 9997cf0e (fix(mobile): adjust BFF, add cart/menu flows, UI components, hooks and tests)
 }
 
 export function Notice({ children, tone = "info" }: PropsWithChildren<{ tone?: "info" | "error" | "success" }>) {
