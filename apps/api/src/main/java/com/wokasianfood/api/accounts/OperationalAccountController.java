@@ -65,18 +65,27 @@ class AccountService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<AccountPayment> payments = jdbc.query("""
-            SELECT id, amount, tip_amount, method, status, reference, captured_at
-            FROM wok.payments WHERE account_id = ? ORDER BY captured_at, id
+            SELECT p.id, p.amount, p.tip_amount, p.method, p.status, p.reference, p.captured_at,
+                   COALESCE(r.refunded_amount, 0) AS refunded_amount,
+                   COALESCE(r.refunded_tip_amount, 0) AS refunded_tip_amount
+            FROM wok.payments p
+            LEFT JOIN LATERAL (
+                SELECT SUM(refund_amount) AS refunded_amount,
+                       SUM(tip_refund_amount) AS refunded_tip_amount
+                FROM wok.payment_refunds WHERE payment_id = p.id AND status = 'RECORDED_MANUALLY'
+            ) r ON true
+            WHERE p.account_id = ? ORDER BY p.captured_at, p.id
             """, (rs, row) -> new AccountPayment(rs.getObject("id", UUID.class), rs.getBigDecimal("amount"),
                 rs.getBigDecimal("tip_amount"), rs.getString("method"), rs.getString("status"),
-                rs.getString("reference"), rs.getTimestamp("captured_at").toInstant()), accountId);
+                rs.getString("reference"), rs.getTimestamp("captured_at").toInstant(),
+                rs.getBigDecimal("refunded_amount"), rs.getBigDecimal("refunded_tip_amount")), accountId);
         BigDecimal paid = payments.stream()
-                .filter(payment -> "CAPTURED".equals(payment.status()))
-                .map(AccountPayment::amount)
+                .filter(payment -> !"VOIDED".equals(payment.status()))
+                .map(payment -> payment.amount().subtract(payment.refundedAmount()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal tips = payments.stream()
-                .filter(payment -> "CAPTURED".equals(payment.status()))
-                .map(AccountPayment::tipAmount)
+                .filter(payment -> !"VOIDED".equals(payment.status()))
+                .map(payment -> payment.tipAmount().subtract(payment.refundedTipAmount()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         return new AccountDetails(found.getFirst(), orders, total, paid, total.subtract(paid), tips, payments);
     }
@@ -88,7 +97,8 @@ class AccountService {
                                Instant openedAt, Instant closedAt, int itemCount) {}
 
     public record AccountPayment(UUID id, BigDecimal amount, BigDecimal tipAmount, String method, String status,
-                                 String reference, Instant capturedAt) {}
+                                 String reference, Instant capturedAt, BigDecimal refundedAmount,
+                                 BigDecimal refundedTipAmount) {}
 
     public record AccountDetails(AccountSummary account, List<AccountOrder> orders, BigDecimal total,
                                  BigDecimal paid, BigDecimal balance, BigDecimal tips, List<AccountPayment> payments) {}

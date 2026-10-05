@@ -284,6 +284,87 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                 UUID.fromString(payment.path("paymentId").asText()))).isEqualTo(1);
     }
 
+    @Test
+    void recordsIdempotentPartialCashRefundAndReopensAccountBalance() {
+        UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        String code = openRegister("DEV");
+        UUID sessionId = openCash(token, code, "100.00");
+        UUID accountId = createAccount(actor, null, "Cuenta devolución parcial");
+        closedOrder(accountId, actor, "50.00");
+        JsonNode captured = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CASH","registerCode":"%s","tipAmount":5.00}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID paymentId = UUID.fromString(captured.path("paymentId").asText());
+
+        String key = UUID.randomUUID().toString();
+        String refundPath = "/api/v1/operational/accounts/" + accountId + "/payments/" + paymentId + "/refunds";
+        String refundBody = """
+                {"amount":15.00,"tipAmount":2.00,"method":"CASH","registerCode":"%s","reason":"Producto devuelto"}
+                """.formatted(code);
+        JsonNode refund = body(post(refundPath, token, refundBody, Map.of("Idempotency-Key", key)));
+        assertThat(refund.path("status").asText()).isEqualTo("RECORDED_MANUALLY");
+        assertThat(refund.path("amount").decimalValue()).isEqualByComparingTo("15.00");
+        assertThat(refund.path("tipAmount").decimalValue()).isEqualByComparingTo("2.00");
+        assertThat(refund.path("balance").decimalValue()).isEqualByComparingTo("15.00");
+        assertThat(refund.path("accountStatus").asText()).isEqualTo("OPEN");
+        assertThat(refund.path("cashSessionId").asText()).isEqualTo(sessionId.toString());
+        assertThat(refund.path("cashMovementId").isMissingNode()).isFalse();
+
+        JsonNode replay = body(post(refundPath, token, refundBody, Map.of("Idempotency-Key", key)));
+        assertThat(replay.path("refundId").asText()).isEqualTo(refund.path("refundId").asText());
+        assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(count("SELECT count(*) FROM wok.payment_refunds WHERE payment_id = ?", paymentId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE refund_id = ?",
+                UUID.fromString(refund.path("refundId").asText()))).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.payments WHERE id = ?", String.class, paymentId))
+                .isEqualTo("PARTIALLY_REFUNDED");
+
+        JsonNode details = body(get("/api/v1/operational/accounts/" + accountId, token));
+        assertThat(details.path("paid").decimalValue()).isEqualByComparingTo("35.00");
+        assertThat(details.path("tips").decimalValue()).isEqualByComparingTo("3.00");
+        assertThat(details.path("balance").decimalValue()).isEqualByComparingTo("15.00");
+        assertThat(details.path("payments").get(0).path("refundedAmount").decimalValue())
+                .isEqualByComparingTo("15.00");
+
+        JsonNode cash = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
+        assertThat(cash.path("expectedCash").decimalValue()).isEqualByComparingTo("138.00");
+        assertThat(cash.path("breakdown").path("refunds").decimalValue()).isEqualByComparingTo("17.00");
+        assertThat(cash.path("movements").findValuesAsText("type")).contains("REFUND");
+
+        var overRefund = post(refundPath, token, """
+                {"amount":36.00,"method":"CASH","registerCode":"%s","reason":"Excede el saldo"}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(overRefund.statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.payment_refunds WHERE payment_id = ?", paymentId)).isEqualTo(1);
+    }
+
+    @Test
+    void recordsExternalRefundAsManualAndDoesNotInventCashMovement() {
+        UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, null, "Cuenta devolución tarjeta");
+        closedOrder(accountId, actor, "20.00");
+        JsonNode captured = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CARD_EXTERNAL","reference":"CAP-123"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID paymentId = UUID.fromString(captured.path("paymentId").asText());
+
+        JsonNode refund = body(post("/api/v1/operational/accounts/" + accountId + "/payments/"
+                + paymentId + "/refunds", token, """
+                {"amount":20.00,"method":"CARD_EXTERNAL","reference":"REF-456","reason":"Cobro duplicado"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        assertThat(refund.path("status").asText()).isEqualTo("RECORDED_MANUALLY");
+        assertThat(refund.path("accountStatus").asText()).isEqualTo("OPEN");
+        assertThat(refund.path("balance").decimalValue()).isEqualByComparingTo("20.00");
+        assertThat(refund.path("cashMovementId").isMissingNode()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.payments WHERE id = ?", String.class, paymentId))
+                .isEqualTo("REFUNDED");
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE refund_id = ?",
+                UUID.fromString(refund.path("refundId").asText()))).isZero();
+    }
+
     private UUID createAccount(UUID actor, UUID tableId, String name) {
         UUID id = UUID.randomUUID();
         jdbc.update("""

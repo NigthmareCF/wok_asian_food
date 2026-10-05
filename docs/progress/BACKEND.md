@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-04 — Devoluciones manuales y reapertura de saldo
+
+- Flyway V28 añade payment_refunds, conserva el cobro original y amplía los estados de pago a PARTIALLY_REFUNDED/REFUNDED. Se registra motivo, responsable, referencia, importes de venta/propina, sesión de caja y solicitud idempotente.
+- POST /api/v1/operational/accounts/{accountId}/payments/{paymentId}/refunds valida ownership de cuenta-pago, saldo reembolsable, modalidad y referencia. Los reembolsos externos se etiquetan RECORDED_MANUALLY: no se simula una pasarela ni se afirma que ésta haya procesado la devolución.
+- En efectivo, el movimiento REFUND reduce el esperado de caja y se refleja en desglose; cuenta ya pagada vuelve a OPEN cuando se genera saldo. Detalle de cuenta expone devoluciones netas de venta y propina. No se elimina ni reescribe el pago original.
+- Verificación: PaymentIntegrationTest 11/11; bash mvnw -q clean test con PostgreSQL 18/Testcontainers y Flyway V1–V28: 158 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
 ## 2026-10-04 — Ciclo operativo de despacho delivery
 
 - Flyway V27 añade `delivery_dispatches` y su historial de eventos, con constraints para estados, asignación de repartidor, salida, entrega e incidencias.

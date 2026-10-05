@@ -4,6 +4,7 @@ import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
@@ -48,13 +49,33 @@ public class PaymentController {
                 requestId == null ? UUID.randomUUID() : requestId, accountId, idempotencyKey, request);
     }
 
+    @PostMapping("/{accountId}/payments/{paymentId}/refunds")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PaymentService.RefundReceipt refund(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID accountId,
+            @PathVariable UUID paymentId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody RefundRequest request) {
+        return payments.recordRefund(UUID.fromString(jwt.getSubject()),
+                requestId == null ? UUID.randomUUID() : requestId, accountId, paymentId, idempotencyKey, request);
+    }
+
     public record PaymentRequest(@NotNull PaymentMethod method,
                                  @DecimalMin(value = "0.01") BigDecimal amount,
                                  @DecimalMin(value = "0.00") BigDecimal tipAmount,
                                  @Size(max = 120) String reference,
                                  @Size(max = 32) String registerCode) {}
 
+    public record RefundRequest(@DecimalMin(value = "0.00") BigDecimal amount,
+                                @DecimalMin(value = "0.00") BigDecimal tipAmount,
+                                @NotNull RefundMethod method,
+                                @Size(max = 120) String reference,
+                                @Size(max = 32) String registerCode,
+                                @NotBlank @Size(min = 3, max = 500) String reason) {}
+
     public enum PaymentMethod { CASH, CARD_EXTERNAL, TRANSFER }
+    public enum RefundMethod { CASH, CARD_EXTERNAL, TRANSFER }
 }
 
 @Service
@@ -153,6 +174,97 @@ class PaymentService {
         return receipt(paymentId, false);
     }
 
+    @Transactional
+    RefundReceipt recordRefund(UUID actor, UUID requestId, UUID accountId, UUID paymentId, UUID idempotencyKey,
+                               PaymentController.RefundRequest request) {
+        BigDecimal amount = money(request.amount() == null ? BigDecimal.ZERO : request.amount(), "monto devuelto");
+        BigDecimal tip = money(request.tipAmount() == null ? BigDecimal.ZERO : request.tipAmount(), "propina devuelta");
+        if (amount.signum() < 0 || tip.signum() < 0 || amount.add(tip).signum() <= 0)
+            throw new AuthException(422, "Indica un monto de venta o propina mayor a cero.");
+        String reason = request.reason().trim();
+        String reference = clean(request.reference());
+        String register = request.registerCode() == null || request.registerCode().isBlank()
+                ? "MAIN" : request.registerCode().trim().toUpperCase(Locale.ROOT);
+        String hash = fingerprint(accountId.toString(), paymentId.toString(), amount.toPlainString(), tip.toPlainString(),
+                request.method().name(), reference, register, reason);
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "PAYMENT_REFUND_RECORDED",
+                idempotencyKey, hash);
+        if (claim.replay()) return refundReceipt(claim.resourceId(), true);
+
+        Account account = lockAccount(accountId);
+        List<RefundablePayment> locked = jdbc.query("""
+            SELECT id, account_id, cash_session_id, amount, tip_amount, method, status
+            FROM wok.payments WHERE id = ? AND account_id = ? FOR UPDATE
+            """, (rs, row) -> new RefundablePayment(rs.getObject("id", UUID.class),
+                rs.getObject("account_id", UUID.class), rs.getObject("cash_session_id", UUID.class),
+                rs.getBigDecimal("amount"), rs.getBigDecimal("tip_amount"), rs.getString("method"),
+                rs.getString("status")), paymentId, accountId);
+        if (locked.isEmpty()) throw new AuthException(404, "No encontramos el pago.");
+        RefundablePayment payment = locked.getFirst();
+        if ("VOIDED".equals(payment.status()) || "REFUNDED".equals(payment.status()))
+            throw new AuthException(409, "El pago ya fue anulado o reembolsado completamente.");
+        if ("CASH".equals(payment.method()) && request.method() != PaymentController.RefundMethod.CASH)
+            throw new AuthException(422, "Un pago en efectivo debe devolverse en efectivo.");
+        if ((request.method() == PaymentController.RefundMethod.CARD_EXTERNAL
+                || request.method() == PaymentController.RefundMethod.TRANSFER) && reference == null)
+            throw new AuthException(422, "Registra la referencia del reembolso procesado manualmente.");
+        BigDecimal[] refunded = refundTotals(paymentId);
+        BigDecimal refundableAmount = payment.amount().subtract(refunded[0]);
+        BigDecimal refundableTip = payment.tipAmount().subtract(refunded[1]);
+        if (amount.compareTo(refundableAmount) > 0 || tip.compareTo(refundableTip) > 0)
+            throw new AuthException(422, "El reembolso supera el saldo disponible del pago o de la propina.");
+
+        UUID cashSessionId = null;
+        if (request.method() == PaymentController.RefundMethod.CASH) {
+            cashSessionId = currentRefundCashSession(register);
+            if (cashSessionId == null)
+                throw new AuthException(409, "Abre la caja antes de registrar una devolución en efectivo.");
+        }
+        UUID refundId = UUID.randomUUID();
+        BigDecimal refundTotal = amount.add(tip);
+        jdbc.update("""
+            INSERT INTO wok.payment_refunds
+                (id, payment_id, cash_session_id, refund_amount, tip_refund_amount, refund_method,
+                 reference, reason, recorded_by, request_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, refundId, paymentId, cashSessionId, amount, tip, request.method().name(), reference,
+                reason, actor, requestId);
+        UUID cashMovementId = null;
+        if (cashSessionId != null) {
+            cashMovementId = jdbc.queryForObject("""
+                INSERT INTO wok.cash_movements
+                    (cash_session_id, movement_type, amount_delta, refund_id, reason, responsible_user_id, request_id)
+                VALUES (?, 'REFUND', ?, ?, ?, ?, ?) RETURNING id
+                """, UUID.class, cashSessionId, refundTotal.negate(), refundId,
+                "Devolución de pago: " + reason, actor, requestId);
+        }
+
+        BigDecimal refundedPrincipal = refunded[0].add(amount);
+        BigDecimal refundedTip = refunded[1].add(tip);
+        String nextPaymentStatus = refundedPrincipal.compareTo(payment.amount()) == 0
+                && refundedTip.compareTo(payment.tipAmount()) == 0 ? "REFUNDED" : "PARTIALLY_REFUNDED";
+        jdbc.update("UPDATE wok.payments SET status = ? WHERE id = ?", nextPaymentStatus, paymentId);
+        Billing billing = billing(accountId);
+        BigDecimal previouslyPaid = previouslyPaid(accountId);
+        BigDecimal remaining = billing.total().subtract(previouslyPaid);
+        if (remaining.signum() > 0 && "PAID".equals(account.status())) {
+            jdbc.update("""
+                UPDATE wok.order_accounts SET status = 'OPEN', updated_at = now(), updated_by = ?,
+                    row_version = row_version + 1 WHERE id = ? AND status = 'PAID'
+                """, actor, accountId);
+        }
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, reason, result, request_id)
+            VALUES (?, 'PAYMENT_REFUND_RECORDED', 'PAYMENT_REFUND', ?,
+                    jsonb_build_object('paymentId', ?, 'amount', ?, 'tipAmount', ?, 'method', ?,
+                                       'status', 'RECORDED_MANUALLY', 'remainingBalance', ?),
+                    ?, 'SUCCESS', ?)
+            """, actor, refundId, paymentId, amount, tip, request.method().name(), remaining, reason, requestId);
+        idempotency.complete(actor.toString(), "PAYMENT_REFUND_RECORDED", idempotencyKey, refundId);
+        return refundReceipt(refundId, false);
+    }
+
     private Account lockAccount(UUID accountId) {
         List<Account> rows = jdbc.query("""
             SELECT id, name, status FROM wok.order_accounts WHERE id = ? FOR UPDATE
@@ -179,8 +291,13 @@ class PaymentService {
 
     private BigDecimal previouslyPaid(UUID accountId) {
         BigDecimal paid = jdbc.queryForObject("""
-            SELECT COALESCE(SUM(amount), 0) FROM wok.payments
-            WHERE account_id = ? AND status = 'CAPTURED'
+            SELECT COALESCE(SUM(p.amount - COALESCE(refunds.amount, 0)), 0)
+            FROM wok.payments p
+            LEFT JOIN LATERAL (
+                SELECT SUM(refund_amount) AS amount FROM wok.payment_refunds
+                WHERE payment_id = p.id AND status = 'RECORDED_MANUALLY'
+            ) refunds ON true
+            WHERE p.account_id = ? AND p.status <> 'VOIDED'
             """, BigDecimal.class, accountId);
         return paid == null ? BigDecimal.ZERO : paid;
     }
@@ -202,8 +319,16 @@ class PaymentService {
                    c.code AS currency_code, a.status AS account_status, m.id AS cash_movement_id,
                    (SELECT COALESCE(SUM(o.total), 0) FROM wok.orders o
                      WHERE o.account_id = p.account_id AND o.status <> 'CANCELLED')
-                   - (SELECT COALESCE(SUM(pay.amount), 0) FROM wok.payments pay
-                       WHERE pay.account_id = p.account_id AND pay.status = 'CAPTURED') AS balance
+                   - (SELECT COALESCE(SUM(pay.amount - COALESCE(refunds.amount, 0)), 0)
+                      FROM wok.payments pay LEFT JOIN LATERAL (
+                        SELECT SUM(refund_amount) AS amount FROM wok.payment_refunds
+                        WHERE payment_id = pay.id AND status = 'RECORDED_MANUALLY'
+                      ) refunds ON true
+                      WHERE pay.account_id = p.account_id AND pay.status <> 'VOIDED') AS balance,
+                   COALESCE((SELECT SUM(refund_amount) FROM wok.payment_refunds
+                             WHERE payment_id = p.id AND status = 'RECORDED_MANUALLY'), 0) AS refunded_amount,
+                   COALESCE((SELECT SUM(tip_refund_amount) FROM wok.payment_refunds
+                             WHERE payment_id = p.id AND status = 'RECORDED_MANUALLY'), 0) AS refunded_tip_amount
             FROM wok.payments p
             JOIN wok.currencies c ON c.id = p.currency_id
             JOIN wok.order_accounts a ON a.id = p.account_id
@@ -213,7 +338,8 @@ class PaymentService {
                 rs.getObject("account_id", UUID.class), rs.getString("account_status"),
                 rs.getBigDecimal("amount"), rs.getBigDecimal("tip_amount"), rs.getString("currency_code"),
                 rs.getString("method"), rs.getString("status"), rs.getString("reference"), rs.getBigDecimal("balance"),
-                rs.getObject("cash_session_id", UUID.class), rs.getObject("cash_movement_id", UUID.class), replay),
+                rs.getObject("cash_session_id", UUID.class), rs.getObject("cash_movement_id", UUID.class),
+                rs.getBigDecimal("refunded_amount"), rs.getBigDecimal("refunded_tip_amount"), replay),
             paymentId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos el pago.");
         return rows.getFirst();
@@ -229,12 +355,70 @@ class PaymentService {
         }
     }
 
+    private UUID currentRefundCashSession(String registerCode) {
+        List<UUID> ids = jdbc.query("""
+            SELECT s.id FROM wok.cash_sessions s
+            JOIN wok.cash_registers r ON r.id = s.cash_register_id
+            WHERE r.code = ? AND r.active = true AND s.status = 'OPEN'
+            ORDER BY s.opened_at DESC LIMIT 1 FOR UPDATE OF s
+            """, (rs, row) -> rs.getObject(1, UUID.class), registerCode);
+        return ids.isEmpty() ? null : ids.getFirst();
+    }
+
+    private BigDecimal[] refundTotals(UUID paymentId) {
+        return jdbc.queryForObject("""
+            SELECT COALESCE(SUM(refund_amount), 0), COALESCE(SUM(tip_refund_amount), 0)
+            FROM wok.payment_refunds WHERE payment_id = ? AND status = 'RECORDED_MANUALLY'
+            """, (rs, row) -> new BigDecimal[] {rs.getBigDecimal(1), rs.getBigDecimal(2)}, paymentId);
+    }
+
+    private RefundReceipt refundReceipt(UUID refundId, boolean replay) {
+        List<RefundReceipt> rows = jdbc.query("""
+            SELECT r.id, r.payment_id, r.refund_amount, r.tip_refund_amount, r.refund_method, r.status,
+                   r.reference, r.cash_session_id, p.account_id, a.status AS account_status,
+                   (SELECT id FROM wok.cash_movements WHERE refund_id = r.id) AS cash_movement_id,
+                   (SELECT COALESCE(SUM(o.total), 0) FROM wok.orders o
+                    WHERE o.account_id = p.account_id AND o.status <> 'CANCELLED')
+                   - (SELECT COALESCE(SUM(pay.amount - COALESCE(refunds.amount, 0)), 0)
+                      FROM wok.payments pay LEFT JOIN LATERAL (
+                        SELECT SUM(refund_amount) AS amount FROM wok.payment_refunds
+                        WHERE payment_id = pay.id AND status = 'RECORDED_MANUALLY'
+                      ) refunds ON true
+                      WHERE pay.account_id = p.account_id AND pay.status <> 'VOIDED') AS balance
+            FROM wok.payment_refunds r JOIN wok.payments p ON p.id = r.payment_id
+            JOIN wok.order_accounts a ON a.id = p.account_id
+            WHERE r.id = ?
+            """, (rs, row) -> new RefundReceipt(rs.getObject("id", UUID.class),
+                rs.getObject("payment_id", UUID.class), rs.getObject("account_id", UUID.class),
+                rs.getString("account_status"), rs.getBigDecimal("refund_amount"),
+                rs.getBigDecimal("tip_refund_amount"), rs.getString("refund_method"), rs.getString("status"),
+                rs.getString("reference"), rs.getBigDecimal("balance"), rs.getObject("cash_session_id", UUID.class),
+                rs.getObject("cash_movement_id", UUID.class), replay), refundId);
+        if (rows.isEmpty()) throw new AuthException(404, "No encontramos el reembolso registrado.");
+        return rows.getFirst();
+    }
+
+    private BigDecimal money(BigDecimal value, String label) {
+        try { return value.setScale(2, java.math.RoundingMode.UNNECESSARY); }
+        catch (ArithmeticException invalidScale) { throw new AuthException(422, "El " + label + " admite hasta dos decimales."); }
+    }
+
+    private String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
+
     private record Account(UUID id, String name, String status) {}
+
+    private record RefundablePayment(UUID id, UUID accountId, UUID cashSessionId, BigDecimal amount,
+                                     BigDecimal tipAmount, String method, String status) {}
 
     private record Billing(BigDecimal total, int orderCount, int openCount, int currencyCount,
                            UUID currencyId) {}
 
     public record PaymentReceipt(UUID paymentId, UUID accountId, String accountStatus, BigDecimal amount,
                                  BigDecimal tipAmount, String currency, String method, String status, String reference,
-                                 BigDecimal balance, UUID cashSessionId, UUID cashMovementId, boolean idempotentReplay) {}
+                                 BigDecimal balance, UUID cashSessionId, UUID cashMovementId,
+                                 BigDecimal refundedAmount, BigDecimal refundedTipAmount, boolean idempotentReplay) {}
+    public record RefundReceipt(UUID refundId, UUID paymentId, UUID accountId, String accountStatus,
+                                BigDecimal amount, BigDecimal tipAmount, String method, String status,
+                                String reference, BigDecimal balance, UUID cashSessionId,
+                                UUID cashMovementId, boolean idempotentReplay) {}
 }

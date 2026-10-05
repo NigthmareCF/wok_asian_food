@@ -295,19 +295,21 @@ class CashSessionService {
               COALESCE(SUM(amount_delta) FILTER (WHERE movement_type = 'INCOME'), 0),
               COALESCE(SUM(amount_delta) FILTER (WHERE movement_type = 'EXPENSE'), 0),
               COALESCE(SUM(amount_delta) FILTER (WHERE movement_type = 'WITHDRAWAL'), 0),
+              COALESCE(ABS(SUM(amount_delta) FILTER (WHERE movement_type = 'REFUND')), 0),
               COALESCE(SUM(amount_delta), 0)
             FROM wok.cash_movements WHERE cash_session_id = ?
             """, (rs, row) -> new BigDecimal[] {rs.getBigDecimal(1), rs.getBigDecimal(2), rs.getBigDecimal(3),
-                rs.getBigDecimal(4), rs.getBigDecimal(5), rs.getBigDecimal(6)}, sessionId);
+                rs.getBigDecimal(4), rs.getBigDecimal(5), rs.getBigDecimal(6), rs.getBigDecimal(7)}, sessionId);
         BigDecimal tips = cashTips(sessionId);
         return new CashBreakdown(totals[0], totals[1], tips, totals[2].subtract(tips), totals[3].abs(),
-                totals[4].abs(), totals[5]);
+                totals[4].abs(), totals[5], totals[6]);
     }
 
     private BigDecimal cashTips(UUID sessionId) {
         BigDecimal tips = jdbc.queryForObject("""
-            SELECT COALESCE(SUM(tip_amount), 0) FROM wok.payments
-            WHERE cash_session_id = ? AND status = 'CAPTURED'
+            SELECT COALESCE(SUM(p.tip_amount), 0)
+            FROM wok.payments p
+            WHERE p.cash_session_id = ? AND p.status <> 'VOIDED'
             """, BigDecimal.class, sessionId);
         return tips == null ? BigDecimal.ZERO : tips;
     }
@@ -382,7 +384,8 @@ class CashSessionService {
                                UUID responsibleUserId, Instant occurredAt) {}
 
     public record CashBreakdown(BigDecimal opening, BigDecimal sales, BigDecimal tips, BigDecimal otherIncome,
-                                BigDecimal expenses, BigDecimal withdrawals, BigDecimal expectedCash) {}
+                                BigDecimal expenses, BigDecimal withdrawals, BigDecimal refunds,
+                                BigDecimal expectedCash) {}
 
     public record Reconciliation(UUID id, BigDecimal expectedCash, BigDecimal countedCash, BigDecimal difference,
                                  boolean isFinal, String notes, Instant countedAt) {}
