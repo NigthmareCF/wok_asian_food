@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 @RestController
 final class ClientApiController {
@@ -36,6 +37,10 @@ final class ClientApiController {
                 JsonNode parsed = json.readTree(body);
                 if (parsed == null || !parsed.isObject()) throw new BffFailure(400);
                 if (path.endsWith("/messages")) validateMessage(parsed);
+                if (path.equals("/api/v1/auth/login")) {
+                    ((ObjectNode) parsed).put("clientType", "MOBILE");
+                    body = json.writeValueAsBytes(parsed);
+                }
             } catch (BffFailure failure) { throw failure; }
             catch (RuntimeException malformed) { throw new BffFailure(400); }
         } else if (request.getMethod().equals("PUT") || (request.getMethod().equals("POST")
@@ -61,10 +66,42 @@ final class ClientApiController {
                     key, body, (String) request.getAttribute("bff.requestId"), request.getRemoteAddr());
         }
         byte[] result = reply.body();
+        if (path.equals("/api/v1/auth/login") || path.equals("/api/v1/auth/refresh")) {
+            requireClientTokens(reply, request);
+        }
         if (result.length > 0 && path.startsWith("/api/v1/client/conversations")) {
             result = humanOnly(path, json.readTree(result));
         }
         return ResponseEntity.status(reply.status()).contentType(MediaType.APPLICATION_JSON).body(result);
+    }
+
+    private void requireClientTokens(CoreApiClient.Reply reply, HttpServletRequest request) {
+        String accessToken;
+        try {
+            JsonNode tokens = json.readTree(reply.body());
+            accessToken = tokens.path("accessToken").asString("");
+            if (reply.status() != 200 || !tokens.path("accessToken").isString()
+                    || !accessToken.matches("[A-Za-z0-9._~-]{1,8192}")
+                    || !tokens.path("refreshToken").isString() || tokens.path("refreshToken").asString("").isBlank()
+                    || !"Bearer".equalsIgnoreCase(tokens.path("tokenType").asString(""))
+                    || tokens.path("expiresInSeconds").asLong(0) <= 0) throw new BffFailure(503);
+        } catch (BffFailure failure) { throw failure; }
+        catch (RuntimeException invalidResponse) { throw new BffFailure(503); }
+        // Do not issue a mobile session until Core has checked active status and CLIENT authorization.
+        try {
+            var profile = core.exchange("GET", "/api/v1/client/profile", "Bearer " + accessToken, null,
+                    new byte[0], (String) request.getAttribute("bff.requestId"), request.getRemoteAddr());
+            if (profile.status() != 200) throw new BffFailure(503);
+            UUID.fromString(json.readTree(profile.body()).path("userId").asString(""));
+        } catch (RuntimeException denied) {
+            // The caller never received these tokens. Revoke only the newly issued session, best effort.
+            try {
+                core.exchange("POST", "/api/v1/auth/logout", "Bearer " + accessToken, null,
+                        new byte[0], (String) request.getAttribute("bff.requestId"), request.getRemoteAddr());
+            } catch (BffFailure unavailable) { /* Preserve the original denial without exposing tokens. */ }
+            if (denied instanceof BffFailure failure) throw failure;
+            throw new BffFailure(503);
+        }
     }
 
     private void validateMessage(JsonNode node) {

@@ -1,4 +1,4 @@
-import { PropsWithChildren } from "react";
+import { PropsWithChildren, Ref } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps, View, ViewProps, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getThemeColors } from "@/theme/colors";
@@ -56,10 +56,10 @@ export function Button({ title, onPress, secondary = false, disabled = false, bu
   </Pressable>;
 }
 
-export function Field({ label, className = "", style, ...props }: TextInputProps & { label: string }) {
+export function Field({ label, className = "", style, ref, ...props }: TextInputProps & { label: string; ref?: Ref<TextInput> }) {
   return <View className="gap-2">
     <Text className="font-sans text-sm font-bold text-foreground">{label}</Text>
-    <TextInput {...props} accessibilityLabel={props.accessibilityLabel ?? label}
+    <TextInput ref={ref} {...props} accessibilityLabel={props.accessibilityLabel ?? label}
       className={`min-h-12 rounded-md border border-border bg-surface-elevated px-3 py-3 font-sans text-base text-foreground placeholder:text-subtle-foreground focus:border-ring ${props.multiline ? "min-h-28" : ""} ${className}`} style={style} />
   </View>;
 }

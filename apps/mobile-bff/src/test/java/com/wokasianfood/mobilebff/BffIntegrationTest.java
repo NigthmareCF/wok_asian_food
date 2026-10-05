@@ -48,6 +48,74 @@ class BffIntegrationTest {
     @AfterAll static void stopCore() { core.stop(0); }
 
     @Test
+    void loginForcesMobileAndChecksClientBeforeReturningTokens() throws Exception {
+        String tokens = "{\"accessToken\":\"issued-access\",\"refreshToken\":\"issued-refresh\",\"tokenType\":\"Bearer\",\"expiresInSeconds\":900}";
+        responses.put("POST /api/v1/auth/login", new Stub(200, tokens));
+        var response = send("POST", "/api/v1/auth/login", null, null,
+                "{\"email\":\"client@example.com\",\"password\":\"test\",\"clientType\":\"WEB\"}");
+        assertEquals(200, response.statusCode());
+        assertEquals(tokens, response.body());
+        assertTrue(received.getFirst().body().contains("\"clientType\":\"MOBILE\""));
+        assertEquals("Bearer issued-access", received.getLast().authorization());
+        assertEquals("GET /api/v1/client/profile", received.getLast().route());
+    }
+
+    @Test
+    void loginAndRefreshDoNotExposeNonClientTokens() throws Exception {
+        String tokens = "{\"accessToken\":\"issued-access\",\"refreshToken\":\"issued-refresh\",\"tokenType\":\"Bearer\",\"expiresInSeconds\":900}";
+        responses.put("GET /api/v1/client/profile", new Stub(403, "{\"trace\":\"private\"}"));
+        for (String endpoint : List.of("login", "refresh")) {
+            received.clear();
+            responses.put("POST /api/v1/auth/" + endpoint, new Stub(200, tokens));
+            var response = send("POST", "/api/v1/auth/" + endpoint, null, null, "{}");
+            assertEquals(403, response.statusCode());
+            assertFalse(response.body().contains("issued-access"));
+            assertFalse(response.body().contains("issued-refresh"));
+            assertEquals("POST /api/v1/auth/logout", received.getLast().route());
+            assertEquals("Bearer issued-access", received.getLast().authorization());
+        }
+    }
+
+    @Test
+    void googleAndMalformedTokensRemainUnavailable() throws Exception {
+        assertEquals(404, send("POST", "/api/v1/auth/google", null, null, "{}").statusCode());
+        assertTrue(received.isEmpty());
+        responses.put("POST /api/v1/auth/refresh", new Stub(200, "{}"));
+        assertEquals(503, send("POST", "/api/v1/auth/refresh", null, null, "{}").statusCode());
+        assertEquals(1, received.size());
+    }
+
+    @Test
+    void identityCodesKeepNeutralResponsesAndDoNotForwardCredentials() throws Exception {
+        String neutral = "{\"message\":\"Si la cuenta puede registrarse, recibirás un código de verificación.\"}";
+        for (String endpoint : List.of("register", "verify/resend", "reset/request")) {
+            received.clear();
+            responses.put("POST /api/v1/auth/" + endpoint, new Stub(202, neutral));
+            var response = send("POST", "/api/v1/auth/" + endpoint, "Bearer ignored", null, "{\"email\":\"client@example.com\"}");
+            assertEquals(202, response.statusCode());
+            assertEquals(neutral, response.body());
+            assertNull(received.getFirst().authorization());
+            assertNull(received.getFirst().cookie());
+        }
+        for (String endpoint : List.of("verify", "reset/complete")) {
+            responses.put("POST /api/v1/auth/" + endpoint, new Stub(400, "{\"trace\":\"invalid-private-code\"}"));
+            var response = send("POST", "/api/v1/auth/" + endpoint, null, null, "{}");
+            assertEquals(400, response.statusCode());
+            assertFalse(response.body().contains("invalid-private-code"));
+        }
+    }
+
+    @Test
+    void clientProfileUpdatesPreserveOptimisticVersionAndCoreConflict() throws Exception {
+        String body = "{\"displayName\":\"Ana\",\"phone\":\"\",\"expectedVersion\":2}";
+        responses.put("PUT /api/v1/client/profile", new Stub(409, "{\"trace\":\"private-version\"}"));
+        var response = send("PUT", "/api/v1/client/profile", "Bearer test-client", null, body);
+        assertEquals(409, response.statusCode());
+        assertEquals(body, received.getLast().body());
+        assertFalse(response.body().contains("private-version"));
+    }
+
+    @Test
     void healthDoesNotRequireCoreOrDatabase() throws Exception {
         assertEquals(200, send("GET", "/actuator/health", null, null, "").statusCode());
         assertTrue(received.isEmpty());

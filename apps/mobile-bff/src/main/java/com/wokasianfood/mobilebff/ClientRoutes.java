@@ -12,7 +12,7 @@ final class ClientRoutes {
 
     ClientRoutes() {
         add("GET", "/api/v1/public/(menu|service-capabilities)", true, false);
-        add("POST", "/api/v1/auth/(register|verify|verify/resend|login|refresh|reset/request|reset/complete|google)", true, false);
+        add("POST", "/api/v1/auth/(register|verify|verify/resend|login|refresh|reset/request|reset/complete)", true, false);
         add("GET", "/api/v1/auth/me", false, false);
         add("POST", "/api/v1/auth/logout", false, false);
         add("GET", "/api/v1/client/(profile|sessions|order-requests|reservations|conversations)", false, false);
