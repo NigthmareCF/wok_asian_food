@@ -6,6 +6,7 @@ import { ApiError, ClientProfile, ClientSession } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
 import { isValidEmail, normalizeEmail } from "@/lib/email-validation";
+import { isValidNewPassword } from "@/lib/password-validation";
 
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
 
@@ -75,6 +76,13 @@ function AccountContent() {
     const normalizedEmail = normalizeEmail(email);
     if (!isValidEmail(normalizedEmail)) {
       setError("Ingresa un correo electrónico válido, por ejemplo nombre@dominio.com.");
+      setMessage("");
+      return;
+    }
+    if ((mode === "register" || mode === "reset-complete") && !isValidNewPassword(password)) {
+      setError(password.length > 128
+        ? "La contraseña nueva no puede superar 128 caracteres."
+        : "La contraseña nueva debe tener al menos 12 caracteres.");
       setMessage("");
       return;
     }
@@ -160,11 +168,11 @@ function AccountContent() {
       <Field label="Correo electrónico" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
       {email.length > 0 && !isValidEmail(email) ? <Notice tone="error">Ingresa un correo válido, por ejemplo nombre@dominio.com.</Notice> : null}
       {mode === "register" ? <Field label="Nombre" value={name} onChangeText={setName} autoComplete="name" /> : null}
-      {mode === "login" || mode === "register" || mode === "reset-complete" ? <Field label={mode === "reset-complete" ? "Contraseña nueva" : "Contraseña"} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === "login" ? "current-password" : "new-password"} /> : null}
+      {mode === "login" || mode === "register" || mode === "reset-complete" ? <Field label={mode === "reset-complete" ? "Contraseña nueva" : "Contraseña"} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === "login" ? "current-password" : "new-password"} maxLength={mode === "login" ? undefined : 128} /> : null}
       {mode === "verify" || mode === "reset-complete" ? <Field label="Código de 6 dígitos" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} /> : null}
       {message ? <Notice tone="success">{message}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
-      {mode === "register" || mode === "reset-complete" ? <Text style={ui.body}>La contraseña debe tener al menos 12 caracteres.</Text> : null}
+      {mode === "register" || mode === "reset-complete" ? <Text style={ui.body}>La contraseña debe tener entre 12 y 128 caracteres.</Text> : null}
       <Button title={submitTitle[mode]} onPress={() => void submit()} busy={busy} />
       {mode === "verify" ? <Button title="Reenviar código" secondary busy={busy} onPress={() => void run(async () => {
         setMessage(await resendVerification(email.trim()));
