@@ -181,7 +181,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   async function cancelRequest(requestId: string) {
     setCancelling(requestId); setError("");
     try {
-      await request(`/api/v1/client/order-requests/${requestId}`, { method: "DELETE" });
+      await request(`/api/v1/client/delivery-requests/${requestId}`, { method: "DELETE" });
       setHistory((current) => current.map((item) => item.requestId === requestId ? { ...item, status: "CANCELLED" } : item));
       setNotice("La solicitud pendiente quedó cancelada. No se había aceptado ni cobrado.");
     } catch (cause) { setError(cause instanceof ApiError ? cause.message : "No pudimos cancelar la solicitud."); }

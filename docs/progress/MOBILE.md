@@ -277,3 +277,9 @@
 - `Mi cuenta` ahora valida el formato antes de login, registro, verificación y solicitud/completado de recuperación de contraseña; quita espacios externos antes de llamar los métodos de sesión y muestra el error junto al campo.
 - La validación compartida limita longitud total/local/domain, exige dominio con TLD y rechaza segmentos de dominio malformados. El backend mantiene su propia validación autoritativa.
 - Verificación: Vitest 23/23, ESLint y TypeScript aprobados; export Expo Android y Web completados. No es build instalable ni prueba física.
+
+## 2026-10-04 — Cancelación delivery por endpoint de modalidad
+
+- La acción para cancelar una solicitud delivery pendiente ahora llama `DELETE /api/v1/client/delivery-requests/{requestId}`. Antes usaba la ruta pickup por error; backend/app quedan alineados con rutas específicas por modalidad.
+- La app sólo marca cancelada la solicitud después de una respuesta exitosa del servidor; si el pedido fue aceptado o hubo conflicto, conserva el estado y muestra error.
+- Verificación: Vitest 23/23, ESLint, TypeScript y export Expo Android/Web. Prueba backend `ClientDeliveryCancellationIntegrationTest` 4/4 y suite completa 198/198 con PostgreSQL 18/Testcontainers.
