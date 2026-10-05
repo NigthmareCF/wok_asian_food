@@ -5,6 +5,7 @@ import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/compo
 import { ApiError, ClientProfile, ClientSession } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
+import { isValidEmail, normalizeEmail } from "@/lib/email-validation";
 
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
 
@@ -71,20 +72,26 @@ function AccountContent() {
   }
 
   async function submit() {
-    if (mode === "login") return run(() => login(email.trim(), password));
+    const normalizedEmail = normalizeEmail(email);
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Ingresa un correo electrónico válido, por ejemplo nombre@dominio.com.");
+      setMessage("");
+      return;
+    }
+    if (mode === "login") return run(() => login(normalizedEmail, password));
     if (mode === "register") return run(async () => {
-      const result = await register(email.trim(), name.trim(), password);
+      const result = await register(normalizedEmail, name.trim(), password);
       setMessage(result); setMode("verify");
     });
     if (mode === "verify") return run(async () => {
-      await verify(email.trim(), code.trim()); setMessage("Cuenta verificada. Ahora inicia sesión."); setMode("login"); setPassword("");
+      await verify(normalizedEmail, code.trim()); setMessage("Cuenta verificada. Ahora inicia sesión."); setMode("login"); setPassword("");
     });
     if (mode === "reset-request") return run(async () => {
-      const result = await requestPasswordReset(email.trim());
+      const result = await requestPasswordReset(normalizedEmail);
       setMessage(result); setMode("reset-complete");
     });
     return run(async () => {
-      const result = await completePasswordReset(email.trim(), code.trim(), password);
+      const result = await completePasswordReset(normalizedEmail, code.trim(), password);
       setMessage(result); setMode("login"); setCode(""); setPassword("");
     });
   }
@@ -151,6 +158,7 @@ function AccountContent() {
       : "Usa una cuenta Cliente de WOK. Las cuentas nuevas necesitan verificación por correo."}</Text>
     <Card>
       <Field label="Correo electrónico" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+      {email.length > 0 && !isValidEmail(email) ? <Notice tone="error">Ingresa un correo válido, por ejemplo nombre@dominio.com.</Notice> : null}
       {mode === "register" ? <Field label="Nombre" value={name} onChangeText={setName} autoComplete="name" /> : null}
       {mode === "login" || mode === "register" || mode === "reset-complete" ? <Field label={mode === "reset-complete" ? "Contraseña nueva" : "Contraseña"} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === "login" ? "current-password" : "new-password"} /> : null}
       {mode === "verify" || mode === "reset-complete" ? <Field label="Código de 6 dígitos" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} /> : null}

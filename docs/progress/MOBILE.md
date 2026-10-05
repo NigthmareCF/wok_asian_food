@@ -271,3 +271,9 @@
 - En pedidos delivery aceptados con preferencia de pago online, Cliente puede solicitar o recuperar el estado de un intento. La tarjeta muestra el estado, monto/moneda y el mensaje devuelto por el backend; deja claro que el adaptador es mock y no procesa ni confirma cobros.
 - El cliente envía una clave idempotente; el backend también converge claves nuevas sobre el único intento activo del pedido, por lo que un timeout seguido de reintento no crea un segundo intento. No se capturan ni almacenan datos de tarjeta.
 - Verificación: Vitest 8/8, ESLint, TypeScript `--noEmit` y export Expo Android/Web completados. Los exports no sustituyen build instalable ni prueba física.
+
+## 2026-10-04 — Validación de correo antes de acciones de cuenta
+
+- `Mi cuenta` ahora valida el formato antes de login, registro, verificación y solicitud/completado de recuperación de contraseña; quita espacios externos antes de llamar los métodos de sesión y muestra el error junto al campo.
+- La validación compartida limita longitud total/local/domain, exige dominio con TLD y rechaza segmentos de dominio malformados. El backend mantiene su propia validación autoritativa.
+- Verificación: Vitest 23/23, ESLint y TypeScript aprobados; export Expo Android y Web completados. No es build instalable ni prueba física.
