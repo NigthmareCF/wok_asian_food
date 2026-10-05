@@ -38,8 +38,10 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
                 "{\"reason\":\"Quiero cancelarlo\"}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(otherClient.statusCode()).isEqualTo(404);
 
-        JsonNode approved = body(patch("/api/v1/operational/order-change-requests/" + changeId,
-                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}"));
+        String decisionBody = "{\"decision\":\"APPROVE\",\"expectedVersion\":1}";
+        Map<String, String> decisionHeaders = Map.of("Idempotency-Key", UUID.randomUUID().toString());
+        String decisionPath = "/api/v1/operational/order-change-requests/" + changeId;
+        JsonNode approved = body(patch(decisionPath, order.operatorToken(), decisionBody, decisionHeaders));
         assertThat(approved.path("status").asText()).isEqualTo("APPROVED");
         assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, order.orderId()))
                 .isEqualTo("CANCELLED");
@@ -47,6 +49,12 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
                 Integer.class, order.orderId())).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_change_request_events WHERE order_change_request_id = ?",
                 Integer.class, changeId)).isEqualTo(2);
+
+        JsonNode decisionReplay = body(patch(decisionPath, order.operatorToken(), decisionBody, decisionHeaders));
+        assertThat(decisionReplay.path("status").asText()).isEqualTo("APPROVED");
+        assertThat(decisionReplay.path("version").asInt()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_status_history WHERE order_id = ? AND to_status = 'CANCELLED'",
+                Integer.class, order.orderId())).isEqualTo(1);
     }
 
     @Test
@@ -61,7 +69,8 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
                 order.accountId(), new BigDecimal("25.00"), currencyId, UUID.fromString(order.operatorSubject()));
 
         HttpResponse<String> response = patch("/api/v1/operational/order-change-requests/" + changeId,
-                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}");
+                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(response.statusCode()).isEqualTo(409);
         assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, order.orderId())).isEqualTo("SENT");
         assertThat(jdbc.queryForObject("SELECT status FROM wok.order_change_requests WHERE id = ?", String.class, changeId))
@@ -77,7 +86,8 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
         UUID changeId = UUID.fromString(submitted.path("id").asText());
 
         HttpResponse<String> missingReason = patch("/api/v1/operational/order-change-requests/" + changeId,
-                order.operatorToken(), "{\"decision\":\"REJECT\",\"expectedVersion\":1}");
+                order.operatorToken(), "{\"decision\":\"REJECT\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(missingReason.statusCode()).isEqualTo(422);
         assertThat(jdbc.queryForObject("SELECT status FROM wok.order_change_requests WHERE id = ?", String.class, changeId))
                 .isEqualTo("PENDING_REVIEW");
@@ -85,7 +95,8 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
         body(patch("/api/v1/operational/orders/" + order.orderId() + "/status", order.operatorToken(),
                 "{\"status\":\"PREPARING\",\"expectedVersion\":" + order.orderVersion() + "}"));
         HttpResponse<String> staleApproval = patch("/api/v1/operational/order-change-requests/" + changeId,
-                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}");
+                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(staleApproval.statusCode()).isEqualTo(409);
         assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, order.orderId()))
                 .isEqualTo("PREPARING");

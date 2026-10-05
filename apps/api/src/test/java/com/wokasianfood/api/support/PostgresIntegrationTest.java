@@ -106,6 +106,10 @@ public abstract class PostgresIntegrationTest {
         return send("PATCH", path, token, body, Map.of());
     }
 
+    protected HttpResponse<String> patch(String path, String token, String body, Map<String, String> headers) {
+        return send("PATCH", path, token, body, headers);
+    }
+
     protected HttpResponse<String> send(String method, String path, String token, String body,
                                         Map<String, String> headers) {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(baseUrl() + path));

@@ -76,10 +76,11 @@ public class ClientOrderChangeController {
         @PatchMapping("/{changeRequestId}")
         public OrderChangeReceipt decide(@AuthenticationPrincipal Jwt jwt,
                 @PathVariable UUID changeRequestId,
+                @RequestHeader("Idempotency-Key") UUID idempotencyKey,
                 @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
                 @Valid @RequestBody DecisionRequest request) {
             return changes.decide(UUID.fromString(jwt.getSubject()),
-                    requestId == null ? UUID.randomUUID() : requestId, changeRequestId, request);
+                    requestId == null ? UUID.randomUUID() : requestId, changeRequestId, idempotencyKey, request);
         }
     }
 
@@ -189,7 +190,14 @@ public class ClientOrderChangeController {
         }
 
         @Transactional
-        OrderChangeReceipt decide(UUID actor, UUID requestId, UUID changeRequestId, DecisionRequest request) {
+        OrderChangeReceipt decide(UUID actor, UUID requestId, UUID changeRequestId,
+                                  UUID idempotencyKey, DecisionRequest request) {
+            String reason = request.reason() == null ? "" : request.reason().trim();
+            String fingerprint = fingerprint(changeRequestId + "|" + request.decision() + "|"
+                    + request.expectedVersion() + "|" + reason);
+            IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "ORDER_CHANGE_DECIDED",
+                    idempotencyKey, fingerprint);
+            if (claim.replay()) return receipt(claim.resourceId());
             List<PendingChange> rows = jdbc.query("""
                 SELECT id, order_id, status, expected_order_version, row_version, request_type
                 FROM wok.order_change_requests WHERE id = ? FOR UPDATE
@@ -200,8 +208,8 @@ public class ClientOrderChangeController {
             PendingChange change = rows.getFirst();
             if (!"PENDING_REVIEW".equals(change.status())) throw new AuthException(409, "La solicitud ya fue resuelta.");
             if (request.expectedVersion() != change.version()) throw new AuthException(409, "La solicitud cambió. Actualiza la cola operativa.");
-            String reason = request.reason() == null || request.reason().isBlank() ? null : request.reason().trim();
-            if (request.decision() == Decision.REJECT && reason == null)
+            String decisionReason = reason.isBlank() ? null : reason;
+            if (request.decision() == Decision.REJECT && decisionReason == null)
                 throw new AuthException(422, "Indica el motivo para no aceptar la cancelación.");
 
             if (request.decision() == Decision.APPROVE) {
@@ -211,19 +219,20 @@ public class ClientOrderChangeController {
             jdbc.update("""
                 UPDATE wok.order_change_requests SET status = ?, decision_reason = ?, decided_by = ?, decided_at = now(),
                     updated_at = now(), row_version = row_version + 1 WHERE id = ? AND row_version = ?
-                """, nextStatus, reason, actor, changeRequestId, request.expectedVersion());
+                """, nextStatus, decisionReason, actor, changeRequestId, request.expectedVersion());
             jdbc.update("""
                 INSERT INTO wok.order_change_request_events
                     (order_change_request_id, event_type, actor_user_id, reason, request_id)
                 VALUES (?, ?, ?, ?, ?)
-                """, changeRequestId, nextStatus, actor, reason, requestId);
+                """, changeRequestId, nextStatus, actor, decisionReason, requestId);
             jdbc.update("""
                 INSERT INTO wok.audit_logs (actor_user_id, action, entity_type, entity_id, before_data,
                     after_data, reason, result, request_id)
                 VALUES (?, 'ORDER_CANCELLATION_DECIDED', 'ORDER_CHANGE_REQUEST', ?,
                     jsonb_build_object('status', 'PENDING_REVIEW', 'version', ?),
                     jsonb_build_object('status', ?, 'version', ?), ?, 'SUCCESS', ?)
-                """, actor, changeRequestId, change.version(), nextStatus, change.version() + 1, reason, requestId);
+                """, actor, changeRequestId, change.version(), nextStatus, change.version() + 1, decisionReason, requestId);
+            idempotency.complete(actor.toString(), "ORDER_CHANGE_DECIDED", idempotencyKey, changeRequestId);
             return receipt(changeRequestId);
         }
 

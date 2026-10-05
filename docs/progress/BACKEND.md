@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-05 — Decisión Operativa idempotente para solicitudes de cancelación
+
+- `PATCH /api/v1/operational/order-change-requests/{changeRequestId}` ahora requiere `Idempotency-Key`. El hash contempla la solicitud, decisión, versión esperada y motivo: reutilizar la clave con otro contenido produce conflicto; reintentar la misma decisión devuelve el recibo ya persistido y no vuelve a cancelar ni duplica eventos.
+- La clave se reclama y completa dentro de la misma transacción que la decisión y su auditoría; cualquier validación fallida revierte también el claim, permitiendo corregir y reintentar.
+- Se amplió `ClientOrderChangeRequestIntegrationTest` para cubrir replay tras aprobación, estado final/versionado y ausencia de una segunda transición de pedido. Compatibilidad de prueba se mantiene con un helper de PATCH que admite headers.
+- `bash ./mvnw -q -DargLine='-javaagent:/home/fer-cachy/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.11/byte-buddy-agent-1.18.11.jar' test`: 225 pruebas, 0 fallos, 0 errores, 96 omitidas por falta de acceso al socket de Docker en este entorno (Testcontainers/PostgreSQL, incluida la nueva prueba de integración). El primer intento sin javaagent falló al autoinyectar Mockito; el comando documentado con javaagent pasa.
+
 ## 2026-10-05 — Preorden real en solicitudes de reserva
 
 - `POST /api/v1/client/reservations` acepta hasta 20 productos publicados, cantidad y modificadores; valida nuevamente estado, visibilidad y reglas de opciones en servidor, y calcula el precio unitario autoritativo.
