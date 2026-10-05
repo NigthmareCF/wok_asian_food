@@ -39,6 +39,11 @@ function deliveryPaymentLabel(value: DeliveryRequestReceipt["paymentPreference"]
 }
 
 export default function PickupRequestsScreen() {
+  const { session } = useSession();
+  return <OrderHistory key={session?.email ?? "guest"} />;
+}
+
+function OrderHistory() {
   const { session, request } = useSession();
   const [requests, setRequests] = useState<PickupRequestState[]>([]);
   const [deliveryRequests, setDeliveryRequests] = useState<DeliveryRequestReceipt[]>([]);

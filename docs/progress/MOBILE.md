@@ -230,3 +230,8 @@
 - Al refrescar historial, la app muestra el código y estado del pedido delivery aceptado por Operaciones, y su ETA de cocina cuando existe. Un recibo recién enviado sigue indicando claramente que está pendiente y no se ha cobrado.
 - Se presenta el motivo de decisión cuando se rechaza la solicitud. El progreso se obtiene del endpoint autenticado y acotado al cliente; el teléfono no mantiene un estado estimado como fuente de verdad.
 - Verificación: ESLint, TypeScript, Vitest 8/8, export Expo Android y Web pasan. Los exports no son builds instalables ni prueba física.
+# 2026-10-04 — Aislamiento de pantallas al cambiar de usuario
+
+- Se integró de forma compatible el fix remoto de estado entre cuentas: Mi cuenta e Historial de pedidos ahora remontan su contenido cuando cambia el correo autenticado, evitando mostrar temporalmente datos locales de una sesión anterior.
+- Conserva el historial unificado actual de pickup y delivery, estados de despacho, ETA y acciones existentes.
+- Verificación: Vitest 8/8, ESLint, TypeScript `--noEmit` y export Expo para Android/Web completados.
