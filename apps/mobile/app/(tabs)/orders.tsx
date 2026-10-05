@@ -1,8 +1,9 @@
 import { Link } from "expo-router";
+import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { DeliveryRequestReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
+import { DeliveryRequestReceipt, PaymentIntentReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
@@ -58,6 +59,8 @@ function OrderHistory() {
   const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
   const [trackingLoading, setTrackingLoading] = useState(false);
   const [trackingError, setTrackingError] = useState("");
+  const [creatingPaymentIntentFor, setCreatingPaymentIntentFor] = useState<string | null>(null);
+  const [paymentIntents, setPaymentIntents] = useState<Record<string, PaymentIntentReceipt>>({});
 
   const refresh = useCallback(async () => {
     if (!session) { setRequests([]); setError(""); return; }
@@ -123,6 +126,20 @@ function OrderHistory() {
     finally { setLoadingDetails(null); }
   }
 
+  async function requestPaymentIntent(requestId: string) {
+    if (session?.offline) { setDeliveryError("Conéctate para consultar el estado de pago en el servidor."); return; }
+    setCreatingPaymentIntentFor(requestId); setDeliveryError("");
+    try {
+      const result = await request<PaymentIntentReceipt>(
+        `/api/v1/client/delivery-requests/${requestId}/payment-intents`,
+        { method: "POST", headers: { "Idempotency-Key": Crypto.randomUUID() }, body: "{}" },
+      );
+      setPaymentIntents((current) => ({ ...current, [requestId]: result }));
+    } catch (cause) {
+      setDeliveryError(cause instanceof Error ? cause.message : "No pudimos consultar el intento de pago.");
+    } finally { setCreatingPaymentIntentFor(null); }
+  }
+
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
     <Heading eyebrow="Cliente">Mis pedidos y solicitudes</Heading>
     <Text style={ui.body}>Revisa pickup y delivery, su seguimiento y las solicitudes pendientes de confirmación.</Text>
@@ -168,6 +185,14 @@ function OrderHistory() {
             Reparto: {deliveryStatusLabels[item.dispatchStatus]}.{item.assignedAt ? " Asignado " + formatDate(item.assignedAt) + "." : ""}{item.dispatchedAt ? " Salió del restaurante " + formatDate(item.dispatchedAt) + "." : ""}{item.deliveredAt ? " Entregado " + formatDate(item.deliveredAt) + "." : ""}
           </Notice> : null}
           {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}; todavía no emitida.</Text> : null}
+          {paymentIntents[item.requestId] ? <Notice>Pago {paymentIntents[item.requestId].status === "PENDING" ? "pendiente" : "en revisión"} · {formatMoney(paymentIntents[item.requestId].amount, paymentIntents[item.requestId].currency)}. {paymentIntents[item.requestId].message}</Notice> : null}
+          {item.status === "ACCEPTED" && item.paymentPreference === "ONLINE_PAYMENT_REQUESTED"
+            && item.orderStatus !== "CLOSED" && item.orderStatus !== "CANCELLED" ? <>
+              <Notice>La solicitud de pago usa un adaptador de prueba. Esta app no procesa pagos ni confirma cobros.</Notice>
+              <Button title="Solicitar estado de pago de prueba" secondary busy={creatingPaymentIntentFor === item.requestId}
+                disabled={Boolean(creatingPaymentIntentFor) || Boolean(session?.offline)}
+                onPress={() => void requestPaymentIntent(item.requestId)} />
+            </> : null}
           {item.status === "REJECTED" && item.decisionReason ? <Notice tone="error">Motivo: {item.decisionReason}</Notice> : null}
           {item.status === "PENDING_REVIEW" ? <>
             <Notice>La solicitud aún no es un pedido aceptado y no se ha cobrado.</Notice>

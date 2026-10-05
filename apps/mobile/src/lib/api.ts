@@ -122,6 +122,18 @@ export type PickupOrderTracking = {
   estimatedReadyAt: string | null;
   updatedAt: string;
 };
+export type PaymentIntentReceipt = {
+  intentId: string;
+  orderId: string;
+  provider: "MOCK";
+  providerReference: string;
+  amount: number;
+  currency: string;
+  status: "CREATED" | "PENDING" | "REQUIRES_ACTION" | "AUTHORIZED" | "CAPTURED" | "FAILED" | "CANCELLED" | "UNKNOWN" | "REFUNDED";
+  createdAt: string;
+  idempotentReplay: boolean;
+  message: string;
+};
 export type DeliveryRequestBody = {
   requestedFor: string;
   customerNote?: string;

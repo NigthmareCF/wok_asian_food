@@ -247,3 +247,9 @@
 - El campo de fecha y hora de pickup ahora se interpreta como hora de `America/Guatemala` incluso si el dispositivo está configurado en otra zona. La sugerencia de primera hora también se calcula desde el instante del servidor y se muestra en horario de Guatemala.
 - El formulario rechaza formatos o fechas de calendario inválidos antes de construir el payload; las solicitudes pendientes conservan el instante ISO original para reintento idempotente.
 - Verificación: Vitest 8/8, ESLint, TypeScript `--noEmit` y export Expo Android/Web completados. Los exports verifican bundles y rutas, no son APK/IPA instalables ni prueba física.
+
+## 2026-10-04 — Intento de pago de prueba para delivery
+
+- En pedidos delivery aceptados con preferencia de pago online, Cliente puede solicitar o recuperar el estado de un intento. La tarjeta muestra el estado, monto/moneda y el mensaje devuelto por el backend; deja claro que el adaptador es mock y no procesa ni confirma cobros.
+- El cliente envía una clave idempotente; el backend también converge claves nuevas sobre el único intento activo del pedido, por lo que un timeout seguido de reintento no crea un segundo intento. No se capturan ni almacenan datos de tarjeta.
+- Verificación: Vitest 8/8, ESLint, TypeScript `--noEmit` y export Expo Android/Web completados. Los exports no sustituyen build instalable ni prueba física.
