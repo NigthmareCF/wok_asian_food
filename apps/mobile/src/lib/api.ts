@@ -56,6 +56,7 @@ export type ReservationResult = {
   message: string;
   alternativeTimes: string[];
 };
+export type ReservationPreorderItem = { menuItemId: string; quantity: number; modifierIds: string[] };
 export type ReservationCapacityEvaluation = {
   confirmed: false;
   assessment: {

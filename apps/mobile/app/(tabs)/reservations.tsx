@@ -1,11 +1,14 @@
-import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ReservationCapacityEvaluation, ReservationHistoryItem, ReservationResult } from "@/lib/api";
+import { ApiError, PublicMenu, ReservationCapacityEvaluation, ReservationHistoryItem, ReservationPreorderItem, ReservationResult, apiRequest } from "@/lib/api";
 import { parsePendingReservationAttempt, PendingReservationAttempt, resolvePendingReservationAttempt } from "@/lib/reservation-attempt";
+import { deleteSecurePayload, readSecurePayload, saveSecurePayload } from "@/lib/reservation-attempt-storage";
 import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
+import { MenuItemOptions } from "@/components/menu-item-options";
+import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
+import { buildReservationPreorderItems } from "@/lib/reservation-preorder";
 import { useSession } from "@/providers/session-provider";
 
 export default function ReservationsScreen() {
@@ -18,6 +21,12 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   const [requestedAt, setRequestedAt] = useState("");
   const [notes, setNotes] = useState("");
   const [preorder, setPreorder] = useState(false);
+  const [menu, setMenu] = useState<PublicMenu | null>(null);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [menuError, setMenuError] = useState("");
+  const [menuReload, setMenuReload] = useState(0);
+  const [preorderQuantities, setPreorderQuantities] = useState<Record<string, number>>({});
+  const [preorderModifiers, setPreorderModifiers] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [submissionAlternatives, setSubmissionAlternatives] = useState<string[]>([]);
@@ -45,7 +54,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     void Promise.resolve().then(async () => {
       if (Platform.OS !== "web") {
         const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
-        const raw = await SecureStore.getItemAsync(reservationDraftKey);
+        const raw = await readSecurePayload(reservationDraftKey);
         if (raw) {
           const draft = parseReservationDraft(raw);
           if (draft && draft.ownerEmail === session.email && Date.now() - draft.savedAt < reservationDraftLifetimeMs) {
@@ -54,15 +63,17 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
               setRequestedAt(draft.requestedAt);
               setNotes(draft.notes);
               setPreorder(draft.preorder);
+              setPreorderQuantities(draft.preorderQuantities ?? {});
+              setPreorderModifiers(draft.preorderModifiers ?? {});
               setDraftRestored(true);
             }
           } else if (draft && Date.now() - draft.savedAt >= reservationDraftLifetimeMs) {
-            await SecureStore.deleteItemAsync(reservationDraftKey);
+            await deleteSecurePayload(reservationDraftKey);
           } else if (!draft) {
-            await SecureStore.deleteItemAsync(reservationDraftKey);
+            await deleteSecurePayload(reservationDraftKey);
           }
         }
-        const rawAttempt = await SecureStore.getItemAsync(attemptStorageKey);
+        const rawAttempt = await readSecurePayload(attemptStorageKey);
         if (rawAttempt) {
           const attempt = parsePendingReservationAttempt(rawAttempt);
           if (attempt && attempt.ownerEmail === session.email) {
@@ -71,7 +82,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
               setAttemptRestored(true);
             }
           } else {
-            await SecureStore.deleteItemAsync(attemptStorageKey);
+            await deleteSecurePayload(attemptStorageKey);
           }
         }
       }
@@ -81,17 +92,29 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   }, [session?.email]);
 
   useEffect(() => {
-    if (!session?.email || !draftReady || Platform.OS === "web" || !hasReservationDraft(guests, requestedAt, notes, preorder)) return;
+    if (!session?.email || !draftReady || Platform.OS === "web" || !hasReservationDraft(guests, requestedAt, notes, preorder, preorderQuantities)) return;
     const draft: ReservationDraft = {
-      ownerEmail: session.email, guests, requestedAt, notes, preorder, savedAt: Date.now(),
+      ownerEmail: session.email, guests, requestedAt, notes, preorder, preorderQuantities, preorderModifiers, savedAt: Date.now(),
     };
     const timer = setTimeout(() => {
-      void SecureStore.setItemAsync(reservationDraftKey, JSON.stringify(draft))
+      void saveSecurePayload(reservationDraftKey, JSON.stringify(draft))
         .then(() => setDraftError(""))
         .catch(() => setDraftError("No se pudo guardar el borrador en este dispositivo."));
     }, 350);
     return () => clearTimeout(timer);
-  }, [session?.email, draftReady, guests, requestedAt, notes, preorder]);
+  }, [session?.email, draftReady, guests, requestedAt, notes, preorder, preorderQuantities, preorderModifiers]);
+
+  useEffect(() => {
+    if (!preorder || menu) return;
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) { setMenuLoading(true); setMenuError(""); }
+      return apiRequest<PublicMenu>("/api/v1/public/menu");
+    }).then((result) => { if (active) setMenu(result); })
+      .catch((cause: unknown) => { if (active) setMenuError(cause instanceof Error ? cause.message : "No pudimos cargar el menú."); })
+      .finally(() => { if (active) setMenuLoading(false); });
+    return () => { active = false; };
+  }, [preorder, menu, menuReload]);
 
   const refreshHistory = useCallback(async () => {
     if (!session) { setHistory([]); return; }
@@ -135,19 +158,24 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     if (!Number.isInteger(count) || count < 1 || count > 50) { setError("Indica entre 1 y 50 personas."); return; }
     if (!date) { setError("Indica una fecha y hora válidas en la hora de Guatemala."); return; }
     if (date.getTime() < Date.now() + 3 * 60 * 60 * 1000) { setError("Las solicitudes requieren al menos 3 horas de anticipación."); return; }
-    const body = JSON.stringify({ guests: count, requestedAt: date.toISOString(), preorder, notes: notes.trim() || null });
+    let items: ReservationPreorderItem[];
+    try { items = preorder ? buildReservationPreorderItems((menu?.categories ?? []).flatMap((category) => category.items), preorderQuantities, preorderModifiers) : []; }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Revisa los productos de la preorden."); return; }
+    const body = JSON.stringify({ guests: count, requestedAt: date.toISOString(), preorder, notes: notes.trim() || null, items });
     const attempt = resolvePendingReservationAttempt(pendingRequest.current, session.email, body, createRequestKey);
     pendingRequest.current = attempt;
     if (Platform.OS !== "web") {
       try {
         const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
-        await SecureStore.setItemAsync(attemptStorageKey, JSON.stringify(attempt));
+        await saveSecurePayload(attemptStorageKey, JSON.stringify(attempt));
       }
       catch {
+        pendingRequest.current = null;
         setError("No pudimos guardar el intento de forma segura; no enviamos la solicitud para evitar duplicados.");
         return;
       }
     }
+    setAttemptRestored(true);
     setBusy(true);
     try {
       const result = await request<ReservationResult>("/api/v1/client/reservations", {
@@ -157,20 +185,30 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
       if (Platform.OS !== "web") {
         try {
           const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
-          await SecureStore.deleteItemAsync(reservationDraftKey);
-          await SecureStore.deleteItemAsync(attemptStorageKey);
+          await deleteSecurePayload(reservationDraftKey);
+          await deleteSecurePayload(attemptStorageKey);
         } catch { setDraftError("La solicitud respondió, pero no pudimos borrar todo el estado local."); }
       }
       setDraftRestored(false);
       setAttemptRestored(false);
-      setGuests("2"); setRequestedAt(""); setNotes(""); setPreorder(false);
+      setGuests("2"); setRequestedAt(""); setNotes(""); setPreorder(false); setPreorderQuantities({}); setPreorderModifiers({});
       setMessageTone(result.submitted ? "success" : "info");
       setMessage(result.message || (result.submitted
         ? "Solicitud enviada; el equipo debe revisarla y confirmarla."
         : `La solicitud no fue aceptada automáticamente (${result.decision}).`));
       setSubmissionAlternatives(result.alternativeTimes ?? []);
       void refreshHistory();
-    } catch (e) { setError(e instanceof Error ? e.message : "No se pudo enviar la solicitud."); }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 422) {
+        pendingRequest.current = null;
+        setAttemptRestored(false);
+        if (Platform.OS !== "web") {
+          try { await deleteSecurePayload(await getReservationAttemptStorageKey(session.email)); }
+          catch { setDraftError("El servidor rechazó los datos, pero no pudimos borrar el intento local."); }
+        }
+      }
+      setError(e instanceof Error ? e.message : "No se pudo enviar la solicitud.");
+    }
     finally { setBusy(false); }
   }
 
@@ -192,27 +230,52 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     {session && Platform.OS !== "web" ? <Notice>El borrador se guarda en este dispositivo. Nunca se envía automáticamente al recuperar conexión.</Notice> : null}
     {draftError ? <Notice tone="error">{draftError}</Notice> : null}
     <Card>
-      <Field label="Personas" keyboardType="number-pad" value={guests} onChangeText={(value) => { setGuests(value); clearEvaluation(); }} placeholder="2" />
-      <Field label="Fecha y hora de Guatemala" value={requestedAt} onChangeText={(value) => { setRequestedAt(value); clearEvaluation(); }} placeholder="2026-10-05T18:30" autoCapitalize="none" />
+      <Field label="Personas" keyboardType="number-pad" value={guests} editable={!attemptRestored} onChangeText={(value) => { setGuests(value); clearEvaluation(); }} placeholder="2" />
+      <Field label="Fecha y hora de Guatemala" value={requestedAt} editable={!attemptRestored} onChangeText={(value) => { setRequestedAt(value); clearEvaluation(); }} placeholder="2026-10-05T18:30" autoCapitalize="none" />
       <Text style={{ color: "#746e67", fontSize: 13 }}>Hora del restaurante ({restaurantTimeZone}), AAAA-MM-DDTHH:mm. Solicita con al menos 3 horas de anticipación.</Text>
-      <Field label="Solicitudes especiales (opcional)" value={notes} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} maxLength={500} textAlignVertical="top" />
-      <Button title={preorder ? "Preorden requerida: sí (tocar para cambiar)" : "¿Requieres preorden? No"} secondary onPress={() => { setPreorder(!preorder); clearEvaluation(); }} />
-      {preorder ? <Text style={{ color: "#746e67", fontSize: 13 }}>Esto avisa al equipo para evaluar la solicitud; aún no agrega productos.</Text> : null}
+      <Field label="Solicitudes especiales (opcional)" value={notes} editable={!attemptRestored} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} maxLength={500} textAlignVertical="top" />
+      <Button title={preorder ? "Preorden: sí (tocar para cambiar)" : "¿Deseas solicitar preorden? No"} secondary disabled={attemptRestored} onPress={() => { setPreorder(!preorder); clearEvaluation(); }} />
+      {preorder ? <View style={ui.section}>
+        <Text style={ui.body}>El equipo revisará los productos junto con la reserva. Esta solicitud no confirma platillos ni aparta inventario.</Text>
+        {menuLoading ? <ActivityIndicator accessibilityLabel="Cargando menú" color={palette.red} /> : null}
+        {menuError ? <View style={ui.section}><Notice tone="error">{menuError}</Notice><Button title="Reintentar menú" secondary onPress={() => setMenuReload((value) => value + 1)} /></View> : null}
+        {menu && menu.categories.flatMap((category) => category.items).length === 0 ? <Notice>Aún no hay productos publicados para preordenar.</Notice> : null}
+        {menu?.categories.flatMap((category) => category.items).map((item) => {
+          const quantity = preorderQuantities[item.id] ?? 0;
+          const selectedIds = preorderModifiers[item.id] ?? [];
+          const money = new Intl.NumberFormat("es-GT", { style: "currency", currency: item.currency });
+          return <Card key={item.id}>
+            <Text style={{ color: palette.ink, fontWeight: "800" }}>{item.name} · {money.format(menuItemUnitPrice(item, selectedIds))}</Text>
+            {item.description ? <Text style={ui.body}>{item.description}</Text> : null}
+            <MenuItemOptions item={item} selectedIds={selectedIds} disabled={attemptRestored || busy}
+              onChange={(ids) => { setPreorderModifiers((current) => ({ ...current, [item.id]: ids })); clearEvaluation(); }} />
+            <View style={ui.row}>
+              <Button title="−" secondary disabled={quantity === 0 || attemptRestored || busy} onPress={() => { setPreorderQuantities((current) => ({ ...current, [item.id]: Math.max(0, (current[item.id] ?? 0) - 1) })); clearEvaluation(); }} />
+              <Text style={ui.body}>{quantity}</Text>
+              <Button title="Agregar" disabled={attemptRestored || busy || quantity >= 50 || !menuModifiersAreValid(item.modifierGroups, selectedIds)}
+                onPress={() => { setPreorderQuantities((current) => ({ ...current, [item.id]: (current[item.id] ?? 0) + 1 })); clearEvaluation(); }} />
+            </View>
+          </Card>;
+        })}
+        {Object.values(preorderQuantities).reduce((sum, value) => sum + value, 0) > 0 ? <Notice>
+          Productos solicitados: {Object.values(preorderQuantities).reduce((sum, value) => sum + value, 0)}. El precio y la disponibilidad se revisarán al procesar la solicitud.
+        </Notice> : null}
+      </View> : null}
       {evaluationError ? <Notice tone="error">{evaluationError}</Notice> : null}
       {evaluation ? <Notice tone="info">
         {evaluation.assessment.publicMessage}{evaluation.assessment.occupancy
           ? ` Estancia orientativa: ${evaluation.assessment.occupancy.minimumMinutes}–${evaluation.assessment.occupancy.maximumMinutes} min.` : ""} Esta evaluación no confirma una reserva; al enviar se volverá a revisar.
       </Notice> : null}
       {evaluation?.assessment.alternativeTimes.map((alternative) => <Button key={alternative}
-        title={`Probar ${formatDate(alternative)}`} secondary disabled={busy || evaluating}
+        title={`Probar ${formatDate(alternative)}`} secondary disabled={busy || evaluating || attemptRestored}
         onPress={() => { setRequestedAt(formatRestaurantLocalInput(alternative)); clearEvaluation(); }} />)}
       {submissionAlternatives.map((alternative) => <Button key={alternative}
-        title={`Probar ${formatDate(alternative)}`} secondary disabled={busy}
+        title={`Probar ${formatDate(alternative)}`} secondary disabled={busy || attemptRestored}
         onPress={() => { setRequestedAt(formatRestaurantLocalInput(alternative)); setSubmissionAlternatives([]); }} />)}
-      <Button title="Evaluar horario orientativo" secondary busy={evaluating} disabled={busy || evaluating} onPress={() => void evaluateSchedule()} />
+      <Button title="Evaluar horario orientativo" secondary busy={evaluating} disabled={busy || evaluating || attemptRestored} onPress={() => void evaluateSchedule()} />
       {error ? <Notice tone="error">{error}</Notice> : null}
       {message ? <Notice tone={messageTone}>{message}</Notice> : null}
-      <Button title="Enviar solicitud" busy={busy} disabled={Boolean(session && Platform.OS !== "web" && !draftReady)} onPress={submit} />
+      <Button title={attemptRestored ? "Reintentar solicitud pendiente" : "Enviar solicitud"} busy={busy} disabled={Boolean(session && Platform.OS !== "web" && !draftReady)} onPress={submit} />
     </Card>
     {session ? <Card>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -229,7 +292,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
         <Text style={ui.pill}>{decisionLabel(item.decision, item.reservationStatus)}</Text>
         <Text style={ui.body}>{item.message}</Text>
         {item.alternativeTimes?.map((alternative) => <Button key={alternative}
-          title={`Probar ${formatDate(alternative)}`} secondary disabled={busy}
+          title={`Probar ${formatDate(alternative)}`} secondary disabled={busy || attemptRestored}
           onPress={() => { setRequestedAt(formatRestaurantLocalInput(alternative)); setSubmissionAlternatives([]); }} />)}
         {item.reservationStatus === "REQUESTED" && item.reservationId ? <>
           <Notice>Esta solicitud aún espera revisión. Sólo se pueden cancelar solicitudes pendientes; las reservas confirmadas requieren contactar al restaurante.</Notice>
@@ -249,11 +312,14 @@ type ReservationDraft = {
   requestedAt: string;
   notes: string;
   preorder: boolean;
+  preorderQuantities: Record<string, number>;
+  preorderModifiers: Record<string, string[]>;
   savedAt: number;
 };
 
 const reservationDraftKey = "wok.client.reservation-draft.v1";
 const reservationDraftLifetimeMs = 30 * 24 * 60 * 60 * 1000;
+const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function getReservationAttemptStorageKey(ownerEmail: string) {
   const ownerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, ownerEmail);
@@ -261,18 +327,26 @@ async function getReservationAttemptStorageKey(ownerEmail: string) {
 }
 
 function parseReservationDraft(raw: string): ReservationDraft | null {
-  if (raw.length > 1800) return null;
+  if (raw.length > 30000) return null;
   try {
     const value = JSON.parse(raw) as Partial<ReservationDraft>;
     if (typeof value.ownerEmail !== "string" || typeof value.guests !== "string" ||
         typeof value.requestedAt !== "string" || typeof value.notes !== "string" ||
         typeof value.preorder !== "boolean" || typeof value.savedAt !== "number") return null;
-    return value as ReservationDraft;
+    const rawQuantities = value.preorderQuantities ?? {};
+    const rawModifiers = value.preorderModifiers ?? {};
+    if (!rawQuantities || typeof rawQuantities !== "object" || Array.isArray(rawQuantities) ||
+        !rawModifiers || typeof rawModifiers !== "object" || Array.isArray(rawModifiers)) return null;
+    const preorderQuantities = Object.fromEntries(Object.entries(rawQuantities).filter(([id, quantity]) =>
+      idPattern.test(id) && Number.isInteger(quantity) && Number(quantity) >= 1 && Number(quantity) <= 50)) as Record<string, number>;
+    const preorderModifiers = Object.fromEntries(Object.entries(rawModifiers).filter(([id, ids]) => idPattern.test(id) &&
+      Array.isArray(ids) && ids.length <= 30 && ids.every((modifierId) => typeof modifierId === "string" && idPattern.test(modifierId)))) as Record<string, string[]>;
+    return { ...value, preorderQuantities, preorderModifiers } as ReservationDraft;
   } catch { return null; }
 }
 
-function hasReservationDraft(guests: string, requestedAt: string, notes: string, preorder: boolean) {
-  return guests !== "2" || requestedAt.length > 0 || notes.length > 0 || preorder;
+function hasReservationDraft(guests: string, requestedAt: string, notes: string, preorder: boolean, quantities: Record<string, number>) {
+  return guests !== "2" || requestedAt.length > 0 || notes.length > 0 || preorder || Object.values(quantities).some((quantity) => quantity > 0);
 }
 
 function formatDate(value: string) {
