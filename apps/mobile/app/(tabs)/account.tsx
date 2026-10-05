@@ -7,6 +7,7 @@ import { useSession } from "@/providers/session-provider";
 import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
 import { isValidEmail, normalizeEmail } from "@/lib/email-validation";
 import { isValidNewPassword } from "@/lib/password-validation";
+import { isValidDisplayName, isValidVerificationCode } from "@/lib/account-input-validation";
 
 type Mode = "login" | "register" | "verify" | "reset-request" | "reset-complete";
 
@@ -76,6 +77,16 @@ function AccountContent() {
     const normalizedEmail = normalizeEmail(email);
     if (!isValidEmail(normalizedEmail)) {
       setError("Ingresa un correo electrónico válido, por ejemplo nombre@dominio.com.");
+      setMessage("");
+      return;
+    }
+    if (mode === "register" && !isValidDisplayName(name)) {
+      setError("Ingresa un nombre de entre 2 y 100 caracteres.");
+      setMessage("");
+      return;
+    }
+    if ((mode === "verify" || mode === "reset-complete") && !isValidVerificationCode(code)) {
+      setError("Ingresa el código de verificación de seis dígitos.");
       setMessage("");
       return;
     }
@@ -167,7 +178,7 @@ function AccountContent() {
     <Card>
       <Field label="Correo electrónico" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
       {email.length > 0 && !isValidEmail(email) ? <Notice tone="error">Ingresa un correo válido, por ejemplo nombre@dominio.com.</Notice> : null}
-      {mode === "register" ? <Field label="Nombre" value={name} onChangeText={setName} autoComplete="name" /> : null}
+      {mode === "register" ? <Field label="Nombre" value={name} onChangeText={setName} autoComplete="name" maxLength={100} /> : null}
       {mode === "login" || mode === "register" || mode === "reset-complete" ? <Field label={mode === "reset-complete" ? "Contraseña nueva" : "Contraseña"} value={password} onChangeText={setPassword} secureTextEntry autoComplete={mode === "login" ? "current-password" : "new-password"} maxLength={mode === "login" ? undefined : 128} /> : null}
       {mode === "verify" || mode === "reset-complete" ? <Field label="Código de 6 dígitos" value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} /> : null}
       {message ? <Notice tone="success">{message}</Notice> : null}

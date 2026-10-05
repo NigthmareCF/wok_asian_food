@@ -288,3 +288,8 @@
 
 - Registro y restablecimiento ahora bloquean contraseñas menores a 12 o mayores a 128 caracteres, en línea con el DTO de autenticación backend. Login conserva compatibilidad con credenciales existentes. El campo de contraseña nueva limita entrada a 128 caracteres y comunica ambos límites.
 - Verificación: Vitest 25/25, ESLint, TypeScript `--noEmit` y exports Expo Android/Web. Los exports no son binarios instalables ni prueba física.
+
+## 2026-10-04 — Nombre de registro y códigos de verificación
+
+- Registro bloquea nombres fuera de 2–100 caracteres y limita el campo antes de enviar. Verificación de cuenta y reset bloquean códigos distintos de seis dígitos antes de llamar al servidor.
+- Verificación: Vitest 27/27, ESLint, TypeScript `--noEmit` y exports Expo Android/Web completados.
