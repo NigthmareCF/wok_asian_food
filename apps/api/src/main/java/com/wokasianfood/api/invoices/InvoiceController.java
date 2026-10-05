@@ -3,6 +3,7 @@ package com.wokasianfood.api.invoices;
 import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -61,7 +62,8 @@ public class InvoiceController {
     }
 
     public record CreateDraftRequest(@Size(max = 160) String customerName,
-                                     @Size(max = 32) String customerTaxId) {}
+                                     @Size(max = 32) String customerTaxId,
+                                     @DecimalMin(value = "0.01") BigDecimal total) {}
 }
 
 @Service
@@ -82,8 +84,10 @@ class InvoiceService {
                                       InvoiceController.CreateDraftRequest request) {
         String customerName = blankToNull(request.customerName());
         String customerTaxId = blankToNull(request.customerTaxId());
+        BigDecimal requestedTotal = request.total() == null ? null : money(request.total());
         String hash = fingerprint(accountId.toString(), customerName == null ? "" : customerName,
-                customerTaxId == null ? "" : customerTaxId);
+                customerTaxId == null ? "" : customerTaxId,
+                requestedTotal == null ? "" : requestedTotal.toPlainString());
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "INVOICE_DRAFT_CREATED",
                 idempotencyKey, hash);
         if (claim.replay()) return details(claim.resourceId());
@@ -100,7 +104,18 @@ class InvoiceService {
         if (billing.lineCount() == 0) throw new AuthException(422, "La cuenta no tiene consumos facturables.");
         if (billing.currencyCount() != 1) throw new AuthException(422, "No se pueden facturar cuentas con varias monedas.");
 
-        BigDecimal total = billing.total();
+        BigDecimal allocated = jdbc.queryForObject("""
+            SELECT COALESCE(SUM(total), 0) FROM wok.invoices
+            WHERE account_id = ? AND status IN ('DRAFT', 'QUEUED', 'ISSUED')
+            """, BigDecimal.class, accountId);
+        BigDecimal available = billing.total().subtract(allocated == null ? BigDecimal.ZERO : allocated);
+        BigDecimal total = requestedTotal == null ? available : requestedTotal;
+        if (total.signum() <= 0)
+            throw new AuthException(409, "La cuenta ya no tiene saldo disponible para facturar.");
+        if (total.compareTo(available) > 0)
+            throw new AuthException(422, "El monto excede el saldo fiscal pendiente de la atención.");
+        if (total.compareTo(billing.total()) > 0)
+            throw new AuthException(422, "El monto excede el consumo facturable de la atención.");
         BigDecimal subtotal = total.divide(BigDecimal.ONE.add(taxRate), 2, RoundingMode.HALF_UP);
         BigDecimal taxTotal = total.subtract(subtotal);
 
@@ -112,11 +127,18 @@ class InvoiceService {
             VALUES (?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, invoiceId, accountId, billing.currencyId(), taxRate, subtotal, taxTotal, total,
             customerName, customerTaxId, requestId, actor, actor);
-        for (Line line : billing.lines()) {
+        if (total.compareTo(billing.total()) == 0 && allocated.signum() == 0) {
+            for (Line line : billing.lines()) {
+                jdbc.update("""
+                    INSERT INTO wok.invoice_items (invoice_id, order_item_id, description, quantity, unit_price)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, invoiceId, line.orderItemId(), line.description(), line.quantity(), line.unitPrice());
+            }
+        } else {
             jdbc.update("""
-                INSERT INTO wok.invoice_items (invoice_id, order_item_id, description, quantity, unit_price)
-                VALUES (?, ?, ?, ?, ?)
-                """, invoiceId, line.orderItemId(), line.description(), line.quantity(), line.unitPrice());
+                INSERT INTO wok.invoice_items (invoice_id, description, quantity, unit_price)
+                VALUES (?, 'Consumo asignado de la atención', 1, ?)
+                """, invoiceId, total);
         }
         jdbc.update("""
             INSERT INTO wok.audit_logs
@@ -221,6 +243,13 @@ class InvoiceService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private BigDecimal money(BigDecimal value) {
+        try { return value.setScale(2, RoundingMode.UNNECESSARY); }
+        catch (ArithmeticException invalidScale) {
+            throw new AuthException(422, "El monto de la factura admite hasta dos decimales.");
+        }
     }
 
     private String fingerprint(String... parts) {

@@ -152,6 +152,13 @@
 - Validación con las pruebas de identidad en una composición desechable de `feature/backend-foundation` y `feature/backend-auth` (Java 21, Maven; 5/5 pruebas unitarias aprobadas).
 # Progreso de desarrollo backend
 
+## 2026-10-04 — Asignación fiscal dividida por atención
+
+- La creación de borradores de factura acepta un importe explícito y calcula el saldo fiscal aún no asignado a documentos `DRAFT`, `QUEUED` o `ISSUED`. Si se omite el importe, asigna el saldo completo restante.
+- El bloqueo transaccional existente de la cuenta serializa asignaciones concurrentes. Se permite emitir varios DTE por cuenta y V29 reemplaza el índice único anterior por un índice de consulta de asignaciones.
+- Las asignaciones parciales se representan actualmente como una línea agregada “Consumo asignado de la atención”; la primera factura completa mantiene el detalle original de los productos. El reparto detallado de líneas entre varios DTE queda como refinamiento fiscal pendiente.
+- Las pruebas focales `InvoiceIntegrationTest` pasaron 7/7 en PostgreSQL 18/Testcontainers, incluida migración Flyway V1–V29, dos DTE parciales y rechazo de sobreasignación.
+
 ## 2026-10-04 — Seguimiento de pickup aceptado para Cliente
 
 - En `feature/backend-capacity-order-lifecycle` se añadió `GET /api/v1/client/orders/tracking`, protegido para rol `CLIENT`. La consulta devuelve como máximo 50 solicitudes pickup aceptadas con pedido asociado y filtra siempre por el UUID del usuario autenticado; no acepta identificadores de cliente suministrados por el navegador.

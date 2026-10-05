@@ -28,22 +28,23 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
         closedOrderWithItem(accountId, actor, menu, "Chowmein", 2, "50.00", "100.00");
 
         JsonNode first = body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, """
-                {"customerName":"Cliente Fiscal","customerTaxId":"12345678"}
+                {"customerName":"Cliente Fiscal","customerTaxId":"12345678","total":"60.00"}
                 """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         assertThat(first.path("status").asText()).isEqualTo("DRAFT");
         assertThat(first.path("currency").asText()).isEqualTo("GTQ");
-        assertThat(first.path("total").decimalValue()).isEqualByComparingTo("100.00");
-        assertThat(first.path("subtotal").decimalValue()).isEqualByComparingTo("89.29");
-        assertThat(first.path("taxTotal").decimalValue()).isEqualByComparingTo("10.71");
+        assertThat(first.path("total").decimalValue()).isEqualByComparingTo("60.00");
+        assertThat(first.path("subtotal").decimalValue()).isEqualByComparingTo("53.57");
+        assertThat(first.path("taxTotal").decimalValue()).isEqualByComparingTo("6.43");
         assertThat(first.path("customerName").asText()).isEqualTo("Cliente Fiscal");
         assertThat(first.path("items")).hasSize(1);
-        assertThat(first.path("items").get(0).path("quantity").asInt()).isEqualTo(2);
-        assertThat(first.path("items").get(0).path("lineTotal").decimalValue()).isEqualByComparingTo("100.00");
+        assertThat(first.path("items").get(0).path("quantity").asInt()).isEqualTo(1);
+        assertThat(first.path("items").get(0).path("lineTotal").decimalValue()).isEqualByComparingTo("60.00");
 
-        JsonNode second = body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, "{}",
+        JsonNode second = body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token,
+                "{\"customerName\":\"Segundo cliente\",\"customerTaxId\":\"87654321\",\"total\":\"40.00\"}",
                 Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         assertThat(second.path("invoiceId").asText()).isNotEqualTo(first.path("invoiceId").asText());
-        assertThat(second.path("customerName").isMissingNode()).isTrue();
+        assertThat(second.path("total").decimalValue()).isEqualByComparingTo("40.00");
 
         JsonNode list = body(get("/api/v1/operational/accounts/" + accountId + "/invoices", token));
         assertThat(list).hasSize(2);
@@ -192,7 +193,7 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void replaysDraftCreationAndBlocksSecondActiveInvoice() {
+    void replaysDraftCreationAndAllowsIndependentFiscalAllocationsWithoutOverbilling() {
         UUID actor = createUserWithRole("factura-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
         UUID accountId = createAccount(actor, "Cuenta antidoble");
@@ -201,22 +202,31 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
 
         String path = "/api/v1/operational/accounts/" + accountId + "/invoices";
         String key = UUID.randomUUID().toString();
-        JsonNode first = body(post(path, token, "{\"customerName\":\"Cliente Uno\"}",
+        JsonNode first = body(post(path, token, "{\"customerName\":\"Cliente Uno\",\"total\":\"20.00\"}",
                 Map.of("Idempotency-Key", key)));
-        JsonNode replay = body(post(path, token, "{\"customerName\":\"Cliente Uno\"}",
+        JsonNode replay = body(post(path, token, "{\"customerName\":\"Cliente Uno\",\"total\":\"20.00\"}",
                 Map.of("Idempotency-Key", key)));
         assertThat(replay.path("invoiceId").asText()).isEqualTo(first.path("invoiceId").asText());
         assertThat(count("SELECT count(*) FROM wok.invoices WHERE account_id = ?", accountId)).isEqualTo(1);
 
-        body(post(issuePath(UUID.fromString(first.path("invoiceId").asText())), token, null,
+        JsonNode queuedFirst = body(post(issuePath(UUID.fromString(first.path("invoiceId").asText())), token, null,
                 Map.of("Idempotency-Key", UUID.randomUUID().toString())));
-        UUID second = draft(token, accountId);
-        var conflict = post(issuePath(second), token, null,
-                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
-        assertThat(conflict.statusCode()).isEqualTo(409);
+        assertThat(queuedFirst.path("status").asText()).isEqualTo("QUEUED");
+        JsonNode second = body(post(path, token,
+                "{\"customerName\":\"Cliente Dos\",\"customerTaxId\":\"22334455\",\"total\":\"10.00\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        JsonNode queuedSecond = body(post(issuePath(UUID.fromString(second.path("invoiceId").asText())), token, null,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(queuedSecond.path("status").asText()).isEqualTo("QUEUED");
         assertThat(count("""
                 SELECT count(*) FROM wok.invoices WHERE account_id = ? AND status IN ('QUEUED', 'ISSUED')
-                """, accountId)).isEqualTo(1);
+                """, accountId)).isEqualTo(2);
+        var overAllocated = post(path, token,
+                "{\"customerName\":\"Cliente Tres\",\"customerTaxId\":\"33445566\",\"total\":\"0.01\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(overAllocated.statusCode()).isEqualTo(422);
+        assertThat(jdbc.queryForObject("SELECT COALESCE(SUM(total), 0) FROM wok.invoices WHERE account_id = ? AND status IN ('DRAFT', 'QUEUED', 'ISSUED')",
+                BigDecimal.class, accountId)).isEqualByComparingTo("30.00");
     }
 
     private UUID draft(String token, UUID accountId) {

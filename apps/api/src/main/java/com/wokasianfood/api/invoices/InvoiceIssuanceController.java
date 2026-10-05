@@ -66,13 +66,6 @@ class InvoiceIssuanceService {
 
         jdbc.query("SELECT id FROM wok.order_accounts WHERE id = ? FOR UPDATE",
                 (rs, row) -> rs.getObject("id", UUID.class), invoice.accountId());
-        Integer active = jdbc.queryForObject("""
-            SELECT count(*) FROM wok.invoices
-            WHERE account_id = ? AND status IN ('QUEUED', 'ISSUED') AND id <> ?
-            """, Integer.class, invoice.accountId(), invoiceId);
-        if (active != null && active > 0)
-            throw new AuthException(409, "La cuenta ya tiene una factura en emision o emitida.");
-
         jdbc.update("""
             UPDATE wok.invoices SET status = 'QUEUED', updated_at = now(), updated_by = ?,
                 row_version = row_version + 1
