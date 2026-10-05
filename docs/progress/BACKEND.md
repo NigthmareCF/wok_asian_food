@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-05 — Reporte diario administrativo de ventas
+
+- Se añadió `GET /api/v1/admin/reports/sales/daily?from={date}&to={date}`, exclusivo de ADMIN y limitado a 31 días. Agrupa por día local `America/Guatemala` y moneda, sin sumar monedas distintas; separa venta capturada, reembolso, neto, propina y devolución de propina. Los reembolsos aparecen el día en que se registraron y los pagos voided no cuentan como ventas.
+- Reutiliza pagos/reembolsos persistidos existentes; no agrega tablas ni migración. `AdminSalesReportIntegrationTest` cubre día de negocio alrededor de medianoche GT, netos, período inválido y denegación a Operativo.
+- Verificado contra PostgreSQL 18/Testcontainers y Flyway V1–V38: `AdminSalesReportIntegrationTest` 2/2, incluida autorización ADMIN-only y cruce de medianoche Guatemala. Al compartir la base efímera entre clases, los datos del caso se fijan en fecha histórica para aislar el agregado de transacciones de la fecha actual. En el mismo proceso, `ClientOrderChangeRequestIntegrationTest` 3/3 valida replay idempotente. Suite completa: 227/227, 0 fallos/errores/omitidas, con Testcontainers activo.
+
 ## 2026-10-05 — Decisión Operativa idempotente para solicitudes de cancelación
 
 - `PATCH /api/v1/operational/order-change-requests/{changeRequestId}` ahora requiere `Idempotency-Key`. El hash contempla la solicitud, decisión, versión esperada y motivo: reutilizar la clave con otro contenido produce conflicto; reintentar la misma decisión devuelve el recibo ya persistido y no vuelve a cancelar ni duplica eventos.

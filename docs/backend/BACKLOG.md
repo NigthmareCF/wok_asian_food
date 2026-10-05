@@ -13,12 +13,13 @@
 | RES-01  | NOW    | reserva y mesa digital: 3 h, horarios, 20 min, preorden/condiciones y autorización humana       | CAP-01, IAM-01                            |
 | CAT-01  | NOW    | Lectura pública, selección pickup/delivery, CRUD ADMIN auditado de grupos/opciones/vínculos e impactos, y consulta pública de disponibilidad estimada contra recetas, modificadores y reservas activas implementados; falta seed del menú oficial | Semilla real `BLOCKED`; revalidar al aceptar |
 | ORD-01  | NOW    | Solicitudes pickup/delivery idempotentes; decisión operativa vuelve a validar productos/opciones/precio, crea orden, snapshot de opciones y datos KDS. Solicitud de cancelación de pedido aceptado y decisión Operativa ya implementadas para pickup/delivery antes del despacho; quedan modificaciones de líneas, reembolsos automáticos y el ciclo completo | CAT-01, CAP-01, inventario |
-| FIN-01  | NOW    | Caja interna: apertura/ledger/arqueo/cierre persistentes e idempotentes; conectar ventas desde ORD-01 | V6; `feature/payments` cash slice parcial |
-| FIN-02  | NEXT   | Pagos mixtos, propina y conciliación; mock `PaymentGateway` crea y Cliente recupera intent para delivery aceptado sin capturar | ORD-01; proveedor real, checkout/3DS y webhook `BLOCKED` |
+| FIN-01  | NOW    | Caja, ledger, cobros por cuenta y reembolso manual persisten/idempotentes; cerrar conciliación integral y escenarios de corte/recuperación | V6, V18, V22, V28; suite PaymentIntegrationTest |
+| FIN-02  | NEXT   | Propina separada, pagos parciales por cuenta, reembolso manual y mock de intent online implementados; completar asignación/división y conciliación de gateway | ORD-01; proveedor real, checkout/3DS/webhook `BLOCKED` |
 | FEL-01  | NEXT   | pool por atención, múltiples drafts, emisión individual, outbox y mock                          | FIN-01; certificador real `BLOCKED`       |
 | MSG-01  | NEXT   | conversaciones por canal, webhooks dedup, identidad externa, STT y handoff                      | IAM-01; Meta real `BLOCKED`               |
 | AI-01   | NEXT   | Gateway/tool broker, mock, scope guard inicial, fallback y aislamiento sin DB verificados; falta runtime real, defensa adversarial, cola/handoff persistido y benchmark | CORE-01; GPU/modelo real `BLOCKED` |
 | MOB-01  | NEXT   | App Cliente completa por slices, misma API y sesión WOK                                         | IAM-01, contratos; ver plan móvil         |
+| ADM-01  | NEXT   | Verificar en PostgreSQL el reporte diario ADMIN de ventas/reembolsos/propinas por fecha GT y moneda, agregar test de acceso y cerrar documentación | payments/refunds existentes; test Testcontainers agregado |
 | QA-01   | NOW    | auth, ownership, concurrencia, voucher, prompt injection, LAN/WAN y recuperación sin duplicados | Ejecutar junto a cada slice               |
 
 `BLOCKED` se usa sólo para el adapter productivo o seed que realmente requiere insumo externo; el resto continúa. Cada issue registra decisión → RN/HU → entidad/migración → caso de uso → endpoint → UI → test → diagrama.
