@@ -69,6 +69,7 @@ function OrderHistory() {
   const [paymentIntents, setPaymentIntents] = useState<Record<string, PaymentIntentReceipt>>({});
   const [changeRequests, setChangeRequests] = useState<OrderChangeRequestReceipt[]>([]);
   const changeRequestsRef = useRef<OrderChangeRequestReceipt[]>([]);
+  const cancellationAttempts = useRef<Record<string, { reason: string; key: string }>>({});
   const [changeReason, setChangeReason] = useState("");
   const [selectedChangeRequest, setSelectedChangeRequest] = useState<string | null>(null);
   const [submittingChange, setSubmittingChange] = useState<string | null>(null);
@@ -182,17 +183,34 @@ function OrderHistory() {
     const reason = changeReason.trim();
     if (reason.length < 3) { setError("Describe brevemente por qué solicitas cancelar el pedido."); return; }
     setSubmittingChange(orderRequestId); setError(""); setNotice("");
+    const previousAttempt = cancellationAttempts.current[orderRequestId];
+    const attempt = previousAttempt?.reason === reason
+      ? previousAttempt : { reason, key: Crypto.randomUUID() };
+    cancellationAttempts.current[orderRequestId] = attempt;
     try {
       const receipt = await request<OrderChangeRequestReceipt>(
         `/api/v1/client/order-requests/${orderRequestId}/change-requests`,
-        { method: "POST", headers: { "Idempotency-Key": Crypto.randomUUID() }, body: JSON.stringify({ reason }) },
+        { method: "POST", headers: { "Idempotency-Key": attempt.key }, body: JSON.stringify({ reason: attempt.reason }) },
       );
       const next = [receipt, ...changeRequestsRef.current.filter((item) => item.orderRequestId !== orderRequestId)];
       changeRequestsRef.current = next;
       setChangeRequests(next);
+      delete cancellationAttempts.current[orderRequestId];
       setSelectedChangeRequest(null); setChangeReason("");
       setNotice("Enviamos tu solicitud al equipo. El pedido sigue activo hasta que el equipo la revise.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "No pudimos enviar la solicitud de cancelación."); }
+    } catch (cause) {
+      await refreshChangeRequests();
+      const recovered = changeRequestsRef.current.find((item) => item.orderRequestId === orderRequestId);
+      if (recovered) {
+        delete cancellationAttempts.current[orderRequestId];
+        setSelectedChangeRequest(null); setChangeReason("");
+        setNotice(recovered.status === "PENDING_REVIEW"
+          ? "La solicitud quedó registrada y espera revisión. El pedido sigue activo mientras tanto."
+          : `Recuperamos el resultado de la solicitud: ${recovered.status === "APPROVED" ? "cancelación aprobada" : "cancelación no aceptada"}.`);
+      } else {
+        setError(cause instanceof Error ? cause.message : "No pudimos enviar la solicitud. Puedes reintentar de forma segura.");
+      }
+    }
     finally { setSubmittingChange(null); }
   }
 

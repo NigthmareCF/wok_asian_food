@@ -171,6 +171,7 @@
 
 - La pestaña de pedidos permite al Cliente escribir un motivo y solicitar cancelación de pickup/delivery mientras el pedido siga en una etapa previa al despacho. La app genera `Idempotency-Key` y muestra que el pedido continúa activo hasta la revisión Operativa.
 - El historial recupera estados PENDING_REVIEW/APPROVED/REJECTED y permite actualizarlos o consultarlos periódicamente mientras haya pedidos activos/solicitudes pendientes. Los pedidos servidos, cerrados, cancelados y repartos asignados/en curso no muestran esta acción.
+- Reutiliza la misma clave idempotente cuando se reintenta con el mismo motivo; si se pierde la respuesta, consulta el historial del servidor para recuperar la solicitud registrada antes de ofrecer un nuevo envío.
 - El flujo usa la API `feature/backend-capacity-order-lifecycle`, incluido Flyway V36. No procesa reembolsos desde la app ni cancela directamente el pedido. Verificación: Vitest 30/30, ESLint, TypeScript y exports Expo Android/Web aprobados; los exports son bundles y no sustituyen una prueba instalada en dispositivo.
 
 ## 2026-09-26 — APP-01 y slices iniciales de identidad/reservas
