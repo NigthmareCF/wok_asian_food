@@ -291,6 +291,17 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
         <Text style={ui.body}>{item.guests ? `${item.guests} ${item.guests === 1 ? "persona" : "personas"}` : "Tamaño de grupo no disponible"}</Text>
         <Text style={ui.pill}>{decisionLabel(item.decision, item.reservationStatus)}</Text>
         <Text style={ui.body}>{item.message}</Text>
+        {item.preorderItems?.length ? <View style={ui.section}>
+          <Text style={{ color: palette.ink, fontWeight: "800" }}>Preorden solicitada · pendiente de revisión</Text>
+          {item.preorderItems.map((product) => {
+            const money = new Intl.NumberFormat("es-GT", { style: "currency", currency: product.currency });
+            return <Text key={product.menuItemId} style={ui.body}>
+              {product.quantity} × {product.name}{product.modifiers.length ? ` · ${product.modifiers.map((modifier) => `${modifier.group}: ${modifier.name}`).join(", ")}` : ""}
+              {` · ${money.format(product.unitPrice)} c/u`}
+            </Text>;
+          })}
+          <Text style={{ color: "#746e67", fontSize: 13 }}>El menú y el precio pueden cambiar; estos son los datos de tu solicitud al enviarla.</Text>
+        </View> : null}
         {item.alternativeTimes?.map((alternative) => <Button key={alternative}
           title={`Probar ${formatDate(alternative)}`} secondary disabled={busy || attemptRestored}
           onPress={() => { setRequestedAt(formatRestaurantLocalInput(alternative)); setSubmissionAlternatives([]); }} />)}

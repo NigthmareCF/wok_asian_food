@@ -57,6 +57,14 @@ export type ReservationResult = {
   alternativeTimes: string[];
 };
 export type ReservationPreorderItem = { menuItemId: string; quantity: number; modifierIds: string[] };
+export type ReservationPreorderSnapshot = {
+  menuItemId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  currency: string;
+  modifiers: { group: string; name: string; priceDelta: number }[];
+};
 export type ReservationCapacityEvaluation = {
   confirmed: false;
   assessment: {
@@ -77,6 +85,7 @@ export type ReservationHistoryItem = {
   message: string;
   alternativeTimes?: string[];
   submittedAt: string;
+  preorderItems?: ReservationPreorderSnapshot[];
 };
 export type PublicMenu = {
   categories: PublicMenuCategory[];

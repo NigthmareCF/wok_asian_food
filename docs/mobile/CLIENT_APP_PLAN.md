@@ -4,7 +4,7 @@
 
 ## Estado verificado al 2026-10-05
 
-La rama especializada `feature/mobile-shell` ya integra sesión WOK y varios recorridos reales; sigue siendo una app parcial, no una entrega completa del canal Cliente. La evidencia más reciente está en [progreso móvil](../progress/MOBILE.md). El estado de cada slice evita contar una pantalla como funcionalidad terminada:
+La rama especializada `feature/mobile-shell` integra sesión WOK y varios recorridos reales; el historial de reservas ahora muestra los snapshots de preorden enviados por el Cliente. Sigue siendo una app parcial, no una entrega completa del canal Cliente. La evidencia más reciente está en [progreso móvil](../progress/MOBILE.md). El estado de cada slice evita contar una pantalla como funcionalidad terminada:
 
 | Slice | Estado comprobado | Pendiente relevante |
 | --- | --- | --- |
