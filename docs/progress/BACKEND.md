@@ -3,10 +3,11 @@
 ## 2026-10-05 — Asignación operativa de mesas para reservas
 
 - `POST /api/v1/operational/reservations/{reservationId}/table-assignments` permite al personal con `tables:manage` asignar una o varias mesas a una reserva confirmada o que ya llegó. Requiere `Idempotency-Key`, motivo y `expectedVersion`; bloquea reserva y mesas en orden estable, valida zona/estado/capacidad y registra auditoría.
+- `POST /api/v1/operational/reservations/{reservationId}/table-assignments/release` libera todas las mesas de una reserva confirmada antes de su hora. También exige clave idempotente, versión y motivo; incrementa versión, audita IDs/actor/instante y permite reutilizar la mesa en el periodo liberado.
 - La ocupación se toma del intervalo estimado de la reserva más 20 minutos de tolerancia. La exclusión GiST existente impide solapamientos de mesa en PostgreSQL; conflictos producen 409 y la transacción no deja asignaciones parciales. Reintentos idénticos devuelven el recibo sin duplicar filas ni auditoría.
-- `ReservationTableAssignmentIntegrationTest`: 3/3 con PostgreSQL 18/Testcontainers; cubre asignación múltiple y replay, capacidad insuficiente, conflicto de horario y rollback. Suite completa: 217 pruebas, 0 fallos, 0 errores, 0 omitidas; Flyway V1–V37 desde esquema vacío. Comando: `bash ./mvnw -q -DargLine='-javaagent:/home/fer-cachy/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.11/byte-buddy-agent-1.18.11.jar' test`.
+- `ReservationTableAssignmentIntegrationTest`: 4/4 con PostgreSQL 18/Testcontainers; cubre asignación múltiple y replay, capacidad insuficiente, conflicto de horario/rollback, liberación idempotente y reutilización posterior. Suite completa: 218 pruebas, 0 fallos, 0 errores, 0 omitidas; Flyway V1–V37 desde esquema vacío. Comando: `bash ./mvnw -q -DargLine='-javaagent:/home/fer-cachy/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.11/byte-buddy-agent-1.18.11.jar' test`.
 - La consulta de auditoría tipa explícitamente los valores de timestamp e integer dentro de `jsonb_build_object`, requerido por PostgreSQL para inferir los parámetros JDBC.
-- Límite actual: el endpoint cubre asignación inicial; no incluye liberación/cambio de mesas. La gestión de ocupación de reservas que ya comenzaron continúa en la vista operativa de mesas.
+- Límite actual: liberación sólo para reservas confirmadas que aún no comenzaron. La gestión de ocupación de reservas en curso continúa en la vista operativa de mesas.
 
 ## 2026-10-05 — Estimación pública de disponibilidad de menú
 

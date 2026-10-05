@@ -60,9 +60,23 @@ public class OperationalReservationTableAssignmentController {
                 requestId == null ? UUID.randomUUID() : requestId, request);
     }
 
+    @PostMapping("/{reservationId}/table-assignments/release")
+    public ReservationTableAssignmentService.ReleaseReceipt release(
+            @PathVariable UUID reservationId,
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody ReleaseRequest request) {
+        return assignments.release(reservationId, UUID.fromString(jwt.getSubject()), idempotencyKey,
+                requestId == null ? UUID.randomUUID() : requestId, request);
+    }
+
     public record AssignmentRequest(@NotEmpty @Size(max = 12) List<@NotNull UUID> tableIds,
                                     @Positive int expectedVersion,
                                     @NotBlank @Size(min = 3, max = 500) String reason) {}
+
+    public record ReleaseRequest(@Positive int expectedVersion,
+                                 @NotBlank @Size(min = 3, max = 500) String reason) {}
 }
 
 @Service
@@ -155,6 +169,54 @@ class ReservationTableAssignmentService {
         return receipt(reservationId);
     }
 
+    @Transactional
+    ReleaseReceipt release(UUID reservationId, UUID actor, UUID idempotencyKey, UUID requestId,
+                           OperationalReservationTableAssignmentController.ReleaseRequest request) {
+        String reason = request.reason().trim();
+        String hash = "reservation-tables-release-v1\n" + reservationId + "\n" + request.expectedVersion() + "\n" + reason;
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "RESERVATION_TABLES_RELEASED", idempotencyKey, hash);
+        if (claim.replay()) return new ReleaseReceipt(reservationId, request.expectedVersion() + 1, 0, true);
+
+        Reservation reservation = lockReservation(reservationId);
+        if (!"CONFIRMED".equals(reservation.status()))
+            throw new AuthException(409, "Sólo se pueden liberar mesas de una reserva confirmada que aún no llega.");
+        if (reservation.version() != request.expectedVersion())
+            throw new AuthException(409, "La reserva cambió. Actualiza la vista antes de liberar las mesas.");
+        if (!reservation.startsAt().isAfter(Instant.now()))
+            throw new AuthException(409, "El horario ya comenzó; coordina la disponibilidad desde la vista de mesas.");
+
+        List<UUID> assigned = jdbc.query("""
+            SELECT table_id FROM wok.reservation_table_assignments
+            WHERE reservation_id = ? AND released_at IS NULL ORDER BY table_id FOR UPDATE
+            """, (rs, row) -> rs.getObject("table_id", UUID.class), reservationId);
+        if (assigned.isEmpty()) throw new AuthException(409, "La reserva no tiene mesas activas para liberar.");
+
+        Instant releasedAt = Instant.now();
+        jdbc.update("""
+            UPDATE wok.reservation_table_assignments SET released_at = ?
+            WHERE reservation_id = ? AND released_at IS NULL
+            """, Timestamp.from(releasedAt), reservationId);
+        int updated = jdbc.update("""
+            UPDATE wok.reservations
+            SET updated_by = ?, updated_at = now(), row_version = row_version + 1
+            WHERE id = ? AND row_version = ? AND status = 'CONFIRMED'
+            """, actor, reservationId, request.expectedVersion());
+        if (updated != 1) throw new AuthException(409, "La reserva cambió. Actualiza la vista antes de liberar las mesas.");
+
+        String idsJson = assigned.stream().map(id -> "\"" + id + "\"").collect(java.util.stream.Collectors.joining(",", "[", "]"));
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, before_data, after_data, reason, result, request_id)
+            VALUES (?, 'RESERVATION_TABLES_RELEASED', 'RESERVATION', ?,
+                    jsonb_build_object('tableIds', ?::jsonb, 'rowVersion', ?::integer),
+                    jsonb_build_object('releasedAt', ?::timestamptz, 'rowVersion', ?::integer),
+                    ?, 'SUCCESS', ?)
+            """, actor, reservationId, idsJson, request.expectedVersion(), Timestamp.from(releasedAt),
+                request.expectedVersion() + 1, reason, requestId);
+        idempotency.complete(actor.toString(), "RESERVATION_TABLES_RELEASED", idempotencyKey, reservationId);
+        return new ReleaseReceipt(reservationId, request.expectedVersion() + 1, assigned.size(), false);
+    }
+
     private Reservation lockReservation(UUID reservationId) {
         List<Reservation> rows = jdbc.query("""
             SELECT id, status, party_size, reservation_at, ends_at, row_version
@@ -220,4 +282,5 @@ class ReservationTableAssignmentService {
     public record TableAssignment(UUID tableId, String name, int capacity, String zone) {}
     public record AssignmentReceipt(UUID reservationId, int rowVersion, Instant occupiedFrom, Instant occupiedUntil,
                                     List<TableAssignment> tables) {}
+    public record ReleaseReceipt(UUID reservationId, int rowVersion, int releasedTableCount, boolean idempotentReplay) {}
 }

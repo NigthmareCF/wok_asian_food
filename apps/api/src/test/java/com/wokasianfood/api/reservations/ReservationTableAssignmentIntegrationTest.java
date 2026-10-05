@@ -82,6 +82,38 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
         }
     }
 
+    @Test
+    void releasesAssignmentsIdempotentlyAndMakesTheTableAvailableAgain() throws Exception {
+        ReservationCase first = createConfirmedReservation(2);
+        ReservationCase second = createConfirmedReservation(2, first.startsAt());
+        UUID tableId = createTable("Mesa reasignable " + UUID.randomUUID(), 4, "SALON");
+        try {
+            var assigned = assign(first, List.of(tableId), UUID.randomUUID());
+            assertThat(assigned.statusCode()).as(assigned.body()).isEqualTo(201);
+
+            UUID releaseKey = UUID.randomUUID();
+            var released = release(first, releaseKey);
+            assertThat(released.statusCode()).as(released.body()).isEqualTo(200);
+            JsonNode releaseReceipt = json.readTree(released.body());
+            assertThat(releaseReceipt.path("rowVersion").asInt()).isEqualTo(4);
+            assertThat(releaseReceipt.path("releasedTableCount").asInt()).isEqualTo(1);
+            assertThat(releaseReceipt.path("idempotentReplay").asBoolean()).isFalse();
+            assertThat(count("SELECT count(*) FROM wok.reservation_table_assignments WHERE reservation_id = ? AND released_at IS NULL",
+                    first.id())).isZero();
+
+            var replayed = release(first, releaseKey);
+            assertThat(replayed.statusCode()).as(replayed.body()).isEqualTo(200);
+            assertThat(json.readTree(replayed.body()).path("idempotentReplay").asBoolean()).isTrue();
+            assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'RESERVATION_TABLES_RELEASED'",
+                    first.id())).isEqualTo(1);
+
+            var nextAssignment = assign(second, List.of(tableId), UUID.randomUUID());
+            assertThat(nextAssignment.statusCode()).as(nextAssignment.body()).isEqualTo(201);
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", first.hoursId());
+        }
+    }
+
     private ReservationCase createConfirmedReservation(int guests) throws Exception {
         LocalDate date = LocalDate.now(ZONE).plusDays(8);
         Instant startsAt = date.atTime(LocalTime.of(16, 0)).atZone(ZONE).toInstant();
@@ -122,9 +154,19 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
     }
 
     private java.net.http.HttpResponse<String> assign(ReservationCase reservation, java.util.List<UUID> tableIds, UUID key) {
+        return assign(reservation, tableIds, key, 2);
+    }
+
+    private java.net.http.HttpResponse<String> assign(ReservationCase reservation, java.util.List<UUID> tableIds, UUID key, int expectedVersion) {
         String ids = tableIds.stream().map(id -> "\"" + id + "\"").collect(java.util.stream.Collectors.joining(","));
         return post("/api/v1/operational/reservations/" + reservation.id() + "/table-assignments", reservation.staffToken(),
-                ("{\"tableIds\":[%s],\"expectedVersion\":2,\"reason\":\"Asignación confirmada para el grupo\"}").formatted(ids),
+                ("{\"tableIds\":[%s],\"expectedVersion\":%d,\"reason\":\"Asignación confirmada para el grupo\"}").formatted(ids, expectedVersion),
+                Map.of("Idempotency-Key", key.toString()));
+    }
+
+    private java.net.http.HttpResponse<String> release(ReservationCase reservation, UUID key) {
+        return post("/api/v1/operational/reservations/" + reservation.id() + "/table-assignments/release", reservation.staffToken(),
+                "{\"expectedVersion\":3,\"reason\":\"Cambio de asignación antes de la llegada\"}",
                 Map.of("Idempotency-Key", key.toString()));
     }
 
