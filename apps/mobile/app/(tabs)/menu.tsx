@@ -6,6 +6,7 @@ import { Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
 import { ApiError, apiRequest, CustomerTaxProfile, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
 const cartStorageKey = "wok.pickup.cart.v1";
@@ -13,11 +14,6 @@ const attemptStorageKey = "wok.pickup.pending.v1";
 
 function formatPrice(item: PublicMenuItem) {
   return new Intl.NumberFormat("es-GT", { style: "currency", currency: item.currency }).format(item.price);
-}
-
-function localDateTime(value: Date) {
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
 }
 
 function createIdempotencyKey() {
@@ -139,7 +135,7 @@ export default function MenuScreen() {
     const preparationSeconds = cartItems.reduce((total, item) => total + item.estimatedPreparationSeconds * cart[item.id], 0);
     const leadSeconds = Math.max(15 * 60, preparationSeconds + 60);
     const serverTime = Date.parse(menu?.asOf ?? "");
-    if (!Number.isNaN(serverTime)) setRequestedFor(localDateTime(new Date(serverTime + leadSeconds * 1000)));
+    if (!Number.isNaN(serverTime)) setRequestedFor(formatRestaurantLocalInput(new Date(serverTime + leadSeconds * 1000).toISOString()));
   }
 
   async function submitPickup() {
@@ -148,11 +144,13 @@ export default function MenuScreen() {
       setError(`Hay una solicitud anterior sin confirmar para ${attempt.email}. Inicia esa cuenta para reintentarla antes de enviar otra.`);
       return;
     }
+    const requestedPickupInstant = attempt ? null : parseRestaurantLocalDateTime(requestedFor);
+    if (!attempt && !requestedPickupInstant) { setError("Ingresa una fecha y hora válidas, usando la hora de Guatemala."); return; }
     const activeAttempt = attempt ?? {
       email: session.email,
       key: createIdempotencyKey(),
       body: {
-        requestedFor: new Date(requestedFor).toISOString(),
+        requestedFor: requestedPickupInstant!.toISOString(),
         customerNote: customerNote.trim() || undefined,
         paymentPreference,
         invoiceRequested,
@@ -231,7 +229,7 @@ export default function MenuScreen() {
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal actual: {new Intl.NumberFormat("es-GT", { style: "currency", currency: cartItems[0].currency }).format(cartSubtotal)}</Text>
         <Text style={ui.body}>El backend vuelve a validar precios. El carrito no reserva inventario ni confirma un pedido.</Text>
         <Button title="Sugerir primera hora" secondary onPress={suggestPickupTime} disabled={Boolean(attempt)} />
-        <Field label="Fecha y hora solicitadas (hora local)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" editable={!attempt} />
+        <Field label={`Fecha y hora solicitadas (hora de ${restaurantTimeZone})`} value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" editable={!attempt} />
         <Field label="Comentarios (opcional)" value={attempt?.body.customerNote ?? customerNote} onChangeText={setCustomerNote} placeholder="Indicaciones para el equipo" editable={!attempt} maxLength={500} />
         <View style={ui.section}>
           <Text style={{ color: palette.ink, fontWeight: "800" }}>Preferencia de pago al recoger</Text>

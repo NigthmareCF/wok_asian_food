@@ -241,3 +241,9 @@
 - Se integró el fix remoto para evitar carreras entre refresh simultáneo, cierre de sesión y cambio de cuenta. Las rotaciones se comparten sólo por token; las escrituras a SecureStore se serializan y cada mutación confirma que pertenece a la generación de sesión vigente.
 - Pruebas de coordinación cubren refresh concurrente por token, aislamiento entre tokens, limpieza de caché y escrituras ordenadas aun cuando una falle.
 - Este cambio ya estaba integrado en el historial actual de `feature/mobile-shell`; se verificó junto con el ajuste de aislamiento por usuario. Vitest 8/8, ESLint, TypeScript `--noEmit` y export Expo para Android/Web aprobaron.
+
+## 2026-10-04 — Pickup usa la zona horaria del restaurante
+
+- El campo de fecha y hora de pickup ahora se interpreta como hora de `America/Guatemala` incluso si el dispositivo está configurado en otra zona. La sugerencia de primera hora también se calcula desde el instante del servidor y se muestra en horario de Guatemala.
+- El formulario rechaza formatos o fechas de calendario inválidos antes de construir el payload; las solicitudes pendientes conservan el instante ISO original para reintento idempotente.
+- Verificación: Vitest 8/8, ESLint, TypeScript `--noEmit` y export Expo Android/Web completados. Los exports verifican bundles y rutas, no son APK/IPA instalables ni prueba física.
