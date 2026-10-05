@@ -9,11 +9,10 @@ import { ApiError, apiRequest, CustomerTaxProfile, MenuAvailabilityEstimate, Pic
 import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
+import { CommerceStorageKeys, resolveCommerceStorageKeys } from "@/lib/commerce-storage";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
-const cartStorageKey = "wok.pickup.cart.v1";
-const modifierStorageKey = "wok.pickup.modifiers.v1";
-const attemptStorageKey = "wok.pickup.pending.v1";
+const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
 
 function formatPrice(item: PublicMenuItem) {
   return new Intl.NumberFormat("es-GT", { style: "currency", currency: item.currency }).format(item.price);
@@ -32,12 +31,17 @@ function validCart(value: unknown): Record<string, number> {
 
 export default function MenuScreen() {
   const { session, request } = useSession();
+  return <PickupMenu key={session?.email ?? "anonymous"} session={session} request={request} />;
+}
+
+function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "session" | "request">) {
   const [menu, setMenu] = useState<PublicMenu | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({});
   const [cartRestored, setCartRestored] = useState(Platform.OS === "web");
+  const [cartStorageKeys, setCartStorageKeys] = useState<CommerceStorageKeys | null>(null);
   const [requestedFor, setRequestedFor] = useState("");
   const [customerNote, setCustomerNote] = useState("");
   const [paymentPreference, setPaymentPreference] = useState<PickupRequestBody["paymentPreference"]>("CASH_AT_PICKUP");
@@ -96,38 +100,59 @@ export default function MenuScreen() {
   useEffect(() => {
     let mounted = true;
     if (Platform.OS === "web") return;
-    Promise.all([SecureStore.getItemAsync(cartStorageKey), SecureStore.getItemAsync(modifierStorageKey), SecureStore.getItemAsync(attemptStorageKey)])
-      .then(([storedCart, storedModifiers, storedAttempt]) => {
-        if (!mounted) return;
+    const accountEmail = session?.email ?? null;
+    void resolveCommerceStorageKeys("pickup", accountEmail).then(async (keys) => {
+      if (!mounted) return;
+      setCartStorageKeys(keys);
+      const [storedCart, storedModifiers, scopedAttempt, legacyAttempt] = await Promise.all([
+        SecureStore.getItemAsync(keys.cart), SecureStore.getItemAsync(keys.modifiers),
+        SecureStore.getItemAsync(keys.pending), SecureStore.getItemAsync(legacyStorageKeys.pending),
+      ]);
+      await Promise.all([SecureStore.deleteItemAsync(legacyStorageKeys.cart), SecureStore.deleteItemAsync(legacyStorageKeys.modifiers)]);
+      let storedAttempt = scopedAttempt;
+      if (!storedAttempt && legacyAttempt) {
+        try {
+          const old = JSON.parse(legacyAttempt) as PickupAttempt;
+          if (accountEmail && old.email?.trim().toLowerCase() === accountEmail.trim().toLowerCase()) {
+            storedAttempt = legacyAttempt;
+            await SecureStore.setItemAsync(keys.pending, legacyAttempt);
+            await SecureStore.deleteItemAsync(legacyStorageKeys.pending);
+          }
+        } catch { /* Keep an unowned legacy attempt isolated until its account signs in. */ }
+      }
+      if (mounted) {
         if (storedCart) {
           try { setCart(validCart(JSON.parse(storedCart) as unknown)); }
-          catch { void SecureStore.deleteItemAsync(cartStorageKey); }
+          catch { void SecureStore.deleteItemAsync(keys.cart); }
         }
         if (storedModifiers) {
           try { setSelectedModifiers(validModifierSelections(JSON.parse(storedModifiers) as unknown)); }
-          catch { void SecureStore.deleteItemAsync(modifierStorageKey); }
+          catch { void SecureStore.deleteItemAsync(keys.modifiers); }
         }
         if (storedAttempt) {
           try {
             const value = JSON.parse(storedAttempt) as PickupAttempt;
             if (value.email && value.key && value.body?.items?.length) setAttempt(value);
-            else void SecureStore.deleteItemAsync(attemptStorageKey);
-          } catch { void SecureStore.deleteItemAsync(attemptStorageKey); }
+            else void SecureStore.deleteItemAsync(keys.pending);
+          } catch { void SecureStore.deleteItemAsync(keys.pending); }
         }
-      })
+      }
+    }).catch((cause: unknown) => {
+      if (mounted) setError(cause instanceof Error ? cause.message : "No se pudo recuperar el carrito de esta cuenta.");
+    })
       .finally(() => { if (mounted) setCartRestored(true); });
     return () => { mounted = false; };
-  }, []);
+  }, [session?.email]);
 
   useEffect(() => {
-    if (!cartRestored || Platform.OS === "web") return;
-    void SecureStore.setItemAsync(cartStorageKey, JSON.stringify(cart));
-  }, [cart, cartRestored]);
+    if (!cartRestored || Platform.OS === "web" || !cartStorageKeys) return;
+    void SecureStore.setItemAsync(cartStorageKeys.cart, JSON.stringify(cart));
+  }, [cart, cartRestored, cartStorageKeys]);
 
   useEffect(() => {
-    if (!cartRestored || Platform.OS === "web") return;
-    void SecureStore.setItemAsync(modifierStorageKey, JSON.stringify(selectedModifiers));
-  }, [selectedModifiers, cartRestored]);
+    if (!cartRestored || Platform.OS === "web" || !cartStorageKeys) return;
+    void SecureStore.setItemAsync(cartStorageKeys.modifiers, JSON.stringify(selectedModifiers));
+  }, [selectedModifiers, cartRestored, cartStorageKeys]);
 
   const products = useMemo(() => (menu?.categories ?? []).flatMap((category) => category.items), [menu]);
   const cartItems = products.filter((item) => (cart[item.id] ?? 0) > 0);
@@ -179,6 +204,7 @@ export default function MenuScreen() {
 
   async function submitPickup() {
     if (!session) { setError("Inicia sesión para enviar una solicitud de pickup."); return; }
+    if (Platform.OS !== "web" && !cartStorageKeys) { setError("Estamos preparando el carrito seguro de esta cuenta. Inténtalo de nuevo."); return; }
     if (attempt && attempt.email !== session.email) {
       setError(`Hay una solicitud anterior sin confirmar para ${attempt.email}. Inicia esa cuenta para reintentarla antes de enviar otra.`);
       return;
@@ -207,15 +233,15 @@ export default function MenuScreen() {
     setError(null);
     setSending(true);
     try {
-      if (Platform.OS !== "web") await SecureStore.setItemAsync(attemptStorageKey, JSON.stringify(activeAttempt));
+      if (Platform.OS !== "web" && cartStorageKeys) await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(activeAttempt));
       const result = await request<PickupRequestReceipt>("/api/v1/client/order-requests", {
         method: "POST",
         headers: { "Idempotency-Key": activeAttempt.key },
         body: JSON.stringify(activeAttempt.body),
       });
       if (Platform.OS !== "web") {
-        await Promise.all([SecureStore.deleteItemAsync(attemptStorageKey), SecureStore.deleteItemAsync(cartStorageKey),
-          SecureStore.deleteItemAsync(modifierStorageKey)]);
+        if (cartStorageKeys) await Promise.all([SecureStore.deleteItemAsync(cartStorageKeys.pending),
+          SecureStore.deleteItemAsync(cartStorageKeys.cart), SecureStore.deleteItemAsync(cartStorageKeys.modifiers)]);
       }
       setAttempt(null);
       setReceipt(result);
@@ -300,7 +326,7 @@ export default function MenuScreen() {
         {attempt ? <Notice>Hay un envío cuyo resultado no se confirmó. Reintenta exactamente la misma solicitud; la app conserva su clave para evitar duplicados.</Notice> : null}
         {!cartSelectionsValid ? <Notice tone="error">Completa las opciones requeridas para cada platillo antes de enviar.</Notice> : null}
         <Button title={attempt ? "Reintentar solicitud pendiente" : "Enviar solicitud de pickup"}
-          onPress={() => void submitPickup()} busy={sending} disabled={!session || !cartSelectionsValid || (session.offline && !process.env.EXPO_PUBLIC_API_BASE_URL)} />
+          onPress={() => void submitPickup()} busy={sending} disabled={!session || !cartRestored || !cartSelectionsValid || (session.offline && !process.env.EXPO_PUBLIC_API_BASE_URL)} />
       </Card>
     </View> : null}
   </Page></ScrollView>;

@@ -10,11 +10,10 @@ import { useSession } from "@/providers/session-provider";
 import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
 import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
+import { CommerceStorageKeys, resolveCommerceStorageKeys } from "@/lib/commerce-storage";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
-const pendingKey = "wok.delivery.pending.v1";
-const cartStorageKey = "wok.delivery.cart.v1";
-const modifierStorageKey = "wok.delivery.modifiers.v1";
+const legacyStorageKeys = { cart: "wok.delivery.cart.v1", modifiers: "wok.delivery.modifiers.v1", pending: "wok.delivery.pending.v1" };
 
 export default function DeliveryScreen() {
   const { session, request } = useSession();
@@ -28,6 +27,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string[]>>({});
   const [cartRestored, setCartRestored] = useState(false);
+  const [cartStorageKeys, setCartStorageKeys] = useState<CommerceStorageKeys | null>(null);
   const [requestedFor, setRequestedFor] = useState("");
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
@@ -67,41 +67,62 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   useEffect(() => {
     let active = true;
-    Promise.allSettled([fetchMenu(), SecureStore.getItemAsync(cartStorageKey),
-      SecureStore.getItemAsync(modifierStorageKey), SecureStore.getItemAsync(pendingKey)])
-      .then(([menuResult, cartResult, modifiersResult, attemptResult]) => {
+    const accountEmail = session?.email ?? null;
+    void Promise.allSettled([fetchMenu(), resolveCommerceStorageKeys("delivery", accountEmail)])
+      .then(async ([menuResult, keysResult]) => {
         if (!active) return;
         if (menuResult.status === "fulfilled") setMenu(menuResult.value);
         else setError(menuResult.reason instanceof ApiError ? menuResult.reason.message : "No pudimos cargar el menú para delivery.");
-        if (cartResult.status === "fulfilled" && cartResult.value) {
-          try { setCart(validCart(JSON.parse(cartResult.value) as unknown)); }
-          catch { void SecureStore.deleteItemAsync(cartStorageKey); }
+        if (keysResult.status === "rejected") throw keysResult.reason;
+        const keys = keysResult.value;
+        setCartStorageKeys(keys);
+        const [cartResult, modifiersResult, scopedAttempt, legacyAttempt] = await Promise.all([
+          SecureStore.getItemAsync(keys.cart), SecureStore.getItemAsync(keys.modifiers),
+          SecureStore.getItemAsync(keys.pending), SecureStore.getItemAsync(legacyStorageKeys.pending),
+        ]);
+        await Promise.all([SecureStore.deleteItemAsync(legacyStorageKeys.cart), SecureStore.deleteItemAsync(legacyStorageKeys.modifiers)]);
+        if (!active) return;
+        if (cartResult) {
+          try { setCart(validCart(JSON.parse(cartResult) as unknown)); }
+          catch { void SecureStore.deleteItemAsync(keys.cart); }
         }
-        if (modifiersResult.status === "fulfilled" && modifiersResult.value) {
-          try { setSelectedModifiers(validModifierSelections(JSON.parse(modifiersResult.value) as unknown)); }
-          catch { void SecureStore.deleteItemAsync(modifierStorageKey); }
+        if (modifiersResult) {
+          try { setSelectedModifiers(validModifierSelections(JSON.parse(modifiersResult) as unknown)); }
+          catch { void SecureStore.deleteItemAsync(keys.modifiers); }
         }
-        if (attemptResult.status === "fulfilled" && attemptResult.value) {
+        let storedAttempt = scopedAttempt;
+        if (!storedAttempt && legacyAttempt) {
           try {
-            const parsed = JSON.parse(attemptResult.value) as PendingAttempt;
+            const parsed = JSON.parse(legacyAttempt) as PendingAttempt;
+            if (accountEmail && parsed.email?.trim().toLowerCase() === accountEmail.trim().toLowerCase()) {
+              storedAttempt = legacyAttempt;
+              await SecureStore.setItemAsync(keys.pending, legacyAttempt);
+              await SecureStore.deleteItemAsync(legacyStorageKeys.pending);
+            }
+          } catch { /* Keep an unowned legacy attempt isolated until its account signs in. */ }
+        }
+        if (storedAttempt) {
+          try {
+            const parsed = JSON.parse(storedAttempt) as PendingAttempt;
             if (parsed.email && parsed.key && parsed.body?.items?.length) setPending(parsed);
-            else void SecureStore.deleteItemAsync(pendingKey);
-          } catch { void SecureStore.deleteItemAsync(pendingKey); }
+            else void SecureStore.deleteItemAsync(keys.pending);
+          } catch { void SecureStore.deleteItemAsync(keys.pending); }
         }
       })
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "No se pudo recuperar el carrito de esta cuenta."); })
       .finally(() => { if (active) { setLoading(false); setCartRestored(true); } });
     return () => { active = false; };
-  }, []);
+  }, [session?.email]);
 
   useEffect(() => {
-    if (!cartRestored) return;
-    void SecureStore.setItemAsync(cartStorageKey, JSON.stringify(cart));
-  }, [cart, cartRestored]);
+    if (!cartRestored || !cartStorageKeys) return;
+    void SecureStore.setItemAsync(cartStorageKeys.cart, JSON.stringify(cart));
+  }, [cart, cartRestored, cartStorageKeys]);
 
   useEffect(() => {
-    if (!cartRestored) return;
-    void SecureStore.setItemAsync(modifierStorageKey, JSON.stringify(selectedModifiers));
-  }, [selectedModifiers, cartRestored]);
+    if (!cartRestored || !cartStorageKeys) return;
+    void SecureStore.setItemAsync(cartStorageKeys.modifiers, JSON.stringify(selectedModifiers));
+  }, [selectedModifiers, cartRestored, cartStorageKeys]);
 
   useEffect(() => {
     let active = true;
@@ -197,6 +218,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   async function submit(attempt?: PendingAttempt) {
     if (!session) { setError("Inicia sesión para enviar una solicitud de delivery."); return; }
+    if (!cartStorageKeys || !cartRestored) { setError("Estamos preparando el carrito seguro de esta cuenta. Inténtalo de nuevo."); return; }
     if (!attempt && !selectionsValid) {
       setError("Completa las opciones requeridas para cada platillo antes de enviar."); return;
     }
@@ -232,13 +254,13 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     if (activeAttempt.email !== session.email) { setError(`Inicia sesión con ${activeAttempt.email} para reintentar la solicitud protegida.`); return; }
     setSending(true); setError(""); setNotice("");
     try {
-      await SecureStore.setItemAsync(pendingKey, JSON.stringify(activeAttempt));
+      await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(activeAttempt));
       const result = await request<DeliveryRequestReceipt>("/api/v1/client/delivery-requests", {
         method: "POST", headers: { "Idempotency-Key": activeAttempt.key }, body: JSON.stringify(activeAttempt.body),
       });
-      await SecureStore.deleteItemAsync(pendingKey);
+      await SecureStore.deleteItemAsync(cartStorageKeys.pending);
       setPending(null); setReceipt(result); setCart({}); setSelectedModifiers({});
-      await Promise.all([SecureStore.deleteItemAsync(cartStorageKey), SecureStore.deleteItemAsync(modifierStorageKey)]);
+      await Promise.all([SecureStore.deleteItemAsync(cartStorageKeys.cart), SecureStore.deleteItemAsync(cartStorageKeys.modifiers)]);
       setHistory((current) => [result, ...current.filter((item) => item.requestId !== result.requestId)]); setHistoryOwner(session.email); setHistoryLoaded(true); setNotice("El restaurante recibió tu solicitud y debe revisar cobertura y disponibilidad.");
     } catch (cause) {
       setPending(activeAttempt);
@@ -392,7 +414,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       <Button title="Sugerir horario inicial" secondary onPress={suggestTime} disabled={!selected.length} />
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />
       {selected.length === 0 ? <Notice>Agrega al menos un producto.</Notice> : null}
-      <Button title="Enviar solicitud de delivery" busy={sending} disabled={!session || !selected.length || !selectionsValid} onPress={() => void submit()} />
+      <Button title="Enviar solicitud de delivery" busy={sending} disabled={!session || !cartRestored || !selected.length || !selectionsValid} onPress={() => void submit()} />
     </Card> : null}
   </Page></ScrollView>;
 }

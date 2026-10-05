@@ -348,3 +348,8 @@
 
 - La vista de facturas ya consulta documentos propios emitidos; se corrigió el texto para no limitarlo a pickup. Backend valida ownership por cuenta y admite cuentas con pedidos pickup/delivery aceptados.
 - Verificación móvil: Vitest 38/38, ESLint y TypeScript. Prueba backend sobre PostgreSQL 18 valida ambas modalidades y rechazo de acceso a otro cliente.
+## 2026-10-05 — Carrito aislado por cuenta y canal
+
+- Los borradores y modificadores de pickup y delivery ahora usan SecureStore namespaced por canal y por identidad (hash SHA-256 del correo normalizado); el espacio anónimo es independiente. Cambiar de cuenta ya no restaura el carrito de otra persona.
+- Las claves de reintento pendientes también quedan en el scope de la cuenta; los intentos legacy sólo se migran si el correo coincide con la sesión activa, conservando idempotencia. Se descartan carritos legacy sin dueño verificable.
+- Verificación: Vitest 40/40, ESLint, TypeScript y export Expo Android/Web (17 rutas). Tests unitarios validan separación entre cuentas/canales y el scope anónimo.
