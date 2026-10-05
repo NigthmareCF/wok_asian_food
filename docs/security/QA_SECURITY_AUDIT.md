@@ -1,0 +1,135 @@
+# Auditoría de estabilización: Web, móvil y seguridad
+
+Fecha: 3 de octubre de 2026
+Rama: `release/qa-security`
+Alcance: navegación Web, sesiones, permisos de interfaz, calidad estática y preparación de entorno integrado.
+
+## Resultado ejecutivo
+
+La base Web y móvil compila y supera sus verificaciones estáticas. La navegación privada protege los contextos Cliente, Operación y Administración mediante cookie de sesión, validación de sesión en servidor y validación del rol de contexto. Se corrigió una inconsistencia en la navegación: ahora los enlaces visibles se calculan con los permisos recibidos en la sesión actual, no con permisos de demostración.
+
+El sistema aún no debe presentarse como una integración completa de todos los módulos. Varias vistas operativas y administrativas indican expresamente que usan datos simulados y se reinician al recargar.
+
+## Evidencia de verificaciones
+
+| Verificación | Resultado | Evidencia |
+| --- | --- | --- |
+| Pruebas Web | Aprobada | 60 archivos, 389 pruebas aprobadas. |
+| Tipado Web | Aprobado | `tsc --noEmit`. |
+| Lint Web | Aprobado | `eslint .`. |
+| Build Web | Aprobado | Next.js generó 94 rutas sin error. |
+| Lint móvil | Aprobado | `eslint src app`. |
+| Tipado móvil | Aprobado | `tsc --noEmit`. |
+| Pruebas unitarias de seguridad API | Aprobadas | 17 pruebas: autenticación, CORS, sesión, DTO y errores. |
+| Build API Spring Boot | Aprobado | `mvnw verify -DskipTests` con Eclipse Temurin JDK 21. |
+| Docker integrado | Pendiente de entorno | Docker Desktop no expuso el motor Linux durante la auditoría. |
+
+## Corrección de CI
+
+La verificación integrada de GitHub Actions identificó que los hashes BCrypt de las dos cuentas demo no correspondían a las contraseñas publicadas en `database/seeds/dev_demo.sql`. Se regeneraron ambos hashes con coste 12 y se añadió una prueba unitaria que confirma esta correspondencia antes de publicar cambios. El workflow también valida la sintaxis del smoke Bash y Git fija LF para scripts, como medida preventiva de compatibilidad entre Windows y Ubuntu.
+
+## Hallazgo corregido
+
+### QA-SEC-001: navegación mostraba permisos de demostración
+
+- Severidad: media.
+- Riesgo: un usuario autenticado podía ver enlaces de su canal aunque su sesión no incluyera el permiso asociado. La API debía rechazar la acción, pero la interfaz adelantaba información y generaba un flujo confuso.
+- Corrección: `AppShell` utiliza `currentUser.permissions` para filtrar la navegación y la prueba cubre un usuario operativo con permiso limitado.
+- Límite: ocultar enlaces mejora la interfaz, pero no sustituye la autorización del backend. Cada endpoint debe conservar su control de permisos.
+
+### QA-SEC-002: identidad de IP confiable para rate limiting
+
+- Severidad: alta.
+- Riesgo: Nginx conservaba una cadena `X-Forwarded-For` suministrada por el cliente antes de añadir la IP observada. La API usa el primer valor para limitar intentos de autenticación; un cliente podía falsificarlo y evadir parte de ese control.
+- Corrección: los proxies HTTP y TLS reemplazan `X-Forwarded-For` por `$remote_addr`, por lo que la API recibe una identidad asignada por Nginx y no una cadena controlada por el cliente.
+- Pendiente de ejecución: al recuperar Docker, validar la configuración con `nginx -t` y comprobar que múltiples cabeceras enviadas por un cliente no alteran el límite.
+
+### QA-SEC-003: límite por IP para inicio de sesión
+
+- Severidad: alta.
+- Riesgo: el inicio de sesión mantenía un bloqueo por correo después de fallos repetidos, pero no aplicaba la ventana de control por IP usada por los demás endpoints de autenticación. Eso dejaba más margen para intentos de fuerza bruta distribuidos.
+- Corrección: `POST /api/v1/auth/login` ahora registra el intento en `AuthRateLimiter` antes de validar las credenciales. Se permite un máximo de 20 intentos por IP en 15 minutos, además del límite por cuenta ya existente en `AuthService`.
+- Verificación pendiente: la prueba Java fue añadida, pero requiere JDK 21 para ejecutar `mvnw verify`.
+
+### QA-SEC-004: disponibilidad pública de reservaciones bloqueada
+
+- Severidad: media.
+- Riesgo: `POST /api/v1/public/reservations/evaluate` se presenta como una evaluación preliminar pública, pero la política permitía solamente solicitudes `GET` bajo `/api/v1/public/**`. Un visitante sin sesión recibía 401 al consultar disponibilidad.
+- Corrección: se autorizó explícitamente y solo ese `POST` público. La acción no crea ni confirma una reservación; únicamente evalúa capacidad.
+- Verificación pendiente: ejecutar la prueba de integración con y sin token al recuperar Java y Docker.
+
+### QA-SEC-005: política de contraseña solo aplicada en la interfaz
+
+- Severidad: alta.
+- Riesgo: la Web exigía una contraseña compleja, pero la API aceptaba cualquier valor de 12 a 128 caracteres. Una solicitud directa podía omitir las reglas de mayúscula, minúscula, número y símbolo.
+- Corrección: los DTO de registro y restablecimiento aplican ahora esa política en el backend. Las entradas de autenticación también limitan correo, contraseña, código y tipo de cliente para evitar valores nulos o excesivamente grandes.
+- Verificación pendiente: ejecutar las pruebas Java y añadir casos HTTP de contraseña débil al recuperar el entorno.
+
+### QA-SEC-006: manejo uniforme de errores inesperados
+
+- Severidad: media.
+- Riesgo: la API no tenía una respuesta explícita y uniforme para errores inesperados. Según la configuración del entorno, una falla podía devolver detalles inconsistentes o difíciles de consumir desde Web y móvil.
+- Corrección: las excepciones de negocio con estado HTTP conservan su mensaje controlado; cualquier error no previsto responde `500` con un mensaje genérico, sin detalles internos.
+- Verificación pendiente: ejecutar las pruebas Java y provocar una falla controlada en el entorno integrado para confirmar que no se exponen trazas ni SQL.
+
+## Estado de rutas y sesiones
+
+| Capa | Estado | Observación |
+| --- | --- | --- |
+| Proxy Web | Implementado | Redirige rutas `/client`, `/operation` y `/admin` a login cuando falta cookie de acceso. |
+| Layouts privados | Implementado | Verifican sesión y rol de contexto en servidor. |
+| Destino posterior a login | Implementado | Rechaza destinos externos, rutas con barras dobles y caracteres de control. |
+| BFF de operaciones | Implementado | Exige token; las escrituras validan origen y varios flujos usan claves de idempotencia. |
+| Permisos de interfaz | Corregido | Se filtra la navegación con permisos de la sesión. |
+| Permisos de página individual | Pendiente de prueba E2E | Debe comprobarse con usuarios de permisos parciales cuando la API esté levantada. |
+
+## Controles observados en la API
+
+La revisión estática del backend encontró controles que deben conservarse y validarse en ejecución:
+
+- Contraseñas protegidas con BCrypt de coste 12.
+- JWT con emisor configurado, expiración y validación contra una sesión activa, no revocada y asociada a un usuario activo.
+- Roles y permisos cargados desde PostgreSQL para las autoridades de Spring Security.
+- Controladores operativos críticos protegidos con `@PreAuthorize`, por ejemplo mesas, cuentas, pedidos, cocina, pagos, inventario, producción y caja.
+- Rate limiting con ventana deslizante para registro, verificación, reenvío de código, inicio de sesión y restablecimiento de contraseña.
+- CORS con lista explícita de orígenes y métodos; no se permite cualquier origen.
+
+La evidencia anterior es estática. Antes de publicación debe repetirse con pruebas de integración que confirmen respuestas 401 y 403 para tokens ausentes, expirados, revocados o con permisos insuficientes.
+
+## Consultas y exposición de servicios
+
+La revisión estática de los controladores y servicios que usan `JdbcTemplate` no encontró concatenación de datos enviados por usuarios dentro de SQL. Las consultas que reciben identificadores, textos, importes o filtros usan marcadores `?` y parámetros separados. Las concatenaciones observadas se limitan a fragmentos SQL definidos por el propio código, como una cláusula `FOR UPDATE`, o a constantes compartidas.
+
+Esto reduce el riesgo de inyección SQL, pero no sustituye una prueba en ejecución. Cuando el entorno esté disponible se debe intentar una entrada con caracteres de inyección en los formularios y comprobar que el resultado sea una validación controlada, nunca una consulta alterada ni un error interno.
+
+El archivo de composición también mantiene una frontera útil: Nginx es el único servicio con puerto HTTP publicado. La API y PostgreSQL se comunican por redes internas de Docker. Esta condición debe conservarse en desarrollo, demostración y nube; publicar directamente el puerto de la API invalidaría la confianza actual sobre las cabeceras que Nginx normaliza.
+
+## Integración real y datos simulados
+
+Ya existen rutas BFF para menú, autenticación, solicitudes de pedido, reservaciones, mensajería, delivery y mesas operativas. Sin embargo, el código conserva módulos con fixtures o avisos de datos simulados, entre ellos pedidos operativos, cocina, delivery, caja, inventario, producción, mensajería operativa y varias pantallas administrativas.
+
+Antes de la demo se debe etiquetar cada módulo como uno de estos estados:
+
+1. Integrado: consulta API y persiste cambios.
+2. Demostrativo: usa fixtures, sin prometer persistencia.
+3. Pendiente: no debe figurar como funcionalidad terminada.
+
+## Dependencias
+
+La auditoría de dependencias de producción reportó 30 alertas transitivas: 19 altas y 11 moderadas, sin críticas. La mayoría deriva del árbol Expo/React Native, Metro, `micromatch`, `node-forge` y `decode-uri-component`.
+
+No se ejecutó `npm audit fix --force`, porque puede cambiar Expo o React Native fuera de versiones compatibles. El siguiente trabajo debe actualizar el árbol móvil de forma controlada, ejecutar las pruebas y documentar cada excepción aceptada.
+
+## Próximos pasos obligatorios
+
+1. Recuperar Docker Desktop; levantar `docker compose --profile dev up --build -d` con un `.env` local ignorado.
+2. Ejecutar `apps/api/mvnw verify` completo, incluidas las pruebas de integración con PostgreSQL.
+3. Ejecutar pruebas E2E con cuentas Cliente, Operación y Administración:
+   - Cliente crea solicitud o reserva.
+   - Operación la visualiza y cambia el estado autorizado.
+   - Cocina recibe el pedido y actualiza su avance.
+   - Cliente consulta el estado actualizado.
+4. Probar cada URL privada sin sesión, con rol equivocado y con permiso parcial.
+5. Migrar o retirar de la demo los módulos que aún usan datos simulados.
+6. Resolver las alertas de dependencias con una actualización compatible y volver a ejecutar esta auditoría.
+7. Mantener la API y PostgreSQL fuera de puertos públicos; todo tráfico externo debe entrar por el proxy configurado.

@@ -3,6 +3,51 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
+const permissionsByContext = {
+  admin: [
+    "users.read",
+    "roles.read",
+    "staff.read",
+    "menu.read",
+    "settings.read",
+    "recipes.read",
+    "suppliers.read",
+    "purchases.read",
+    "production.read",
+    "reports.read",
+    "cash.read",
+    "clients.read",
+    "ai.read",
+    "vision.read",
+    "audit.read",
+  ],
+  client: ["orders.read"],
+  operational: [
+    "tables.read",
+    "orders.read",
+    "kitchen.read",
+    "reservations.read",
+    "messages.read",
+    "delivery.read",
+    "cash.read",
+    "payments.read",
+    "inventory.read",
+    "production.read",
+    "status.read",
+  ],
+} as const;
+
+function currentUserFor(context: keyof typeof permissionsByContext) {
+  return {
+    userId: `${context}-test`,
+    displayName: "Usuario de prueba",
+    email: `${context}@example.test`,
+    roles: [context === "operational" ? "OPERATIONAL" : context.toUpperCase()],
+    permissions: [...permissionsByContext[context]],
+    status: "ACTIVE",
+  };
+}
+
 const pathState = vi.hoisted(() => ({ pathname: "/operation" }));
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
 const navigation = vi.hoisted(() => ({ replacePage: vi.fn() }));
@@ -134,7 +179,7 @@ describe("AppShell", () => {
   it("preserves client links and demo dialogs when the sidebar is collapsed", async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <AppShell context="client">
+      <AppShell context="client" currentUser={currentUserFor("client")}>
         <div>Contenido cliente</div>
       </AppShell>,
     );
@@ -180,7 +225,10 @@ describe("AppShell", () => {
   it("collapses and restores the operational navigation", async () => {
     const user = userEvent.setup();
     const { container } = render(
-      <AppShell context="operational">
+      <AppShell
+        context="operational"
+        currentUser={currentUserFor("operational")}
+      >
         <div>Contenido operativo</div>
       </AppShell>,
     );
@@ -205,7 +253,7 @@ describe("AppShell", () => {
   it("shows admin-only management entries in the admin navigation", () => {
     pathState.pathname = "/admin";
     const { rerender } = render(
-      <AppShell context="admin">
+      <AppShell context="admin" currentUser={currentUserFor("admin")}>
         <div>Contenido administrativo</div>
       </AppShell>,
     );
@@ -223,7 +271,10 @@ describe("AppShell", () => {
 
     pathState.pathname = "/operation";
     rerender(
-      <AppShell context="operational">
+      <AppShell
+        context="operational"
+        currentUser={currentUserFor("operational")}
+      >
         <div>Contenido operativo</div>
       </AppShell>,
     );
@@ -242,7 +293,7 @@ describe("AppShell", () => {
     ["operational", "/operation"],
   ] as const)("links the %s brand to its channel home", (context, route) => {
     render(
-      <AppShell context={context}>
+      <AppShell context={context} currentUser={currentUserFor(context)}>
         <div>Contenido del canal</div>
       </AppShell>,
     );
@@ -250,5 +301,27 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("link", { name: "WOK Asian Food" }),
     ).toHaveAttribute("href", route);
+  });
+
+  it("does not show navigation entries without the corresponding permission", () => {
+    render(
+      <AppShell
+        context="operational"
+        currentUser={{
+          ...currentUserFor("operational"),
+          permissions: ["tables.read"],
+        }}
+      >
+        Contenido
+      </AppShell>,
+    );
+
+    expect(screen.getByRole("link", { name: "Mesas" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Pedidos" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Pagos" }),
+    ).not.toBeInTheDocument();
   });
 });

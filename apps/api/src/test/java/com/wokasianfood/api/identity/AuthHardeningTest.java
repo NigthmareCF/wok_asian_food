@@ -11,6 +11,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.wokasianfood.api.identity.AuthDtos.Login;
+import com.wokasianfood.api.identity.AuthDtos.TokenPair;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -76,5 +79,21 @@ class AuthHardeningTest {
                 eq("203.0.113.7"));
         verify(jdbc).update(contains("INSERT INTO wok.auth_rate_limit_events"), eq("RESET_REQUEST"),
                 eq("IDENTIFIER"), eq("cliente@wok.demo"));
+    }
+
+    @Test
+    void appliesIpRateLimitBeforeAttemptingLogin() {
+        AuthService service = org.mockito.Mockito.mock(AuthService.class);
+        AuthRateLimiter limiter = org.mockito.Mockito.mock(AuthRateLimiter.class);
+        AuthController controller = new AuthController(service, org.mockito.Mockito.mock(CurrentUserService.class), limiter);
+        Login request = new Login("cliente@wok.demo", "ContraseñaSegura!2026", "WEB");
+        HttpServletRequest http = org.mockito.Mockito.mock(HttpServletRequest.class);
+        when(http.getRemoteAddr()).thenReturn("203.0.113.5");
+        when(service.login(request)).thenReturn(new TokenPair("access", "refresh", "Bearer", 900));
+
+        controller.login(request, http);
+
+        verify(limiter).check(AuthRateLimiter.Action.LOGIN, "cliente@wok.demo", "203.0.113.5");
+        verify(service).login(request);
     }
 }
