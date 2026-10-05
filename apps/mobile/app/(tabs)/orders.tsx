@@ -216,11 +216,13 @@ function OrderHistory() {
 
   function cancellationControls(orderRequestId: string) {
     const change = changeRequestFor(orderRequestId);
-    if (change) return <Notice tone={change.status === "REJECTED" ? "error" : "info"}>
-      {change.status === "PENDING_REVIEW" ? "Solicitud de cancelación pendiente de revisión. El pedido continúa activo." :
-        change.status === "APPROVED" ? "El equipo aprobó la cancelación del pedido." :
-          `El equipo no aceptó la cancelación.${change.decisionReason ? ` Motivo: ${change.decisionReason}` : ""}`}
-    </Notice>;
+    if (change?.status === "PENDING_REVIEW") return <Notice>Solicitud de cancelación pendiente de revisión. El pedido continúa activo.</Notice>;
+    if (change?.status === "APPROVED") return <Notice>El equipo aprobó la cancelación del pedido.</Notice>;
+    if (change?.status === "REJECTED") return <View style={ui.section}>
+      <Notice tone="error">El equipo no aceptó la cancelación.{change.decisionReason ? ` Motivo: ${change.decisionReason}` : ""}</Notice>
+      <Button title="Solicitar nuevamente" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline)}
+        onPress={() => { setError(""); setSelectedChangeRequest(orderRequestId); }} />
+    </View>;
     if (selectedChangeRequest === orderRequestId) return <View style={ui.section}>
       <Text style={ui.body}>El pedido no se cancela automáticamente. El equipo revisará tu solicitud.</Text>
       <TextInput accessibilityLabel="Motivo de cancelación" placeholder="Motivo (mínimo 3 caracteres)" value={changeReason}
