@@ -50,9 +50,12 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
         assertThat(current.path("expectedCash").decimalValue()).isEqualByComparingTo("490.00");
         assertThat(current.path("movements")).hasSize(3);
 
-        JsonNode closed = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
+        String closeKey = UUID.randomUUID().toString();
+        String closePayload = """
                 {"countedCash":485.00,"expectedVersion":1}
-                """));
+                """;
+        JsonNode closed = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token,
+                closePayload, Map.of("Idempotency-Key", closeKey)));
         assertThat(closed.path("status").asText()).isEqualTo("CLOSED");
         assertThat(closed.path("expectedCash").decimalValue()).isEqualByComparingTo("490.00");
         assertThat(closed.path("countedCash").decimalValue()).isEqualByComparingTo("485.00");
@@ -70,6 +73,17 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
         assertThat(count("""
                 SELECT count(*) FROM wok.audit_logs WHERE action = 'CASH_SESSION_CLOSED' AND entity_id = ?
                 """, sessionId)).isEqualTo(1);
+
+        JsonNode replay = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token,
+                closePayload, Map.of("Idempotency-Key", closeKey)));
+        assertThat(replay.path("id").asText()).isEqualTo(sessionId.toString());
+        assertThat(replay.path("difference").decimalValue()).isEqualByComparingTo("-5.00");
+        assertThat(count("SELECT count(*) FROM wok.cash_reconciliations WHERE cash_session_id = ? AND is_final",
+                sessionId)).isEqualTo(1);
+
+        var conflictingClose = post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token,
+                closePayload.replace("485.00", "480.00"), Map.of("Idempotency-Key", closeKey));
+        assertThat(conflictingClose.statusCode()).isEqualTo(409);
     }
 
     @Test
@@ -154,7 +168,7 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
 
         var stale = post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
                 {"countedCash":200.00,"expectedVersion":9}
-                """);
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(stale.statusCode()).isEqualTo(409);
         assertThat(jdbc.queryForObject("SELECT status FROM wok.cash_sessions WHERE id = ?", String.class,
                 sessionId)).isEqualTo("OPEN");
@@ -163,7 +177,7 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
 
         var closed = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
                 {"countedCash":198.00,"expectedVersion":1}
-                """));
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         assertThat(closed.path("status").asText()).isEqualTo("CLOSED");
         assertThat(closed.path("difference").decimalValue()).isEqualByComparingTo("-2.00");
     }
@@ -205,7 +219,7 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
 
         body(post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
                 {"countedCash":490.00,"expectedVersion":1}
-                """));
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         JsonNode closed = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
         assertThat(closed.path("reconciliations")).hasSize(2);
         assertThat(count("""

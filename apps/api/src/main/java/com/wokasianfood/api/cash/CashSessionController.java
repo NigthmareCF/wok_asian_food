@@ -79,10 +79,11 @@ public class CashSessionController {
     @PostMapping("/{sessionId}/close")
     public CashSessionService.CashSession close(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID sessionId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
             @Valid @RequestBody CloseRequest request) {
         return cash.close(sessionId, UUID.fromString(jwt.getSubject()),
-                requestId == null ? UUID.randomUUID() : requestId, request);
+                requestId == null ? UUID.randomUUID() : requestId, idempotencyKey, request);
     }
 
     @PostMapping("/{sessionId}/reconciliations")
@@ -230,8 +231,14 @@ class CashSessionService {
     }
 
     @Transactional
-    public CashSession close(UUID sessionId, UUID actor, UUID requestId,
+    public CashSession close(UUID sessionId, UUID actor, UUID requestId, UUID idempotencyKey,
                              CashSessionController.CloseRequest request) {
+        String hash = fingerprint("CASH_SESSION_CLOSE", sessionId.toString(), request.countedCash().toPlainString(),
+                Integer.toString(request.expectedVersion()));
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "CASH_SESSION_CLOSED",
+                idempotencyKey, hash);
+        if (claim.replay()) return details(claim.resourceId());
+
         SessionRow session = lock(sessionId);
         if (!"OPEN".equals(session.status()))
             throw new AuthException(409, "La caja ya está cerrada.");
@@ -255,6 +262,7 @@ class CashSessionService {
             VALUES (?, 'CASH_SESSION_CLOSED', 'CASH_SESSION', ?,
                     jsonb_build_object('expectedCash', ?), jsonb_build_object('countedCash', ?), 'SUCCESS', ?)
             """, actor, sessionId, expected, request.countedCash(), requestId);
+        idempotency.complete(actor.toString(), "CASH_SESSION_CLOSED", idempotencyKey, sessionId);
         return details(sessionId);
     }
 

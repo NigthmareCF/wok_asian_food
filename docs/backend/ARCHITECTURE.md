@@ -31,6 +31,8 @@ Separar rutas públicas, guest, client, operational y admin. Errores estables co
 
 Los teléfonos Cliente/delivery de Guatemala se validan en los DTO de perfil, direcciones guardadas y solicitudes delivery: ocho dígitos agrupados como `0000 0000`, con prefijo `+502` opcional para compatibilidad. La app formatea antes de enviar y el servidor repite la validación; las constraints SQL históricas siguen permitiendo valores anteriores, así que no se debe tratar esa validación del API como limpieza automática de datos ya almacenados.
 
+Los cierres de caja también requieren `Idempotency-Key`: si la respuesta se pierde después del commit, repetir el mismo payload devuelve el cierre existente; reutilizar la clave con otro monto o versión produce `409`. La clave y el cierre se confirman en la misma transacción para evitar arqueos finales o auditorías duplicadas.
+
 WOK es emisor de sesión: access JWT firmado de 10–15 min configurable; refresh opaco aleatorio y hash persistido por familia/sesión, rotado en cada uso con detección de reuse. `iss` debe ser una URI válida; `WOK_AUTH_ISSUER` configura el URL canónico por ambiente y el valor `.invalid` sólo permite desarrollo local. Registro público sólo CLIENT y `PENDING_VERIFICATION` hasta challenge de un uso. Google OIDC usa `sub`, requiere nonce server-issued de un solo uso y nunca asigna roles WOK; correos existentes no se vinculan automáticamente. Staff crítico puede acceder con método local durante corte WAN.
 
 ## Operación local y salud

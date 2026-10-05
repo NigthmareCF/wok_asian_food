@@ -172,6 +172,12 @@
 - Validación con las pruebas de identidad en una composición desechable de `feature/backend-foundation` y `feature/backend-auth` (Java 21, Maven; 5/5 pruebas unitarias aprobadas).
 # Progreso de desarrollo backend
 
+## 2026-10-04 — Recuperación idempotente del cierre de caja
+
+- `POST /api/v1/operational/cash-sessions/{sessionId}/close` requiere `Idempotency-Key`; un reintento idéntico devuelve el estado cerrado actual sin insertar otro arqueo final ni duplicar auditoría. Reusar la clave con otro monto/versión devuelve 409.
+- La clave se reclama y completa dentro de la misma transacción que el arqueo final, cierre y auditoría. No cambia el cálculo de efectivo ni trata el fondo inicial como venta.
+- Verificación PostgreSQL 18/Testcontainers: `CashSessionIntegrationTest` 5/5 confirma replay, rechazo de payload distinto y un único arqueo final/auditoría; suite completa 192/192, 0 fallos/errores/omitidas. Flyway V1–V33 se aplicó desde esquema vacío.
+
 ## 2026-10-04 — Asignación fiscal dividida por atención
 
 - La creación de borradores de factura acepta un importe explícito y calcula el saldo fiscal aún no asignado a documentos `DRAFT`, `QUEUED` o `ISSUED`. Si se omite el importe, asigna el saldo completo restante.
