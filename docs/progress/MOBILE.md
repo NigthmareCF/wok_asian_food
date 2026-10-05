@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-05 — Borradores de reserva aislados por cuenta
+
+- SecureStore ahora guarda cada borrador de reserva bajo una clave derivada de SHA-256 del correo normalizado; completar o borrar un borrador de una cuenta no sobreescribe ni elimina el de otra cuenta. Las claves de reintento conservan su formato anterior para no perder operaciones idempotentes pendientes.
+- Los borradores legacy se migran sólo al coincidir con el correo propietario del contenido; se preservan si pertenecen a otra cuenta y se elimina el registro legacy inválido. Email no aparece en la clave.
+- Vitest 43/43, ESLint, TypeScript y export Android/Web (17 rutas) aprobados.
+
 ## 2026-10-05 — Polling sólo en pantalla enfocada y app activa
 
 - Seguimiento de pedidos, solicitudes de cancelación, delivery, reservas pendientes y mensajes comparten `useFocusedPolling`: el intervalo se detiene al cambiar de pantalla, mandar la app al fondo o perder conexión, y se activa sólo si la vista enfocada sigue necesitando actualización.

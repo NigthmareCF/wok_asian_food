@@ -5,6 +5,7 @@ import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/compo
 import { ApiError, PublicMenu, ReservationCapacityEvaluation, ReservationHistoryItem, ReservationPreorderItem, ReservationResult, apiRequest } from "@/lib/api";
 import { parsePendingReservationAttempt, PendingReservationAttempt, resolvePendingReservationAttempt } from "@/lib/reservation-attempt";
 import { deleteSecurePayload, readSecurePayload, saveSecurePayload } from "@/lib/reservation-attempt-storage";
+import { legacyReservationDraftKey, reservationStorageKeys } from "@/lib/reservation-storage-keys";
 import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
@@ -55,11 +56,22 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     if (!session?.email) return () => { active = false; };
     void Promise.resolve().then(async () => {
       if (Platform.OS !== "web") {
-        const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
-        const raw = await readSecurePayload(reservationDraftKey);
+        const storageKeys = await getReservationStorageKeys(session.email);
+        let raw = await readSecurePayload(storageKeys.draft);
+        if (!raw) {
+          const legacy = await readSecurePayload(legacyReservationDraftKey);
+          const legacyDraft = legacy ? parseReservationDraft(legacy) : null;
+          if (legacy && legacyDraft && normalizeEmail(legacyDraft.ownerEmail) === normalizeEmail(session.email)) {
+            raw = legacy;
+            await saveSecurePayload(storageKeys.draft, legacy);
+            await deleteSecurePayload(legacyReservationDraftKey);
+          } else if (legacy && !legacyDraft) {
+            await deleteSecurePayload(legacyReservationDraftKey);
+          }
+        }
         if (raw) {
           const draft = parseReservationDraft(raw);
-          if (draft && draft.ownerEmail === session.email && Date.now() - draft.savedAt < reservationDraftLifetimeMs) {
+          if (draft && normalizeEmail(draft.ownerEmail) === normalizeEmail(session.email) && Date.now() - draft.savedAt < reservationDraftLifetimeMs) {
             if (active) {
               setGuests(draft.guests);
               setRequestedAt(draft.requestedAt);
@@ -70,12 +82,12 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
               setDraftRestored(true);
             }
           } else if (draft && Date.now() - draft.savedAt >= reservationDraftLifetimeMs) {
-            await deleteSecurePayload(reservationDraftKey);
-          } else if (!draft) {
-            await deleteSecurePayload(reservationDraftKey);
+            await deleteSecurePayload(storageKeys.draft);
+          } else if (!draft || normalizeEmail(draft.ownerEmail) !== normalizeEmail(session.email)) {
+            await deleteSecurePayload(storageKeys.draft);
           }
         }
-        const rawAttempt = await readSecurePayload(attemptStorageKey);
+        const rawAttempt = await readSecurePayload(storageKeys.attempt);
         if (rawAttempt) {
           const attempt = parsePendingReservationAttempt(rawAttempt);
           if (attempt && attempt.ownerEmail === session.email) {
@@ -84,7 +96,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
               setAttemptRestored(true);
             }
           } else {
-            await deleteSecurePayload(attemptStorageKey);
+            await deleteSecurePayload(storageKeys.attempt);
           }
         }
       }
@@ -98,8 +110,9 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     const draft: ReservationDraft = {
       ownerEmail: session.email, guests, requestedAt, notes, preorder, preorderQuantities, preorderModifiers, savedAt: Date.now(),
     };
+    const storageKeys = getReservationStorageKeys(session.email);
     const timer = setTimeout(() => {
-      void saveSecurePayload(reservationDraftKey, JSON.stringify(draft))
+      void storageKeys.then((keys) => saveSecurePayload(keys.draft, JSON.stringify(draft)))
         .then(() => setDraftError(""))
         .catch(() => setDraftError("No se pudo guardar el borrador en este dispositivo."));
     }, 350);
@@ -173,8 +186,8 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     pendingRequest.current = attempt;
     if (Platform.OS !== "web") {
       try {
-        const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
-        await saveSecurePayload(attemptStorageKey, JSON.stringify(attempt));
+        const storageKeys = await getReservationStorageKeys(session.email);
+        await saveSecurePayload(storageKeys.attempt, JSON.stringify(attempt));
       }
       catch {
         pendingRequest.current = null;
@@ -191,9 +204,9 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
       pendingRequest.current = null;
       if (Platform.OS !== "web") {
         try {
-          const attemptStorageKey = await getReservationAttemptStorageKey(session.email);
-          await deleteSecurePayload(reservationDraftKey);
-          await deleteSecurePayload(attemptStorageKey);
+          const storageKeys = await getReservationStorageKeys(session.email);
+          await deleteSecurePayload(storageKeys.draft);
+          await deleteSecurePayload(storageKeys.attempt);
         } catch { setDraftError("La solicitud respondió, pero no pudimos borrar todo el estado local."); }
       }
       setDraftRestored(false);
@@ -210,7 +223,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
         pendingRequest.current = null;
         setAttemptRestored(false);
         if (Platform.OS !== "web") {
-          try { await deleteSecurePayload(await getReservationAttemptStorageKey(session.email)); }
+          try { await deleteSecurePayload((await getReservationStorageKeys(session.email)).attempt); }
           catch { setDraftError("El servidor rechazó los datos, pero no pudimos borrar el intento local."); }
         }
       }
@@ -335,14 +348,16 @@ type ReservationDraft = {
   savedAt: number;
 };
 
-const reservationDraftKey = "wok.client.reservation-draft.v1";
 const reservationDraftLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function getReservationAttemptStorageKey(ownerEmail: string) {
-  const ownerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, ownerEmail);
-  return `wok.client.reservation-attempt.v1.${ownerHash}`;
+async function getReservationStorageKeys(ownerEmail: string) {
+  const draftOwnerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, normalizeEmail(ownerEmail));
+  const attemptOwnerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, ownerEmail);
+  return reservationStorageKeys(draftOwnerHash, attemptOwnerHash);
 }
+
+function normalizeEmail(value: string) { return value.trim().toLowerCase(); }
 
 function parseReservationDraft(raw: string): ReservationDraft | null {
   if (raw.length > 30000) return null;
