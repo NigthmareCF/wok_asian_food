@@ -2,9 +2,22 @@
 
 > **Plan vigente desde 2026-09-25.** El plan de pickup conservado más abajo queda `SUPERSEDED` como alcance total. La app cubre todo el canal Cliente. Se implementará por slices integrados con la API WOK; una pantalla Expo o un mock no acredita un caso de uso.
 
-## Estado verificado al 2026-09-26
+## Estado verificado al 2026-10-04
 
-`feature/mobile-shell` ya contiene APP-01 básico, APP-02 parcial y APP-04 parcial: Expo SDK 57 / React Native 0.86, navegación Cliente, registro/verificación/login/refresh/logout y solicitud de reservas conectados a los endpoints existentes. El catálogo oficial, pedidos, checkout, pagos, seguimiento, mensajería e historial siguen sin contrato backend utilizable desde móvil. Consultar [progreso móvil](../progress/MOBILE.md) para evidencias y límites. Esto no equivale a completar la app Cliente.
+La rama especializada `feature/mobile-shell` ya integra sesión WOK y varios recorridos reales; sigue siendo una app parcial, no una entrega completa del canal Cliente. La evidencia más reciente está en [progreso móvil](../progress/MOBILE.md). El estado de cada slice evita contar una pantalla como funcionalidad terminada:
+
+| Slice | Estado comprobado | Pendiente relevante |
+| --- | --- | --- |
+| APP-01 Base | Expo SDK 57 / React Native 0.86, Expo Router y sesión con API WOK; exports Android/Web probados | Builds instalables y prueba física Android/iOS; más pruebas de interfaz y estados de red |
+| APP-02 Identidad | Registro/verificación/login/reset, refresh seguro, logout, perfil, sesiones y validación de correo/teléfono | Google OIDC móvil, MFA y prueba de revocación/recuperación en dispositivos |
+| APP-03 Catálogo | Lee menú público de API, carrito local protegido de datos inválidos y solicitud pickup idempotente | Modificadores, validación de disponibilidad antes de enviar, carrito multiplataforma probado y menú real |
+| APP-04 Reservas | Solicitud con mínimo 3 h, borrador/clave de reintento, historial y cancelación pendiente | Disponibilidad real avanzada, elección de horario sugerido/preorden y pruebas de concurrencia/dispositivo |
+| APP-05 Pedidos | Solicitudes pickup/delivery, direcciones, historial, cancelación pendiente, tracking de cocina/despacho y polling | Cambios de pedido aceptado sujetos a Operativo y pruebas integrales con el equipo operativo |
+| APP-06 Finanzas | Consulta de intents mock para delivery aceptado; perfiles fiscales y facturas propias emitidas/detalle | Checkout, 3DS, webhooks/conciliación y FEL productivo; integraciones reales requieren proveedor |
+| APP-07 Atención | Conversaciones y mensajes de texto propios, reintento idempotente y refresco mientras la vista está enfocada | Adjuntos, notificaciones push, handoff verificable y pruebas de retención/aislamiento extendidas |
+| APP-08 Calidad | Helpers probados, ESLint, TypeScript y bundles Expo Android/Web | E2E/contract tests amplios, ownership A/B transversal y validación física de Android e iOS |
+
+La verificación reciente del workspace móvil alcanzó Vitest 23/23, ESLint, TypeScript y export Expo Android/Web. Las exports sólo verifican que Metro empaqueta las plataformas y rutas; no acreditan binarios instalables ni UX real en dispositivos. No afirmar porcentaje global cerrado hasta medir requisitos con evidencia de cada slice.
 
 ## Arquitectura vigente
 
