@@ -26,6 +26,7 @@ public class AuthRateLimiter {
     public AuthRateLimiter(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
         policies.put(Action.REGISTER, new Policy(5, Duration.ofMinutes(15), 3, Duration.ofMinutes(15)));
+        policies.put(Action.LOGIN, new Policy(20, Duration.ofMinutes(15), 0, Duration.ZERO));
         policies.put(Action.VERIFY, new Policy(10, Duration.ofMinutes(15), 10, Duration.ofMinutes(15)));
         policies.put(Action.RESEND, new Policy(10, Duration.ofMinutes(15), 5, Duration.ofHours(1)));
         policies.put(Action.RESET_REQUEST, new Policy(5, Duration.ofMinutes(15), 3, Duration.ofHours(1)));
@@ -34,14 +35,16 @@ public class AuthRateLimiter {
         policies.put(Action.GOOGLE_LOGIN, new Policy(20, Duration.ofMinutes(15), 0, Duration.ZERO));
     }
 
-    public enum Action { REGISTER, VERIFY, RESEND, RESET_REQUEST, RESET_COMPLETE, GOOGLE_NONCE, GOOGLE_LOGIN }
+    public enum Action { REGISTER, LOGIN, VERIFY, RESEND, RESET_REQUEST, RESET_COMPLETE, GOOGLE_NONCE, GOOGLE_LOGIN }
 
     public void check(Action action, String identifier, String clientIp) {
         Policy policy = policies.get(action);
-        record(action, "IP", ipSubject(clientIp));
-        record(action, "IDENTIFIER", identifier == null ? "" : identifier.trim().toLowerCase(java.util.Locale.ROOT));
-        if (exceeds(action, "IP", ipSubject(clientIp), policy.ipMax(), policy.ipWindow())
-                || exceeds(action, "IDENTIFIER", identifier == null ? "" : identifier.trim().toLowerCase(java.util.Locale.ROOT),
+        String ip = ipSubject(clientIp);
+        String normalizedIdentifier = identifier == null ? "" : identifier.trim().toLowerCase(java.util.Locale.ROOT);
+        if (policy.ipMax() > 0) record(action, "IP", ip);
+        if (policy.identifierMax() > 0) record(action, "IDENTIFIER", normalizedIdentifier);
+        if (exceeds(action, "IP", ip, policy.ipMax(), policy.ipWindow())
+                || exceeds(action, "IDENTIFIER", normalizedIdentifier,
                         policy.identifierMax(), policy.identifierWindow())) {
             jdbc.update("""
                 INSERT INTO wok.security_events (event_type, severity, ip_address, details)

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,6 +22,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class AuthHardeningTest {
 
     @Mock JdbcTemplate jdbc;
+    @Mock HttpServletRequest http;
 
     @Test
     void rejectsReservedPlaceholderIssuer() {
@@ -76,5 +78,27 @@ class AuthHardeningTest {
                 eq("203.0.113.7"));
         verify(jdbc).update(contains("INSERT INTO wok.auth_rate_limit_events"), eq("RESET_REQUEST"),
                 eq("IDENTIFIER"), eq("cliente@wok.demo"));
+    }
+
+    @Test
+    void blocksLoginAttemptsByCallerIpWithoutCreatingAnIdentifierBucket() {
+        when(jdbc.queryForObject(contains("auth_rate_limit_events"), eq(Integer.class), anyString(), anyString(),
+                anyString(), any(Long.class))).thenReturn(21);
+
+        AuthException error = assertThrows(AuthException.class, () -> new AuthRateLimiter(jdbc)
+                .check(AuthRateLimiter.Action.LOGIN, "cliente@wok.demo", "203.0.113.12"));
+
+        assertEquals(429, error.status());
+        verify(jdbc).update(contains("AUTH_RATE_LIMITED"), eq("203.0.113.12"), eq("LOGIN"));
+        verify(jdbc, never()).update(contains("INSERT INTO wok.auth_rate_limit_events"), eq("LOGIN"),
+                eq("IDENTIFIER"), anyString());
+    }
+
+    @Test
+    void readsTheAddressSetByTheReverseProxyInsteadOfClientForwardingHeaders() {
+        when(http.getHeader("X-Real-IP")).thenReturn("203.0.113.45");
+
+        assertEquals("203.0.113.45", AuthController.clientIp(http));
+        verify(http, never()).getHeader("X-Forwarded-For");
     }
 }

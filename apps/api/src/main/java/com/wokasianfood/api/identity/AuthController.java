@@ -3,6 +3,7 @@ package com.wokasianfood.api.identity;
 import com.wokasianfood.api.identity.AuthDtos.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.net.InetAddress;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,7 +44,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public TokenPair login(@Valid @RequestBody Login request) { return auth.login(request); }
+    public TokenPair login(@Valid @RequestBody Login request, HttpServletRequest http) {
+        rateLimiter.check(AuthRateLimiter.Action.LOGIN, request.email(), clientIp(http));
+        return auth.login(request);
+    }
 
     @PostMapping("/refresh")
     public TokenPair refresh(@Valid @RequestBody Refresh request) { return auth.refresh(request); }
@@ -86,9 +90,13 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    private String clientIp(HttpServletRequest http) {
-        String forwarded = http.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
+    static String clientIp(HttpServletRequest http) {
+        String trustedProxyAddress = http.getHeader("X-Real-IP");
+        if (trustedProxyAddress != null && trustedProxyAddress.matches("[0-9a-fA-F:.]+")
+                && (trustedProxyAddress.contains(".") || trustedProxyAddress.contains(":"))) {
+            try { return InetAddress.getByName(trustedProxyAddress).getHostAddress(); }
+            catch (java.net.UnknownHostException ignored) { /* fall through to the socket peer */ }
+        }
         return http.getRemoteAddr();
     }
 }

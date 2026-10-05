@@ -202,16 +202,10 @@
 - La rama contiene explícitamente el límite previo: aceptar una solicitud DELIVERY sigue respondiendo 422; consulta del Operativo no equivale a soporte de reparto, autorización contra entrega o cobro externo.
 - PostgreSQL 18 aplicó Flyway V1–V24 en la prueba efímera. Clase focal: 5/5 pruebas; suite completa: 140 pruebas, 0 fallos, 0 errores, 0 omitidas. Docker/Testcontainers disponible en la corrida con acceso elevado.
 
-## 2026-10-04 — Google OIDC remoto integrado de forma compatible
-
-- Se integraron los commits remotos de verificación OIDC y nonces de un solo uso, ajustando las migraciones a V30/V31 porque V25–V29 ya están ocupadas por capacidades vigentes de esta rama.
-- Google queda preparado, pero deshabilitado sin `wok.auth.google.client-id`; el endpoint emite nonce aleatorio de 256 bits, conserva sólo SHA-256, vence a los cinco minutos y limita intentos por IP. El backend comprueba firma/JWKS, issuer, audience, tiempo, `sub`, correo verificado y coincidencia/consumo único del nonce.
-- La integración se limita a la rama backend especializada; no importa la reducción del snapshot candidato ni toca el frontend. Suite completa posterior a la integración: 171/171 pruebas.
-
 ## 2026-10-04 — Google OIDC y nonces remotos
 
 - Se integraron los commits remotos de verificación OIDC y nonces de un solo uso. Migraciones V30/V31 mantienen intacta la secuencia local V1–V29. Google continúa apagado si falta el client ID; JWT externo validado por JWKS, issuer, audience, vigencia, subject, email verificado y nonce WOK de vida corta/hash-only.
-- Verificación focal con PostgreSQL 18/Testcontainers y Byte Buddy agent explícito: 18 pruebas de los grupos auth/OIDC, 0 fallos, 0 errores y 3 omitidas por el patrón de selección.
+- Verificación focal con PostgreSQL 18/Testcontainers y Byte Buddy agent explícito: 18 pruebas de los grupos auth/OIDC, 0 fallos y 0 errores. Suite completa previa al hardening QA: 171/171.
 
 ## 2026-10-04 — Puerto remoto de intents de pago mock
 
@@ -222,3 +216,10 @@
 
 - Tras revisar también `origin/feature/backend-api`, se completó en pickup la proyección del motivo guardado por Operaciones al rechazar una solicitud, con mensaje público por estado. Sólo se expone la razón cuando el estado es `REJECTED`; no se filtran notas ni códigos internos de cancelación.
 - La prueba PostgreSQL confirma que Cliente ve `decisionReason` y el mensaje de rechazo en su historial propio. Pruebas focales pickup/delivery/decisiones: 23/23, sin fallos.
+
+## 2026-10-04 — Hallazgos de QA remoto: auth, errores y demo local
+
+- Integrado límite de login por IP, manteniendo el tope por cuenta existente. La IP se toma de `X-Real-IP` cuando parece una dirección válida establecida por Nginx; se ignora `X-Forwarded-For`. Flyway V32 añade `LOGIN` al conjunto permitido de acciones.
+- Errores `ResponseStatusException` conservan estado/mensaje público; denegaciones entregan 403 JSON genérico y errores inesperados se registran sin volcar mensajes/stack al log y responden con texto sanitizado.
+- Se corrigieron hashes bcrypt de las cuentas demo documentadas y se añadió una prueba que los compara con `DemoOperativo2026` y `DemoAdmin2026`. CI usa `actions/setup-java@v5`.
+- Focales: auth hardening 8/8, error handler 3/3, hashes demo 1/1. Suite completa limpia con PostgreSQL 18/Testcontainers y Flyway V1–V32: 177 pruebas, 0 fallos, 0 errores, 0 omitidas.

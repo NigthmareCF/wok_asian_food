@@ -11,8 +11,8 @@ ON CONFLICT (email) DO NOTHING;
 -- Local demo passwords: DemoOperativo2026 / DemoAdmin2026
 INSERT INTO user_credentials (user_id, password_hash, password_changed_at, must_change_password, credentials_updated_at)
 VALUES
-  ('c9b8f7d9-1f27-4f05-b79a-580fe34165a2', '$2a$12$89A08caj5mjOGl8VWe5xd.MJb5xIQxBzjtdFlt7PrUz5kqkcmJaoe', now(), false, now()),
-  ('a05669cc-7b8c-47ab-bf75-d15ea562a960', '$2a$12$lov30fyuahmyn0m.7/P/0elTBQqnpyU6ZBVdvFYX9b.B8S4nQT3CG', now(), false, now())
+  ('c9b8f7d9-1f27-4f05-b79a-580fe34165a2', '$2a$12$1D34ERfnAYsIibkOI.EBpezovt4LuHHsuodteFVJ3mr.aNIHyIJoW', now(), false, now()),
+  ('a05669cc-7b8c-47ab-bf75-d15ea562a960', '$2a$12$qx36tjD4ad8iqU6g894XY.SS6s5QI209fa3UQViacXR9z7ataRlYe', now(), false, now())
 ON CONFLICT (user_id) DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id)
