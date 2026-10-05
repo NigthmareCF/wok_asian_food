@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-05 — Administración segura de grupos y opciones del catálogo
+
+- `/api/v1/admin/catalog/modifier-groups` permite consultar, crear y versionar grupos. Sus opciones se pueden crear/actualizar (incluyendo desactivación lógica) y los grupos se pueden vincular/reemplazar por producto usando versión optimista.
+- Todas las rutas exigen `catalog:manage`, validan nombres/precios/límites, escriben auditoría con motivo y bloquean filas relevantes. No se puede desactivar la última opción activa que satisface un grupo requerido ni vincular un grupo requerido sin opciones suficientes. Las relaciones anteriores se sustituyen atómicamente.
+- `AdminCatalogIntegrationTest` pasa 3/3 en PostgreSQL 18/Testcontainers, Flyway V1–V35, incluyendo lectura pública después del vínculo, 403 por rol, conflicto por versión obsoleta, auditoría y protección del mínimo requerido. Suite completa: 200 pruebas, 0 fallos, 0 errores, 0 omitidas. Falta completar CRUD de impactos de inventario y altas de menú/categorías.
+
 ## 2026-10-05 — Selección de opciones en solicitudes pickup/delivery
 
 - `GET /api/v1/public/menu` publica los grupos de modificadores y opciones activas por platillo en una consulta agrupada. `ModifierSelectionService` valida en el servidor scope, unicidad, actividad y mínimos/máximos; el mismo servicio vuelve a validar al aceptar la solicitud.

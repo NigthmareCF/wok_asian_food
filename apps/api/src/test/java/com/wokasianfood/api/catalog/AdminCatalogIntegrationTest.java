@@ -59,6 +59,70 @@ class AdminCatalogIntegrationTest extends PostgresIntegrationTest {
         UUID itemId = createMenuItem();
         assertThat(get("/api/v1/admin/catalog/menu-items", tokenForRole("CLIENT")).statusCode()).isEqualTo(403);
         assertThat(get("/api/v1/admin/catalog/menu-items", tokenForRole("OPERATIONAL")).statusCode()).isEqualTo(403);
+        assertThat(post("/api/v1/admin/catalog/modifier-groups", tokenForRole("CLIENT"),
+                "{\"name\":\"Tamaño\",\"minSelection\":0,\"maxSelection\":1,\"required\":false,\"reason\":\"configurar opciones\"}",
+                Map.of()).statusCode()).isEqualTo(403);
+        assertThat(itemId).isNotNull();
+    }
+
+    @Test
+    void adminCanConfigureModifierGroupsOptionsAndMenuItemLinksWithAuditAndVersions() {
+        UUID menuItemId = createMenuItem();
+        String admin = tokenForRole("ADMIN");
+        String groupsUrl = "/api/v1/admin/catalog/modifier-groups";
+
+        JsonNode group = body(post(groupsUrl, admin, """
+            {"name":"Proteína de prueba","minSelection":1,"maxSelection":1,"required":true,
+             "reason":"configuración inicial"}
+            """, Map.of()));
+        UUID groupId = UUID.fromString(group.path("id").asText());
+        assertThat(group.path("rowVersion").asInt()).isEqualTo(1);
+
+        JsonNode tofu = body(post(groupsUrl + "/" + groupId + "/options", admin, """
+            {"name":"Tofu","priceDelta":5.00,"active":true,"reason":"agregar alternativa"}
+            """, Map.of()));
+        UUID tofuId = UUID.fromString(tofu.path("id").asText());
+        JsonNode chicken = body(post(groupsUrl + "/" + groupId + "/options", admin, """
+            {"name":"Pollo","priceDelta":8.00,"active":true,"reason":"agregar alternativa"}
+            """, Map.of()));
+        UUID chickenId = UUID.fromString(chicken.path("id").asText());
+
+        JsonNode linked = body(send("PUT", "/api/v1/admin/catalog/menu-items/" + menuItemId + "/modifier-groups",
+                admin, """
+                    {"groupIds":["%s"],"expectedVersion":1,"reason":"vincular opciones al producto"}
+                    """.formatted(groupId), Map.of()));
+        assertThat(linked).hasSize(1);
+        assertThat(linked.get(0).path("options")).hasSize(2);
+
+        JsonNode publicMenu = body(get("/api/v1/public/menu", null));
+        JsonNode publicItem = StreamSupport.stream(publicMenu.path("categories").spliterator(), false)
+                .flatMap(category -> StreamSupport.stream(category.path("items").spliterator(), false))
+                .filter(item -> item.path("id").asText().equals(menuItemId.toString())).findFirst().orElseThrow();
+        assertThat(publicItem.path("modifierGroups").get(0).path("options")).hasSize(2);
+
+        JsonNode updated = body(send("PUT", groupsUrl + "/" + groupId + "/options/" + tofuId, admin, """
+            {"name":"Tofu firme","priceDelta":6.00,"active":true,"expectedVersion":1,
+             "reason":"actualizar precio validado"}
+            """, Map.of()));
+        assertThat(updated.path("priceDelta").decimalValue()).isEqualByComparingTo("6.00");
+        assertThat(send("PUT", groupsUrl + "/" + groupId + "/options/" + tofuId, admin, """
+            {"name":"Tofu","priceDelta":5.00,"active":true,"expectedVersion":1,"reason":"dato obsoleto"}
+            """, Map.of()).statusCode()).isEqualTo(409);
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE action IN "
+                + "('MODIFIER_GROUP_CREATED','MODIFIER_OPTION_CREATED','MODIFIER_OPTION_UPDATED',"
+                + "'MENU_ITEM_MODIFIER_GROUPS_REPLACED')", Integer.class))
+                .isEqualTo(5);
+        assertThat(jdbc.queryForObject("SELECT row_version FROM wok.menu_items WHERE id = ?", Integer.class, menuItemId))
+                .isEqualTo(2);
+        assertThat(send("PUT", groupsUrl + "/" + groupId + "/options/" + chickenId, admin, """
+            {"name":"Pollo","priceDelta":8.00,"active":false,"expectedVersion":1,
+             "reason":"retirar opción temporalmente"}
+            """, Map.of()).statusCode()).isEqualTo(200);
+        assertThat(send("PUT", groupsUrl + "/" + groupId + "/options/" + tofuId, admin, """
+            {"name":"Tofu firme","priceDelta":6.00,"active":false,"expectedVersion":2,
+             "reason":"retirar última opción"}
+            """, Map.of()).statusCode()).isEqualTo(422);
     }
 
     private UUID createMenuItem() {
