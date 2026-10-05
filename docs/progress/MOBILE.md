@@ -318,3 +318,9 @@
 
 - Registro bloquea nombres fuera de 2–100 caracteres y limita el campo antes de enviar. Verificación de cuenta y reset bloquean códigos distintos de seis dígitos antes de llamar al servidor.
 - Verificación: Vitest 27/27, ESLint, TypeScript `--noEmit` y exports Expo Android/Web completados.
+## 2026-10-05 — Validación funcional y revisión Expo Go
+
+- `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile` y `npm run test --workspace mobile` pasan; Vitest reporta 9 archivos y 30 pruebas, sin fallos.
+- Expo SDK `57.0.25` / React Native `0.86.3`. `npx expo run:android` requiere Android SDK local, pero no es necesario para Expo Go. Se verificó que `ANDROID_HOME`, `ANDROID_SDK_ROOT` y `adb` no están configurados en la laptop.
+- Metro por LAN responde en `/status` y sirve en `0.0.0.0:8081`; durante el intento desde Expo Go no se observó conexión TCP entrante. Se regeneró QR tras el cambio de Wi‑Fi. La prueba de dispositivo sigue pendiente; probar desde navegador del mismo teléfono `http://<IP-LAN>:8081/status` permite distinguir bloqueo de red de compatibilidad Expo Go.
+- El túnel temporal Expo/ngrok fue autorizado por el propietario, pero no inició porque ngrok terminó con `remote gone away`; no se conservaron dependencias ni cambios temporales del intento.
