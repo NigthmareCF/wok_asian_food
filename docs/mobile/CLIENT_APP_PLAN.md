@@ -4,7 +4,7 @@
 
 ## Estado verificado al 2026-10-05
 
-`feature/mobile-shell` contiene APP-01, identidad Cliente parcial, y flujos conectados para menú, pickup, delivery, reservas e historial. La reserva ahora permite adjuntar una preorden del menú; la API guarda snapshots revisables y la agenda Operativa los presenta sin aceptar el pedido ni apartar inventario. Persisten huecos en flujos completos de checkout/pagos, factura propia, mensajería, pruebas de dispositivo Android/iOS y builds instalables. Consultar [progreso móvil](../progress/MOBILE.md) para evidencia y límites. Esto no equivale a completar la app Cliente.
+`feature/mobile-shell` contiene APP-01, identidad Cliente parcial, y flujos conectados para menú, pickup, delivery, reservas e historial. La reserva permite adjuntar una preorden del menú; la app y la agenda Operativa presentan los snapshots revisables sin aceptar el pedido ni apartar inventario. Persisten huecos en flujos completos de checkout/pagos, factura propia, mensajería, pruebas de dispositivo Android/iOS y builds instalables. Consultar [progreso móvil](../progress/MOBILE.md) para evidencia y límites. Esto no equivale a completar la app Cliente.
 
 ## Arquitectura vigente
 

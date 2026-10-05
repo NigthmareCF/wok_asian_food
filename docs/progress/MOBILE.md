@@ -2,7 +2,7 @@
 
 ## 2026-10-05 — Preorden de productos en solicitud de reserva
 
-- La pantalla de reservas carga el menú público al activar preorden, permite seleccionar productos y opciones requeridas, conserva el borrador en SecureStore y envía líneas con cantidad/modificadores bajo la misma clave idempotente de reserva.
+- La pantalla de reservas carga el menú público al activar preorden, permite seleccionar productos y opciones requeridas, conserva el borrador en SecureStore y envía líneas con cantidad/modificadores bajo la misma clave idempotente de reserva. El historial muestra los snapshots pedidos y sus opciones.
 - No presenta el subtotal del cliente como autoridad, ni confirma platillos o descuenta inventario. El backend valida de nuevo el catálogo y el personal revisa snapshots desde la agenda Operativa.
 - Verificación móvil: Vitest 38/38, ESLint, TypeScript y `expo export --platform android --platform web` pasaron. Los bundles prueban compilación/rutas, no instalación ni prueba física de dispositivos.
 

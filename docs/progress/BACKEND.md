@@ -3,7 +3,7 @@
 ## 2026-10-05 — Preorden real en solicitudes de reserva
 
 - `POST /api/v1/client/reservations` acepta hasta 20 productos publicados, cantidad y modificadores; valida nuevamente estado, visibilidad y reglas de opciones en servidor, y calcula el precio unitario autoritativo.
-- V38 conserva snapshots de producto/opciones asociados a la evaluación idempotente. El personal autorizado los consulta en `GET /api/v1/operational/reservations/schedule` para solicitudes que crearon reserva pendiente.
+- V38 conserva snapshots de producto/opciones asociados a la evaluación idempotente. Cliente los consulta en su historial y Operativo en `GET /api/v1/operational/reservations/schedule` para solicitudes que crearon reserva pendiente.
 - Son solicitudes para revisión: no crean pedidos ni reservan inventario. Los reintentos conservan snapshots originales incluso si el catálogo cambia; cambiar el payload con la misma clave responde 409.
 - `ConfiguredReservationHoursIntegrationTest` cubre monto, modificadores, consulta operativa, replay, rechazo de clave con payload diferente y ausencia de pedido/stock reservado. Suite completa: 225/225, 0 fallos/errores/omitidas; PostgreSQL 18 + Flyway V1–V38 desde esquema vacío.
 

@@ -15,7 +15,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -111,7 +113,7 @@ public class ReservationRequestService {
     }
 
     public List<HistoryItem> history(UUID userId) {
-        return jdbc.query("""
+        List<HistoryItem> history = jdbc.query("""
             SELECT e.request_id, e.reservation_id, e.requested_for_at, e.party_size, e.decision,
                    e.public_message, e.alternatives::text AS alternatives, e.evaluated_at, r.status AS reservation_status
             FROM wok.reservation_evaluations e
@@ -124,7 +126,38 @@ public class ReservationRequestService {
                 instantOrNull(rs.getTimestamp("requested_for_at")),
                 (Integer) rs.getObject("party_size"), OperationalCapacityService.Decision.valueOf(rs.getString("decision")),
                 rs.getString("reservation_status"), rs.getString("public_message"),
-                decodeInstants(rs.getString("alternatives")), rs.getTimestamp("evaluated_at").toInstant()), userId);
+                decodeInstants(rs.getString("alternatives")), rs.getTimestamp("evaluated_at").toInstant(), List.of()), userId);
+        if (history.isEmpty()) return List.of();
+        Map<UUID, List<PreorderSnapshot>> preorders = loadHistoryPreorders(history.stream().map(HistoryItem::requestId).toList());
+        return history.stream().map(item -> new HistoryItem(item.requestId(), item.reservationId(), item.requestedAt(), item.guests(),
+                item.decision(), item.reservationStatus(), item.message(), item.alternativeTimes(), item.submittedAt(),
+                preorders.getOrDefault(item.requestId(), List.of()))).toList();
+    }
+
+    private Map<UUID, List<PreorderSnapshot>> loadHistoryPreorders(List<UUID> requestIds) {
+        String placeholders = String.join(",", java.util.Collections.nCopies(requestIds.size(), "?"));
+        Map<UUID, MutablePreorderSnapshot> lines = new LinkedHashMap<>();
+        jdbc.query("""
+            SELECT i.request_id, i.id AS line_id, i.menu_item_id, i.name_snapshot, i.quantity, i.unit_price, c.code AS currency,
+                   m.group_name_snapshot, m.modifier_name_snapshot, m.price_delta
+            FROM wok.reservation_request_items i
+            JOIN wok.currencies c ON c.id = i.currency_id
+            LEFT JOIN wok.reservation_request_item_modifiers m ON m.reservation_request_item_id = i.id
+            WHERE i.request_id IN (%s)
+            ORDER BY i.request_id, i.id, m.id
+            """.formatted(placeholders), rs -> {
+                UUID lineId = rs.getObject("line_id", UUID.class);
+                MutablePreorderSnapshot line = lines.computeIfAbsent(lineId, ignored -> new MutablePreorderSnapshot(
+                        rsUuid(rs, "request_id"), rsUuid(rs, "menu_item_id"), rsString(rs, "name_snapshot"),
+                        rsInt(rs, "quantity"), rsBigDecimal(rs, "unit_price"), rsString(rs, "currency")));
+                if (rs.getObject("group_name_snapshot") != null)
+                    line.modifiers.add(new PreorderModifierSnapshot(rsString(rs, "group_name_snapshot"),
+                            rsString(rs, "modifier_name_snapshot"), rsBigDecimal(rs, "price_delta")));
+            }, requestIds.toArray());
+        Map<UUID, List<PreorderSnapshot>> result = new LinkedHashMap<>();
+        for (MutablePreorderSnapshot line : lines.values()) result.computeIfAbsent(line.requestId, ignored -> new ArrayList<>()).add(line.freeze());
+        result.replaceAll((ignored, value) -> List.copyOf(value));
+        return Map.copyOf(result);
     }
 
     @Transactional
@@ -252,6 +285,19 @@ public class ReservationRequestService {
         }
     }
 
+    private static UUID rsUuid(java.sql.ResultSet rs, String name) {
+        try { return rs.getObject(name, UUID.class); } catch (SQLException error) { throw new IllegalStateException(error); }
+    }
+    private static int rsInt(java.sql.ResultSet rs, String name) {
+        try { return rs.getInt(name); } catch (SQLException error) { throw new IllegalStateException(error); }
+    }
+    private static String rsString(java.sql.ResultSet rs, String name) {
+        try { return rs.getString(name); } catch (SQLException error) { throw new IllegalStateException(error); }
+    }
+    private static BigDecimal rsBigDecimal(java.sql.ResultSet rs, String name) {
+        try { return rs.getBigDecimal(name); } catch (SQLException error) { throw new IllegalStateException(error); }
+    }
+
     private record ResultRow(UUID reservationId, OperationalCapacityService.Decision decision, List<String> reasons,
                              int minimumMinutes, int maximumMinutes, String message, UUID userId, String payloadHash,
                              List<Instant> alternatives) {}
@@ -266,6 +312,25 @@ public class ReservationRequestService {
                          List<Instant> alternativeTimes) {}
     public record HistoryItem(UUID requestId, UUID reservationId, Instant requestedAt, Integer guests,
                               OperationalCapacityService.Decision decision, String reservationStatus,
-                              String message, List<Instant> alternativeTimes, Instant submittedAt) {}
+                              String message, List<Instant> alternativeTimes, Instant submittedAt,
+                              List<PreorderSnapshot> preorderItems) {}
+    public record PreorderSnapshot(UUID menuItemId, String name, int quantity, BigDecimal unitPrice, String currency,
+                                   List<PreorderModifierSnapshot> modifiers) {}
+    public record PreorderModifierSnapshot(String group, String name, BigDecimal priceDelta) {}
     public record CancellationResult(UUID reservationId, String status) {}
+
+    private static final class MutablePreorderSnapshot {
+        private final UUID requestId;
+        private final UUID menuItemId;
+        private final String name;
+        private final int quantity;
+        private final BigDecimal unitPrice;
+        private final String currency;
+        private final List<PreorderModifierSnapshot> modifiers = new ArrayList<>();
+        private MutablePreorderSnapshot(UUID requestId, UUID menuItemId, String name, int quantity, BigDecimal unitPrice, String currency) {
+            this.requestId = requestId; this.menuItemId = menuItemId; this.name = name; this.quantity = quantity;
+            this.unitPrice = unitPrice; this.currency = currency;
+        }
+        private PreorderSnapshot freeze() { return new PreorderSnapshot(menuItemId, name, quantity, unitPrice, currency, List.copyOf(modifiers)); }
+    }
 }
