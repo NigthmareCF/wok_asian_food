@@ -159,7 +159,7 @@ public class ClientPickupRequestController {
         UUID customerId = UUID.fromString(jwt.getSubject());
         List<String> statuses = jdbc.query("""
             SELECT status FROM wok.order_requests
-            WHERE id = ? AND customer_user_id = ? FOR UPDATE
+            WHERE id = ? AND customer_user_id = ? AND fulfillment_type = 'PICKUP' FOR UPDATE
             """, (rs, row) -> rs.getString("status"), requestId, customerId);
         if (statuses.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
         String status = statuses.getFirst();
@@ -169,7 +169,7 @@ public class ClientPickupRequestController {
         int changed = jdbc.update("""
             UPDATE wok.order_requests SET status = 'CANCELLED', decided_by = ?, decided_at = now(),
                 decision_reason = 'CANCELLED_BY_CLIENT', updated_at = now()
-            WHERE id = ? AND customer_user_id = ? AND status = 'PENDING_REVIEW'
+            WHERE id = ? AND customer_user_id = ? AND fulfillment_type = 'PICKUP' AND status = 'PENDING_REVIEW'
             """, customerId, requestId, customerId);
         if (changed != 1) throw new AuthException(409, "La solicitud ya cambió de estado.");
         jdbc.update("""

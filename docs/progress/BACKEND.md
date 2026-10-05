@@ -179,6 +179,12 @@
 - Validado con PostgreSQL 18 en Testcontainers: Flyway aplicó desde cero V1–V34; `AdminCatalogIntegrationTest` cubre listado/actualización, snapshots de auditoría, conflicto por versión obsoleta y denegación para CLIENT/OPERATIONAL (2 pruebas). Se corrigió la consulta de moneda para el esquema real (`currencies` no tiene bandera `active`) y se tiparon explícitamente los valores posiblemente nulos en `jsonb_build_object` para evitar parámetros SQL sin tipo inferible.
 - Suite completa backend: `sh mvnw -q test` — 194 tests, 0 fallos, 0 errores, 0 omitidos. El catálogo completo sigue parcial: faltan creación de recursos/categorías, modificadores validados en pedidos, reglas de disponibilidad y menú real.
 
+## 2026-10-04 — Cancelación Cliente de solicitudes delivery
+
+- `DELETE /api/v1/client/delivery-requests/{requestId}` permite cancelar sólo solicitudes DELIVERY propias en `PENDING_REVIEW`; bloquea la fila, reintentos de una cancelación ya realizada son idempotentes y se registra un evento único `CANCELLED`. Solicitudes aceptadas dan 409 y solicitudes ajenas/no delivery dan 404.
+- La ruta pickup también filtra explícitamente `fulfillment_type = 'PICKUP'`, evitando que una URL de otro flujo cruce y cancele una solicitud delivery.
+- `ClientDeliveryCancellationIntegrationTest` cubre cancelación + retry, ownership, estado aceptado y aislamiento de rutas (4 pruebas). Suite completa PostgreSQL 18/Testcontainers y Flyway V1–V34: 198/198, sin fallos, errores ni skips.
+
 ## 2026-10-04 — Recuperación idempotente del cierre de caja
 
 - `POST /api/v1/operational/cash-sessions/{sessionId}/close` requiere `Idempotency-Key`; un reintento idéntico devuelve el estado cerrado actual sin insertar otro arqueo final ni duplicar auditoría. Reusar la clave con otro monto/versión devuelve 409.
