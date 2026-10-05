@@ -68,6 +68,33 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
                 .isEqualTo("PENDING_REVIEW");
     }
 
+    @Test
+    void staleOrderCannotBeCancelledAndOperationalRejectionRequiresReason() {
+        AcceptedOrder order = acceptedPickup();
+        JsonNode submitted = body(post("/api/v1/client/order-requests/" + order.requestId() + "/change-requests",
+                order.clientToken(), "{\"reason\":\"Cambió mi horario\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID changeId = UUID.fromString(submitted.path("id").asText());
+
+        HttpResponse<String> missingReason = patch("/api/v1/operational/order-change-requests/" + changeId,
+                order.operatorToken(), "{\"decision\":\"REJECT\",\"expectedVersion\":1}");
+        assertThat(missingReason.statusCode()).isEqualTo(422);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_change_requests WHERE id = ?", String.class, changeId))
+                .isEqualTo("PENDING_REVIEW");
+
+        body(patch("/api/v1/operational/orders/" + order.orderId() + "/status", order.operatorToken(),
+                "{\"status\":\"PREPARING\",\"expectedVersion\":" + order.orderVersion() + "}"));
+        HttpResponse<String> staleApproval = patch("/api/v1/operational/order-change-requests/" + changeId,
+                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}");
+        assertThat(staleApproval.statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, order.orderId()))
+                .isEqualTo("PREPARING");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_change_requests WHERE id = ?", String.class, changeId))
+                .isEqualTo("PENDING_REVIEW");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_change_request_events WHERE order_change_request_id = ?",
+                Integer.class, changeId)).isEqualTo(1);
+    }
+
     private AcceptedOrder acceptedPickup() {
         UUID customerId = createUserWithRole("cancel-client-" + UUID.randomUUID() + "@wok.test", "CLIENT");
         UUID operatorId = createUserWithRole("cancel-operator-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
@@ -82,7 +109,8 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
                 "{\"action\":\"ACCEPT\"}"));
         UUID orderId = UUID.fromString(accepted.path("orderId").asText());
         UUID accountId = jdbc.queryForObject("SELECT account_id FROM wok.orders WHERE id = ?", UUID.class, orderId);
-        return new AcceptedOrder(requestId, orderId, accountId, client, operator, operatorId.toString());
+        int orderVersion = jdbc.queryForObject("SELECT row_version FROM wok.orders WHERE id = ?", Integer.class, orderId);
+        return new AcceptedOrder(requestId, orderId, accountId, client, operator, operatorId.toString(), orderVersion);
     }
 
     private UUID seedMenuItem(String name, String price) {
@@ -112,5 +140,5 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
     }
 
     private record AcceptedOrder(UUID requestId, UUID orderId, UUID accountId,
-                                 String clientToken, String operatorToken, String operatorSubject) {}
+                                 String clientToken, String operatorToken, String operatorSubject, int orderVersion) {}
 }
