@@ -173,6 +173,11 @@
 - El historial recupera estados PENDING_REVIEW/APPROVED/REJECTED y permite actualizarlos o consultarlos periódicamente mientras haya pedidos activos/solicitudes pendientes. Los pedidos servidos, cerrados, cancelados y repartos asignados/en curso no muestran esta acción.
 - Reutiliza la misma clave idempotente cuando se reintenta con el mismo motivo; si se pierde la respuesta, consulta el historial del servidor para recuperar la solicitud registrada antes de ofrecer un nuevo envío.
 - Si Operaciones rechaza la solicitud y el pedido continúa en una etapa elegible, Cliente puede enviar una solicitud nueva con su propio motivo; las solicitudes previas siguen en el historial del servidor.
+
+## 2026-10-05 — Evaluación previa de horario de reserva
+
+- En el formulario Cliente se agregó “Evaluar horario orientativo” conectado a `POST /api/v1/public/reservations/evaluate`. Presenta mensaje y rango de estancia estimada antes de enviar, invalida resultados cuando cambian personas/fecha/preorden y evita que una respuesta tardía reemplace la evaluación del formulario actualizado.
+- La app deja claro que la evaluación es orientativa y la API vuelve a evaluar al crear la solicitud. Vitest 30/30, ESLint, TypeScript y exports Expo Android/Web aprobados. No hay confirmación automática ni selección de alternativas concreta aún.
 - El flujo usa la API `feature/backend-capacity-order-lifecycle`, incluido Flyway V36. No procesa reembolsos desde la app ni cancela directamente el pedido. Verificación: Vitest 30/30, ESLint, TypeScript y exports Expo Android/Web aprobados; los exports son bundles y no sustituyen una prueba instalada en dispositivo.
 
 ## 2026-09-26 — APP-01 y slices iniciales de identidad/reservas

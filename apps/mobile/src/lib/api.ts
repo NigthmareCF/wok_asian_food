@@ -55,6 +55,15 @@ export type ReservationResult = {
   maximumOccupancyMinutes: number;
   message: string;
 };
+export type ReservationCapacityEvaluation = {
+  confirmed: false;
+  assessment: {
+    decision: ReservationResult["decision"];
+    reasonCodes: string[];
+    occupancy: { minimumMinutes: number; maximumMinutes: number; requiresIndividualReview: boolean } | null;
+    publicMessage: string;
+  };
+};
 export type ReservationHistoryItem = {
   requestId: string;
   reservationId?: string | null;

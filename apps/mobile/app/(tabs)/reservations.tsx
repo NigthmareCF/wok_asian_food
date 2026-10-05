@@ -3,7 +3,7 @@ import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ReservationHistoryItem, ReservationResult } from "@/lib/api";
+import { ReservationCapacityEvaluation, ReservationHistoryItem, ReservationResult } from "@/lib/api";
 import { parsePendingReservationAttempt, PendingReservationAttempt, resolvePendingReservationAttempt } from "@/lib/reservation-attempt";
 import { formatRestaurantDateTime, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { useSession } from "@/providers/session-provider";
@@ -23,6 +23,9 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   const [messageTone, setMessageTone] = useState<"info" | "success">("info");
   const [error, setError] = useState("");
   const [history, setHistory] = useState<ReservationHistoryItem[]>([]);
+  const [evaluation, setEvaluation] = useState<ReservationCapacityEvaluation | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evaluationError, setEvaluationError] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [cancellingReservationId, setCancellingReservationId] = useState<string | null>(null);
@@ -33,6 +36,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   const [attemptRestored, setAttemptRestored] = useState(false);
   const [draftError, setDraftError] = useState("");
   const pendingRequest = useRef<PendingReservationAttempt | null>(null);
+  const evaluationRevision = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -98,6 +102,30 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
 
   useEffect(() => { void Promise.resolve().then(refreshHistory); }, [refreshHistory]);
 
+  async function evaluateSchedule() {
+    setEvaluation(null); setEvaluationError("");
+    const date = parseRestaurantLocalDateTime(requestedAt);
+    const count = Number(guests);
+    if (!Number.isInteger(count) || count < 1 || count > 50) { setEvaluationError("Indica entre 1 y 50 personas."); return; }
+    if (!date) { setEvaluationError("Indica una fecha y hora válidas en la hora de Guatemala."); return; }
+    const revision = ++evaluationRevision.current;
+    setEvaluating(true);
+    try {
+      const result = await request<ReservationCapacityEvaluation>("/api/v1/public/reservations/evaluate", {
+        method: "POST", body: JSON.stringify({ guests: count, requestedAt: date.toISOString(), preorder }),
+      });
+      if (revision === evaluationRevision.current) setEvaluation(result);
+    } catch (cause) {
+      if (revision === evaluationRevision.current)
+        setEvaluationError(cause instanceof Error ? cause.message : "No pudimos evaluar ese horario.");
+    } finally { if (revision === evaluationRevision.current) setEvaluating(false); }
+  }
+
+  function clearEvaluation() {
+    evaluationRevision.current += 1;
+    setEvaluation(null); setEvaluationError(""); setEvaluating(false);
+  }
+
   async function submit() {
     setError(""); setMessage("");
     if (!session) { setError("Inicia sesión desde Mi cuenta para enviar una solicitud."); return; }
@@ -162,12 +190,18 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     {session && Platform.OS !== "web" ? <Notice>El borrador se guarda en este dispositivo. Nunca se envía automáticamente al recuperar conexión.</Notice> : null}
     {draftError ? <Notice tone="error">{draftError}</Notice> : null}
     <Card>
-      <Field label="Personas" keyboardType="number-pad" value={guests} onChangeText={setGuests} placeholder="2" />
-      <Field label="Fecha y hora de Guatemala" value={requestedAt} onChangeText={setRequestedAt} placeholder="2026-10-05T18:30" autoCapitalize="none" />
+      <Field label="Personas" keyboardType="number-pad" value={guests} onChangeText={(value) => { setGuests(value); clearEvaluation(); }} placeholder="2" />
+      <Field label="Fecha y hora de Guatemala" value={requestedAt} onChangeText={(value) => { setRequestedAt(value); clearEvaluation(); }} placeholder="2026-10-05T18:30" autoCapitalize="none" />
       <Text style={{ color: "#746e67", fontSize: 13 }}>Hora del restaurante ({restaurantTimeZone}), AAAA-MM-DDTHH:mm. Solicita con al menos 3 horas de anticipación.</Text>
       <Field label="Solicitudes especiales (opcional)" value={notes} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} maxLength={500} textAlignVertical="top" />
-      <Button title={preorder ? "Preorden requerida: sí (tocar para cambiar)" : "¿Requieres preorden? No"} secondary onPress={() => setPreorder(!preorder)} />
+      <Button title={preorder ? "Preorden requerida: sí (tocar para cambiar)" : "¿Requieres preorden? No"} secondary onPress={() => { setPreorder(!preorder); clearEvaluation(); }} />
       {preorder ? <Text style={{ color: "#746e67", fontSize: 13 }}>Esto avisa al equipo para evaluar la solicitud; aún no agrega productos.</Text> : null}
+      {evaluationError ? <Notice tone="error">{evaluationError}</Notice> : null}
+      {evaluation ? <Notice tone="info">
+        {evaluation.assessment.publicMessage}{evaluation.assessment.occupancy
+          ? ` Estancia orientativa: ${evaluation.assessment.occupancy.minimumMinutes}–${evaluation.assessment.occupancy.maximumMinutes} min.` : ""} Esta evaluación no confirma una reserva; al enviar se volverá a revisar.
+      </Notice> : null}
+      <Button title="Evaluar horario orientativo" secondary busy={evaluating} disabled={busy || evaluating} onPress={() => void evaluateSchedule()} />
       {error ? <Notice tone="error">{error}</Notice> : null}
       {message ? <Notice tone={messageTone}>{message}</Notice> : null}
       <Button title="Enviar solicitud" busy={busy} disabled={Boolean(session && Platform.OS !== "web" && !draftReady)} onPress={submit} />
