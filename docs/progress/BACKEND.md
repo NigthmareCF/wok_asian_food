@@ -352,3 +352,7 @@
 - Flyway validó y aplicó/confirmó V1–V37 contra PostgreSQL 18; resultado: 214 pruebas, 0 fallos, 0 errores y 0 omitidas.
 - En este entorno fue necesario pasar Byte Buddy como agente explícito porque el auto-attach de Mockito está restringido. La primera ejecución sin Docker/agente no es evidencia válida de fallo funcional; produjo 102 errores de inicialización de Mockito y omitió las pruebas Testcontainers. Con Docker y el agente, toda la suite quedó verde.
 - `feature/backend-capacity-order-lifecycle` se sincronizó con su remoto antes de esta revisión y no tenía commits pendientes del remoto. `development` avanzó remotamente y permanece sin modificar.
+## 2026-10-05 — Facturas Cliente para pickup y delivery
+
+- Se corrigió la descripción del endpoint de lectura Cliente: las facturas emitidas se exponen cuando toda orden de la cuenta pertenece a solicitudes aceptadas de ese usuario, independientemente de la modalidad pickup/delivery. Se mantiene el filtro completo de ownership de la cuenta para no revelar facturas compartidas con órdenes ajenas.
+- La integración PostgreSQL crea una cuenta con órdenes pickup y delivery aceptadas, emite una factura mock y valida que el titular lea detalle/líneas y que otro cliente reciba una lista vacía/404. Clase `InvoiceIntegrationTest`: 7/7 en PostgreSQL 18, Flyway V1–V38.

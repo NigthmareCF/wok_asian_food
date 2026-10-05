@@ -84,15 +84,17 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void clientCanReadOnlyIssuedInvoicesForTheirEntirelyOwnedPickupAccount() {
+    void clientCanReadOnlyIssuedInvoicesForTheirEntirelyOwnedPickupAndDeliveryAccount() {
         UUID actor = createUserWithRole("factura-cliente-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String operator = tokenFor(actor);
         UUID accountId = createAccount(actor, "Cuenta Cliente factura");
         MenuItemSeed menu = seedMenuItem("Wok cliente factura", "42.00");
         UUID orderId = closedOrderWithItem(accountId, actor, menu, "Wok cliente factura", 1, "42.00", "42.00");
+        UUID deliveryOrderId = closedOrderWithItem(accountId, actor, menu, "Wok delivery factura", 1, "15.00", "15.00", "DELIVERY");
         UUID customer = createUserWithRole("cliente-factura-" + UUID.randomUUID() + "@wok.test", "CLIENT");
         UUID otherCustomer = createUserWithRole("otro-cliente-factura-" + UUID.randomUUID() + "@wok.test", "CLIENT");
         linkAcceptedPickup(orderId, customer, actor);
+        linkAcceptedDelivery(deliveryOrderId, customer, actor);
         UUID invoiceId = draft(operator, accountId);
         body(post(issuePath(invoiceId), operator, null, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         invoiceIssuance.issueNext();
@@ -104,7 +106,7 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
 
         JsonNode details = body(get("/api/v1/client/invoices/" + invoiceId, tokenFor(customer)));
         assertThat(details.path("customerTaxId").asText()).isEqualTo("11223344");
-        assertThat(details.path("items")).hasSize(1);
+        assertThat(details.path("items")).hasSize(2);
         assertThat(get("/api/v1/client/invoices", tokenFor(otherCustomer)).body()).isEqualTo("[]");
         assertThat(get("/api/v1/client/invoices/" + invoiceId, tokenFor(otherCustomer)).statusCode()).isEqualTo(404);
         assertThat(get("/api/v1/client/invoices", operator).statusCode()).isEqualTo(403);
@@ -263,16 +265,34 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
             """, customerId, UUID.randomUUID(), currencyId, actor, orderId);
     }
 
+    private void linkAcceptedDelivery(UUID orderId, UUID customerId, UUID actor) {
+        UUID currencyId = jdbc.queryForObject("SELECT id FROM wok.currencies WHERE code = 'GTQ'", UUID.class);
+        jdbc.update("""
+            INSERT INTO wok.order_requests
+                (customer_user_id, fulfillment_type, status, idempotency_key, request_fingerprint, requested_for,
+                 subtotal, currency_id, decided_by, decided_at, decision_reason, order_id,
+                 delivery_address, contact_phone, payment_preference, invoice_requested, invoice_name, invoice_tax_id)
+            VALUES (?, 'DELIVERY', 'ACCEPTED', ?, repeat('c', 64), now() + interval '1 hour', 15.00, ?, ?, now(),
+                    'ACCEPTED', ?, '1a Avenida 1-01, Guatemala', '55551234', 'CASH_ON_DELIVERY', true,
+                    'Cliente Factura', '11223344')
+            """, customerId, UUID.randomUUID(), currencyId, actor, orderId);
+    }
+
     private UUID closedOrderWithItem(UUID accountId, UUID actor, MenuItemSeed menu, String name, int quantity,
                                      String unitPrice, String total) {
+        return closedOrderWithItem(accountId, actor, menu, name, quantity, unitPrice, total, "PICKUP");
+    }
+
+    private UUID closedOrderWithItem(UUID accountId, UUID actor, MenuItemSeed menu, String name, int quantity,
+                                     String unitPrice, String total, String channel) {
         UUID orderId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO wok.orders
                     (id, code, account_id, dining_table_id, channel, status, subtotal, discount, total,
                      currency_id, guest_count, opened_by, closed_at)
-                SELECT ?, ?, ?, NULL, 'PICKUP', 'CLOSED', ?::numeric, 0, ?::numeric, id, 1, ?, now()
+                SELECT ?, ?, ?, NULL, ?, 'CLOSED', ?::numeric, 0, ?::numeric, id, 1, ?, now()
                 FROM wok.currencies WHERE code = 'GTQ'
-                """, orderId, uniqueCode("ORD-INV"), accountId, total, total, actor);
+                """, orderId, uniqueCode("ORD-INV"), accountId, channel, total, total, actor);
         jdbc.update("""
                 INSERT INTO wok.order_items
                     (order_id, menu_item_id, name_snapshot, quantity, unit_price, preparation_area_id)

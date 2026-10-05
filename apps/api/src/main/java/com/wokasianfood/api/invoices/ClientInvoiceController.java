@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Client-owned view of issued invoices from pickup orders. */
+/** Client-owned view of issued invoices for accounts containing only the customer's accepted orders. */
 @RestController
 @RequestMapping("/api/v1/client/invoices")
 @PreAuthorize("hasRole('CLIENT')")
