@@ -340,6 +340,12 @@
 
 - La decisión Operativa de confirmar vuelve a comprobar bajo bloqueo de la reserva que la hora siga al menos a tres horas y dentro del horario activo/último ingreso configurado. Si la agenda cambió mientras estaba pendiente, responde `409`, mantiene el estado `REQUESTED` y deja al personal coordinar/rechazar sin aceptar bajo reglas obsoletas. La decisión de rechazo sigue disponible.
 - Pruebas PostgreSQL 18/Testcontainers: confirmación en ventana válida y conflicto tras cambiar el horario, 2/2. Suite limpia completa con Flyway V1–V37: 214 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
+## 2026-10-05 — Preórdenes visibles en la cola de revisión
+
+- La cola `GET /api/v1/operational/reservations/pending` ahora incluye `preorderItems` con nombre, cantidad, precio/currency y modificadores desde snapshots inmutables. El equipo puede revisar la preorden junto con la solicitud antes de confirmar o rechazarla; los snapshots siguen sin crear pedidos ni reservar inventario.
+- Se amplió `ConfiguredReservationHoursIntegrationTest` para comprobar que la cola pendiente expone el mismo artículo y modificador guardados y que la reserva aparece allí mientras espera revisión.
+- Verificación: compilación Maven y `git diff --check`; prueba PostgreSQL 18/Testcontainers con Flyway V1–V38: pasa. La descarga del remoto falló en esta sesión por SSH config del sistema y DNS externo inaccesible; no se integró ni sobrescribió trabajo remoto.
 ## 2026-10-05 — Verificación integral PostgreSQL 18 / V37
 
 - Se ejecutó la suite backend completa desde `apps/api` con Testcontainers y Docker local accesible. En este JDK restringido se pasó el agente de Byte Buddy a la JVM de pruebas para evitar el auto-attach de Mockito.

@@ -128,6 +128,13 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         assertThat(scheduleRow.path("preorderItems").size()).isEqualTo(1);
         assertThat(scheduleRow.path("preorderItems").get(0).path("unitPrice").decimalValue()).isEqualByComparingTo("23.00");
         assertThat(scheduleRow.path("preorderItems").get(0).path("modifiers").get(0).path("name").asText()).isEqualTo("Grande");
+        JsonNode pendingRows = json.readTree(get("/api/v1/operational/reservations/pending", operatorToken).body());
+        JsonNode pendingRow = null;
+        for (JsonNode row : pendingRows) if (reservationId.toString().equals(row.path("id").asText())) pendingRow = row;
+        assertThat(pendingRow).isNotNull();
+        assertThat(pendingRow.path("preorderItems").size()).isEqualTo(1);
+        assertThat(pendingRow.path("preorderItems").get(0).path("name").asText()).isEqualTo("Platillo preorden");
+        assertThat(pendingRow.path("preorderItems").get(0).path("modifiers").get(0).path("name").asText()).isEqualTo("Grande");
         JsonNode clientHistory = json.readTree(get("/api/v1/client/reservations", token).body());
         assertThat(clientHistory).hasSize(1);
         assertThat(clientHistory.get(0).path("preorderItems").size()).isEqualTo(1);

@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -78,7 +79,7 @@ class ReservationReviewService {
     }
 
     public List<PendingReservation> pending() {
-        return jdbc.query("""
+        List<PendingReservationRow> rows = jdbc.query("""
             SELECT r.id, r.party_size, r.reservation_at, r.ends_at, r.notes, r.row_version,
                    cp.full_name, u.email
             FROM wok.reservations r
@@ -86,9 +87,57 @@ class ReservationReviewService {
             LEFT JOIN wok.users u ON u.id = cp.user_id
             WHERE r.status = 'REQUESTED'
             ORDER BY r.reservation_at, r.id
-            """, (rs, row) -> new PendingReservation(rs.getObject("id", UUID.class), rs.getInt("party_size"),
+            """, (rs, row) -> new PendingReservationRow(rs.getObject("id", UUID.class), rs.getInt("party_size"),
                 rs.getTimestamp("reservation_at").toInstant(), rs.getTimestamp("ends_at").toInstant(),
                 rs.getString("notes"), rs.getInt("row_version"), rs.getString("full_name"), rs.getString("email")));
+        Map<UUID, List<OperationalReservationScheduleController.PreorderItem>> preorders = loadPreorders(
+                rows.stream().map(PendingReservationRow::id).toList());
+        return rows.stream().map(row -> new PendingReservation(row.id(), row.guests(), row.reservationAt(),
+                row.estimatedEndAt(), row.notes(), row.rowVersion(), row.customerName(), row.email(),
+                preorders.getOrDefault(row.id(), List.of()))).toList();
+    }
+
+    private Map<UUID, List<OperationalReservationScheduleController.PreorderItem>> loadPreorders(List<UUID> reservationIds) {
+        if (reservationIds.isEmpty()) return Map.of();
+        String placeholders = String.join(",", java.util.Collections.nCopies(reservationIds.size(), "?"));
+        Map<UUID, PendingPreorderBuilder> items = new java.util.LinkedHashMap<>();
+        jdbc.query("""
+            SELECT e.reservation_id, i.id AS line_id, i.menu_item_id, i.name_snapshot, i.quantity, i.unit_price,
+                   c.code AS currency, m.group_name_snapshot, m.modifier_name_snapshot, m.price_delta
+            FROM wok.reservation_evaluations e
+            JOIN wok.reservation_request_items i ON i.request_id = e.request_id
+            JOIN wok.currencies c ON c.id = i.currency_id
+            LEFT JOIN wok.reservation_request_item_modifiers m ON m.reservation_request_item_id = i.id
+            WHERE e.reservation_id IN (%s)
+            ORDER BY e.reservation_id, i.id, m.id
+            """.formatted(placeholders), rs -> {
+                UUID lineId = rs.getObject("line_id", UUID.class);
+                PendingPreorderBuilder item = items.computeIfAbsent(lineId, ignored -> new PendingPreorderBuilder(
+                        rsUuid(rs, "reservation_id"), rsUuid(rs, "menu_item_id"), rsString(rs, "name_snapshot"),
+                        rsInt(rs, "quantity"), rsBigDecimal(rs, "unit_price"), rsString(rs, "currency")));
+                if (rsString(rs, "group_name_snapshot") != null)
+                    item.modifiers.add(new OperationalReservationScheduleController.PreorderModifier(
+                            rsString(rs, "group_name_snapshot"), rsString(rs, "modifier_name_snapshot"),
+                            rsBigDecimal(rs, "price_delta")));
+            }, reservationIds.toArray());
+        Map<UUID, List<OperationalReservationScheduleController.PreorderItem>> result = new java.util.LinkedHashMap<>();
+        for (PendingPreorderBuilder item : items.values())
+            result.computeIfAbsent(item.reservationId, ignored -> new java.util.ArrayList<>()).add(item.freeze());
+        result.replaceAll((ignored, value) -> List.copyOf(value));
+        return Map.copyOf(result);
+    }
+
+    private static UUID rsUuid(java.sql.ResultSet rs, String name) {
+        try { return rs.getObject(name, UUID.class); } catch (java.sql.SQLException error) { throw new IllegalStateException(error); }
+    }
+    private static int rsInt(java.sql.ResultSet rs, String name) {
+        try { return rs.getInt(name); } catch (java.sql.SQLException error) { throw new IllegalStateException(error); }
+    }
+    private static String rsString(java.sql.ResultSet rs, String name) {
+        try { return rs.getString(name); } catch (java.sql.SQLException error) { throw new IllegalStateException(error); }
+    }
+    private static java.math.BigDecimal rsBigDecimal(java.sql.ResultSet rs, String name) {
+        try { return rs.getBigDecimal(name); } catch (java.sql.SQLException error) { throw new IllegalStateException(error); }
     }
 
     @Transactional
@@ -154,7 +203,28 @@ class ReservationReviewService {
 
     record CurrentReservation(UUID id, String status, int rowVersion, Instant reservationAt) {}
     public record PendingReservation(UUID id, int guests, Instant reservationAt, Instant estimatedEndAt,
-                                     String notes, int rowVersion, String customerName, String email) {}
+                                     String notes, int rowVersion, String customerName, String email,
+                                     List<OperationalReservationScheduleController.PreorderItem> preorderItems) {}
     public record DecisionResult(UUID reservationId, OperationalReservationController.Decision decision,
                                  String status, int rowVersion, String reason) {}
+    private record PendingReservationRow(UUID id, int guests, Instant reservationAt, Instant estimatedEndAt,
+                                         String notes, int rowVersion, String customerName, String email) {}
+    private static final class PendingPreorderBuilder {
+        private final UUID reservationId;
+        private final UUID menuItemId;
+        private final String name;
+        private final int quantity;
+        private final java.math.BigDecimal unitPrice;
+        private final String currency;
+        private final List<OperationalReservationScheduleController.PreorderModifier> modifiers = new java.util.ArrayList<>();
+        private PendingPreorderBuilder(UUID reservationId, UUID menuItemId, String name, int quantity,
+                                       java.math.BigDecimal unitPrice, String currency) {
+            this.reservationId = reservationId; this.menuItemId = menuItemId; this.name = name;
+            this.quantity = quantity; this.unitPrice = unitPrice; this.currency = currency;
+        }
+        private OperationalReservationScheduleController.PreorderItem freeze() {
+            return new OperationalReservationScheduleController.PreorderItem(menuItemId, name, quantity,
+                    unitPrice, currency, List.copyOf(modifiers));
+        }
+    }
 }
