@@ -59,6 +59,10 @@ class PublicMenuAvailabilityIntegrationTest extends PostgresIntegrationTest {
         JsonNode untracked = body(estimate(untrackedMenuItem, 1, null));
         assertThat(untracked.path("availableEstimate").isNull()).isTrue();
         assertThat(untracked.path("items").get(0).path("status").asText()).isEqualTo("NOT_TRACKED");
+        JsonNode mixed = body(estimateMixed(menuItemId, untrackedMenuItem));
+        assertThat(mixed.path("availableEstimate").isNull()).isTrue();
+        assertThat(mixed.path("items").get(0).path("status").asText()).isEqualTo("AVAILABLE_ESTIMATE");
+        assertThat(mixed.path("items").get(1).path("status").asText()).isEqualTo("NOT_TRACKED");
 
         assertThat(estimate(menuItemId, 1, UUID.randomUUID()).statusCode()).isEqualTo(422);
         assertThat(estimate(menuItemId, 1, extraId, extraId).statusCode()).isEqualTo(422);
@@ -73,6 +77,13 @@ class PublicMenuAvailabilityIntegrationTest extends PostgresIntegrationTest {
         return post("/api/v1/public/menu/availability", null,
                 "{\"items\":[{\"menuItemId\":\"%s\",\"quantity\":%d,\"modifierIds\":%s}]}"
                         .formatted(itemId, quantity, ids));
+    }
+
+    private HttpResponse<String> estimateMixed(UUID trackedItem, UUID untrackedItem) {
+        String payload = ("{\"items\":[{\"menuItemId\":\"%s\",\"quantity\":1,\"modifierIds\":[]}," +
+                "{\"menuItemId\":\"%s\",\"quantity\":1,\"modifierIds\":[]}]}"
+                ).formatted(trackedItem, untrackedItem);
+        return post("/api/v1/public/menu/availability", null, payload);
     }
 
     private UUID createMenuItem() {

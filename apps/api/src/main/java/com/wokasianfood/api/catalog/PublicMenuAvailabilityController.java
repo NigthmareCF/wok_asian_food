@@ -129,9 +129,10 @@ public class PublicMenuAvailabilityController {
         List<LineAvailability> lines = lineStates.stream().map(LineState::toResult).toList();
         boolean anyTracked = lineStates.stream().anyMatch(state -> state.tracked);
         boolean hasUnavailable = lineStates.stream().anyMatch(state -> Boolean.FALSE.equals(state.available));
+        boolean hasUntracked = lineStates.stream().anyMatch(state -> !state.tracked);
         Boolean cartAvailable = null;
         if (hasUnavailable) cartAvailable = Boolean.FALSE;
-        else if (anyTracked) cartAvailable = Boolean.TRUE;
+        else if (anyTracked && !hasUntracked) cartAvailable = Boolean.TRUE;
         return new AvailabilityEstimate(cartAvailable, true, Instant.now(), lines);
     }
 
