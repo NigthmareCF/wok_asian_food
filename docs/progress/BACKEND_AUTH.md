@@ -9,12 +9,12 @@
 - Google OIDC productivo sigue pendiente de configuración y verificación de credenciales del cliente. La recuperación entrega correo por outbox; SMTP también requiere configuración externa.
 # Progreso de identidad y autenticación
 
-## 2026-10-03 — Nonce Google OIDC server-side y de un solo uso
+## 2026-10-04 — Integración del nonce Google OIDC remoto
 
-- Se añadió `POST /api/v1/auth/google/nonce`: genera 32 bytes criptográficamente aleatorios, retorna valor base64url y TTL de 300 s, y persiste únicamente SHA-256 del nonce en V25.
+- Se añadió `POST /api/v1/auth/google/nonce`: genera 32 bytes criptográficamente aleatorios, retorna valor base64url y TTL de 300 s, y persiste únicamente SHA-256 del nonce en V30. V31 amplía las acciones válidas de rate limit sin reutilizar versiones ya ocupadas por el backend.
 - `/api/v1/auth/google` pasa rate limit por IP, valida el ID token con el adapter existente y consume el challenge con un `UPDATE ... WHERE consumed_at IS NULL AND expires_at > now()`. La actualización atómica deja aceptar una sola solicitud concurrente; errores de identidad después del consumo no restauran el nonce.
 - Se prueba generación/formato, almacenamiento hash, consumo de un solo uso, replay rechazado e integración HTTP/PostgreSQL. El verificador Google sigue en 503 sin `WOK_AUTH_GOOGLE_CLIENT_ID`; no hay integración de cliente ni vinculación por coincidencia de email.
-- Verificación: prueba HTTP emite nonce, confirma longitud/TTL y consulta que DB contiene hash distinto al valor entregado; pruebas unitarias cubren formato, persistencia hash, consumo/replay. Suite final Java 21/Testcontainers: 136/136, cero fallos/errores/skips; Flyway aplica V1–V26. No se hizo login contra Google real y el adapter continúa 503 sin Client ID.
+- Verificación focal Java 21/Testcontainers tras integrar este cambio: suite de auth/OIDC 18 pruebas seleccionadas, 0 fallos y 0 errores; tres omitidas por el patrón al combinar grupos. Flyway aplicó V1–V31 en PostgreSQL 18. La suite backend completa posterior a OIDC/pasarela está ejecutándose antes de publicar estos commits.
 
 ## 2026-10-01 — Verificación real de Google OIDC con adapter deshabilitado por defecto
 
