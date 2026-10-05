@@ -14,7 +14,7 @@
 | CAT-01  | NEXT   | menú real, opciones, precios y disponibilidad calculados por backend                            | Menú real `BLOCKED` para seed             |
 | ORD-01  | NEXT   | pickup/delivery/local: solicitud idempotente, aceptación, cambios con revisión y KDS            | CAT-01, CAP-01, inventario                |
 | FIN-01  | NOW    | Caja interna: apertura/ledger/arqueo/cierre persistentes; conectar ventas desde ORD-01           | V6; `feature/payments` cash slice parcial |
-| FIN-02  | NEXT   | Pagos mixtos, propina y conciliación; mock `PaymentGateway` ya crea intent Cliente para delivery aceptado sin capturar | ORD-01; proveedor real, checkout/3DS y webhook `BLOCKED` |
+| FIN-02  | NEXT   | Pagos mixtos, propina y conciliación; mock `PaymentGateway` crea y Cliente recupera intent para delivery aceptado sin capturar | ORD-01; proveedor real, checkout/3DS y webhook `BLOCKED` |
 | FEL-01  | NEXT   | pool por atención, múltiples drafts, emisión individual, outbox y mock                          | FIN-01; certificador real `BLOCKED`       |
 | MSG-01  | NEXT   | conversaciones por canal, webhooks dedup, identidad externa, STT y handoff                      | IAM-01; Meta real `BLOCKED`               |
 | AI-01   | NEXT   | Gateway/tool broker, mock, scope guard inicial, fallback y aislamiento sin DB verificados; falta runtime real, defensa adversarial, cola/handoff persistido y benchmark | CORE-01; GPU/modelo real `BLOCKED` |

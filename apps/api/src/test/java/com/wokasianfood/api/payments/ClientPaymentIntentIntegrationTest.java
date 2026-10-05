@@ -54,6 +54,10 @@ class ClientPaymentIntentIntegrationTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT status FROM wok.order_accounts WHERE id = (SELECT account_id FROM wok.orders WHERE id = ?)",
                 String.class, orderId)).isEqualTo("OPEN");
 
+        HttpResponse<String> current = get(path + "/current", customer);
+        assertThat(current.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(current.body()).path("intentId").asText()).isEqualTo(intentId.toString());
+
         JsonNode replay = body(post(path, customer, "{}", Map.of("Idempotency-Key", idempotencyKey.toString())));
         assertThat(replay.path("intentId").asText()).isEqualTo(intentId.toString());
         assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
@@ -62,6 +66,7 @@ class ClientPaymentIntentIntegrationTest extends PostgresIntegrationTest {
         assertThat(recoveredWithNewKey.path("intentId").asText()).isEqualTo(intentId.toString());
         assertThat(recoveredWithNewKey.path("idempotentReplay").asBoolean()).isTrue();
         assertThat(count("SELECT count(*) FROM wok.payment_intents WHERE order_id = ?", orderId)).isEqualTo(1);
+        assertThat(get(path + "/current", otherCustomer).statusCode()).isEqualTo(404);
         assertThat(post(path, otherCustomer, "{}", Map.of("Idempotency-Key", UUID.randomUUID().toString()))
                 .statusCode()).isEqualTo(404);
     }
@@ -83,6 +88,9 @@ class ClientPaymentIntentIntegrationTest extends PostgresIntegrationTest {
                 {"action":"ACCEPT"}
                 """));
         UUID orderId = UUID.fromString(accepted.path("orderId").asText());
+
+        assertThat(get("/api/v1/client/delivery-requests/" + requestId + "/payment-intents/current", customer)
+                .statusCode()).isEqualTo(204);
 
         HttpResponse<String> response = post("/api/v1/client/delivery-requests/" + requestId + "/payment-intents",
                 customer, "{}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));

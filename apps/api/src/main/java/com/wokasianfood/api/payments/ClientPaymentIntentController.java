@@ -11,12 +11,14 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -127,6 +129,39 @@ public class ClientPaymentIntentController {
         return receipt(intentId, false);
     }
 
+    @GetMapping("/{requestId}/payment-intents/current")
+    @Transactional(readOnly = true)
+    public ResponseEntity<PaymentIntentStatus> current(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID requestId) {
+        UUID customerId = UUID.fromString(jwt.getSubject());
+        List<UUID> ownedRequests = jdbc.query("""
+                SELECT order_id FROM wok.order_requests
+                WHERE id = ? AND customer_user_id = ?
+                """, (rs, row) -> rs.getObject("order_id", UUID.class), requestId, customerId);
+        if (ownedRequests.isEmpty()) throw new AuthException(404, "No encontramos la solicitud.");
+        UUID orderId = ownedRequests.getFirst();
+        if (orderId == null) return ResponseEntity.noContent().build();
+
+        List<PaymentIntentStatus> intents = jdbc.query("""
+                SELECT i.id, i.order_id, i.provider, i.provider_reference, i.amount, i.status, i.created_at,
+                       c.code AS currency_code
+                FROM wok.order_requests r
+                JOIN wok.payment_intents i ON i.order_id = r.order_id
+                    AND i.customer_user_id = r.customer_user_id
+                JOIN wok.currencies c ON c.id = i.currency_id
+                WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
+                  AND r.payment_preference = 'ONLINE_PAYMENT_REQUESTED'
+                ORDER BY i.created_at DESC, i.id DESC LIMIT 1
+                """, (rs, row) -> new PaymentIntentStatus(rs.getObject("id", UUID.class),
+                rs.getObject("order_id", UUID.class), rs.getString("provider"),
+                rs.getString("provider_reference"), rs.getBigDecimal("amount"),
+                rs.getString("currency_code"), rs.getString("status"),
+                rs.getTimestamp("created_at").toInstant(),
+                "Solicitud de cobro en modo de prueba. No se ha procesado ni confirmado ningún pago."),
+                requestId, customerId);
+        return intents.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(intents.getFirst());
+    }
+
     private Receipt receipt(UUID intentId, boolean replay) {
         List<Receipt> rows = jdbc.query("""
                 SELECT i.id, i.order_id, i.provider, i.provider_reference, i.amount, i.status, i.created_at,
@@ -155,6 +190,10 @@ public class ClientPaymentIntentController {
     public record Receipt(UUID intentId, UUID orderId, String provider, String providerReference,
                           BigDecimal amount, String currency, String status, java.time.Instant createdAt,
                           boolean idempotentReplay, String message) {}
+
+    public record PaymentIntentStatus(UUID intentId, UUID orderId, String provider, String providerReference,
+                                      BigDecimal amount, String currency, String status,
+                                      java.time.Instant createdAt, String message) {}
 
     private record OrderForPayment(String requestStatus, String fulfillmentType, String paymentPreference,
                                    UUID orderId, UUID accountId, String orderStatus, BigDecimal total,

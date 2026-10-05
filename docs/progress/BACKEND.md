@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-04 — Consulta del intento de pago online delivery
+
+- `GET /api/v1/client/delivery-requests/{requestId}/payment-intents/current` permite recuperar el intento más reciente desde el backend. Comprueba ownership antes de responder; solicitud ajena da 404 y una solicitud propia sin intento da 204. No crea intentos ni pagos y nunca da el pedido por cobrado.
+- La app Cliente usa esta lectura al actualizar su historial, así conserva el estado del cobro después de salir/entrar o reiniciar. Los datos de cada cliente siguen limitados por su sesión. El adaptador de pago continúa MOCK y PENDING.
+- Verificación focal backend: `ClientPaymentIntentIntegrationTest` 2/2 contra PostgreSQL 18/Testcontainers + Flyway V1–V33; incluye recuperación, ausencia y aislamiento de propietario. Tras el cambio, la suite completa conserva 188/188 con 0 fallos/errores/omitidas. Validación móvil: Vitest 10/10, ESLint, TypeScript `--noEmit` y exports Expo Android/Web aprobados.
+
 # 2026-10-04 — IA — gateway aislado con mock
 
 - Se integró selectivamente la base de `origin/feature/ai` y se fortalecieron sus contratos: el broker sólo expone `getOpeningHours`/`getCurrentServiceStatus` en DTOs tipados; no acepta SQL ni recursos de clientes. Respuestas deterministas se calculan dentro del backend antes de llamar al proveedor.
