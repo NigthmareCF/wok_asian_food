@@ -184,6 +184,12 @@
 - Git: documentación local; sin commit, push, cambio de rama, merge ni publicación.
 # Progreso de la aplicación móvil Cliente
 
+## 2026-10-04 — Actualización automática del chat Cliente
+
+- En la pantalla de Mensajes, mientras está enfocada y seleccionada una conversación `OPEN`/`WAITING`, la app consulta historial y mensajes cada 15 segundos. Al salir de la pantalla, cerrar la conversación o quedar offline, detiene el polling; si una consulta falla conserva el último contenido confirmado.
+- Usa únicamente los endpoints Cliente existentes y mantiene ownership/estado bajo control del backend. No requiere push, Meta ni cambios de esquema; el refresco manual sigue disponible para presentar errores de conexión.
+- Verificación completada: Vitest 12/12, ESLint, TypeScript `--noEmit` y exportaciones Expo Android/Web aprobados. Los exports comprueban compilación de rutas/bundles, no son APK/IPA ni sustituyen la prueba en dispositivo.
+
 ## 2026-10-04 — Formato y validación local del teléfono GT
 
 - Perfil, direcciones y formulario delivery muestran/formatean teléfono como `0000 0000`; al seleccionar un dato guardado se normalizan dígitos y prefijo `+502`. Se rechazan envíos con menos/más de ocho dígitos y se explica el formato junto al campo.
