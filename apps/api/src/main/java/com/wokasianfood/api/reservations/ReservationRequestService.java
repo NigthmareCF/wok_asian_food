@@ -2,6 +2,9 @@ package com.wokasianfood.api.reservations;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wokasianfood.api.catalog.ModifierSelectionService;
+import com.wokasianfood.api.identity.AuthException;
+import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -27,19 +30,29 @@ public class ReservationRequestService {
     private final JdbcTemplate jdbc;
     private final OperationalCapacityService capacity;
     private final OccupancyEstimator occupancy;
+    private final ModifierSelectionService modifiers;
 
-    public ReservationRequestService(JdbcTemplate jdbc, OperationalCapacityService capacity, OccupancyEstimator occupancy) {
+    public ReservationRequestService(JdbcTemplate jdbc, OperationalCapacityService capacity, OccupancyEstimator occupancy,
+                                     ModifierSelectionService modifiers) {
         this.jdbc = jdbc;
         this.capacity = capacity;
         this.occupancy = occupancy;
+        this.modifiers = modifiers;
     }
 
     @Transactional
     public Result submit(UUID userId, UUID requestId, Request request) {
         lockRequest(requestId);
+        List<RequestedItem> requestedItems = request.items() == null ? List.of() : request.items();
+        if (requestedItems.size() > 20 || requestedItems.stream().anyMatch(item -> item == null || item.menuItemId() == null
+                || item.quantity() < 1 || item.quantity() > 50 || (item.modifierIds() != null &&
+                (item.modifierIds().size() > 30 || item.modifierIds().stream().anyMatch(java.util.Objects::isNull))))
+                || requestedItems.stream().map(RequestedItem::menuItemId).distinct().count() != requestedItems.size())
+            throw new AuthException(422, "Revisa los productos de la preorden.");
         String payloadHash = hashRequest(request);
         Result replay = findReplay(userId, requestId, payloadHash);
         if (replay != null) return replay;
+        List<PreorderLine> preorderLines = requestedItems.stream().map(this::snapshotItem).toList();
 
         var assessment = capacity.assessTable(request.guests(), request.requestedAt(), Instant.now(), request.preorder());
         var estimate = assessment.occupancy() == null ? occupancy.estimate(request.guests()) : assessment.occupancy();
@@ -77,6 +90,21 @@ public class ReservationRequestService {
             """, reservationId, userId, requestId, payloadHash, assessment.decision().name(), encodeStrings(assessment.reasonCodes()),
             encodeInstants(assessment.alternativeTimes()), encodeStrings(List.of("PREORDER=" + request.preorder())), estimate.maximumMinutes(),
             estimate.minimumMinutes(), assessment.publicMessage(), Timestamp.from(request.requestedAt()), request.guests());
+        for (PreorderLine line : preorderLines) {
+            UUID lineId = jdbc.queryForObject("""
+                INSERT INTO wok.reservation_request_items
+                    (request_id, menu_item_id, name_snapshot, quantity, unit_price, currency_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                RETURNING id
+                """, UUID.class, requestId, line.menuItemId(), line.name(), line.quantity(), line.unitPrice(), line.currencyId());
+            for (ModifierSelectionService.SelectedModifier modifier : line.modifiers()) {
+                jdbc.update("""
+                    INSERT INTO wok.reservation_request_item_modifiers
+                        (reservation_request_item_id, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, lineId, modifier.id(), modifier.groupName(), modifier.name(), modifier.priceDelta());
+            }
+        }
         return new Result(requestId, reservationId, reservationId != null, assessment.decision(),
                 assessment.reasonCodes(), estimate.minimumMinutes(), estimate.maximumMinutes(), assessment.publicMessage(),
                 assessment.alternativeTimes());
@@ -172,13 +200,36 @@ public class ReservationRequestService {
     }
 
     private String hashRequest(Request request) {
+        List<RequestedItem> items = request.items() == null ? List.of() : request.items();
+        String itemPayload = items.stream().sorted(java.util.Comparator.comparing(item -> item.menuItemId().toString()))
+                .map(item -> item.menuItemId() + ":" + item.quantity() + ":" + (item.modifierIds() == null ? "" :
+                        item.modifierIds().stream().map(UUID::toString).sorted().collect(java.util.stream.Collectors.joining(","))))
+                .collect(java.util.stream.Collectors.joining(";"));
         String canonical = "reservation-request-v1\n" + request.guests() + "\n" + request.requestedAt()
-                + "\n" + request.preorder() + "\n" + (request.notes() == null ? "" : request.notes());
+                + "\n" + request.preorder() + "\n" + (request.notes() == null ? "" : request.notes())
+                + (items.isEmpty() ? "" : "\n" + itemPayload);
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException error) {
             throw new IllegalStateException("SHA-256 is not available", error);
         }
+    }
+
+    private PreorderLine snapshotItem(RequestedItem item) {
+        List<MenuItemRow> rows = jdbc.query("""
+            SELECT mi.id, mi.name, mi.price, mi.currency_id
+            FROM wok.menu_items mi
+            JOIN wok.menu_categories mc ON mc.id = mi.category_id AND mc.active = true
+            WHERE mi.id = ? AND mi.status = 'ACTIVE' AND mi.visibility = 'PUBLIC'
+            FOR SHARE OF mi
+            """, (rs, row) -> new MenuItemRow(rs.getObject("id", UUID.class), rs.getString("name"),
+                rs.getBigDecimal("price"), rs.getObject("currency_id", UUID.class)), item.menuItemId());
+        if (rows.isEmpty()) throw new AuthException(422, "Un producto de la preorden ya no está disponible en el menú.");
+        MenuItemRow product = rows.getFirst();
+        List<ModifierSelectionService.SelectedModifier> selected = modifiers.validate(product.id(), item.modifierIds());
+        BigDecimal unitPrice = selected.stream().map(ModifierSelectionService.SelectedModifier::priceDelta)
+                .reduce(product.price(), BigDecimal::add);
+        return new PreorderLine(product.id(), product.name(), item.quantity(), unitPrice, product.currencyId(), selected);
     }
 
     private List<String> decodeReasons(java.sql.Array value) throws SQLException {
@@ -204,7 +255,11 @@ public class ReservationRequestService {
     private record ResultRow(UUID reservationId, OperationalCapacityService.Decision decision, List<String> reasons,
                              int minimumMinutes, int maximumMinutes, String message, UUID userId, String payloadHash,
                              List<Instant> alternatives) {}
-    public record Request(int guests, Instant requestedAt, boolean preorder, String notes) {}
+    public record Request(int guests, Instant requestedAt, boolean preorder, String notes, List<RequestedItem> items) {}
+    public record RequestedItem(UUID menuItemId, int quantity, List<UUID> modifierIds) {}
+    private record MenuItemRow(UUID id, String name, BigDecimal price, UUID currencyId) {}
+    private record PreorderLine(UUID menuItemId, String name, int quantity, BigDecimal unitPrice, UUID currencyId,
+                                List<ModifierSelectionService.SelectedModifier> modifiers) {}
     public record Result(UUID requestId, UUID reservationId, boolean submitted,
                          OperationalCapacityService.Decision decision, List<String> reasonCodes,
                          int minimumOccupancyMinutes, int maximumOccupancyMinutes, String message,

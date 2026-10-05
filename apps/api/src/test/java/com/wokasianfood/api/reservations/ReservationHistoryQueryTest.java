@@ -12,7 +12,7 @@ class ReservationHistoryQueryTest {
     @Test
     void historyIsScopedToTheAuthenticatedUserAndHasABoundedResult() {
         CapturingJdbcTemplate jdbc = new CapturingJdbcTemplate();
-        ReservationRequestService service = new ReservationRequestService(jdbc, null, null);
+        ReservationRequestService service = new ReservationRequestService(jdbc, null, null, null);
         UUID userId = UUID.fromString("11111111-1111-4111-8111-111111111111");
 
         assertThat(service.history(userId)).isEmpty();

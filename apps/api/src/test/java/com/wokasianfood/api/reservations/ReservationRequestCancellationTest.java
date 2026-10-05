@@ -74,7 +74,7 @@ class ReservationRequestCancellationTest {
         verify(jdbc, never()).update(anyString(), any(Object[].class));
     }
 
-    private ReservationRequestService service() { return new ReservationRequestService(jdbc, null, null); }
+    private ReservationRequestService service() { return new ReservationRequestService(jdbc, null, null, null); }
 
     private void stubStatus(String status) throws Exception {
         doAnswer(invocation -> {

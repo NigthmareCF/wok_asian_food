@@ -2,9 +2,9 @@
 
 > **Plan vigente desde 2026-09-25.** El plan de pickup conservado más abajo queda `SUPERSEDED` como alcance total. La app cubre todo el canal Cliente. Se implementará por slices integrados con la API WOK; una pantalla Expo o un mock no acredita un caso de uso.
 
-## Estado verificado al 2026-09-26
+## Estado verificado al 2026-10-05
 
-`feature/mobile-shell` ya contiene APP-01 básico, APP-02 parcial y APP-04 parcial: Expo SDK 57 / React Native 0.86, navegación Cliente, registro/verificación/login/refresh/logout y solicitud de reservas conectados a los endpoints existentes. El catálogo oficial, pedidos, checkout, pagos, seguimiento, mensajería e historial siguen sin contrato backend utilizable desde móvil. Consultar [progreso móvil](../progress/MOBILE.md) para evidencias y límites. Esto no equivale a completar la app Cliente.
+`feature/mobile-shell` contiene APP-01, identidad Cliente parcial, y flujos conectados para menú, pickup, delivery, reservas e historial. La reserva ahora permite adjuntar una preorden del menú; la API guarda snapshots revisables y la agenda Operativa los presenta sin aceptar el pedido ni apartar inventario. Persisten huecos en flujos completos de checkout/pagos, factura propia, mensajería, pruebas de dispositivo Android/iOS y builds instalables. Consultar [progreso móvil](../progress/MOBILE.md) para evidencia y límites. Esto no equivale a completar la app Cliente.
 
 ## Arquitectura vigente
 
@@ -17,7 +17,7 @@ React Native + Expo + TypeScript + Expo Router. TanStack Query administra datos 
 | APP-01 Base      | navegación, diseño accesible, estados carga/error/offline y configuración pública           | API/health                        |
 | APP-02 Identidad | registro CLIENT, verificación, login, Google, reset, sesión, logout y perfil                | IAM, email mock/real              |
 | APP-03 Catálogo  | menú público, detalle, modificadores, disponibilidad y carrito local                        | catálogo y servicio; menú real    |
-| APP-04 Reservas  | formal y mesa digital, 3 h, horarios compatibles, preorden, solicitudes y política          | capacidad/reservas                |
+| APP-04 Reservas  | formal y mesa digital, 3 h, horarios compatibles, preorden con snapshots, solicitudes y política | capacidad/reservas             |
 | APP-05 Pedidos   | pickup/delivery, dirección y contacto, checkout, ETA, seguimiento e historial               | pedidos/KDS/ownership             |
 | APP-06 Finanzas  | pasarela segura/3DS, métodos habilitados, facturas propias y perfiles fiscales              | pagos/FEL; adapter real pendiente |
 | APP-07 Atención  | mensajes, adjuntos permitidos, estado humano/IA y notificaciones                            | messaging/AI Gateway              |

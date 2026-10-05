@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-05 — Preorden real en solicitudes de reserva
+
+- `POST /api/v1/client/reservations` acepta hasta 20 productos publicados, cantidad y modificadores; valida nuevamente estado, visibilidad y reglas de opciones en servidor, y calcula el precio unitario autoritativo.
+- V38 conserva snapshots de producto/opciones asociados a la evaluación idempotente. El personal autorizado los consulta en `GET /api/v1/operational/reservations/schedule` para solicitudes que crearon reserva pendiente.
+- Son solicitudes para revisión: no crean pedidos ni reservan inventario. Los reintentos conservan snapshots originales incluso si el catálogo cambia; cambiar el payload con la misma clave responde 409.
+- `ConfiguredReservationHoursIntegrationTest` cubre monto, modificadores, consulta operativa, replay, rechazo de clave con payload diferente y ausencia de pedido/stock reservado. Suite completa: 225/225, 0 fallos/errores/omitidas; PostgreSQL 18 + Flyway V1–V38 desde esquema vacío.
+
 ## 2026-10-05 — Agenda Operativa de reservas con mesas
 
 - `GET /api/v1/operational/reservations/schedule?from={instant}&to={instant}&status={REQUESTED|CONFIRMED|ARRIVED}` devuelve reservas del intervalo, ordenadas por hora, con datos de contacto para atención Operativa y las asignaciones activas (nombre, zona, capacidad e intervalo ocupado). Requiere rol OPERATIONAL o ADMIN; limita la ventana a 31 días y no incluye estados terminales.

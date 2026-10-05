@@ -76,4 +76,90 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         assertThat(replay.path("requestId").asText()).isEqualTo(requestId.toString());
         assertThat(replay.path("alternativeTimes")).isEqualTo(submitted.path("alternativeTimes"));
     }
+
+    @Test
+    void clientReservationStoresPreorderSnapshotsWithoutCreatingAnOrderOrStockReservation() throws Exception {
+        UUID userId = createUserWithRole("reservation-preorder-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        jdbc.update("INSERT INTO wok.customer_profiles (user_id, full_name) VALUES (?, 'Cliente preorden')", userId);
+        UUID menuItemId = createMenuItem();
+        UUID groupId = jdbc.queryForObject("""
+            INSERT INTO wok.modifier_groups (name, min_selection, max_selection, required)
+            VALUES ('Tamaño preorden', 1, 1, true) RETURNING id
+            """, UUID.class);
+        UUID modifierId = jdbc.queryForObject("INSERT INTO wok.modifiers (group_id, name, price_delta) VALUES (?, 'Grande', 3.00) RETURNING id",
+                UUID.class, groupId);
+        jdbc.update("INSERT INTO wok.menu_item_modifier_groups (menu_item_id, group_id) VALUES (?, ?)", menuItemId, groupId);
+        UUID requestId = UUID.randomUUID();
+        LocalDate targetDate = LocalDate.now(ZONE).plusDays(7);
+        if (targetDate.getDayOfWeek() == java.time.DayOfWeek.MONDAY) targetDate = targetDate.plusDays(1);
+        Instant requestedAt = LocalDateTime.of(targetDate, LocalTime.of(18, 0)).atZone(ZONE).toInstant();
+        String body = """
+            {"guests":2,"requestedAt":"%s","preorder":true,"notes":"Sin picante",
+             "items":[{"menuItemId":"%s","quantity":2,"modifierIds":["%s"]}]}
+            """.formatted(requestedAt, menuItemId, modifierId);
+        String path = "/api/v1/client/reservations";
+        String token = tokenFor(userId);
+
+        var first = post(path, token, body, Map.of("Idempotency-Key", requestId.toString()));
+        assertThat(first.statusCode()).as(first.body()).isBetween(200, 299);
+        JsonNode result = json.readTree(first.body());
+        assertThat(result.path("submitted").asBoolean()).isTrue();
+        UUID reservationId = UUID.fromString(result.path("reservationId").asText());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservation_request_items WHERE request_id = ?", Integer.class, requestId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.reservation_request_items WHERE request_id = ?", java.math.BigDecimal.class, requestId))
+                .isEqualByComparingTo("23.00");
+        assertThat(jdbc.queryForObject("SELECT line_total FROM wok.reservation_request_items WHERE request_id = ?", java.math.BigDecimal.class, requestId))
+                .isEqualByComparingTo("46.00");
+        assertThat(jdbc.queryForObject("""
+            SELECT count(*) FROM wok.reservation_request_item_modifiers m
+            JOIN wok.reservation_request_items i ON i.id = m.reservation_request_item_id WHERE i.request_id = ?
+            """, Integer.class, requestId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.orders WHERE opened_by = ?", Integer.class, userId)).isZero();
+
+        String operatorToken = tokenForRole("OPERATIONAL");
+        Instant from = requestedAt.minusSeconds(60);
+        Instant to = requestedAt.plusSeconds(60);
+        var schedule = get("/api/v1/operational/reservations/schedule?from=" + from + "&to=" + to, operatorToken);
+        assertThat(schedule.statusCode()).as(schedule.body()).isEqualTo(200);
+        JsonNode scheduleRows = json.readTree(schedule.body());
+        JsonNode scheduleRow = null;
+        for (JsonNode row : scheduleRows) if (reservationId.toString().equals(row.path("reservationId").asText())) scheduleRow = row;
+        assertThat(scheduleRow).isNotNull();
+        assertThat(scheduleRow.path("preorderItems").size()).isEqualTo(1);
+        assertThat(scheduleRow.path("preorderItems").get(0).path("unitPrice").decimalValue()).isEqualByComparingTo("23.00");
+        assertThat(scheduleRow.path("preorderItems").get(0).path("modifiers").get(0).path("name").asText()).isEqualTo("Grande");
+
+        UUID invalidRequestId = UUID.randomUUID();
+        String invalidBody = body.replace(modifierId.toString(), UUID.randomUUID().toString());
+        var invalid = post(path, token, invalidBody, Map.of("Idempotency-Key", invalidRequestId.toString()));
+        assertThat(invalid.statusCode()).as(invalid.body()).isEqualTo(422);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservation_evaluations WHERE request_id = ?", Integer.class, invalidRequestId)).isZero();
+
+        jdbc.update("UPDATE wok.menu_items SET price = 99.00 WHERE id = ?", menuItemId);
+        var replay = post(path, token, body, Map.of("Idempotency-Key", requestId.toString()));
+        assertThat(replay.statusCode()).isEqualTo(first.statusCode());
+        assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.reservation_request_items WHERE request_id = ?", java.math.BigDecimal.class, requestId))
+                .isEqualByComparingTo("23.00");
+        String changedBody = body.replace("\"quantity\":2", "\"quantity\":3");
+        var conflict = post(path, token, changedBody, Map.of("Idempotency-Key", requestId.toString()));
+        assertThat(conflict.statusCode()).isEqualTo(409);
+    }
+
+    private UUID createMenuItem() {
+        jdbc.update("INSERT INTO wok.item_types (code, name) VALUES ('PREORDER_DISH', 'Platillo preorden') ON CONFLICT (code) DO NOTHING");
+        jdbc.update("INSERT INTO wok.units (code, name, dimension, factor_to_base) VALUES ('PREORDER_UNIT', 'Unidad preorden', 'COUNT', 1) ON CONFLICT (code) DO NOTHING");
+        UUID type = jdbc.queryForObject("SELECT id FROM wok.item_types WHERE code = 'PREORDER_DISH'", UUID.class);
+        UUID unit = jdbc.queryForObject("SELECT id FROM wok.units WHERE code = 'PREORDER_UNIT'", UUID.class);
+        String suffix = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        UUID sellable = jdbc.queryForObject("INSERT INTO wok.items (sku, name, item_type_id, base_unit_id, track_inventory) VALUES (?, 'Platillo preorden', ?, ?, false) RETURNING id",
+                UUID.class, "PREORDER_" + suffix, type, unit);
+        UUID category = jdbc.queryForObject("INSERT INTO wok.menu_categories (name) VALUES (?) RETURNING id", UUID.class, "Preorden " + suffix);
+        UUID area = jdbc.queryForObject("INSERT INTO wok.preparation_areas (code, name) VALUES (?, 'Área preorden') RETURNING id", UUID.class, "PREORDER_" + suffix);
+        UUID currency = jdbc.queryForObject("SELECT id FROM wok.currencies WHERE code = 'GTQ'", UUID.class);
+        return jdbc.queryForObject("""
+            INSERT INTO wok.menu_items (item_id, category_id, preparation_area_id, name, price, currency_id,
+                visibility, status, estimated_preparation_seconds)
+            VALUES (?, ?, ?, 'Platillo preorden', 20.00, ?, 'PUBLIC', 'ACTIVE', 600) RETURNING id
+            """, UUID.class, sellable, category, area, currency);
+    }
 }

@@ -41,7 +41,10 @@ public class ClientReservationController {
             @RequestHeader("Idempotency-Key") UUID requestId,
             @Valid @RequestBody Submission request) {
         var result = requests.submit(UUID.fromString(jwt.getSubject()), requestId,
-                new ReservationRequestService.Request(request.guests(), request.requestedAt(), request.preorder(), request.notes()));
+                new ReservationRequestService.Request(request.guests(), request.requestedAt(), request.preorder(), request.notes(),
+                        request.items() == null ? List.of() : request.items().stream()
+                                .map(item -> new ReservationRequestService.RequestedItem(item.menuItemId(), item.quantity(), item.modifierIds()))
+                                .toList()));
         return result.submitted() ? ResponseEntity.accepted().body(result) : ResponseEntity.ok(result);
     }
 
@@ -53,5 +56,8 @@ public class ClientReservationController {
     }
 
     public record Submission(@Min(1) @Max(50) int guests, @NotNull Instant requestedAt,
-                             boolean preorder, @Size(max = 1000) String notes) {}
+                             boolean preorder, @Size(max = 1000) String notes,
+                             @Size(max = 20) List<@Valid RequestedItem> items) {}
+    public record RequestedItem(@NotNull UUID menuItemId, @Min(1) @Max(50) int quantity,
+                                @Size(max = 30) List<@NotNull UUID> modifierIds) {}
 }

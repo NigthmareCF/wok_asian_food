@@ -25,6 +25,12 @@
 - This verifies migration execution and the available SQL checks only. The model/SQL/dictionary/ERD reconciliation, full business-rule coverage, and migration upgrade-path testing remain open.
 # Progreso de base de datos
 
+## 2026-10-05 — Snapshots de preorden en reservas (V38)
+
+- V38 agrega las líneas de productos/opciones solicitadas a la evaluación idempotente de reserva; conserva nombre, cantidad, precio, moneda y modificadores como snapshot.
+- No se crea orden, movimiento de inventario ni reserva de stock. Las líneas se mantienen asociadas al request para que la agenda Operativa las muestre junto con la reserva pendiente.
+- Migración V1–V38 aplicada desde esquema vacío y flujo HTTP/agenda probado en PostgreSQL 18/Testcontainers dentro de `ConfiguredReservationHoursIntegrationTest`. Suite backend completa: 225/225, sin fallos, errores ni omitidas.
+
 ## 2026-09-30 — Libreta de direcciones Cliente
 
 - V12 crea `customer_addresses` asociada al usuario Cliente, con etiqueta única por cuenta, referencia/teléfono validados, versión de actualización y máximo un registro default por cuenta.
