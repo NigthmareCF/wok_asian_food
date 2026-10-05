@@ -9,7 +9,7 @@ La rama especializada `feature/mobile-shell` ya integra sesión WOK y varios rec
 | Slice | Estado comprobado | Pendiente relevante |
 | --- | --- | --- |
 | APP-01 Base | Expo SDK 57 / React Native 0.86, Expo Router y sesión con API WOK; exports Android/Web probados | Builds instalables y prueba física Android/iOS; más pruebas de interfaz y estados de red |
-| APP-02 Identidad | Registro/verificación/login/reset, refresh seguro, logout, perfil, sesiones y validación de correo/teléfono | Google OIDC móvil, MFA y prueba de revocación/recuperación en dispositivos |
+| APP-02 Identidad | Registro/verificación/login/reset, refresh seguro, logout, perfil, sesiones, validación de correo/teléfono, Google OIDC y enlace autenticado de cuenta Google | Configurar clientes OAuth reales, MFA y pruebas instaladas de revocación/recuperación |
 | APP-03 Catálogo | Menú público, grupos de opciones, validación min/max, snapshots de selección/precio y consulta de disponibilidad estimada para el carrito completo de pickup/delivery | Prueba integrada en PostgreSQL; seed oficial y recetas reales bloqueados por coordinación |
 | APP-04 Reservas | Solicitud con mínimo 3 h, evaluación previa de horario/estancia contra `business_hours`, selección de hasta tres horarios alternativos, borrador/clave de reintento, historial y cancelación pendiente | Capacidad real avanzada, preorden de productos y pruebas de concurrencia/dispositivo |
 | APP-05 Pedidos | Solicitudes pickup/delivery, opciones guardadas en cada renglón, direcciones, historial, tracking de cocina/despacho, polling y solicitud revisable para cancelar pedido aceptado | Cambios de líneas sujetos a Operativo; pruebas integrales con el equipo operativo |

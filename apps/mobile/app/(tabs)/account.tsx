@@ -17,7 +17,7 @@ export default function AccountScreen() {
 }
 
 function AccountContent() {
-  const { session, login, register, verify, resendVerification, requestPasswordReset, completePasswordReset, request, logout } = useSession();
+  const { session, login, loginWithGoogle, linkGoogle, register, verify, resendVerification, requestPasswordReset, completePasswordReset, request, logout } = useSession();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -132,8 +132,6 @@ function AccountContent() {
         <Field label="Nombre" value={profileName} onChangeText={setProfileName} autoComplete="name" />
         <Field label="Teléfono (opcional) · Guatemala" value={profilePhone} onChangeText={(value) => setProfilePhone(formatGuatemalaPhone(value))} keyboardType="phone-pad" autoComplete="tel" maxLength={9} placeholder="0000 0000" />
         {profilePhone && !isValidGuatemalaPhone(profilePhone) ? <Notice tone="error">Ingresa 8 dígitos en grupos de cuatro, por ejemplo 5555 0101.</Notice> : null}
-        {message ? <Notice tone="success">{message}</Notice> : null}
-        {error ? <Notice tone="error">{error}</Notice> : null}
         <Button title="Guardar perfil" secondary busy={busy} disabled={Boolean(profilePhone && !isValidGuatemalaPhone(profilePhone))} onPress={() => void run(async () => {
           setMessage("");
           if (profilePhone && !isValidGuatemalaPhone(profilePhone)) throw new Error("Ingresa un teléfono de Guatemala válido: 8 dígitos en formato 0000 0000.");
@@ -148,6 +146,12 @@ function AccountContent() {
       <Button title="Administrar direcciones guardadas" secondary onPress={() => router.push("/addresses")} />
       <Button title="Administrar perfiles para facturación" secondary onPress={() => router.push("/tax-profiles")} />
       <Button title="Consultar mis facturas emitidas" secondary onPress={() => router.push("/invoices")} />
+      {message ? <Notice tone="success">{message}</Notice> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      <Button title="Vincular mi cuenta con Google" secondary busy={busy} onPress={() => void run(async () => {
+        await linkGoogle();
+        setMessage("La cuenta Google quedó vinculada a tu cuenta WOK.");
+      })} />
       <Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice>
       {session.offline ? <Notice>Sin conexión: conservamos tu sesión y tus borradores en este dispositivo. Podrás reintentar las acciones del servidor cuando recuperes conexión.</Notice> : null}
       <View style={{ gap: 10 }}>
@@ -185,6 +189,10 @@ function AccountContent() {
       {error ? <Notice tone="error">{error}</Notice> : null}
       {mode === "register" || mode === "reset-complete" ? <Text style={ui.body}>La contraseña debe tener entre 12 y 128 caracteres.</Text> : null}
       <Button title={submitTitle[mode]} onPress={() => void submit()} busy={busy} />
+      {mode === "login" ? <>
+        <Button title="Continuar con Google" secondary onPress={() => void run(loginWithGoogle)} busy={busy} />
+        <Text style={ui.body}>Google requiere una versión de desarrollo instalada y la configuración OAuth de WOK.</Text>
+      </> : null}
       {mode === "verify" ? <Button title="Reenviar código" secondary busy={busy} onPress={() => void run(async () => {
         setMessage(await resendVerification(email.trim()));
       })} /> : null}

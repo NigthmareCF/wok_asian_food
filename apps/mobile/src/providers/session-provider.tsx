@@ -1,7 +1,9 @@
 import * as SecureStore from "expo-secure-store";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { ApiError, apiRequest, TokenPair } from "@/lib/api";
+import { completeGoogleSignIn } from "@/lib/google-auth";
 import { createRefreshTokenCoordinator, createSerializedWriteQueue } from "@/lib/session-coordination";
 
 type Session = { accessToken: string; email: string; offline: boolean };
@@ -9,6 +11,8 @@ type SessionContextValue = {
   session: Session | null;
   ready: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  linkGoogle: () => Promise<void>;
   register: (email: string, displayName: string, password: string) => Promise<string>;
   verify: (email: string, code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<string>;
@@ -26,6 +30,33 @@ const refreshCoordinator = createRefreshTokenCoordinator<TokenPair>((refreshToke
   }),
 );
 const serializeSecureStoreWrite = createSerializedWriteQueue();
+
+function getGoogleWebClientId() {
+  if (Platform.OS === "web") throw new ApiError("El acceso con Google está disponible en la aplicación móvil.");
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
+    throw new ApiError("Google requiere la versión de desarrollo de WOK; Expo Go no incluye el módulo nativo.");
+  }
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
+  const iosUrlScheme = process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME?.trim();
+  if (!webClientId || !iosUrlScheme || Constants.expoConfig?.extra?.googleSignInEnabled !== true) {
+    throw new ApiError("El acceso con Google aún no está configurado para esta instalación.");
+  }
+  return webClientId;
+}
+
+async function getNativeGoogleIdentity(nonce: string, webClientId: string) {
+  const { GoogleOneTapSignIn, isCancelledResponse, isNoSavedCredentialFoundResponse, isSuccessResponse } =
+    await import("react-native-nitro-google-signin");
+  GoogleOneTapSignIn.configure({ webClientId, nonce, offlineAccess: false, scopes: ["email", "profile"] });
+  if (Platform.OS === "android") await GoogleOneTapSignIn.checkPlayServices();
+  let response = await GoogleOneTapSignIn.signIn();
+  if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.createAccount();
+  if (isCancelledResponse(response)) return null;
+  if (!isSuccessResponse(response) || !response.data.idToken || !response.data.user.email) {
+    throw new ApiError("Google no devolvió una identidad verificable. Inténtalo de nuevo.");
+  }
+  return { idToken: response.data.idToken, email: response.data.user.email };
+}
 
 export function SessionProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
@@ -102,6 +133,59 @@ export function SessionProvider({ children }: PropsWithChildren) {
       if (!saved || generation !== authGeneration.current) throw new ApiError("La sesión cambió antes de completar el acceso. Inicia sesión nuevamente.", 401);
       refreshCoordinator.clear();
       setSession({ accessToken: tokens.accessToken, email: normalizedEmail, offline: false });
+    },
+    async loginWithGoogle() {
+      const webClientId = getGoogleWebClientId();
+      const authenticated = await completeGoogleSignIn({
+        issueNonce: () => apiRequest("/api/v1/auth/google/nonce", { method: "POST" }),
+        getIdentity: (nonce) => getNativeGoogleIdentity(nonce, webClientId),
+        async exchange({ idToken }, nonce) {
+          try {
+            return await apiRequest<TokenPair>("/api/v1/auth/google", {
+              method: "POST",
+              body: JSON.stringify({ idToken, nonce, clientType: "MOBILE" }),
+            });
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 409) {
+              throw new ApiError("Primero inicia sesión con tu cuenta WOK y vincula Google desde Mi cuenta.", 409);
+            }
+            throw error;
+          }
+        },
+      });
+      if (!authenticated) return;
+      const { value: tokens, email: normalizedEmail } = authenticated;
+      authGeneration.current += 1;
+      const generation = authGeneration.current;
+      const saved = await saveTokens(tokens, normalizedEmail, generation);
+      if (!saved || generation !== authGeneration.current) throw new ApiError("La sesión cambió antes de completar el acceso. Inicia sesión nuevamente.", 401);
+      refreshCoordinator.clear();
+      setSession({ accessToken: tokens.accessToken, email: normalizedEmail, offline: false });
+    },
+    async linkGoogle() {
+      if (!session || session.offline) throw new ApiError("Conéctate con tu cuenta WOK para vincular Google.", 401);
+      const webClientId = getGoogleWebClientId();
+      const generation = authGeneration.current;
+      try {
+        const linked = await completeGoogleSignIn<{ message: string }>({
+          issueNonce: () => apiRequest("/api/v1/auth/google/nonce", { method: "POST" }),
+          getIdentity: (nonce) => getNativeGoogleIdentity(nonce, webClientId),
+          exchange: ({ idToken }, nonce) => apiRequest<{ message: string }>("/api/v1/auth/google/link", {
+            method: "POST",
+            body: JSON.stringify({ idToken, nonce }),
+          }, session.accessToken),
+        });
+        if (generation !== authGeneration.current) throw new ApiError("La sesión cambió. Inicia sesión nuevamente.", 401);
+        if (!linked) return;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 403) {
+          throw new ApiError("El correo verificado de Google debe coincidir con el de tu cuenta WOK.", 403);
+        }
+        if (error instanceof ApiError && error.status === 409) {
+          throw new ApiError("Esta cuenta Google ya está vinculada a otra cuenta WOK.", 409);
+        }
+        throw error;
+      }
     },
     async register(email, displayName, password) {
       const result = await apiRequest<{ message: string }>("/api/v1/auth/register", {

@@ -6,7 +6,20 @@ Aplicación React Native con Expo SDK 57 y Expo Router. Las rutas viven en `app/
 
 1. Desde la raíz del repositorio: `npm install`.
 2. Copia `.env.example` como `.env` y configura `EXPO_PUBLIC_API_BASE_URL` con una dirección alcanzable desde el teléfono. No uses `localhost` en un dispositivo físico.
-3. `npm run start --workspace mobile`, luego escanea el QR con Expo Go.
+3. `npm run start --workspace mobile`, luego escanea el QR con Expo Go para las funciones normales de Cliente.
+
+## Google Sign-In nativo
+
+Google usa `react-native-nitro-google-signin` con Android Credential Manager e iOS Google Sign-In. Expo Go no incluye estos módulos nativos; crea un development build para probar este acceso. Configura `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (OAuth client de tipo Web, también configurado como audiencia del backend) y `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME` (reversed iOS client ID) en el entorno local o EAS. Son identificadores públicos, no secretos. Para Android registra el package y SHA-1 del certificado de debug/EAS en Google Cloud. Sin esa configuración el resto de la app sigue funcionando y la acción muestra un aviso.
+
+Después de configurar variables y credenciales, genera el proyecto nativo y ejecuta un build de desarrollo:
+
+```bash
+npx expo prebuild
+npx expo run:android
+```
+
+El backend emite un nonce criptográfico de un solo uso; la app lo pasa al SDK de Google y envía el ID token, nonce y tipo de cliente al backend WOK. La app sólo conserva el refresh token WOK en SecureStore y el access token WOK en memoria. No guarda tokens Google.
 
 La URL y los flags `EXPO_PUBLIC_*` son visibles en el paquete de la app y nunca deben contener secretos. La API debe exponer HTTPS fuera de una LAN de desarrollo controlada.
 
@@ -24,7 +37,7 @@ La URL y los flags `EXPO_PUBLIC_*` son visibles en el paquete de la app y nunca 
 - Solicitud de delivery con dirección, teléfono GT validado, preferencia de pago, historial/detalle/cancelación y libreta de direcciones propia; mensajería autenticada de la app.
 - Errores de conexión no confirman ni reenvían solicitudes automáticamente.
 
-El catálogo sólo muestra artículos y opciones publicados por backend; falta recibir e ingresar el menú real y validar disponibilidad contra inventario real en selección. Las solicitudes pickup/delivery continúan pendientes de revisión y no equivalen a pedidos aceptados. No existe cobro en línea productivo, Google OIDC móvil, notificaciones push ni pruebas E2E instaladas en dispositivos. Mensajes requieren red y no prometen respuesta en tiempo real. Estas limitaciones no se presentan como integraciones productivas.
+El catálogo sólo muestra artículos y opciones publicados por backend; falta recibir e ingresar el menú real y validar disponibilidad contra inventario real en selección. Las solicitudes pickup/delivery continúan pendientes de revisión y no equivalen a pedidos aceptados. Google OIDC permite iniciar sesión con una identidad vinculada o vincularla desde una sesión WOK activa; faltan configurar los clientes OAuth reales y hacer pruebas instaladas en Android/iOS. No existe cobro en línea productivo, notificaciones push ni pruebas E2E instaladas en dispositivos. Mensajes requieren red y no prometen respuesta en tiempo real. Estas limitaciones no se presentan como integraciones productivas.
 
 ## Verificación
 
