@@ -1,9 +1,9 @@
 import { Link } from "expo-router";
 import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { DeliveryRequestReceipt, PaymentIntentReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
+import { DeliveryRequestReceipt, OrderChangeRequestReceipt, PaymentIntentReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 import { recoverCurrentPaymentIntents } from "@/lib/payment-intents";
 
@@ -67,6 +67,10 @@ function OrderHistory() {
   const [trackingError, setTrackingError] = useState("");
   const [creatingPaymentIntentFor, setCreatingPaymentIntentFor] = useState<string | null>(null);
   const [paymentIntents, setPaymentIntents] = useState<Record<string, PaymentIntentReceipt>>({});
+  const [changeRequests, setChangeRequests] = useState<OrderChangeRequestReceipt[]>([]);
+  const [changeReason, setChangeReason] = useState("");
+  const [selectedChangeRequest, setSelectedChangeRequest] = useState<string | null>(null);
+  const [submittingChange, setSubmittingChange] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!session) { setRequests([]); setError(""); return; }
@@ -110,11 +114,20 @@ function OrderHistory() {
   }, [request, session]);
 
   useEffect(() => { void Promise.resolve().then(refreshTracking); }, [refreshTracking]);
+
+  const refreshChangeRequests = useCallback(async () => {
+    if (!session || session.offline) { setChangeRequests([]); return; }
+    try { setChangeRequests(await request<OrderChangeRequestReceipt[]>("/api/v1/client/order-requests/change-requests")); }
+    catch { /* Keep order tracking usable when the optional review history is unavailable. */ }
+  }, [request, session]);
+
+  useEffect(() => { void Promise.resolve().then(refreshChangeRequests); }, [refreshChangeRequests]);
   useEffect(() => {
-    if (!session || session.offline || !trackedOrders.some((order) => order.status === "SENT" || order.status === "PREPARING")) return;
-    const timer = setInterval(() => { void refreshTracking(); }, 30_000);
+    if (!session || session.offline || (!trackedOrders.some((order) => order.status === "SENT" || order.status === "PREPARING" || order.status === "READY")
+      && !changeRequests.some((item) => item.status === "PENDING_REVIEW"))) return;
+    const timer = setInterval(() => { void refreshTracking(); void refreshChangeRequests(); }, 30_000);
     return () => clearInterval(timer);
-  }, [refreshTracking, session, trackedOrders]);
+  }, [changeRequests, refreshChangeRequests, refreshTracking, session, trackedOrders]);
 
   async function cancel(requestId: string) {
     setCancelling(requestId); setError(""); setNotice("");
@@ -153,6 +166,46 @@ function OrderHistory() {
     } finally { setCreatingPaymentIntentFor(null); }
   }
 
+  function changeRequestFor(orderRequestId: string) {
+    return changeRequests.find((item) => item.orderRequestId === orderRequestId);
+  }
+
+  async function submitCancellation(orderRequestId: string) {
+    const reason = changeReason.trim();
+    if (reason.length < 3) { setError("Describe brevemente por qué solicitas cancelar el pedido."); return; }
+    setSubmittingChange(orderRequestId); setError(""); setNotice("");
+    try {
+      const receipt = await request<OrderChangeRequestReceipt>(
+        `/api/v1/client/order-requests/${orderRequestId}/change-requests`,
+        { method: "POST", headers: { "Idempotency-Key": Crypto.randomUUID() }, body: JSON.stringify({ reason }) },
+      );
+      setChangeRequests((current) => [receipt, ...current.filter((item) => item.orderRequestId !== orderRequestId)]);
+      setSelectedChangeRequest(null); setChangeReason("");
+      setNotice("Enviamos tu solicitud al equipo. El pedido sigue activo hasta que el equipo la revise.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "No pudimos enviar la solicitud de cancelación."); }
+    finally { setSubmittingChange(null); }
+  }
+
+  function cancellationControls(orderRequestId: string) {
+    const change = changeRequestFor(orderRequestId);
+    if (change) return <Notice tone={change.status === "REJECTED" ? "error" : "info"}>
+      {change.status === "PENDING_REVIEW" ? "Solicitud de cancelación pendiente de revisión. El pedido continúa activo." :
+        change.status === "APPROVED" ? "El equipo aprobó la cancelación del pedido." :
+          `El equipo no aceptó la cancelación.${change.decisionReason ? ` Motivo: ${change.decisionReason}` : ""}`}
+    </Notice>;
+    if (selectedChangeRequest === orderRequestId) return <View style={ui.section}>
+      <Text style={ui.body}>El pedido no se cancela automáticamente. El equipo revisará tu solicitud.</Text>
+      <TextInput accessibilityLabel="Motivo de cancelación" placeholder="Motivo (mínimo 3 caracteres)" value={changeReason}
+        onChangeText={setChangeReason} multiline maxLength={500}
+        style={{ minHeight: 72, borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 12, color: palette.ink, textAlignVertical: "top" }} />
+      <Button title="Enviar solicitud" busy={submittingChange === orderRequestId} disabled={Boolean(submittingChange)}
+        onPress={() => void submitCancellation(orderRequestId)} />
+      <Button title="Volver" secondary onPress={() => { setSelectedChangeRequest(null); setChangeReason(""); }} />
+    </View>;
+    return <Button title="Solicitar cancelación" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline)}
+      onPress={() => { setError(""); setSelectedChangeRequest(orderRequestId); }} />;
+  }
+
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
     <Heading eyebrow="Cliente">Mis pedidos y solicitudes</Heading>
     <Text style={ui.body}>Revisa pickup y delivery, su seguimiento y las solicitudes pendientes de confirmación.</Text>
@@ -173,8 +226,10 @@ function OrderHistory() {
           <Text style={ui.body}>Hora solicitada para recoger: {formatDate(order.requestedFor)}</Text>
           {order.estimatedReadyAt ? <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>Estimación de cocina: {formatDate(order.estimatedReadyAt)}</Text> : null}
           <Text style={ui.body}>Actualizado: {formatDate(order.updatedAt)}</Text>
+          {order.status === "SENT" || order.status === "PREPARING" || order.status === "READY"
+            ? cancellationControls(order.requestId) : null}
         </Card>)}
-        <Button title="Actualizar seguimiento" secondary busy={trackingLoading} onPress={() => void refreshTracking()} />
+        <Button title="Actualizar seguimiento" secondary busy={trackingLoading} onPress={() => void Promise.all([refreshTracking(), refreshChangeRequests()])} />
       </View>
       <View style={ui.section}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -197,6 +252,9 @@ function OrderHistory() {
           {item.dispatchStatus ? <Notice tone={item.dispatchStatus === "DELIVERY_FAILED" ? "error" : "info"}>
             Reparto: {deliveryStatusLabels[item.dispatchStatus]}.{item.assignedAt ? " Asignado " + formatDate(item.assignedAt) + "." : ""}{item.dispatchedAt ? " Salió del restaurante " + formatDate(item.dispatchedAt) + "." : ""}{item.deliveredAt ? " Entregado " + formatDate(item.deliveredAt) + "." : ""}
           </Notice> : null}
+          {item.status === "ACCEPTED" && item.orderStatus && ["SENT", "PREPARING", "READY"].includes(item.orderStatus)
+            && ["AWAITING_KITCHEN", "READY_FOR_DISPATCH"].includes(item.dispatchStatus ?? "")
+            ? cancellationControls(item.requestId) : null}
           {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}; todavía no emitida.</Text> : null}
           {paymentIntents[item.requestId] ? <Notice>Pago {paymentStatusLabels[paymentIntents[item.requestId].status]} · {formatMoney(paymentIntents[item.requestId].amount, paymentIntents[item.requestId].currency)}. {paymentIntents[item.requestId].message}</Notice> : null}
           {item.status === "ACCEPTED" && item.paymentPreference === "ONLINE_PAYMENT_REQUESTED"
@@ -213,7 +271,7 @@ function OrderHistory() {
           </> : null}
           <Link href="/delivery" style={ui.link}>Ver formulario y detalle de delivery</Link>
         </Card>)}
-        <Button title="Actualizar delivery" secondary busy={deliveryLoading} onPress={() => void refreshDelivery()} />
+        <Button title="Actualizar delivery" secondary busy={deliveryLoading} onPress={() => void Promise.all([refreshDelivery(), refreshChangeRequests()])} />
       </View>
       {loading && requests.length === 0 ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Cargando tus solicitudes…</Text></View></Card> : null}
       <Heading eyebrow="Pickup">Solicitudes para recoger</Heading>
@@ -244,7 +302,7 @@ function OrderHistory() {
           <Button title="Cancelar solicitud" secondary busy={cancelling === item.requestId} disabled={Boolean(cancelling)} onPress={() => void cancel(item.requestId)} />
         </> : null}
       </Card>)}
-      <Button title="Actualizar solicitudes" secondary busy={loading || deliveryLoading} onPress={() => void Promise.all([refresh(), refreshDelivery()])} />
+      <Button title="Actualizar solicitudes" secondary busy={loading || deliveryLoading} onPress={() => void Promise.all([refresh(), refreshDelivery(), refreshTracking(), refreshChangeRequests()])} />
     </>}
   </Page></ScrollView>;
 }

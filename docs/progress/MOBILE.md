@@ -167,6 +167,12 @@
 - El backend permite únicamente editar el perfil identificado por la sesión y mantiene actualizadas las dos representaciones del nombre. El correo se muestra como no editable.
 - Verificación después del cambio: lint, typecheck y export estático Expo para Android y web aprobados. Smoke HTTP/DB pasó con login CLIENT, consulta/edición del perfil, rechazo de versión obsoleta y validación de teléfono. No equivale a una prueba en dispositivos instalados.
 
+## 2026-10-05 — Solicitud de cancelación de pedido aceptado
+
+- La pestaña de pedidos permite al Cliente escribir un motivo y solicitar cancelación de pickup/delivery mientras el pedido siga en una etapa previa al despacho. La app genera `Idempotency-Key` y muestra que el pedido continúa activo hasta la revisión Operativa.
+- El historial recupera estados PENDING_REVIEW/APPROVED/REJECTED y permite actualizarlos o consultarlos periódicamente mientras haya pedidos activos/solicitudes pendientes. Los pedidos servidos, cerrados, cancelados y repartos asignados/en curso no muestran esta acción.
+- El flujo usa la API `feature/backend-capacity-order-lifecycle`, incluido Flyway V36. No procesa reembolsos desde la app ni cancela directamente el pedido. Verificación: Vitest 30/30, ESLint, TypeScript y exports Expo Android/Web aprobados; los exports son bundles y no sustituyen una prueba instalada en dispositivo.
+
 ## 2026-09-26 — APP-01 y slices iniciales de identidad/reservas
 
 - Rama `feature/mobile-shell`: se agregó app ejecutable Expo SDK 57 / React Native 0.86 / TypeScript con Expo Router y navegación Cliente Inicio, Menú, Reservas y Mi cuenta.

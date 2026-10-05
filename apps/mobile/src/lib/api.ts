@@ -140,6 +140,19 @@ export type PickupOrderTracking = {
   estimatedReadyAt: string | null;
   updatedAt: string;
 };
+export type OrderChangeRequestReceipt = {
+  id: string;
+  orderRequestId: string;
+  orderCode: string;
+  requestType: "CANCEL_ORDER";
+  status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  reason: string;
+  decisionReason: string | null;
+  expectedOrderVersion: number;
+  version: number;
+  requestedAt: string;
+  decidedAt: string | null;
+};
 export type PaymentIntentReceipt = {
   intentId: string;
   orderId: string;
