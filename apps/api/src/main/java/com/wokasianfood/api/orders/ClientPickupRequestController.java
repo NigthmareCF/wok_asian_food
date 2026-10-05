@@ -109,6 +109,7 @@ public class ClientPickupRequestController {
             """, requestId, customerId);
         return new PickupRequestReceipt(requestId, "PENDING_REVIEW", request.requestedFor(), subtotal,
                 currencyId, currencyCode, paymentPreference, invoice.requested(), invoice.name(), invoice.taxId(), false,
+                null,
                 "Recibimos tu solicitud. El equipo debe confirmar disponibilidad y horario antes de aceptarla.");
     }
 
@@ -117,7 +118,7 @@ public class ClientPickupRequestController {
         UUID customerId = UUID.fromString(jwt.getSubject());
         return jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code,
-                   r.payment_preference, r.invoice_requested, r.invoice_name, r.invoice_tax_id
+                   r.payment_preference, r.invoice_requested, r.invoice_name, r.invoice_tax_id, r.decision_reason
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'PICKUP'
             ORDER BY r.created_at DESC, r.id DESC LIMIT 50
@@ -129,14 +130,16 @@ public class ClientPickupRequestController {
         UUID customerId = UUID.fromString(jwt.getSubject());
         List<PickupRequestDetails> found = jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code,
-                   r.customer_note, r.payment_preference, r.invoice_requested, r.invoice_name, r.invoice_tax_id
+                   r.customer_note, r.payment_preference, r.invoice_requested, r.invoice_name, r.invoice_tax_id,
+                   r.decision_reason
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'PICKUP'
             """, (rs, row) -> new PickupRequestDetails(rs.getObject("id", UUID.class), rs.getString("status"),
                 rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                 rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
                 rs.getString("customer_note"), rs.getString("payment_preference"), rs.getBoolean("invoice_requested"),
-                rs.getString("invoice_name"), rs.getString("invoice_tax_id"), List.of()), requestId, customerId);
+                rs.getString("invoice_name"), rs.getString("invoice_tax_id"),
+                customerDecisionReason(rs.getString("status"), rs.getString("decision_reason")), List.of()), requestId, customerId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
         List<PickupRequestLine> items = jdbc.query("""
             SELECT name_snapshot, quantity, unit_price, line_total, currency_id
@@ -146,7 +149,8 @@ public class ClientPickupRequestController {
         PickupRequestDetails request = found.getFirst();
         return new PickupRequestDetails(request.requestId(), request.status(), request.requestedFor(),
                 request.subtotal(), request.currencyId(), request.currency(), request.customerNote(),
-                request.paymentPreference(), request.invoiceRequested(), request.invoiceName(), request.invoiceTaxId(), items);
+                request.paymentPreference(), request.invoiceRequested(), request.invoiceName(), request.invoiceTaxId(),
+                request.decisionReason(), items);
     }
 
     @DeleteMapping("/{requestId}")
@@ -220,7 +224,8 @@ public class ClientPickupRequestController {
     private PickupRequestReceipt existing(UUID customerId, UUID idempotencyKey, String fingerprint, boolean replay) {
         List<PickupRequestReceipt> found = jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code,
-                   r.payment_preference, r.invoice_requested, r.invoice_name, r.invoice_tax_id, r.request_fingerprint
+                   r.payment_preference, r.invoice_requested, r.invoice_name, r.invoice_tax_id,
+                   r.request_fingerprint, r.decision_reason
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
             WHERE r.customer_user_id = ? AND r.idempotency_key = ?
             """, (rs, row) -> {
@@ -231,7 +236,8 @@ public class ClientPickupRequestController {
                         rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
                         rs.getString("payment_preference"), rs.getBoolean("invoice_requested"),
                         rs.getString("invoice_name"), rs.getString("invoice_tax_id"), replay,
-                        "Recibimos tu solicitud. El equipo debe confirmar disponibilidad y horario antes de aceptarla.");
+                        customerDecisionReason(rs.getString("status"), rs.getString("decision_reason")),
+                        pickupMessage(rs.getString("status")));
             }, customerId, idempotencyKey);
         return found.isEmpty() ? null : found.getFirst();
     }
@@ -242,7 +248,22 @@ public class ClientPickupRequestController {
                 rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
                 rs.getString("payment_preference"), rs.getBoolean("invoice_requested"),
                 rs.getString("invoice_name"), rs.getString("invoice_tax_id"), false,
-                "El equipo debe confirmar disponibilidad y horario antes de aceptar la solicitud.");
+                customerDecisionReason(rs.getString("status"), rs.getString("decision_reason")),
+                pickupMessage(rs.getString("status")));
+    }
+
+    private static String customerDecisionReason(String status, String reason) {
+        return "REJECTED".equals(status) ? reason : null;
+    }
+
+    private static String pickupMessage(String status) {
+        return switch (status) {
+            case "REJECTED" -> "El restaurante no pudo aceptar tu solicitud pickup.";
+            case "CANCELLED" -> "La solicitud pickup fue cancelada.";
+            case "ACCEPTED" -> "El restaurante aceptó tu solicitud pickup.";
+            case "EXPIRED" -> "La solicitud pickup venció antes de ser procesada.";
+            default -> "El equipo debe confirmar disponibilidad y horario antes de aceptar la solicitud.";
+        };
     }
 
     private InvoiceRequest invoiceRequest(Boolean requested, String rawName, String rawTaxId) {
@@ -269,11 +290,11 @@ public class ClientPickupRequestController {
     public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
     public record PickupRequestReceipt(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
             UUID currencyId, String currency, String paymentPreference, boolean invoiceRequested,
-            String invoiceName, String invoiceTaxId, boolean idempotentReplay, String message) {}
+            String invoiceName, String invoiceTaxId, boolean idempotentReplay, String decisionReason, String message) {}
     public record OrderRequestState(UUID requestId, String status) {}
     public record PickupRequestDetails(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
             UUID currencyId, String currency, String customerNote, String paymentPreference, boolean invoiceRequested,
-            String invoiceName, String invoiceTaxId, List<PickupRequestLine> items) {}
+            String invoiceName, String invoiceTaxId, String decisionReason, List<PickupRequestLine> items) {}
     public record PickupRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal, UUID currencyId) {}
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currencyCode,
             int preparationSeconds) {}

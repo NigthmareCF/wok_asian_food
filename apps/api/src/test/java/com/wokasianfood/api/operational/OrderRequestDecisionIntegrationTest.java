@@ -99,6 +99,9 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         var persisted = jdbc.queryForMap("SELECT status, decision_reason FROM wok.order_requests WHERE id = ?", requestId);
         assertThat(persisted.get("status")).isEqualTo("REJECTED");
         assertThat(persisted.get("decision_reason")).isEqualTo("Sin insumos");
+        JsonNode clientHistory = body(get("/api/v1/client/order-requests", client));
+        assertThat(clientHistory.get(0).path("decisionReason").asText()).isEqualTo("Sin insumos");
+        assertThat(clientHistory.get(0).path("message").asText()).contains("no pudo aceptar");
         assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class, requestId))
                 .isNull();
         assertThat(count("""

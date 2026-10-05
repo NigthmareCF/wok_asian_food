@@ -206,7 +206,7 @@
 
 - Se integraron los commits remotos de verificación OIDC y nonces de un solo uso, ajustando las migraciones a V30/V31 porque V25–V29 ya están ocupadas por capacidades vigentes de esta rama.
 - Google queda preparado, pero deshabilitado sin `wok.auth.google.client-id`; el endpoint emite nonce aleatorio de 256 bits, conserva sólo SHA-256, vence a los cinco minutos y limita intentos por IP. El backend comprueba firma/JWKS, issuer, audience, tiempo, `sub`, correo verificado y coincidencia/consumo único del nonce.
-- La integración se limita a la rama backend especializada; no importa la reducción del snapshot candidato ni toca el frontend.
+- La integración se limita a la rama backend especializada; no importa la reducción del snapshot candidato ni toca el frontend. Suite completa posterior a la integración: 171/171 pruebas.
 
 ## 2026-10-04 — Google OIDC y nonces remotos
 
@@ -216,4 +216,9 @@
 ## 2026-10-04 — Puerto remoto de intents de pago mock
 
 - Integrados `PaymentGateway` y `MockPaymentGateway`: crear intents idempotentes, con montos/moneda validados y estados de proveedor explícitos. El mock devuelve `PENDING` y nunca afirma que un pago se capturó; no reemplaza el flujo de caja ni se presenta como integración de pasarela productiva.
-- Pruebas unitarias del puerto/mock quedan incluidas en la siguiente suite completa antes de publicar.
+- Suite completa PostgreSQL 18/Testcontainers + Flyway V1–V31: 171 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
+## 2026-10-04 — Motivo de rechazo pickup visible al cliente
+
+- Tras revisar también `origin/feature/backend-api`, se completó en pickup la proyección del motivo guardado por Operaciones al rechazar una solicitud, con mensaje público por estado. Sólo se expone la razón cuando el estado es `REJECTED`; no se filtran notas ni códigos internos de cancelación.
+- La prueba PostgreSQL confirma que Cliente ve `decisionReason` y el mensaje de rechazo en su historial propio. Pruebas focales pickup/delivery/decisiones: 23/23, sin fallos.
