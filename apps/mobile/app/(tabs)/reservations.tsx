@@ -1,5 +1,6 @@
 import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, PublicMenu, ReservationCapacityEvaluation, ReservationHistoryItem, ReservationPreorderItem, ReservationResult, apiRequest } from "@/lib/api";
@@ -47,6 +48,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   const [draftError, setDraftError] = useState("");
   const pendingRequest = useRef<PendingReservationAttempt | null>(null);
   const evaluationRevision = useRef(0);
+  const historyRefreshInFlight = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -118,13 +120,22 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
 
   const refreshHistory = useCallback(async () => {
     if (!session) { setHistory([]); return; }
+    if (historyRefreshInFlight.current) return;
+    historyRefreshInFlight.current = true;
     setHistoryLoading(true); setHistoryError("");
     try { setHistory(await request<ReservationHistoryItem[]>("/api/v1/client/reservations")); }
     catch (e) { setHistoryError(e instanceof Error ? e.message : "No se pudo cargar tu historial."); }
-    finally { setHistoryLoading(false); }
+    finally { historyRefreshInFlight.current = false; setHistoryLoading(false); }
   }, [request, session]);
 
   useEffect(() => { void Promise.resolve().then(refreshHistory); }, [refreshHistory]);
+
+  const hasPendingReservations = history.some((item) => item.reservationStatus === "REQUESTED");
+  useFocusEffect(useCallback(() => {
+    if (!session || session.offline || !hasPendingReservations) return;
+    const timer = setInterval(() => { void refreshHistory(); }, 30_000);
+    return () => clearInterval(timer);
+  }, [hasPendingReservations, refreshHistory, session]));
 
   async function evaluateSchedule() {
     setEvaluation(null); setEvaluationError("");

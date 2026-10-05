@@ -338,3 +338,8 @@
 - Expo SDK `57.0.25` / React Native `0.86.3`. `npx expo run:android` requiere Android SDK local, pero no es necesario para Expo Go. Se verificó que `ANDROID_HOME`, `ANDROID_SDK_ROOT` y `adb` no están configurados en la laptop.
 - Metro por LAN responde en `/status` y sirve en `0.0.0.0:8081`; durante el intento desde Expo Go no se observó conexión TCP entrante. Se regeneró QR tras el cambio de Wi‑Fi. La prueba de dispositivo sigue pendiente; probar desde navegador del mismo teléfono `http://<IP-LAN>:8081/status` permite distinguir bloqueo de red de compatibilidad Expo Go.
 - El túnel temporal Expo/ngrok fue autorizado por el propietario, pero no inició porque ngrok terminó con `remote gone away`; no se conservaron dependencias ni cambios temporales del intento.
+## 2026-10-05 — Actualización automática de solicitudes de reserva
+
+- La pantalla de Reservas refresca el historial cada 30 segundos mientras está enfocada, hay una sesión online y quedan solicitudes en estado `REQUESTED`. Se detiene al salir de la vista o al perder esas condiciones; evita solapar llamadas si coincide con una actualización manual.
+- Esto permite que Cliente vea la decisión operativa sin volver a entrar ni pulsar actualizar. Las confirmaciones no se transforman en pedido y la preorden sigue siendo un snapshot sujeto al flujo operativo.
+- Verificación: Vitest 38/38, ESLint, TypeScript y export Expo Android/Web (17 rutas). No requiere cambios backend ni credenciales externas.
