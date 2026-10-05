@@ -131,7 +131,7 @@ export type PaymentIntentReceipt = {
   currency: string;
   status: "CREATED" | "PENDING" | "REQUIRES_ACTION" | "AUTHORIZED" | "CAPTURED" | "FAILED" | "CANCELLED" | "UNKNOWN" | "REFUNDED";
   createdAt: string;
-  idempotentReplay: boolean;
+  idempotentReplay?: boolean;
   message: string;
 };
 export type DeliveryRequestBody = {

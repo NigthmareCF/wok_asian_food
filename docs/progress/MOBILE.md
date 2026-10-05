@@ -184,6 +184,12 @@
 - Git: documentación local; sin commit, push, cambio de rama, merge ni publicación.
 # Progreso de la aplicación móvil Cliente
 
+## 2026-10-04 — Recuperación del estado del intento de pago
+
+- El historial de delivery vuelve a leer desde `GET /api/v1/client/delivery-requests/{requestId}/payment-intents/current` los intentos activos del Cliente y reconstruye la tarjeta de estado después de una recarga. Sólo consulta pedidos aceptados que pidieron cobro online; solicitudes sin intento no crean ninguno.
+- Se añadieron etiquetas de estado para los estados del contrato y una función aislada para elegir qué intentos consultar. Los datos financieros siguen viniendo de la API y el texto mantiene claro que el adaptador actual es de prueba.
+- Pruebas Vitest: 10/10; ESLint y TypeScript `--noEmit` pasan. Pendiente: export Expo Android/Web y publicar el par de cambios con backend.
+
 ## 2026-10-04 — Preferencias de cobro y solicitud de factura pickup/delivery
 
 - Pickup permite elegir efectivo, tarjeta o transferencia al recoger y enviar opcionalmente nombre/NIT para pedir factura. Delivery conserva efectivo al recibir o solicitud de pago en línea y añade los mismos datos fiscales.

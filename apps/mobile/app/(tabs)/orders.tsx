@@ -5,6 +5,7 @@ import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { DeliveryRequestReceipt, PaymentIntentReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
+import { recoverCurrentPaymentIntents } from "@/lib/payment-intents";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
   PENDING_REVIEW: "Pendiente de revisión", ACCEPTED: "Aceptada por el restaurante",
@@ -18,6 +19,11 @@ const deliveryStatusLabels: Record<NonNullable<DeliveryRequestReceipt["dispatchS
   AWAITING_KITCHEN: "En preparación", READY_FOR_DISPATCH: "Esperando repartidor",
   ASSIGNED: "Repartidor asignado", OUT_FOR_DELIVERY: "En camino",
   DELIVERY_FAILED: "El equipo revisa una incidencia", DELIVERED: "Entregado", CANCELLED: "Cancelado",
+};
+const paymentStatusLabels: Record<PaymentIntentReceipt["status"], string> = {
+  CREATED: "inicializando", PENDING: "pendiente", REQUIRES_ACTION: "requiere acción",
+  AUTHORIZED: "autorizado", CAPTURED: "confirmado por el proveedor", FAILED: "rechazado",
+  CANCELLED: "cancelado", UNKNOWN: "en verificación", REFUNDED: "reembolsado",
 };
 
 function formatDate(value: string) {
@@ -73,9 +79,16 @@ function OrderHistory() {
   useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
 
   const refreshDelivery = useCallback(async () => {
-    if (!session || session.offline) { setDeliveryRequests([]); setDeliveryError(""); return; }
+    if (!session || session.offline) { setDeliveryRequests([]); setPaymentIntents({}); setDeliveryError(""); return; }
     setDeliveryLoading(true); setDeliveryError("");
-    try { setDeliveryRequests(await request<DeliveryRequestReceipt[]>("/api/v1/client/delivery-requests")); }
+    try {
+      const deliveries = await request<DeliveryRequestReceipt[]>("/api/v1/client/delivery-requests");
+      setDeliveryRequests(deliveries);
+      const currentIntents = await recoverCurrentPaymentIntents(deliveries, (requestId) =>
+        request<PaymentIntentReceipt | null>(`/api/v1/client/delivery-requests/${requestId}/payment-intents/current`),
+      );
+      setPaymentIntents(currentIntents);
+    }
     catch (cause) { setDeliveryError(cause instanceof Error ? cause.message : "No pudimos cargar tus solicitudes delivery."); }
     finally { setDeliveryLoading(false); }
   }, [request, session]);
@@ -185,7 +198,7 @@ function OrderHistory() {
             Reparto: {deliveryStatusLabels[item.dispatchStatus]}.{item.assignedAt ? " Asignado " + formatDate(item.assignedAt) + "." : ""}{item.dispatchedAt ? " Salió del restaurante " + formatDate(item.dispatchedAt) + "." : ""}{item.deliveredAt ? " Entregado " + formatDate(item.deliveredAt) + "." : ""}
           </Notice> : null}
           {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}; todavía no emitida.</Text> : null}
-          {paymentIntents[item.requestId] ? <Notice>Pago {paymentIntents[item.requestId].status === "PENDING" ? "pendiente" : "en revisión"} · {formatMoney(paymentIntents[item.requestId].amount, paymentIntents[item.requestId].currency)}. {paymentIntents[item.requestId].message}</Notice> : null}
+          {paymentIntents[item.requestId] ? <Notice>Pago {paymentStatusLabels[paymentIntents[item.requestId].status]} · {formatMoney(paymentIntents[item.requestId].amount, paymentIntents[item.requestId].currency)}. {paymentIntents[item.requestId].message}</Notice> : null}
           {item.status === "ACCEPTED" && item.paymentPreference === "ONLINE_PAYMENT_REQUESTED"
             && item.orderStatus !== "CLOSED" && item.orderStatus !== "CANCELLED" ? <>
               <Notice>La solicitud de pago usa un adaptador de prueba. Esta app no procesa pagos ni confirma cobros.</Notice>
