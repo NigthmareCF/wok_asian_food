@@ -1,5 +1,7 @@
 package com.wokasianfood.api.reservations;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -21,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** Persists a client reservation request without treating a policy assessment as confirmation. */
 @Service
 public class ReservationRequestService {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private final JdbcTemplate jdbc;
     private final OperationalCapacityService capacity;
     private final OccupancyEstimator occupancy;
@@ -70,18 +73,19 @@ public class ReservationRequestService {
                 (reservation_id, requester_user_id, request_id, request_payload_hash, decision, reason_codes, alternatives, conditions,
                  estimated_occupancy_minutes, minimum_occupancy_minutes, public_message, policy_version,
                  requested_for_at, party_size)
-            VALUES (?, ?, ?, ?, ?, ?::jsonb, '[]'::jsonb, ?::jsonb, ?, ?, ?, 'capacity-v1', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?, ?, ?, 'capacity-v1', ?, ?)
             """, reservationId, userId, requestId, payloadHash, assessment.decision().name(), encodeStrings(assessment.reasonCodes()),
-            encodeStrings(List.of("PREORDER=" + request.preorder())), estimate.maximumMinutes(),
+            encodeInstants(assessment.alternativeTimes()), encodeStrings(List.of("PREORDER=" + request.preorder())), estimate.maximumMinutes(),
             estimate.minimumMinutes(), assessment.publicMessage(), Timestamp.from(request.requestedAt()), request.guests());
         return new Result(requestId, reservationId, reservationId != null, assessment.decision(),
-                assessment.reasonCodes(), estimate.minimumMinutes(), estimate.maximumMinutes(), assessment.publicMessage());
+                assessment.reasonCodes(), estimate.minimumMinutes(), estimate.maximumMinutes(), assessment.publicMessage(),
+                assessment.alternativeTimes());
     }
 
     public List<HistoryItem> history(UUID userId) {
         return jdbc.query("""
             SELECT e.request_id, e.reservation_id, e.requested_for_at, e.party_size, e.decision,
-                   e.public_message, e.evaluated_at, r.status AS reservation_status
+                   e.public_message, e.alternatives::text AS alternatives, e.evaluated_at, r.status AS reservation_status
             FROM wok.reservation_evaluations e
             LEFT JOIN wok.reservations r ON r.id = e.reservation_id
             WHERE e.requester_user_id = ?
@@ -92,7 +96,7 @@ public class ReservationRequestService {
                 instantOrNull(rs.getTimestamp("requested_for_at")),
                 (Integer) rs.getObject("party_size"), OperationalCapacityService.Decision.valueOf(rs.getString("decision")),
                 rs.getString("reservation_status"), rs.getString("public_message"),
-                rs.getTimestamp("evaluated_at").toInstant()), userId);
+                decodeInstants(rs.getString("alternatives")), rs.getTimestamp("evaluated_at").toInstant()), userId);
     }
 
     @Transactional
@@ -137,6 +141,7 @@ public class ReservationRequestService {
         List<ResultRow> rows = jdbc.query("""
             SELECT e.reservation_id, e.decision,
                    ARRAY(SELECT jsonb_array_elements_text(e.reason_codes)) AS reason_codes,
+                   e.alternatives::text AS alternatives,
                    e.minimum_occupancy_minutes,
                    e.estimated_occupancy_minutes, e.public_message, e.requester_user_id, e.request_payload_hash
             FROM wok.reservation_evaluations e
@@ -146,18 +151,23 @@ public class ReservationRequestService {
                 decodeReasons(rs.getArray("reason_codes")),
                 rs.getInt("minimum_occupancy_minutes"), rs.getInt("estimated_occupancy_minutes"),
                 rs.getString("public_message"), rs.getObject("requester_user_id", UUID.class),
-                rs.getString("request_payload_hash")), requestId);
+                rs.getString("request_payload_hash"), decodeInstants(rs.getString("alternatives"))), requestId);
         if (rows.isEmpty()) return null;
         ResultRow row = rows.getFirst();
         if (!userId.equals(row.userId)) throw new ResponseStatusException(HttpStatus.CONFLICT, "Idempotency key already used");
         if (!payloadHash.equals(row.payloadHash))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Idempotency key was already used with different data.");
         return new Result(requestId, row.reservationId, row.reservationId != null, row.decision, row.reasons,
-                row.minimumMinutes, row.maximumMinutes, row.message);
+                row.minimumMinutes, row.maximumMinutes, row.message, row.alternatives);
     }
 
     private String encodeStrings(List<String> values) {
         return values.stream().map(value -> "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+    }
+
+    private String encodeInstants(List<Instant> values) {
+        return values.stream().map(value -> "\"" + value.toString() + "\"")
                 .collect(java.util.stream.Collectors.joining(",", "[", "]"));
     }
 
@@ -179,14 +189,28 @@ public class ReservationRequestService {
         return List.copyOf(result);
     }
 
+    private List<Instant> decodeInstants(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        try {
+            JsonNode values = JSON.readTree(value);
+            List<Instant> result = new ArrayList<>(values.size());
+            for (JsonNode item : values) result.add(Instant.parse(item.asText()));
+            return List.copyOf(result);
+        } catch (java.io.IOException error) {
+            throw new IllegalStateException("Invalid reservation alternative times", error);
+        }
+    }
+
     private record ResultRow(UUID reservationId, OperationalCapacityService.Decision decision, List<String> reasons,
-                             int minimumMinutes, int maximumMinutes, String message, UUID userId, String payloadHash) {}
+                             int minimumMinutes, int maximumMinutes, String message, UUID userId, String payloadHash,
+                             List<Instant> alternatives) {}
     public record Request(int guests, Instant requestedAt, boolean preorder, String notes) {}
     public record Result(UUID requestId, UUID reservationId, boolean submitted,
                          OperationalCapacityService.Decision decision, List<String> reasonCodes,
-                         int minimumOccupancyMinutes, int maximumOccupancyMinutes, String message) {}
+                         int minimumOccupancyMinutes, int maximumOccupancyMinutes, String message,
+                         List<Instant> alternativeTimes) {}
     public record HistoryItem(UUID requestId, UUID reservationId, Instant requestedAt, Integer guests,
                               OperationalCapacityService.Decision decision, String reservationStatus,
-                              String message, Instant submittedAt) {}
+                              String message, List<Instant> alternativeTimes, Instant submittedAt) {}
     public record CancellationResult(UUID reservationId, String status) {}
 }

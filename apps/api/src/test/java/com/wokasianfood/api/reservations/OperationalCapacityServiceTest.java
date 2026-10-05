@@ -85,4 +85,15 @@ class OperationalCapacityServiceTest {
         assertThat(beforeOpen.reasonCodes()).contains("OUTSIDE_TABLE_WINDOW");
         assertThat(afterConfiguredClose.reasonCodes()).contains("OUTSIDE_TABLE_WINDOW");
     }
+
+    @Test
+    void tooSoonEvaluationSuggestsFutureSlotsThatStillMeetTheThreeHourRule() {
+        Instant requested = at(14, 30);
+        Instant now = at(12, 0);
+        var result = capacity.assessTable(2, requested, now, false);
+        assertThat(result.decision()).isEqualTo(OperationalCapacityService.Decision.REJECT);
+        assertThat(result.alternativeTimes()).isNotEmpty();
+        assertThat(result.alternativeTimes()).allSatisfy(alternative ->
+                assertThat(alternative).isAfterOrEqualTo(now.plusSeconds(3 * 60 * 60)));
+    }
 }
