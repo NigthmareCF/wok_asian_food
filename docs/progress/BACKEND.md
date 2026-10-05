@@ -312,3 +312,8 @@
 - Flyway V37 crea unicidad por servicio/día y agrega `hours:manage`, asignado inicialmente sólo a ADMIN. `GET /api/v1/admin/business-hours` lista la agenda; `PUT /api/v1/admin/business-hours/{serviceType}/{weekday}` crea o actualiza una ventana, permite cerrarla con `active=false`, valida horas y zona IANA, exige motivo y `expectedVersion`, y registra auditoría.
 - Se separó este permiso de `service:manage`, que también tiene Operativo, para evitar que el personal operativo cambie política de horarios. El evaluador de reservaciones ya consume esta misma tabla.
 - Pruebas de integración en PostgreSQL 18/Testcontainers: creación/actualización/auditoría, conflicto de versión, validación de horas/zona y acceso exclusivo de Admin: 3/3. Se ajustó el fixture del broker IA para respetar la unicidad del horario semillado. Suite completa limpia con Flyway V1–V37: 212 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
+## 2026-10-05 — Revalidación al confirmar reservas
+
+- La decisión Operativa de confirmar vuelve a comprobar bajo bloqueo de la reserva que la hora siga al menos a tres horas y dentro del horario activo/último ingreso configurado. Si la agenda cambió mientras estaba pendiente, responde `409`, mantiene el estado `REQUESTED` y deja al personal coordinar/rechazar sin aceptar bajo reglas obsoletas. La decisión de rechazo sigue disponible.
+- Pruebas PostgreSQL 18/Testcontainers: confirmación en ventana válida y conflicto tras cambiar el horario, 2/2. Suite limpia completa con Flyway V1–V37: 214 pruebas, 0 fallos, 0 errores, 0 omitidas.

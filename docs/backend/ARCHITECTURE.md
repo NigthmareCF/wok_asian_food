@@ -16,6 +16,8 @@ Reserva formal y solicitud digital de mesa exigen 3 h de anticipación. El umbra
 
 Los horarios se mantienen desde `GET /api/v1/admin/business-hours` y `PUT /api/v1/admin/business-hours/{serviceType}/{weekday}`. El endpoint requiere el permiso exclusivo `hours:manage` (concedido inicialmente a ADMIN), valida ventana y zona horaria, registra motivo/auditoría y aplica `expectedVersion` (cero crea, versiones positivas actualizan). Hay una sola fila por servicio/día; los cierres se representan con `active=false`. La evaluación de capacidad lee las filas activas sin confiar en configuración del cliente.
 
+Al confirmar una solicitud en `/api/v1/operational/reservations/{id}/decision`, Operaciones vuelve a validar que sigan quedando al menos tres horas y que el día/hora continúe dentro del horario configurado y del último ingreso normal. Si la agenda cambió mientras esperaba revisión, la confirmación devuelve conflicto y conserva la solicitud pendiente para que el personal la rechace o coordine otro horario; no acepta una reserva contra política obsoleta.
+
 `OccupancyEstimator` usa rangos iniciales configurables: 1 persona 75–105 min; 2, 90–120; 3–4, 105–150; 5–8, 120–180; 9–12, 150–210; 13+, cálculo especial. No multiplica el baseline por persona. Guarda estimado y duración real para calibración.
 
 ## Flujos y invariantes
