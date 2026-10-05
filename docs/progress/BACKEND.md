@@ -223,3 +223,9 @@
 - Errores `ResponseStatusException` conservan estado/mensaje público; denegaciones entregan 403 JSON genérico y errores inesperados se registran sin volcar mensajes/stack al log y responden con texto sanitizado.
 - Se corrigieron hashes bcrypt de las cuentas demo documentadas y se añadió una prueba que los compara con `DemoOperativo2026` y `DemoAdmin2026`. CI usa `actions/setup-java@v5`.
 - Focales: auth hardening 8/8, error handler 3/3, hashes demo 1/1. Suite completa limpia con PostgreSQL 18/Testcontainers y Flyway V1–V32: 177 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
+## 2026-10-04 — Intento de pago online para delivery Cliente
+
+- Flyway V33 agrega `wok.payment_intents` con restricción de un solo intento activo por pedido, estados explícitos y referencia del proveedor. `POST /api/v1/client/delivery-requests/{requestId}/payment-intents` exige rol Cliente, ownership, solicitud aceptada de delivery y preferencia `ONLINE_PAYMENT_REQUESTED`; calcula el saldo usando el total persistido del pedido y pagos/reembolsos existentes, no importes enviados por la app.
+- El endpoint usa `PaymentGateway` con adaptador `MOCK`, permite recuperar el mismo intento al repetirlo incluso con clave nueva, registra auditoría y responde `PENDING`. No inserta `wok.payments`, no cierra la cuenta y no declara fondos capturados. Falta proveedor real, checkout/3DS, webhook firmado y conciliación; reemplazar el mock debe usar un worker/outbox antes de llamadas de red.
+- Pruebas PostgreSQL 18: ownership ajeno responde 404, preferencia no online se rechaza, replay retorna el mismo intento y el cobro queda sin registrar. `bash mvnw -q clean test`: 179 pruebas, 0 fallos, 0 errores, 0 omitidas; Flyway V1–V33 aplicado desde esquema vacío.
