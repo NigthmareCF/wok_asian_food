@@ -54,6 +54,7 @@ export type ReservationResult = {
   minimumOccupancyMinutes: number;
   maximumOccupancyMinutes: number;
   message: string;
+  alternativeTimes: string[];
 };
 export type ReservationCapacityEvaluation = {
   confirmed: false;
@@ -62,6 +63,7 @@ export type ReservationCapacityEvaluation = {
     reasonCodes: string[];
     occupancy: { minimumMinutes: number; maximumMinutes: number; requiresIndividualReview: boolean } | null;
     publicMessage: string;
+    alternativeTimes: string[];
   };
 };
 export type ReservationHistoryItem = {
@@ -72,6 +74,7 @@ export type ReservationHistoryItem = {
   decision: ReservationResult["decision"];
   reservationStatus?: string | null;
   message: string;
+  alternativeTimes?: string[];
   submittedAt: string;
 };
 export type PublicMenu = {

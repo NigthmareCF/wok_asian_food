@@ -5,7 +5,7 @@ import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-nativ
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ReservationCapacityEvaluation, ReservationHistoryItem, ReservationResult } from "@/lib/api";
 import { parsePendingReservationAttempt, PendingReservationAttempt, resolvePendingReservationAttempt } from "@/lib/reservation-attempt";
-import { formatRestaurantDateTime, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
+import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { useSession } from "@/providers/session-provider";
 
 export default function ReservationsScreen() {
@@ -20,6 +20,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   const [preorder, setPreorder] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [submissionAlternatives, setSubmissionAlternatives] = useState<string[]>([]);
   const [messageTone, setMessageTone] = useState<"info" | "success">("info");
   const [error, setError] = useState("");
   const [history, setHistory] = useState<ReservationHistoryItem[]>([]);
@@ -127,7 +128,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   }
 
   async function submit() {
-    setError(""); setMessage("");
+    setError(""); setMessage(""); setSubmissionAlternatives([]);
     if (!session) { setError("Inicia sesión desde Mi cuenta para enviar una solicitud."); return; }
     const date = parseRestaurantLocalDateTime(requestedAt);
     const count = Number(guests);
@@ -167,6 +168,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
       setMessage(result.message || (result.submitted
         ? "Solicitud enviada; el equipo debe revisarla y confirmarla."
         : `La solicitud no fue aceptada automáticamente (${result.decision}).`));
+      setSubmissionAlternatives(result.alternativeTimes ?? []);
       void refreshHistory();
     } catch (e) { setError(e instanceof Error ? e.message : "No se pudo enviar la solicitud."); }
     finally { setBusy(false); }
@@ -201,6 +203,12 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
         {evaluation.assessment.publicMessage}{evaluation.assessment.occupancy
           ? ` Estancia orientativa: ${evaluation.assessment.occupancy.minimumMinutes}–${evaluation.assessment.occupancy.maximumMinutes} min.` : ""} Esta evaluación no confirma una reserva; al enviar se volverá a revisar.
       </Notice> : null}
+      {evaluation?.assessment.alternativeTimes.map((alternative) => <Button key={alternative}
+        title={`Probar ${formatDate(alternative)}`} secondary disabled={busy || evaluating}
+        onPress={() => { setRequestedAt(formatRestaurantLocalInput(alternative)); clearEvaluation(); }} />)}
+      {submissionAlternatives.map((alternative) => <Button key={alternative}
+        title={`Probar ${formatDate(alternative)}`} secondary disabled={busy}
+        onPress={() => { setRequestedAt(formatRestaurantLocalInput(alternative)); setSubmissionAlternatives([]); }} />)}
       <Button title="Evaluar horario orientativo" secondary busy={evaluating} disabled={busy || evaluating} onPress={() => void evaluateSchedule()} />
       {error ? <Notice tone="error">{error}</Notice> : null}
       {message ? <Notice tone={messageTone}>{message}</Notice> : null}
@@ -220,6 +228,9 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
         <Text style={ui.body}>{item.guests ? `${item.guests} ${item.guests === 1 ? "persona" : "personas"}` : "Tamaño de grupo no disponible"}</Text>
         <Text style={ui.pill}>{decisionLabel(item.decision, item.reservationStatus)}</Text>
         <Text style={ui.body}>{item.message}</Text>
+        {item.alternativeTimes?.map((alternative) => <Button key={alternative}
+          title={`Probar ${formatDate(alternative)}`} secondary disabled={busy}
+          onPress={() => { setRequestedAt(formatRestaurantLocalInput(alternative)); setSubmissionAlternatives([]); }} />)}
         {item.reservationStatus === "REQUESTED" && item.reservationId ? <>
           <Notice>Esta solicitud aún espera revisión. Sólo se pueden cancelar solicitudes pendientes; las reservas confirmadas requieren contactar al restaurante.</Notice>
           <Button title="Cancelar solicitud pendiente" secondary busy={cancellingReservationId === item.reservationId}

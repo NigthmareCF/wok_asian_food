@@ -177,7 +177,7 @@
 ## 2026-10-05 — Evaluación previa de horario de reserva
 
 - En el formulario Cliente se agregó “Evaluar horario orientativo” conectado a `POST /api/v1/public/reservations/evaluate`. Presenta mensaje y rango de estancia estimada antes de enviar, invalida resultados cuando cambian personas/fecha/preorden y evita que una respuesta tardía reemplace la evaluación del formulario actualizado.
-- La app deja claro que la evaluación es orientativa y la API vuelve a evaluar al crear la solicitud. Vitest 30/30, ESLint, TypeScript y exports Expo Android/Web aprobados. No hay confirmación automática ni selección de alternativas concreta aún.
+- La app deja claro que la evaluación es orientativa y la API vuelve a evaluar al crear la solicitud. Devuelve hasta tres alternativas específicas como acciones para probar el horario; un envío rechazado conserva esas alternativas en resultado e historial. Cambiar los datos invalida la evaluación previa. Vitest 30/30, ESLint, TypeScript y exports Expo Android/Web aprobados; sin confirmación automática.
 - El flujo usa la API `feature/backend-capacity-order-lifecycle`, incluido Flyway V36. No procesa reembolsos desde la app ni cancela directamente el pedido. Verificación: Vitest 30/30, ESLint, TypeScript y exports Expo Android/Web aprobados; los exports son bundles y no sustituyen una prueba instalada en dispositivo.
 
 ## 2026-09-26 — APP-01 y slices iniciales de identidad/reservas
