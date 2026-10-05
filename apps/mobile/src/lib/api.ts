@@ -96,6 +96,12 @@ export type MenuModifierGroup = {
   options: MenuModifierOption[];
 };
 export type MenuModifierOption = { id: string; name: string; priceDelta: number };
+export type MenuAvailabilityEstimate = {
+  availableEstimate: boolean | null;
+  estimateOnly: boolean;
+  asOf: string;
+  items: { menuItemId: string; status: "AVAILABLE_ESTIMATE" | "UNAVAILABLE_ESTIMATE" | "NOT_TRACKED"; reasonCode: string | null }[];
+};
 export type RequestModifierSnapshot = { group: string; name: string; priceDelta: number };
 export type PickupRequestBody = {
   requestedFor: string;

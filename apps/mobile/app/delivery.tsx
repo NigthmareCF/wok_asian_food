@@ -1,10 +1,10 @@
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { Link } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, MenuAvailabilityEstimate, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { useSession } from "@/providers/session-provider";
 import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
@@ -60,6 +60,10 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [availability, setAvailability] = useState<MenuAvailabilityEstimate | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const availabilityRevision = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -146,6 +150,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
     if (pending) return;
+    availabilityRevision.current += 1; setAvailability(null); setAvailabilityLoading(false); setAvailabilityError("");
     if ((cart[item.id] ?? 0) + delta < 1) {
       setSelectedModifiers((current) => {
         const next = { ...current };
@@ -164,7 +169,24 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   function changeModifiers(item: PublicMenuItem, ids: string[]) {
     if (pending) return;
+    availabilityRevision.current += 1; setAvailability(null); setAvailabilityLoading(false); setAvailabilityError("");
     setSelectedModifiers((current) => ({ ...current, [item.id]: ids }));
+  }
+
+  async function checkAvailability() {
+    if (!selected.length || !selectionsValid) return;
+    const revision = ++availabilityRevision.current;
+    setAvailability(null); setAvailabilityError(""); setAvailabilityLoading(true);
+    try {
+      const estimate = await apiRequest<MenuAvailabilityEstimate>("/api/v1/public/menu/availability", {
+        method: "POST",
+        body: JSON.stringify({ items: selected.map((item) => ({ menuItemId: item.id, quantity: cart[item.id],
+          modifierIds: [...(selectedModifiers[item.id] ?? [])].sort() })) }),
+      });
+      if (revision === availabilityRevision.current) setAvailability(estimate);
+    } catch (cause) {
+      if (revision === availabilityRevision.current) setAvailabilityError(cause instanceof ApiError ? cause.message : "No pudimos estimar la disponibilidad ahora.");
+    } finally { if (revision === availabilityRevision.current) setAvailabilityLoading(false); }
   }
 
   function suggestTime() {
@@ -331,6 +353,10 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         })}
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal estimado: {formatMoney(subtotal, selected[0].currency)}</Text>
         <Text style={ui.body}>El backend vuelve a validar precios. El carrito no reserva inventario y la solicitud requiere revisión del restaurante.</Text>
+        <Button title="Revisar disponibilidad estimada" secondary busy={availabilityLoading}
+          disabled={!selectionsValid || availabilityLoading || Boolean(pending)} onPress={() => void checkAvailability()} />
+        {availabilityError ? <Notice tone="error">{availabilityError}</Notice> : null}
+        {availability ? <AvailabilityNotice estimate={availability} products={selected} /> : null}
         {!selectionsValid ? <Notice tone="error">Completa las opciones requeridas para cada platillo.</Notice> : null}
       </View> : null}
       {session && addressOwner === session.email && savedAddresses.length ? <View style={ui.section}>
@@ -389,6 +415,25 @@ function validModifierSelections(value: unknown): Record<string, string[]> {
     /^[0-9a-f-]{36}$/i.test(itemId) && Array.isArray(ids) && ids.length <= 30
       && ids.every((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)),
   ).map(([itemId, ids]) => [itemId, [...new Set(ids as string[])]]));
+}
+
+function AvailabilityNotice({ estimate, products }: { estimate: MenuAvailabilityEstimate; products: PublicMenuItem[] }) {
+  const productById = new Map(products.map((item) => [item.id, item.name]));
+  const summary = estimate.availableEstimate === true
+    ? "El inventario registrado alcanza para todos los productos en esta revisión."
+    : estimate.availableEstimate === false
+      ? "El inventario registrado no alcanza para uno o más productos."
+      : "No hay datos suficientes de receta o inventario para estimar este carrito.";
+  const lines = estimate.items.map((item) => `${productById.get(item.menuItemId) ?? "Producto"}: ${availabilityLabel(item.status)}`).join(" ");
+  return <Notice tone={estimate.availableEstimate === false ? "error" : estimate.availableEstimate === true ? "success" : undefined}>
+    {summary} {lines} Es sólo una estimación; no aparta existencias y el restaurante volverá a validar al revisar la solicitud.
+  </Notice>;
+}
+
+function availabilityLabel(status: MenuAvailabilityEstimate["items"][number]["status"]) {
+  if (status === "AVAILABLE_ESTIMATE") return "estimado disponible.";
+  if (status === "UNAVAILABLE_ESTIMATE") return "estimado sin existencias suficientes.";
+  return "sin seguimiento de inventario.";
 }
 
 function createIdempotencyKey() {

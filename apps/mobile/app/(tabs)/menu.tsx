@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
-import { ApiError, apiRequest, CustomerTaxProfile, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { ApiError, apiRequest, CustomerTaxProfile, MenuAvailabilityEstimate, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
@@ -48,6 +48,10 @@ export default function MenuScreen() {
   const [attempt, setAttempt] = useState<PickupAttempt | null>(null);
   const [sending, setSending] = useState(false);
   const [receipt, setReceipt] = useState<PickupRequestReceipt | null>(null);
+  const [availability, setAvailability] = useState<MenuAvailabilityEstimate | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const availabilityRevision = useRef(0);
   const taxProfileOwner = useRef("");
 
   const loadMenu = useCallback(async () => {
@@ -135,6 +139,7 @@ export default function MenuScreen() {
   const activeInvoiceRequest = attempt?.body.invoiceRequested ?? invoiceRequested;
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
+    availabilityRevision.current += 1; setAvailability(null); setAvailabilityLoading(false); setAvailabilityError("");
     setReceipt(null);
     const quantity = (cart[item.id] ?? 0) + delta;
     if (quantity <= 0) {
@@ -144,8 +149,25 @@ export default function MenuScreen() {
   }
 
   function changeModifiers(item: PublicMenuItem, ids: string[]) {
+    availabilityRevision.current += 1; setAvailability(null); setAvailabilityLoading(false); setAvailabilityError("");
     setReceipt(null);
     setSelectedModifiers((current) => ({ ...current, [item.id]: ids }));
+  }
+
+  async function checkAvailability() {
+    if (!cartSelectionsValid || cartItems.length === 0) return;
+    const revision = ++availabilityRevision.current;
+    setAvailability(null); setAvailabilityError(""); setAvailabilityLoading(true);
+    try {
+      const estimate = await apiRequest<MenuAvailabilityEstimate>("/api/v1/public/menu/availability", {
+        method: "POST",
+        body: JSON.stringify({ items: cartItems.map((item) => ({ menuItemId: item.id, quantity: cart[item.id],
+          modifierIds: [...(selectedModifiers[item.id] ?? [])].sort() })) }),
+      });
+      if (revision === availabilityRevision.current) setAvailability(estimate);
+    } catch (cause) {
+      if (revision === availabilityRevision.current) setAvailabilityError(cause instanceof ApiError ? cause.message : "No pudimos estimar la disponibilidad ahora.");
+    } finally { if (revision === availabilityRevision.current) setAvailabilityLoading(false); }
   }
 
   function suggestPickupTime() {
@@ -252,6 +274,10 @@ export default function MenuScreen() {
         </View>)}
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Subtotal actual: {new Intl.NumberFormat("es-GT", { style: "currency", currency: cartItems[0].currency }).format(cartSubtotal)}</Text>
         <Text style={ui.body}>El backend vuelve a validar precios. El carrito no reserva inventario ni confirma un pedido.</Text>
+        <Button title="Revisar disponibilidad estimada" secondary busy={availabilityLoading}
+          disabled={!cartSelectionsValid || availabilityLoading || Boolean(attempt)} onPress={() => void checkAvailability()} />
+        {availabilityError ? <Notice tone="error">{availabilityError}</Notice> : null}
+        {availability ? <AvailabilityNotice estimate={availability} products={cartItems} /> : null}
         <Button title="Sugerir primera hora" secondary onPress={suggestPickupTime} disabled={Boolean(attempt)} />
         <Field label={`Fecha y hora solicitadas (hora de ${restaurantTimeZone})`} value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" editable={!attempt} />
         <Field label="Comentarios (opcional)" value={attempt?.body.customerNote ?? customerNote} onChangeText={setCustomerNote} placeholder="Indicaciones para el equipo" editable={!attempt} maxLength={500} />
@@ -286,6 +312,25 @@ function validModifierSelections(value: unknown): Record<string, string[]> {
     /^[0-9a-f-]{36}$/i.test(itemId) && Array.isArray(ids) && ids.length <= 30
       && ids.every((id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)),
   ).map(([itemId, ids]) => [itemId, [...new Set(ids as string[])]]));
+}
+
+function AvailabilityNotice({ estimate, products }: { estimate: MenuAvailabilityEstimate; products: PublicMenuItem[] }) {
+  const productById = new Map(products.map((item) => [item.id, item.name]));
+  const summary = estimate.availableEstimate === true
+    ? "El inventario registrado alcanza para todos los productos en esta revisión."
+    : estimate.availableEstimate === false
+      ? "El inventario registrado no alcanza para uno o más productos."
+      : "No hay datos suficientes de receta o inventario para estimar este carrito.";
+  const lines = estimate.items.map((item) => `${productById.get(item.menuItemId) ?? "Producto"}: ${availabilityLabel(item.status)}`).join(" ");
+  return <Notice tone={estimate.availableEstimate === false ? "error" : estimate.availableEstimate === true ? "success" : undefined}>
+    {summary} {lines} Es sólo una estimación; no aparta existencias y el restaurante volverá a validar al revisar la solicitud.
+  </Notice>;
+}
+
+function availabilityLabel(status: MenuAvailabilityEstimate["items"][number]["status"]) {
+  if (status === "AVAILABLE_ESTIMATE") return "estimado disponible.";
+  if (status === "UNAVAILABLE_ESTIMATE") return "estimado sin existencias suficientes.";
+  return "sin seguimiento de inventario.";
 }
 
 function selectedModifierNames(item: PublicMenuItem, selectedIds: string[] = []) {

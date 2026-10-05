@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-05 — Disponibilidad estimada en pickup y delivery
+
+- Menú pickup y delivery envían al backend las cantidades y opciones elegidas para `POST /api/v1/public/menu/availability`; los cambios del carrito invalidan el resultado anterior y las respuestas tardías no pisan una selección más nueva.
+- La app diferencia existencias estimadas, insuficientes y productos sin seguimiento. Explica que la consulta no aparta inventario; el equipo aún debe aceptar la solicitud y el servidor vuelve a validar stock.
+- Verificación: lint, TypeScript y export Expo Android/Web aprobados. Prueba de integración de PostgreSQL valida endpoint público, recetas, opciones, reservas activas, no filtración de cantidades y ninguna escritura de stock.
+
 ## 2026-10-05 — Modificadores configurables en pickup y delivery
 
 - El catálogo móvil presenta grupos/opciones publicados por la API, obliga a satisfacer mínimo/máximo antes de agregar el platillo y calcula el precio estimado con los deltas seleccionados. Pickup y delivery persisten carrito y opciones localmente en SecureStore; el payload de solicitud incluye los IDs ordenados dentro del mismo intento idempotente.
