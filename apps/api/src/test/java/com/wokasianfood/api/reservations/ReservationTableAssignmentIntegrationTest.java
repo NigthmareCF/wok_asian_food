@@ -114,6 +114,37 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
         }
     }
 
+    @Test
+    void operationalScheduleGroupsReservationsWithTheirCurrentTableAssignments() throws Exception {
+        ReservationCase reservation = createConfirmedReservation(3);
+        UUID firstTable = createTable("Agenda mesa A " + UUID.randomUUID(), 2, "SALON");
+        UUID secondTable = createTable("Agenda mesa B " + UUID.randomUUID(), 2, "SALON");
+        try {
+            var assignment = assign(reservation, List.of(firstTable, secondTable), UUID.randomUUID());
+            assertThat(assignment.statusCode()).as(assignment.body()).isEqualTo(201);
+
+            Instant from = reservation.startsAt().minusSeconds(60 * 60);
+            Instant to = reservation.startsAt().plusSeconds(60 * 60);
+            String path = "/api/v1/operational/reservations/schedule?from=" + from + "&to=" + to + "&status=CONFIRMED";
+            var response = get(path, reservation.staffToken());
+            assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+            JsonNode schedule = json.readTree(response.body());
+            JsonNode item = java.util.stream.StreamSupport.stream(schedule.spliterator(), false)
+                    .filter(candidate -> reservation.id().toString().equals(candidate.path("reservationId").asText()))
+                    .findFirst().orElseThrow();
+            assertThat(item.path("reservationId").asText()).isEqualTo(reservation.id().toString());
+            assertThat(item.path("status").asText()).isEqualTo("CONFIRMED");
+            assertThat(item.path("tables")).hasSize(2);
+            assertThat(item.path("tables").findValuesAsText("id")).containsExactlyInAnyOrder(firstTable.toString(), secondTable.toString());
+
+            assertThat(get(path, tokenForRole("CLIENT")).statusCode()).isEqualTo(403);
+            assertThat(get("/api/v1/operational/reservations/schedule?from=" + to + "&to=" + from,
+                    reservation.staffToken()).statusCode()).isEqualTo(400);
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", reservation.hoursId());
+        }
+    }
+
     private ReservationCase createConfirmedReservation(int guests) throws Exception {
         LocalDate date = LocalDate.now(ZONE).plusDays(8);
         Instant startsAt = date.atTime(LocalTime.of(16, 0)).atZone(ZONE).toInstant();

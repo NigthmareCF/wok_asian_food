@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-05 — Agenda Operativa de reservas con mesas
+
+- `GET /api/v1/operational/reservations/schedule?from={instant}&to={instant}&status={REQUESTED|CONFIRMED|ARRIVED}` devuelve reservas del intervalo, ordenadas por hora, con datos de contacto para atención Operativa y las asignaciones activas (nombre, zona, capacidad e intervalo ocupado). Requiere rol OPERATIONAL o ADMIN; limita la ventana a 31 días y no incluye estados terminales.
+- Permite que el equipo encuentre reservas confirmadas y vea sus mesas tras las operaciones de asignación/liberación (`383447b`, `f0d083e`). No añade migración ni altera los estados de reserva.
+- `ReservationTableAssignmentIntegrationTest`: 5/5 con PostgreSQL 18/Testcontainers, incluyendo agenda agrupada, asignaciones múltiples, autorización CLIENT denegada y rango invertido. Suite completa: 219/219, 0 fallos, 0 errores, 0 omitidas; Flyway V1–V37 desde esquema vacío.
+- El endpoint enlaza `Instant` como `Timestamp` JDBC para evitar que PostgreSQL reciba objetos `Instant` sin tipo SQL inferible. No se modificó la política existente de registro de excepciones.
+
 ## 2026-10-05 — Asignación operativa de mesas para reservas
 
 - `POST /api/v1/operational/reservations/{reservationId}/table-assignments` permite al personal con `tables:manage` asignar una o varias mesas a una reserva confirmada o que ya llegó. Requiere `Idempotency-Key`, motivo y `expectedVersion`; bloquea reserva y mesas en orden estable, valida zona/estado/capacidad y registra auditoría.
