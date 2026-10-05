@@ -57,6 +57,7 @@ class AdminSalesReportIntegrationTest extends PostgresIntegrationTest {
         String token = tokenForRole("ADMIN");
         assertThat(get("/api/v1/admin/reports/sales/daily?from=2026-10-05&to=2026-10-04", token).statusCode()).isEqualTo(422);
         assertThat(get("/api/v1/admin/reports/sales/daily?from=2026-09-01&to=2026-10-02", token).statusCode()).isEqualTo(422);
+        assertThat(get("/api/v1/admin/reports/sales/daily?from=2999-01-01&to=2999-01-01", token).statusCode()).isEqualTo(422);
     }
 
     private UUID insertPayment(UUID accountId, UUID currencyId, UUID actor, String amount, String tip, String capturedAt) {

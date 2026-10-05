@@ -26,6 +26,8 @@ public class AdminSalesReportController {
         if (to.isBefore(from)) throw new AuthException(422, "La fecha final debe ser igual o posterior a la inicial.");
         if (to.toEpochDay() - from.toEpochDay() >= 31)
             throw new AuthException(422, "El período no puede superar 31 días.");
+        if (to.isAfter(LocalDate.now(BUSINESS_ZONE)))
+            throw new AuthException(422, "El reporte sólo admite fechas hasta el día actual de Guatemala.");
         var fromInstant = from.atStartOfDay(BUSINESS_ZONE).toInstant();
         var toInstant = to.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
         List<DailySalesTotal> rows = jdbc.query("""
