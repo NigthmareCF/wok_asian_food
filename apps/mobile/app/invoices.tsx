@@ -42,7 +42,7 @@ export default function InvoicesScreen() {
 
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
     <Heading eyebrow="Facturación">Mis facturas emitidas</Heading>
-    <Text style={ui.body}>Aquí aparecen los documentos emitidos asociados a tus pedidos pickup aceptados.</Text>
+    <Text style={ui.body}>Aquí aparecen los documentos emitidos asociados a tus pedidos aceptados.</Text>
     {session?.offline ? <Notice>Sin conexión: la consulta requiere conexión con el restaurante.</Notice> : null}
     {error ? <Notice tone="error">{error}</Notice> : null}
     {loading && invoices.length === 0 ? <Card><Text style={ui.body}>Consultando facturas…</Text></Card> : null}

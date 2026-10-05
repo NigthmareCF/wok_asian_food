@@ -343,3 +343,8 @@
 - La pantalla de Reservas refresca el historial cada 30 segundos mientras está enfocada, hay una sesión online y quedan solicitudes en estado `REQUESTED`. Se detiene al salir de la vista o al perder esas condiciones; evita solapar llamadas si coincide con una actualización manual.
 - Esto permite que Cliente vea la decisión operativa sin volver a entrar ni pulsar actualizar. Las confirmaciones no se transforman en pedido y la preorden sigue siendo un snapshot sujeto al flujo operativo.
 - Verificación: Vitest 38/38, ESLint, TypeScript y export Expo Android/Web (17 rutas). No requiere cambios backend ni credenciales externas.
+
+## 2026-10-05 — Aclaración de facturas en Cliente
+
+- La vista de facturas ya consulta documentos propios emitidos; se corrigió el texto para no limitarlo a pickup. Backend valida ownership por cuenta y admite cuentas con pedidos pickup/delivery aceptados.
+- Verificación móvil: Vitest 38/38, ESLint y TypeScript. Prueba backend sobre PostgreSQL 18 valida ambas modalidades y rechazo de acceso a otro cliente.
