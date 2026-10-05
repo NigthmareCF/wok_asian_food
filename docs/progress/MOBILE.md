@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-04 — Vista unificada de pedidos Cliente
+
+- La pestaña Pedidos ahora consulta el historial propio de pickup y delivery junto al tracking pickup/delivery; muestra estado de solicitud, ETA de cocina y estado/marcas de tiempo del despacho. Las solicitudes delivery activas se actualizan cada 30 segundos, y pueden cancelarse mientras siguen pendientes de revisión.
+- El formulario sigue en la ruta Delivery; solicitud online de cobro, pedido aceptado y pago confirmado permanecen distinguidos. No se expone motivo interno del repartidor ni se afirma que una solicitud pendiente ya sea un pedido.
+- Verificación: Vitest 8/8, ESLint, TypeScript y Expo export Android/Web pasan. Los exports no sustituyen pruebas en dispositivo físico ni integración E2E.
+
 ## 2026-10-04 — Seguimiento del reparto delivery
 
 - El historial Cliente consume `dispatchStatus`, `assignedAt`, `dispatchedAt` y `deliveredAt` de la solicitud propia. La pantalla comunica preparación, espera/asignación, salida, incidencias, entrega y cancelación con hora local del restaurante; no presenta como entregado hasta que la API confirma ese estado.

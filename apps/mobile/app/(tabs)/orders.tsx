@@ -2,7 +2,7 @@ import { Link } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
+import { DeliveryRequestReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
@@ -12,6 +12,11 @@ const statusLabels: Record<PickupRequestState["status"], string> = {
 const orderStatusLabels: Record<PickupOrderTracking["status"], string> = {
   SENT: "Recibido por cocina", PREPARING: "En preparación", READY: "Listo para recoger",
   SERVED: "Entregado", CLOSED: "Cerrado", CANCELLED: "Cancelado",
+};
+const deliveryStatusLabels: Record<NonNullable<DeliveryRequestReceipt["dispatchStatus"]>, string> = {
+  AWAITING_KITCHEN: "En preparación", READY_FOR_DISPATCH: "Esperando repartidor",
+  ASSIGNED: "Repartidor asignado", OUT_FOR_DELIVERY: "En camino",
+  DELIVERY_FAILED: "El equipo revisa una incidencia", DELIVERED: "Entregado", CANCELLED: "Cancelado",
 };
 
 function formatDate(value: string) {
@@ -29,10 +34,16 @@ function pickupPaymentLabel(value: PickupRequestState["paymentPreference"]) {
   if (value === "TRANSFER_AT_PICKUP") return "Transferencia al recoger";
   return value === "CASH_AT_PICKUP" ? "Efectivo al recoger" : "Sin preferencia registrada";
 }
+function deliveryPaymentLabel(value: DeliveryRequestReceipt["paymentPreference"]) {
+  return value === "ONLINE_PAYMENT_REQUESTED" ? "Cobro online solicitado" : "Efectivo contra entrega";
+}
 
 export default function PickupRequestsScreen() {
   const { session, request } = useSession();
   const [requests, setRequests] = useState<PickupRequestState[]>([]);
+  const [deliveryRequests, setDeliveryRequests] = useState<DeliveryRequestReceipt[]>([]);
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [deliveryError, setDeliveryError] = useState("");
   const [trackedOrders, setTrackedOrders] = useState<PickupOrderTracking[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -52,6 +63,22 @@ export default function PickupRequestsScreen() {
   }, [request, session]);
 
   useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
+
+  const refreshDelivery = useCallback(async () => {
+    if (!session || session.offline) { setDeliveryRequests([]); setDeliveryError(""); return; }
+    setDeliveryLoading(true); setDeliveryError("");
+    try { setDeliveryRequests(await request<DeliveryRequestReceipt[]>("/api/v1/client/delivery-requests")); }
+    catch (cause) { setDeliveryError(cause instanceof Error ? cause.message : "No pudimos cargar tus solicitudes delivery."); }
+    finally { setDeliveryLoading(false); }
+  }, [request, session]);
+
+  useEffect(() => { void Promise.resolve().then(refreshDelivery); }, [refreshDelivery]);
+  useEffect(() => {
+    if (!session || session.offline || !deliveryRequests.some((item) =>
+      item.status === "ACCEPTED" && item.dispatchStatus !== "DELIVERED" && item.dispatchStatus !== "CANCELLED")) return;
+    const timer = setInterval(() => { void refreshDelivery(); }, 30_000);
+    return () => clearInterval(timer);
+  }, [deliveryRequests, refreshDelivery, session]);
 
   const refreshTracking = useCallback(async () => {
     if (!session || session.offline) { setTrackedOrders([]); setTrackingError(""); return; }
@@ -73,7 +100,7 @@ export default function PickupRequestsScreen() {
     try {
       await request<{ requestId: string; status: PickupRequestState["status"] }>(`/api/v1/client/order-requests/${requestId}`, { method: "DELETE" });
       setNotice("Cancelamos tu solicitud. No se había confirmado un pedido ni realizado un cobro.");
-      await refresh();
+      await Promise.all([refresh(), refreshDelivery()]);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "No pudimos cancelar la solicitud."); }
     finally { setCancelling(null); }
   }
@@ -92,14 +119,14 @@ export default function PickupRequestsScreen() {
   }
 
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
-    <Heading eyebrow="Pickup">Mis solicitudes</Heading>
-    <Text style={ui.body}>Consulta el estado de las solicitudes para recoger y cancela las que aún esperan revisión.</Text>
+    <Heading eyebrow="Cliente">Mis pedidos y solicitudes</Heading>
+    <Text style={ui.body}>Revisa pickup y delivery, su seguimiento y las solicitudes pendientes de confirmación.</Text>
     {!session ? <Card><Notice>Inicia sesión con una cuenta Cliente para consultar tus solicitudes.</Notice><Link href="/account" style={ui.link}>Ir a Mi cuenta</Link></Card> : <>
       {session.offline ? <Notice>Sin conexión. El historial requiere consultar el servidor y no se modifica sin confirmación.</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
       <View style={ui.section}>
-        <Heading eyebrow="Seguimiento">Pedidos aceptados</Heading>
+        <Heading eyebrow="Pickup">Pedidos aceptados</Heading>
         {trackingError ? <Notice tone="error">{trackingError}</Notice> : null}
         {trackingLoading && trackedOrders.length === 0 ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Consultando pedidos aceptados…</Text></View></Card> : null}
         {!trackingLoading && !trackingError && trackedOrders.length === 0 ? <Notice>Aún no tienes pedidos pickup aceptados para seguimiento.</Notice> : null}
@@ -114,7 +141,39 @@ export default function PickupRequestsScreen() {
         </Card>)}
         <Button title="Actualizar seguimiento" secondary busy={trackingLoading} onPress={() => void refreshTracking()} />
       </View>
+      <View style={ui.section}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Heading eyebrow="Delivery">Solicitudes a domicilio</Heading>
+          <Link href="/delivery" style={ui.link}>Pedir</Link>
+        </View>
+        {deliveryError ? <Notice tone="error">{deliveryError}</Notice> : null}
+        {deliveryLoading && deliveryRequests.length === 0 ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Consultando delivery…</Text></View></Card> : null}
+        {!deliveryLoading && !deliveryError && deliveryRequests.length === 0 ? <Notice>Aún no tienes solicitudes a domicilio.</Notice> : null}
+        {deliveryRequests.map((item) => <Card key={item.requestId}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <Text style={{ flex: 1, color: palette.ink, fontWeight: "800", fontSize: 17 }}>
+              {item.orderCode ? "Pedido " + item.orderCode : "Solicitud " + item.requestId.slice(0, 8)}
+            </Text>
+            <Text style={ui.pill}>{statusLabels[item.status] ?? "Estado actualizado"}</Text>
+          </View>
+          <Text style={ui.body}>Horario solicitado: {formatDate(item.requestedFor)}</Text>
+          <Text style={ui.body}>Total informado: {formatMoney(item.subtotal, item.currency)} · {deliveryPaymentLabel(item.paymentPreference)}</Text>
+          {item.orderCode && item.orderStatus ? <Notice tone="success">Pedido aceptado · {orderStatusLabels[item.orderStatus] ?? "Estado actualizado"}{item.estimatedReadyAt ? " · Estimación de cocina " + formatDate(item.estimatedReadyAt) : ""}</Notice> : null}
+          {item.dispatchStatus ? <Notice tone={item.dispatchStatus === "DELIVERY_FAILED" ? "error" : "info"}>
+            Reparto: {deliveryStatusLabels[item.dispatchStatus]}.{item.assignedAt ? " Asignado " + formatDate(item.assignedAt) + "." : ""}{item.dispatchedAt ? " Salió del restaurante " + formatDate(item.dispatchedAt) + "." : ""}{item.deliveredAt ? " Entregado " + formatDate(item.deliveredAt) + "." : ""}
+          </Notice> : null}
+          {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}; todavía no emitida.</Text> : null}
+          {item.status === "REJECTED" && item.decisionReason ? <Notice tone="error">Motivo: {item.decisionReason}</Notice> : null}
+          {item.status === "PENDING_REVIEW" ? <>
+            <Notice>La solicitud aún no es un pedido aceptado y no se ha cobrado.</Notice>
+            <Button title="Cancelar solicitud" secondary busy={cancelling === item.requestId} disabled={Boolean(cancelling)} onPress={() => void cancel(item.requestId)} />
+          </> : null}
+          <Link href="/delivery" style={ui.link}>Ver formulario y detalle de delivery</Link>
+        </Card>)}
+        <Button title="Actualizar delivery" secondary busy={deliveryLoading} onPress={() => void refreshDelivery()} />
+      </View>
       {loading && requests.length === 0 ? <Card><View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Cargando tus solicitudes…</Text></View></Card> : null}
+      <Heading eyebrow="Pickup">Solicitudes para recoger</Heading>
       {!loading && !error && requests.length === 0 ? <Card><Notice>Aún no tienes solicitudes pickup.</Notice><Link href="/(tabs)/menu" style={ui.link}>Explorar menú</Link></Card> : null}
       {requests.map((item) => <Card key={item.requestId}>
         <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -141,7 +200,7 @@ export default function PickupRequestsScreen() {
           <Button title="Cancelar solicitud" secondary busy={cancelling === item.requestId} disabled={Boolean(cancelling)} onPress={() => void cancel(item.requestId)} />
         </> : null}
       </Card>)}
-      <Button title="Actualizar solicitudes" secondary busy={loading} onPress={() => void refresh()} />
+      <Button title="Actualizar solicitudes" secondary busy={loading || deliveryLoading} onPress={() => void Promise.all([refresh(), refreshDelivery()])} />
     </>}
   </Page></ScrollView>;
 }

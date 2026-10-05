@@ -6,7 +6,7 @@ export default function TabLayout() {
     <Tabs.Screen name="index" options={{ title: "Inicio", tabBarAccessibilityLabel: "Inicio" }} />
     <Tabs.Screen name="menu" options={{ title: "Menú", tabBarAccessibilityLabel: "Menú" }} />
     <Tabs.Screen name="reservations" options={{ title: "Reservas", tabBarAccessibilityLabel: "Reservas" }} />
-    <Tabs.Screen name="orders" options={{ title: "Solicitudes", tabBarAccessibilityLabel: "Solicitudes pickup" }} />
+    <Tabs.Screen name="orders" options={{ title: "Pedidos", tabBarAccessibilityLabel: "Mis pedidos y solicitudes" }} />
     <Tabs.Screen name="account" options={{ title: "Mi cuenta", tabBarAccessibilityLabel: "Mi cuenta" }} />
   </Tabs>;
 }
