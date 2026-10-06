@@ -14,7 +14,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 /** Public read-only menu. Availability and checkout totals remain separate backend decisions. */
 @RestController
@@ -37,7 +40,7 @@ public class PublicMenuController {
         jdbc.query("""
             SELECT c.id AS category_id, c.name AS category_name, c.display_order AS category_order,
                    m.id AS menu_item_id, m.name AS menu_item_name, m.description AS menu_item_description,
-                   m.price, currency.code AS currency_code, m.image_reference,
+                   m.price, currency.code AS currency_code, m.image_reference, m.slug, m.age_restricted,
                    m.estimated_preparation_seconds, m.display_order AS menu_item_order
             FROM wok.menu_categories c
             LEFT JOIN wok.menu_items m ON m.category_id = c.id
@@ -54,6 +57,15 @@ public class PublicMenuController {
         return new MenuResponse(result, Instant.now());
     }
 
+    @GetMapping("/products/{idOrSlug}")
+    public MenuItem readProduct(@PathVariable String idOrSlug) {
+        return readMenu().categories().stream().flatMap(category -> category.items().stream())
+                .filter(item -> item.id().toString().equalsIgnoreCase(idOrSlug)
+                        || (item.slug() != null && item.slug().equals(idOrSlug)))
+                .findFirst().orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "No encontramos un producto publicado con ese identificador."));
+    }
+
     private void appendRow(Map<UUID, CategoryBuilder> categories, ResultSet rs) throws SQLException {
         UUID categoryId = rs.getObject("category_id", UUID.class);
         CategoryBuilder category = categories.computeIfAbsent(categoryId,
@@ -62,7 +74,8 @@ public class PublicMenuController {
         if (menuItemId == null) return;
         category.items.computeIfAbsent(menuItemId, ignored -> new MenuItemBuilder(menuItemId,
                 value(rs, "menu_item_name"), rsString(rs, "menu_item_description"), rsDecimal(rs, "price"),
-                value(rs, "currency_code"), rsString(rs, "image_reference"),
+                value(rs, "currency_code"), rsString(rs, "image_reference"), rsString(rs, "slug"),
+                rsBoolean(rs, "age_restricted"),
                 rsInt(rs, "estimated_preparation_seconds"), rsInt(rs, "menu_item_order")));
     }
 
@@ -83,6 +96,11 @@ public class PublicMenuController {
 
     private static BigDecimal rsDecimal(ResultSet rs, String column) {
         try { return rs.getBigDecimal(column); }
+        catch (SQLException error) { throw new IllegalStateException("Unable to read public menu", error); }
+    }
+
+    private static boolean rsBoolean(ResultSet rs, String column) {
+        try { return rs.getBoolean(column); }
         catch (SQLException error) { throw new IllegalStateException("Unable to read public menu", error); }
     }
 
@@ -107,18 +125,22 @@ public class PublicMenuController {
         private final BigDecimal price;
         private final String currency;
         private final String imageReference;
+        private final String slug;
+        private final boolean ageRestricted;
         private final int estimatedPreparationSeconds;
         private final int displayOrder;
 
         private MenuItemBuilder(UUID id, String name, String description, BigDecimal price, String currency,
-                                String imageReference, int estimatedPreparationSeconds, int displayOrder) {
+                                String imageReference, String slug, boolean ageRestricted,
+                                int estimatedPreparationSeconds, int displayOrder) {
             this.id = id; this.name = name; this.description = description; this.price = price;
-            this.currency = currency; this.imageReference = imageReference;
+            this.currency = currency; this.imageReference = imageReference; this.slug = slug;
+            this.ageRestricted = ageRestricted;
             this.estimatedPreparationSeconds = estimatedPreparationSeconds; this.displayOrder = displayOrder;
         }
 
         private MenuItem build(List<ModifierSelectionService.ModifierGroup> groups) {
-            return new MenuItem(id, name, description, price, currency, imageReference,
+            return new MenuItem(id, name, description, price, currency, imageReference, slug, ageRestricted,
                     estimatedPreparationSeconds, displayOrder, groups);
         }
     }
@@ -126,6 +148,7 @@ public class PublicMenuController {
     public record MenuResponse(List<Category> categories, Instant asOf) {}
     public record Category(UUID id, String name, int displayOrder, List<MenuItem> items) {}
     public record MenuItem(UUID id, String name, String description, BigDecimal price, String currency,
-                           String imageReference, int estimatedPreparationSeconds, int displayOrder,
+                           String imageReference, String slug, boolean ageRestricted,
+                           int estimatedPreparationSeconds, int displayOrder,
                            List<ModifierSelectionService.ModifierGroup> modifierGroups) {}
 }
