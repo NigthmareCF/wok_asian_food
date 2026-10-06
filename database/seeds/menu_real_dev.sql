@@ -141,6 +141,10 @@ ON CONFLICT (group_id,name) DO UPDATE SET price_delta=EXCLUDED.price_delta,activ
 
 CREATE TEMP TABLE seed_product_groups (slug TEXT, group_name TEXT, display_order INTEGER, PRIMARY KEY(slug,group_name)) ON COMMIT DROP;
 INSERT INTO seed_product_groups VALUES
+ ('maki-atun','SUSHI_EXTRAS',1),('maki-camaron','SUSHI_EXTRAS',1),
+ ('uramaki-aguacate','SUSHI_EXTRAS',1),('uramaki-atun','SUSHI_EXTRAS',1),
+ ('uramaki-salmon','SUSHI_EXTRAS',1),('gamba-roll','SUSHI_EXTRAS',1),
+ ('camaron-crunchy','SUSHI_EXTRAS',1),('panko','SUSHI_EXTRAS',2),('onigiris','SUSHI_EXTRAS',3),
  ('panko','PANKO_VARIANT',1),('onigiris','ONIGIRI_FILLING',1),('onigiris','ONIGIRI_PREPARATION',2),
  ('pollo-naranja','SPECIALTY_BASE',1),('pollo-teriyaki','SPECIALTY_BASE',1),('pollo-agridulce','SPECIALTY_BASE',1),
  ('cerdo-agridulce','SPECIALTY_BASE',1),('cerdo-agridulce','CERDO_SAUCE',2),('cerdo-agridulce','SPICE_LEVEL',3),
@@ -158,8 +162,8 @@ JOIN seed_modifier_groups sg ON sg.code=pg.group_name
 JOIN modifier_groups g ON g.name=sg.display_name
 ON CONFLICT (menu_item_id,group_id) DO UPDATE SET display_order=EXCLUDED.display_order;
 
--- Sushi extra options are defined but intentionally not linked to every item:
--- Admin must configure product compatibility once the restaurant confirms it.
+-- The current Sushi menu is configured to allow these four add-ons. Admin may
+-- adjust product compatibility later; these links do not imply stock impact.
 -- Manual availability until recipes and verified inventory are delivered.
 -- Ingredient hints stay documentation-only; no modifier_item_impacts are seeded.
 COMMIT;

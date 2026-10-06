@@ -44,7 +44,7 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items WHERE slug IS NOT NULL AND recipe_status='PENDING_DATA'",
                 Integer.class)).isEqualTo(31);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items mi JOIN wok.menu_item_modifier_groups link ON link.menu_item_id=mi.id JOIN wok.modifier_groups g ON g.id=link.group_id WHERE mi.slug IS NOT NULL AND g.name='Extras'",
-                Integer.class)).isZero();
+                Integer.class)).isEqualTo(9);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.items i JOIN wok.menu_items mi ON mi.item_id=i.id WHERE mi.slug IS NOT NULL AND i.track_inventory",
                 Integer.class)).isZero();
         assertThat(jdbc.queryForObject("""
@@ -55,6 +55,11 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
 
         UUID onigiriId = jdbc.queryForObject("SELECT id FROM wok.menu_items WHERE slug='onigiris'", UUID.class);
         ModifierSelectionService service = new ModifierSelectionService(jdbc);
+        UUID makiId = jdbc.queryForObject("SELECT id FROM wok.menu_items WHERE slug='maki-atun'", UUID.class);
+        var makiOptions = service.groups(makiId).stream().flatMap(group -> group.options().stream()).toList();
+        assertThat(makiOptions.stream().filter(option -> option.priceDelta().compareTo(BigDecimal.valueOf(5)) == 0)
+                .map(ModifierSelectionService.ModifierOption::name))
+                .containsExactlyInAnyOrder("Aguacate", "Mayonesa chipotle", "Mayonesa jalapeño", "Salsa de anguila");
         var options = service.groups(onigiriId).stream().flatMap(group -> group.options().stream()).toList();
         BigDecimal base = jdbc.queryForObject("SELECT price FROM wok.menu_items WHERE id=?", BigDecimal.class, onigiriId);
         assertThat(base.add(delta(options, "Ensalada de surimi")).add(delta(options, "Normal"))).isEqualByComparingTo("40");

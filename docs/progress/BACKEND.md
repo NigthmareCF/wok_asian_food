@@ -391,3 +391,8 @@
 - El seed idempotente consolida estaciones antiguas en `COCINA_FRIA`, `COCINA_CALIENTE` y `BARRA`. Cuando existen nombres legacy y canónicos, mueve referencias y desactiva duplicados; nunca crea una segunda estación equivalente. PostgreSQL prueba el caso de colisión y la segunda ejecución.
 - Se quitó el antiguo tope de 20 líneas distintas en disponibilidad pública, pickup, delivery y preorder de reservas. Se conserva una cota técnica de payload de 100 líneas. Es sólo una protección de solicitud; la evaluación de disponibilidad agrega componentes compartidos y no permite eludir límites repartiendo cantidades entre SKU.
 - Focales `PublicMenuAvailabilityIntegrationTest` y `RealMenuSeedIntegrationTest` pasaron con PostgreSQL 18/Testcontainers, Flyway V1–V39: 3 pruebas, 0 fallos, 0 errores, 0 omitidas. Con Docker inaccesible en sandbox, Testcontainers omitía las pruebas; resultado válido se obtuvo al habilitar acceso al socket Docker.
+
+## 2026-10-06 — Extras Sushi seleccionables
+
+- El seed idempotente ahora asocia Aguacate, Mayonesa chipotle, Mayonesa jalapeño y Salsa de anguila (Q5 cada uno) a los nueve productos Sushi vigentes. La administración conserva compatibilidad producto↔grupo editable; no se crean impactos de stock.
+- `RealMenuSeedIntegrationTest` verifica que los nueve productos expongan los cuatro extras por el selector usado por API y comprueba precio, idempotencia y ausencia de tracking ficticio. PostgreSQL 18/Testcontainers, Flyway V1–V39: 1/1, cero fallos/errores/omitidas.

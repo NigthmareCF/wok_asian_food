@@ -7,7 +7,7 @@ La fuente de datos del menú vigente es `database/seeds/menu_real_dev.sql`. Es u
 - Categorías: Sushi, Especialidades, Bebidas y Bebidas +18.
 - Áreas canónicas: Sushi → `COCINA_FRIA`, Especialidades → `COCINA_CALIENTE`, Bebidas (incluida categoría +18) → `BARRA`. El seed consolida los códigos históricos `SUSHI_BAR`, `HOT_KITCHEN` y `BAR` sobre esas áreas para evitar estaciones duplicadas.
 - 31 productos vigentes, precios en GTQ y descripciones públicas entregadas por coordinación.
-- Opciones estructuradas para extras de sushi, variantes Panko, relleno/preparación de Onigiri, base de especialidades, variante de salsa de cerdo, sabor de bebidas variables y niveles estándar de picante. Los códigos internos se muestran con nombres en español. El grupo `Extras` queda sin asignar a productos hasta que el restaurante confirme compatibilidad; no se habilita para todos automáticamente.
+- Opciones estructuradas para extras de sushi, variantes Panko, relleno/preparación de Onigiri, base de especialidades, variante de salsa de cerdo, sabor de bebidas variables y niveles estándar de picante. Los códigos internos se muestran con nombres en español. Los cuatro extras de Q5 están asociados en el seed a los nueve productos Sushi vigentes y la compatibilidad sigue siendo administrable por producto.
 - Marca `age_restricted` para cerveza y soju, disponible en la respuesta pública para que Cliente/app la presenten.
 - Slugs estables para referencias públicas y de desarrollo. Los canales siguen usando los UUID devueltos por API en pedidos.
 
@@ -45,4 +45,4 @@ La revisión de disponibilidad y las solicitudes remotas aceptan hasta 100 líne
 
 ## Validación
 
-La prueba `RealMenuSeedIntegrationTest` ejecuta el seed dos veces contra PostgreSQL 18, revisa cardinalidades/precios/restricciones, verifica que no haya tracking ni impactos inventados, calcula las cuatro combinaciones de Onigiri y consulta menú y producto por slug a través de HTTP. Esta prueba valida el catálogo y el contrato; no certifica recetas, stock real, autorización legal +18 ni disponibilidad de operación del restaurante.
+La prueba `RealMenuSeedIntegrationTest` ejecuta el seed dos veces contra PostgreSQL 18, revisa cardinalidades/precios/restricciones y compatibilidad de extras, verifica que no haya tracking ni impactos inventados, calcula las cuatro combinaciones de Onigiri y consulta menú y producto por slug a través de HTTP. Esta prueba valida el catálogo y el contrato; no certifica recetas, stock real, autorización legal +18 ni disponibilidad de operación del restaurante.
