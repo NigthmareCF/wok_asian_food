@@ -1,0 +1,122 @@
+const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const path = require("node:path");
+const { test } = require("node:test");
+const mobileRoot = path.dirname(require.resolve("../package.json"));
+
+process.env.NATIVEWIND_OS = "ios";
+const loadConfig = require("tailwindcss/loadConfig");
+const resolveConfig = require("tailwindcss/resolveConfig");
+const postcss = require("postcss");
+const tailwind = require("tailwindcss");
+const {
+  cssToReactNativeRuntime,
+} = require("react-native-css-interop/css-to-rn");
+const config = loadConfig(path.resolve(mobileRoot, "tailwind.config.ts"));
+const jiti = require("jiti")(path.resolve(mobileRoot, "tests/nativewind.test.cjs"));
+const { getThemeColors } = jiti("../src/theme/colors.ts");
+const { lightTokens, darkTokens } = jiti("../src/theme/tokens.ts");
+
+test("Metro can detect the NativeWind v4 preset", () => {
+  assert.ok(config.presets.some((preset) => preset.nativewind));
+  const metro = readFileSync(
+    path.resolve(mobileRoot, "metro.config.js"),
+    "utf8",
+  );
+  assert.match(metro, /withNativeWind/);
+  assert.match(metro, /inlineRem: 16/);
+  assert.match(
+    readFileSync(path.resolve(mobileRoot, "app/_layout.tsx"), "utf8"),
+    /import "\.\.\/global\.css"/,
+  );
+});
+
+test("navigation colors and NativeWind use the same light/dark source", () => {
+  const mapping = {
+    background: "--background", navigation: "--navigation", surface: "--surface",
+    surfaceElevated: "--surface-elevated", foreground: "--foreground",
+    mutedForeground: "--muted-foreground", primary: "--primary",
+    primaryForeground: "--primary-foreground", border: "--border",
+    success: "--success", successForeground: "--success-foreground", warning: "--warning",
+  };
+  for (const scheme of ["light", "dark"]) {
+    const tokens = scheme === "dark" ? darkTokens : lightTokens;
+    const colors = getThemeColors(scheme);
+    for (const [name, token] of Object.entries(mapping)) {
+      assert.equal(colors[name], `rgb(${tokens[token].replaceAll(" ", ", ")})`);
+    }
+  }
+  const expoConfig = JSON.parse(readFileSync(path.resolve(mobileRoot, "app.json"), "utf8"));
+  const dependencies = JSON.parse(readFileSync(path.resolve(mobileRoot, "package.json"), "utf8")).dependencies;
+  assert.equal(expoConfig.expo.userInterfaceStyle, "automatic");
+  assert.ok(dependencies["expo-system-ui"]);
+});
+
+test("shared control sizes and component variants compile for native", async () => {
+  const source = readFileSync(path.resolve(mobileRoot, "src/components/ui.tsx"), "utf8");
+  const menu = readFileSync(path.resolve(mobileRoot, "app/(tabs)/menu.tsx"), "utf8");
+  const account = readFileSync(path.resolve(mobileRoot, "app/(tabs)/account.tsx"), "utf8");
+  const result = await postcss([tailwind({
+    ...config, content: [{ raw: `${source}\n${menu}\n${account}`, extension: "tsx" }],
+  })]).process("@tailwind base; @tailwind utilities;", { from: undefined });
+  const compiled = cssToReactNativeRuntime(result.css);
+  const rules = new Map(Object.entries(compiled.rules));
+  const declarations = (name) => rules.get(name).n.flatMap((rule) => rule.d ?? []);
+  assert.ok(declarations("min-h-12").some((entry) => entry[0]?.minHeight === 48));
+  assert.ok(declarations("min-w-11").some((entry) => entry[0]?.minWidth === 44));
+  for (const variant of ["bg-primary", "text-primary-foreground", "border-border", "bg-surface", "bg-surface-elevated", "bg-destructive/10", "bg-success/10", "bg-info/10", "text-foreground", "text-muted-foreground", "rounded-lg", "rounded-md"]) {
+    assert.ok(rules.has(variant), `Missing native class: ${variant}`);
+  }
+  assert.match(source, /accessibilityState=\{\{ disabled: disabled \|\| busy, busy \}\}/);
+  assert.match(source, /accessibilityLabel=\{props.accessibilityLabel \?\? label\}/);
+  assert.match(menu, /<FlatList/);
+  assert.doesNotMatch(menu, /#[a-f0-9]{3,8}\b|\[[\d.]+px\]/i);
+  assert.doesNotMatch(menu, /ONLINE_PAYMENTS|status\s*=\s*["'](PAID|ACCEPTED|PREPARING|READY)/);
+});
+
+test("semantic themes preserve Web dark tokens and compile light tokens", async () => {
+  const theme = resolveConfig(config).theme;
+  const classes = Object.entries(theme.colors).flatMap(([name, value]) =>
+    typeof value === "string"
+      ? [`bg-${name}`]
+      : Object.keys(value).map(
+          (key) => `bg-${name}${key === "DEFAULT" ? "" : `-${key}`}`,
+        ),
+  );
+  const result = await postcss([
+    tailwind({
+      ...config,
+      content: [{ raw: classes.join(" "), extension: "tsx" }],
+    }),
+  ]).process("@tailwind base; @tailwind utilities;", { from: undefined });
+  const compiled = cssToReactNativeRuntime(result.css);
+  const web = readFileSync(
+    path.resolve(mobileRoot, "../web/src/app/globals.css"),
+    "utf8",
+  );
+  const aliases = {
+    canvas: "background",
+    text: "foreground",
+    "text-secondary": "muted-foreground",
+    "text-subtle": "subtle-foreground",
+    "on-primary": "primary-foreground",
+    error: "destructive",
+  };
+  let count = 0;
+  for (const match of web.matchAll(/--([a-z-]+): #([a-f0-9]{6});/g)) {
+    const token = compiled.rootVariables[`--${aliases[match[1]] ?? match[1]}`];
+    assert.deepEqual(
+      token.dark,
+      match[2].match(/../g).map((value) => parseInt(value, 16)),
+    );
+    assert.equal(token.light.length, 3);
+    count++;
+  }
+  assert.equal(count, 16);
+  assert.equal(theme.spacing[11], "44px");
+  assert.equal(theme.fontSize.base[0], "16px");
+  assert.equal(theme.borderRadius.sm, "6px");
+  assert.equal(theme.borderRadius.md, "8px");
+  assert.equal(theme.borderRadius.lg, "16px");
+  assert.equal(theme.boxShadow.panel, "0 16px 32px rgb(0 0 0 / 24%)");
+});

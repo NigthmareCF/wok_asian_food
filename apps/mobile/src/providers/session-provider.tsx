@@ -1,9 +1,11 @@
 import * as SecureStore from "expo-secure-store";
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform } from "react-native";
 import { ApiError, apiRequest, TokenPair } from "@/lib/api";
+import { tokenPairSchema } from "@/lib/identity";
+import { createSessionState } from "@/lib/session-state";
 
-type Session = { accessToken: string; email: string; offline: boolean };
+type Session = { accessToken: string; email: string; offline: boolean; version: number };
 type SessionContextValue = {
   session: Session | null;
   ready: boolean;
@@ -17,181 +19,141 @@ type SessionContextValue = {
   logout: () => Promise<void>;
 };
 const SessionContext = createContext<SessionContextValue | null>(null);
-const refreshKey = "wok.refresh-token";
-const emailKey = "wok.session-email";
-let refreshInFlight: Promise<TokenPair> | null = null;
-let recentRefreshRotation: { previousToken: string; tokens: TokenPair; expiresAt: number } | null = null;
 
-function rotateRefreshToken(refreshToken: string) {
-  if (recentRefreshRotation?.previousToken === refreshToken && recentRefreshRotation.expiresAt > Date.now()) {
-    return Promise.resolve(recentRefreshRotation.tokens);
-  }
-  if (!refreshInFlight) {
-    refreshInFlight = apiRequest<TokenPair>("/api/v1/auth/refresh", {
-      method: "POST", body: JSON.stringify({ refreshToken }),
-    }).then((tokens) => {
-      recentRefreshRotation = { previousToken: refreshToken, tokens, expiresAt: Date.now() + 30_000 };
-      return tokens;
-    }).finally(() => { refreshInFlight = null; });
-  }
-  return refreshInFlight;
+async function requestTokens(path: string, body: object): Promise<TokenPair> {
+  const result = tokenPairSchema.safeParse(await apiRequest<unknown>(path, { method: "POST", body: JSON.stringify(body) }));
+  if (!result.success) throw new ApiError("No se pudo validar la sesión del servidor.", 503);
+  return result.data;
 }
 
 export function SessionProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
+  const [persistence] = useState(() => createSessionState(SecureStore));
+  const rotation = useRef<{ token: string; task: Promise<TokenPair>; expiresAt: number } | null>(null);
+
+  const rotate = useMemo(() => (refreshToken: string) => {
+    if (rotation.current?.token === refreshToken && rotation.current.expiresAt > Date.now()) return rotation.current.task;
+    const entry = { token: refreshToken, task: requestTokens("/api/v1/auth/refresh", { refreshToken }), expiresAt: Infinity };
+    rotation.current = entry;
+    void entry.task.then(() => { entry.expiresAt = Date.now() + 30_000; }, () => {
+      if (rotation.current === entry) rotation.current = null;
+    });
+    return entry.task;
+  }, []);
 
   useEffect(() => {
     let mounted = true;
+    const version = persistence.current();
     async function restore() {
       if (Platform.OS === "web") { setReady(true); return; }
+      let email: string | null = null;
       try {
-        const [refreshToken, storedEmail] = await Promise.all([
-          SecureStore.getItemAsync(refreshKey), SecureStore.getItemAsync(emailKey),
-        ]);
-        if (refreshToken) {
-          const email = storedEmail || "Cuenta Cliente";
-          if (!process.env.EXPO_PUBLIC_API_BASE_URL) {
-            if (mounted) setSession({ accessToken: "", email, offline: true });
-            return;
-          }
-          const tokens = await rotateRefreshToken(refreshToken);
-          await SecureStore.setItemAsync(refreshKey, tokens.refreshToken);
-          if (mounted) setSession({ accessToken: tokens.accessToken, email, offline: false });
-        }
+        const stored = await persistence.read(version);
+        email = stored.email;
+        if (!stored.refreshToken || !email) return;
+        const tokens = await rotate(stored.refreshToken);
+        if (!mounted) return;
+        await persistence.save(version, tokens.refreshToken, email);
+        if (mounted) setSession({ accessToken: tokens.accessToken, email, offline: false, version });
       } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          await Promise.all([SecureStore.deleteItemAsync(refreshKey), SecureStore.deleteItemAsync(emailKey)]);
-        } else {
-          const email = await SecureStore.getItemAsync(emailKey);
-          if (mounted && email) setSession({ accessToken: "", email, offline: true });
-          // Keep the refresh token after network failures so the customer can retry.
-        }
+        if (!mounted || version !== persistence.current()) return;
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          await persistence.clear(version);
+        } else if (email) setSession({ accessToken: "", email, offline: true, version });
       } finally { if (mounted) setReady(true); }
     }
-    void restore();
+    void restore().catch(() => { if (mounted) setReady(true); });
     return () => { mounted = false; };
-  }, []);
+  }, [persistence, rotate]);
 
-  const value = useMemo<SessionContextValue>(() => ({
-    session,
-    ready,
-    async login(email, password) {
-      if (Platform.OS === "web") throw new ApiError("Inicia sesión desde la aplicación móvil para proteger tu sesión.");
-      const tokens = await apiRequest<TokenPair>("/api/v1/auth/login", {
-        method: "POST", body: JSON.stringify({ email, password, clientType: "MOBILE" }),
-      });
-      await SecureStore.setItemAsync(refreshKey, tokens.refreshToken);
-      const normalizedEmail = email.trim().toLowerCase();
-      await SecureStore.setItemAsync(emailKey, normalizedEmail);
-      recentRefreshRotation = null;
-      setSession({ accessToken: tokens.accessToken, email: normalizedEmail, offline: false });
-    },
-    async register(email, displayName, password) {
-      const result = await apiRequest<{ message: string }>("/api/v1/auth/register", {
-        method: "POST", body: JSON.stringify({ email, displayName, password }),
-      });
-      return result.message;
-    },
-    async verify(email, code) {
-      await apiRequest("/api/v1/auth/verify", { method: "POST", body: JSON.stringify({ email, code }) });
-    },
-    async resendVerification(email) {
-      const result = await apiRequest<{ message: string }>("/api/v1/auth/verify/resend", {
-        method: "POST", body: JSON.stringify({ email }),
-      });
-      return result.message;
-    },
-    async requestPasswordReset(email) {
-      const result = await apiRequest<{ message: string }>("/api/v1/auth/reset/request", {
-        method: "POST", body: JSON.stringify({ email }),
-      });
-      return result.message;
-    },
-    async completePasswordReset(email, code, newPassword) {
-      const result = await apiRequest<{ message: string }>("/api/v1/auth/reset/complete", {
-        method: "POST", body: JSON.stringify({ email, code, newPassword }),
-      });
-      return result.message;
-    },
-    async request<T>(path: string, options: RequestInit = {}) {
-      if (!session) throw new ApiError("Inicia sesión para continuar.", 401);
-      let activeSession = session;
-      if (session.offline) {
-        const refreshToken = await SecureStore.getItemAsync(refreshKey);
-        if (!refreshToken) {
-          setSession(null);
-          await SecureStore.deleteItemAsync(emailKey);
-          throw new ApiError("La sesión ya no está disponible. Inicia sesión nuevamente.", 401);
+  const value = useMemo<SessionContextValue>(() => {
+    async function invalidate(version: number) {
+      if (version !== persistence.current()) return;
+      rotation.current = null;
+      setSession(null);
+      await persistence.clear(persistence.advance());
+    }
+    async function refresh(version: number, current: Session) {
+      const { refreshToken } = await persistence.read(version);
+      if (!refreshToken) { await invalidate(version); throw new ApiError("Inicia sesión nuevamente.", 401); }
+      try {
+        const tokens = await rotate(refreshToken);
+        await persistence.save(version, tokens.refreshToken, current.email);
+        const next = { accessToken: tokens.accessToken, email: current.email, offline: false, version };
+        setSession(next);
+        return next;
+      } catch (error) {
+        if (version === persistence.current()) {
+          if (error instanceof ApiError && (error.status === 401 || error.status === 403)) await invalidate(version);
+          else if (!current.offline) setSession({ ...current, offline: true });
         }
-        try {
-          const rotated = await rotateRefreshToken(refreshToken);
-          await SecureStore.setItemAsync(refreshKey, rotated.refreshToken);
-          activeSession = { accessToken: rotated.accessToken, email: session.email, offline: false };
-          setSession(activeSession);
-        } catch (refreshError) {
-          if (refreshError instanceof ApiError && refreshError.status === 401) {
-            setSession(null);
-            await Promise.all([SecureStore.deleteItemAsync(refreshKey), SecureStore.deleteItemAsync(emailKey)]);
-          }
-          throw refreshError;
-        }
+        throw error;
       }
-      try { return await apiRequest<T>(path, options, activeSession.accessToken); }
-      catch (error) {
-        if (!(error instanceof ApiError)) throw error;
-        if (error.status !== 401) {
-          if (error.status == null) setSession({ ...activeSession, offline: true });
-          throw error;
-        }
-        const refreshToken = await SecureStore.getItemAsync(refreshKey);
-        if (!refreshToken) {
-          setSession(null);
-          await SecureStore.deleteItemAsync(emailKey);
-          throw error;
-        }
-        let rotated: TokenPair;
+    }
+    async function message(path: string, body: object) {
+      const result = await apiRequest<{ message: string }>(path, { method: "POST", body: JSON.stringify(body) });
+      if (typeof result.message !== "string") throw new ApiError("El servidor no devolvió una respuesta válida.", 503);
+      return result.message;
+    }
+    return {
+      session, ready,
+      async login(email, password) {
+        if (Platform.OS === "web") throw new ApiError("Inicia sesión desde la aplicación móvil para proteger tu sesión.");
+        if (!ready) throw new ApiError("Espera mientras comprobamos tu sesión.");
+        const version = persistence.advance();
+        rotation.current = null;
+        const tokens = await requestTokens("/api/v1/auth/login", { email, password, clientType: "MOBILE" });
+        const normalizedEmail = email.trim().toLowerCase();
+        await persistence.save(version, tokens.refreshToken, normalizedEmail);
+        setSession({ accessToken: tokens.accessToken, email: normalizedEmail, offline: false, version });
+      },
+      register: (email, displayName, password) => message("/api/v1/auth/register", { email, displayName, password }),
+      async verify(email, code) {
+        await message("/api/v1/auth/verify", { email, code });
+      },
+      resendVerification: (email) => message("/api/v1/auth/verify/resend", { email }),
+      requestPasswordReset: (email) => message("/api/v1/auth/reset/request", { email }),
+      completePasswordReset: (email, code, newPassword) => message("/api/v1/auth/reset/complete", { email, code, newPassword }),
+      async request<T>(path: string, options: RequestInit = {}) {
+        if (!session) throw new ApiError("Inicia sesión para continuar.", 401);
+        const version = session.version;
+        persistence.assert(version);
+        let current = session.offline ? await refresh(version, session) : session;
         try {
-          rotated = await rotateRefreshToken(refreshToken);
-        } catch (refreshError) {
-          if (refreshError instanceof ApiError && refreshError.status === 401) {
-            setSession(null);
-            await Promise.all([SecureStore.deleteItemAsync(refreshKey), SecureStore.deleteItemAsync(emailKey)]);
-          } else if (refreshError instanceof ApiError && refreshError.status == null) {
-            setSession({ ...activeSession, offline: true });
+          const result = await apiRequest<T>(path, options, current.accessToken);
+          persistence.assert(version);
+          return result;
+        } catch (error) {
+          persistence.assert(version);
+          if (!(error instanceof ApiError) || error.status !== 401) {
+            if (error instanceof ApiError && error.status == null && !current.offline) setSession({ ...current, offline: true });
+            throw error;
           }
-          throw refreshError;
-        }
-        await SecureStore.setItemAsync(refreshKey, rotated.refreshToken);
-        const nextSession = { accessToken: rotated.accessToken, email: session.email, offline: false };
-        setSession(nextSession);
-        try { return await apiRequest<T>(path, options, nextSession.accessToken); }
-        catch (retryError) {
-          if (retryError instanceof ApiError && retryError.status === 401) {
-            setSession(null);
-            await Promise.all([SecureStore.deleteItemAsync(refreshKey), SecureStore.deleteItemAsync(emailKey)]);
+          current = await refresh(version, current);
+          try {
+            const result = await apiRequest<T>(path, options, current.accessToken);
+            persistence.assert(version);
+            return result;
+          } catch (retryError) {
+            if (retryError instanceof ApiError && retryError.status === 401) await invalidate(version);
+            throw retryError;
           }
-          throw retryError;
         }
-      }
-    },
-    async logout() {
-      recentRefreshRotation = null;
-      if (Platform.OS === "web") { setSession(null); return; }
-      if (session) {
-        try {
-          if (!session.offline) await apiRequest("/api/v1/auth/logout", { method: "POST" }, session.accessToken);
-        } finally {
-          setSession(null);
-          await Promise.all([SecureStore.deleteItemAsync(refreshKey), SecureStore.deleteItemAsync(emailKey)]);
-        }
-      } else {
+      },
+      async logout() {
+        const previous = session;
+        if (previous) persistence.assert(previous.version);
+        const version = persistence.advance();
+        rotation.current = null;
         setSession(null);
-        await Promise.all([SecureStore.deleteItemAsync(refreshKey), SecureStore.deleteItemAsync(emailKey)]);
-      }
-    },
-  }), [ready, session]);
-
+        await Promise.all([
+          Platform.OS !== "web" ? persistence.clear(version) : Promise.resolve(),
+          previous && !previous.offline ? apiRequest("/api/v1/auth/logout", { method: "POST" }, previous.accessToken) : Promise.resolve(),
+        ]);
+      },
+    };
+  }, [persistence, ready, rotate, session]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
