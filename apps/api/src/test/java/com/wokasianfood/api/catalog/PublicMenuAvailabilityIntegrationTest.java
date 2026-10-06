@@ -39,7 +39,7 @@ class PublicMenuAvailabilityIntegrationTest extends PostgresIntegrationTest {
         jdbc.update("INSERT INTO wok.modifier_item_impacts (modifier_id, item_id, quantity_delta) VALUES (?, ?, -0.500000)",
                 replacementId, ingredientId);
 
-        JsonNode exactAvailable = body(estimate(menuItemId, 3, null));
+        JsonNode exactAvailable = body(estimate(menuItemId, 3));
         assertThat(exactAvailable.path("availableEstimate").asBoolean()).isTrue();
         assertThat(exactAvailable.path("estimateOnly").asBoolean()).isTrue();
         assertThat(exactAvailable.path("items").get(0).path("status").asText()).isEqualTo("AVAILABLE_ESTIMATE");
@@ -56,7 +56,7 @@ class PublicMenuAvailabilityIntegrationTest extends PostgresIntegrationTest {
         assertThat(replacementLimited.toString()).doesNotContain("quantityOnHand", "reservedQuantity", "availableQuantity");
 
         UUID untrackedMenuItem = createMenuItem();
-        JsonNode untracked = body(estimate(untrackedMenuItem, 1, null));
+        JsonNode untracked = body(estimate(untrackedMenuItem, 1));
         assertThat(untracked.path("availableEstimate").isNull()).isTrue();
         assertThat(untracked.path("items").get(0).path("status").asText()).isEqualTo("NOT_TRACKED");
         JsonNode mixed = body(estimateMixed(menuItemId, untrackedMenuItem));
