@@ -5,7 +5,7 @@ const { test } = require("node:test");
 const mobileRoot = path.dirname(require.resolve("../package.json"));
 const jiti = require("jiti")(path.resolve(mobileRoot, "tests/features.test.cjs"));
 const { createApiRequest, ApiError } = jiti("../src/lib/api-client.ts");
-const { identitySchemas, profileSchema, tokenPairSchema } = jiti("../src/lib/identity.ts");
+const { identitySchemas, profileSchema, tokenPairSchema, formatGuatemalaPhoneInput, isGuatemalaPhone } = jiti("../src/lib/identity.ts");
 const { menuSchema, menuProducts, cartTotals, imageUri, pickupReceiptSchema } = jiti("../src/lib/catalog.ts");
 const { createCartState } = jiti("../src/lib/cart-state.ts");
 const { createSessionState, refreshKey, emailKey } = jiti("../src/lib/session-state.ts");
@@ -38,8 +38,15 @@ test("identity matches Core validation and does not apply registration policy to
   assert.equal(identitySchemas.login.safeParse({ ...identity, password: " " }).success, false);
   assert.equal(identitySchemas.verify.safeParse({ ...identity, code: "12345a" }).success, false);
   assert.equal(identitySchemas["reset-request"].safeParse({ ...identity, password: "", code: "", name: "" }).success, true);
-  assert.equal(profileSchema.safeParse({ displayName: "Ana", phone: "+502 1234 5678" }).success, true);
+  assert.equal(profileSchema.safeParse({ displayName: "Ana", phone: "1234 5678" }).success, true);
+  assert.equal(profileSchema.safeParse({ displayName: "Ana", phone: "+502 1234-5678" }).success, true);
+  assert.equal(profileSchema.safeParse({ displayName: "Ana", phone: "55512345" }).success, false);
+  assert.equal(profileSchema.safeParse({ displayName: "Ana", phone: "1234 567" }).success, false);
   assert.equal(profileSchema.safeParse({ displayName: "A", phone: "abc" }).success, false);
+  assert.equal(formatGuatemalaPhoneInput("+502 1234-5678"), "1234 5678");
+  assert.equal(formatGuatemalaPhoneInput("123456789"), "1234 5678");
+  assert.equal(isGuatemalaPhone("1234 5678"), true);
+  assert.equal(isGuatemalaPhone("123 45678"), false);
   assert.equal(tokenPairSchema.safeParse({ accessToken: "x" }).success, false);
 });
 

@@ -1,33 +1,35 @@
 # WOK Cliente móvil
 
-Aplicación React Native con Expo SDK 57 y Expo Router. Las rutas viven en `app/`; lógica y componentes compartidos, en `src/`.
+Aplicación React Native con Expo SDK 57 y Expo Router. Las rutas viven en `app/`; lógica y componentes compartidos, en `src/`. La app consume la API WOK existente; no contiene autoridad de precios, disponibilidad, pagos ni aceptación de pedidos.
 
 ## Inicio
 
-1. Desde la raíz del repositorio: `npm install`.
-2. Copia `.env.example` como `.env` y configura `EXPO_PUBLIC_API_BASE_URL` con una dirección alcanzable desde el teléfono. No uses `localhost` en un dispositivo físico.
-3. `npm run start --workspace mobile`, luego escanea el QR con Expo Go.
+1. Desde la raíz del repositorio, instala con `npm ci`.
+2. Copia `apps/mobile/.env.example` como `apps/mobile/.env` y configura `EXPO_PUBLIC_API_BASE_URL` con una dirección alcanzable desde el teléfono. No uses `localhost` en un dispositivo físico.
+3. Ejecuta `npm run start --workspace mobile` y escanea el QR con Expo Go.
 
-La URL y los flags `EXPO_PUBLIC_*` son visibles en el paquete de la app y nunca deben contener secretos. La API debe exponer HTTPS fuera de una LAN de desarrollo controlada.
+Las variables `EXPO_PUBLIC_*` se empaquetan en la aplicación: nunca coloques secretos allí. Fuera de una LAN de desarrollo, la API debe exponerse mediante HTTPS.
 
-## Funcionalidad disponible
+## Funciones implementadas
 
-- Navegación Cliente: Inicio, Menú, Reservas y Mi cuenta.
-- Registro, verificación por código, login y logout contra `/api/v1/auth/*`.
-- Recuperación de contraseña con solicitud neutral de código y actualización con código de un solo uso; al completar, el backend revoca las sesiones anteriores.
-- Consulta y edición del perfil propio (nombre y teléfono opcional) mediante la API autenticada; el servidor usa control de versión para evitar sobrescribir cambios recientes.
-- Refresh rotativo al restaurar la app: access token en memoria y refresh token con Expo SecureStore.
-- Solicitud real de reserva en `/api/v1/client/reservations`, con clave idempotente reusada tras errores de transporte, límite local de 3 horas y texto explícito de revisión humana.
-- Errores de conexión no confirman ni reenvían solicitudes automáticamente.
+- Navegación Cliente para inicio, menú, detalle de producto, carrito, reservas, solicitudes, mensajes, direcciones y cuenta.
+- Registro, verificación, login, logout, recuperación de contraseña y refresh rotativo. El access token permanece en memoria y el refresh se guarda con Expo SecureStore.
+- Perfil autenticado, sesiones activas, historial/cancelación de solicitudes pendientes y borradores locales de reserva.
+- Catálogo desde `GET /api/v1/public/menu`; carrito local y envío de solicitudes pickup, delivery y reservas/preórdenes a la API.
+- Libreta de direcciones y mensajes según los endpoints disponibles en backend.
+- Teléfonos de Guatemala aceptan ocho dígitos y se presentan agrupados como `1234 5678`; al pegar un número con prefijo `+502` se conserva sólo el número local.
 
-El catálogo oficial, pedidos, pagos, mensajes, historial y Google OIDC no tienen todavía contratos backend utilizables desde esta app. Esas acciones se muestran como pendientes o no están expuestas. No se inventan precios, pedidos aceptados ni confirmaciones de reserva.
+La app presenta precios del catálogo como información y puede mostrar un subtotal estimado. El carrito local no reserva inventario. El backend vuelve a validar precio, stock, capacidad y ETA; las solicitudes que requieren revisión se muestran como pendientes, nunca como pedidos aceptados ni pagos confirmados. El estado de pago por transferencia necesita comprobante y validación autorizada. Google OIDC, un gateway bancario y la verificación legal de edad no se declaran operativos; la marca `+18` del catálogo es sólo informativa.
 
-## Verificación
+## Comprobaciones
 
 ```bash
-npm run lint --workspace mobile
-npm run typecheck --workspace mobile
-npm run web --workspace mobile
+npm run test --workspace=mobile
+npm run test:styles --workspace=mobile
+npm run lint --workspace=mobile
+npm run typecheck --workspace=mobile
+npx expo export --platform android --output-dir /tmp/wok-mobile-android-export
+npx expo export --platform web --output-dir /tmp/wok-mobile-web-export
 ```
 
-La vista web sirve para revisar el flujo visual; la instalación nativa y permisos seguros deben verificarse además en Android/iOS físicos antes de una entrega.
+Los exports generan bundles de revisión, no un APK/IPA instalable. Para distribuir un APK Android hace falta completar una compilación EAS/local y firmar el artefacto; después hay que probarlo en un dispositivo físico. La vista web sirve para revisar rutas visuales, no sustituye las pruebas nativas.

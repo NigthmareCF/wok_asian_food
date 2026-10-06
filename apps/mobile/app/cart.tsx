@@ -55,7 +55,6 @@ export default function CartScreen() {
     const date = new Date(requestedFor);
     if (!cart.attempt && Number.isNaN(date.getTime())) { setError("Revisa la fecha y hora solicitadas."); return; }
     if (!cart.attempt && !entries.length) { setError("Agrega al menos un platillo."); return; }
-    if (!cart.attempt && entries.length > 20) { setError("El restaurante acepta hasta 20 platillos diferentes por solicitud. Revisa el carrito."); return; }
     sendingLock.current = true; setSending(true); setError(""); setReceipt(null);
     let attemptKey: string | null = null;
     try {

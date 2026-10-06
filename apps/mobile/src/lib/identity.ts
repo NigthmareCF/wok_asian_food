@@ -17,9 +17,19 @@ export const identitySchemas = {
   "reset-complete": base.extend({ code, password }),
 };
 export const emailSchema = email;
+const guatemalaPhone = /^(?:\+?502[ .-]?)?[0-9]{4}[ .-][0-9]{4}$/;
+export function formatGuatemalaPhoneInput(value: string): string {
+  let digits = value.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("502")) digits = digits.slice(3);
+  digits = digits.slice(0, 8);
+  return digits.length > 4 ? `${digits.slice(0, 4)} ${digits.slice(4)}` : digits;
+}
+export function isGuatemalaPhone(value: string): boolean {
+  return guatemalaPhone.test(value.trim());
+}
 export const profileSchema = z.object({
   displayName: name,
-  phone: z.string().trim().regex(/^$|^[+0-9() .-]{7,25}$/, "Usa de 7 a 25 caracteres para el teléfono."),
+  phone: z.string().trim().regex(/^$|^(?:\+?502[ .-]?)?[0-9]{4}[ .-][0-9]{4}$/, "Ingresa los 8 dígitos de Guatemala en grupos de cuatro."),
 });
 export const tokenPairSchema = z.object({
   accessToken: z.string().min(1), refreshToken: z.string().min(1),

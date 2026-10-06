@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { ScrollView, Text, View } from "react-native";
-<<<<<<< HEAD
-import { router } from "expo-router";
-import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-=======
 import { Button, Card, Field, Heading, Notice, Page } from "@/components/ui";
->>>>>>> 9997cf0e (fix(mobile): adjust BFF, add cart/menu flows, UI components, hooks and tests)
 import { ApiError, ClientProfile, ClientSession } from "@/lib/api";
-import { clientProfileSchema, clientSessionsSchema, emailSchema, identitySchemas, IdentityMode, IdentityValues, profileSchema } from "@/lib/identity";
+import { clientProfileSchema, clientSessionsSchema, emailSchema, formatGuatemalaPhoneInput, identitySchemas, IdentityMode, IdentityValues, profileSchema } from "@/lib/identity";
 import { useSession } from "@/providers/session-provider";
 
 const titles: Record<IdentityMode, string> = {
@@ -22,14 +17,6 @@ const submitTitles: Record<IdentityMode, string> = {
 const failureMessage = (reason: unknown) => reason instanceof ApiError ? reason.message : "No se pudo completar la acción.";
 
 export default function AccountScreen() {
-<<<<<<< HEAD
-  const { session, login, register, verify, resendVerification, requestPasswordReset, completePasswordReset, request, logout } = useSession();
-  const [mode, setMode] = useState<Mode>("login");
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-=======
   const { session, ready } = useSession();
   return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
     <Page safeTop>
@@ -43,7 +30,6 @@ export default function AccountScreen() {
 function IdentityForm() {
   const { login, register, verify, resendVerification, requestPasswordReset, completePasswordReset } = useSession();
   const [mode, setMode] = useState<IdentityMode>("login");
->>>>>>> 9997cf0e (fix(mobile): adjust BFF, add cart/menu flows, UI components, hooks and tests)
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -85,71 +71,12 @@ function IdentityForm() {
     });
   })(); }
 
-<<<<<<< HEAD
-  const title: Record<Mode, string> = {
-    login: "Inicia sesión", register: "Crear cuenta", verify: "Verificar cuenta",
-    "reset-request": "Recuperar contraseña", "reset-complete": "Crear contraseña nueva",
-  };
-  const submitTitle: Record<Mode, string> = {
-    login: "Entrar", register: "Crear cuenta", verify: "Verificar",
-    "reset-request": "Enviar código", "reset-complete": "Actualizar contraseña",
-  };
-
-  if (session) return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Tu perfil">Mi cuenta</Heading>
-    <Card><Text style={{ fontSize: 18, fontWeight: "800", color: palette.ink }}>Perfil Cliente</Text>
-      <Text style={ui.body}>{profile?.email ?? session.email}</Text>
-      {!profile && !error ? <Notice>Cargando tu perfil…</Notice> : null}
-      {profile ? <>
-        <Field label="Nombre" value={profileName} onChangeText={setProfileName} autoComplete="name" />
-        <Field label="Teléfono (opcional)" value={profilePhone} onChangeText={setProfilePhone} keyboardType="phone-pad" autoComplete="tel" />
-        {message ? <Notice tone="success">{message}</Notice> : null}
-        {error ? <Notice tone="error">{error}</Notice> : null}
-        <Button title="Guardar perfil" secondary busy={busy} onPress={() => void run(async () => {
-          setMessage("");
-          const updated = await request<ClientProfile>("/api/v1/client/profile", {
-            method: "PUT",
-            body: JSON.stringify({ displayName: profileName.trim(), phone: profilePhone.trim(), expectedVersion: profile.version }),
-          });
-          setProfile(updated); setProfileName(updated.displayName); setProfilePhone(updated.phone ?? "");
-          setMessage("Tus datos se guardaron correctamente.");
-        })} />
-      </> : null}
-      <Button title="Administrar direcciones guardadas" secondary onPress={() => router.push("/addresses")} />
-      <Notice>La sesión se valida con el backend WOK. Tu acceso está en memoria y el refresh token se almacena de forma segura.</Notice>
-      {session.offline ? <Notice>Sin conexión: conservamos tu sesión y tus borradores en este dispositivo. Podrás reintentar las acciones del servidor cuando recuperes conexión.</Notice> : null}
-      <View style={{ gap: 10 }}>
-        <Text style={{ fontSize: 18, fontWeight: "800", color: palette.ink }}>Sesiones activas</Text>
-        <Text style={ui.body}>Revisa dónde está abierta tu cuenta y cierra sesiones que no reconozcas.</Text>
-        {sessionsLoading && sessions.length === 0 ? <Notice>Cargando sesiones…</Notice> : null}
-        {!sessionsLoading && sessions.length === 0 ? <Notice>No hay sesiones activas disponibles.</Notice> : null}
-        {sessions.map((item) => <View key={item.sessionId} style={{ borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 12, gap: 6 }}>
-          <Text style={{ color: palette.ink, fontWeight: "800" }}>{item.deviceName || sessionTypeLabel(item.clientType)}{item.current ? " · Este dispositivo" : ""}</Text>
-          <Text style={ui.body}>Última actividad: {formatSessionDate(item.lastActivityAt)}</Text>
-          {!item.current ? <Button title="Cerrar sesión" secondary busy={busy} onPress={() => void run(async () => {
-            await request<void>(`/api/v1/client/sessions/${item.sessionId}`, { method: "DELETE" });
-            setSessions((current) => current.filter((candidate) => candidate.sessionId !== item.sessionId));
-            setMessage("La sesión se cerró correctamente.");
-          })} /> : null}
-        </View>)}
-        <Button title="Actualizar sesiones" secondary busy={sessionsLoading} onPress={() => void refreshSessions()} />
-      </View>
-      <Button title="Cerrar sesión" secondary onPress={() => void run(async () => {
-        await logout(); setProfile(null); setProfileName(""); setProfilePhone(""); setSessions([]); setMessage("");
-      })} busy={busy} /></Card>
-  </Page></ScrollView>;
-
-  return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Acceso Cliente">{title[mode]}</Heading>
-    <Text style={ui.body}>{mode === "reset-request" || mode === "reset-complete"
-      ? "Te enviaremos un código si existe una cuenta activa con ese correo."
-      : "Usa una cuenta Cliente de WOK. Las cuentas nuevas necesitan verificación por correo."}</Text>
-=======
   return <>
     <Heading eyebrow="Acceso Cliente">{titles[mode]}</Heading>
     <Text className="font-sans text-base leading-6 text-muted-foreground">
       {mode.startsWith("reset") ? "Te enviaremos un código si existe una cuenta activa con ese correo."
         : "Usa una cuenta Cliente de WOK. Las cuentas nuevas necesitan verificación por correo."}
     </Text>
->>>>>>> 9997cf0e (fix(mobile): adjust BFF, add cart/menu flows, UI components, hooks and tests)
     <Card>
       <Controller control={control} name="email" render={({ field, fieldState }) => <>
         <Field ref={field.ref} label="Correo electrónico" value={field.value} onChangeText={field.onChange} onBlur={field.onBlur}
@@ -226,7 +153,7 @@ function ProfilePanel({ email, offline }: { email: string; offline: boolean }) {
     if (profileResult.status === "fulfilled") {
       setProfile(profileResult.value);
       if (!getFieldState("displayName").isDirty && !getFieldState("phone").isDirty) {
-        reset({ displayName: profileResult.value.displayName, phone: profileResult.value.phone ?? "" });
+        reset({ displayName: profileResult.value.displayName, phone: formatGuatemalaPhoneInput(profileResult.value.phone ?? "") });
       }
     } else setError(failureMessage(profileResult.reason));
     if (sessionsResult.status === "fulfilled") { setSessions(sessionsResult.value); setSessionsLoaded(true); }
@@ -267,7 +194,7 @@ function ProfilePanel({ email, offline }: { email: string; offline: boolean }) {
       const parsed = clientProfileSchema.safeParse(response);
       if (!parsed.success) throw new ApiError("No pudimos validar el perfil guardado. Actualiza la información antes de reintentar.", 503);
       const updated = parsed.data;
-      setProfile(updated); reset({ displayName: updated.displayName, phone: updated.phone ?? "" });
+      setProfile(updated); reset({ displayName: updated.displayName, phone: formatGuatemalaPhoneInput(updated.phone ?? "") });
       setMessage("Tus datos se guardaron correctamente.");
     });
   })(); }
@@ -284,7 +211,7 @@ function ProfilePanel({ email, offline }: { email: string; offline: boolean }) {
           {fieldState.error ? <Notice tone="error">{fieldState.error.message}</Notice> : null}
         </>} />
         <Controller control={control} name="phone" render={({ field, fieldState }) => <>
-          <Field ref={field.ref} label="Teléfono (opcional)" value={field.value} onChangeText={field.onChange} onBlur={field.onBlur} keyboardType="phone-pad" autoComplete="tel" maxLength={25} editable={!busy} />
+          <Field ref={field.ref} label="Teléfono (opcional)" value={field.value} onChangeText={(value) => field.onChange(formatGuatemalaPhoneInput(value))} onBlur={field.onBlur} keyboardType="phone-pad" autoComplete="tel" maxLength={9} placeholder="1234 5678" editable={!busy} />
           {fieldState.error ? <Notice tone="error">{fieldState.error.message}</Notice> : null}
         </>} />
         <Button title="Guardar perfil" onPress={() => void save()} busy={busy} disabled={loading} />
