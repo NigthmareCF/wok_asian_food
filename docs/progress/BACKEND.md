@@ -396,3 +396,4 @@
 
 - El seed idempotente ahora asocia Aguacate, Mayonesa chipotle, Mayonesa jalapeño y Salsa de anguila (Q5 cada uno) a los nueve productos Sushi vigentes. La administración conserva compatibilidad producto↔grupo editable; no se crean impactos de stock.
 - `RealMenuSeedIntegrationTest` verifica que los nueve productos expongan los cuatro extras por el selector usado por API y comprueba precio, idempotencia y ausencia de tracking ficticio. PostgreSQL 18/Testcontainers, Flyway V1–V39: 1/1, cero fallos/errores/omitidas.
+- Regresión: suite completa backend con PostgreSQL 18/Testcontainers y Flyway V1–V39: 231 pruebas, cero fallos, errores u omitidas.
