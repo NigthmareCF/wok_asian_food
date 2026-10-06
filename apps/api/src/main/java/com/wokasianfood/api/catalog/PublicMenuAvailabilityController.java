@@ -136,7 +136,7 @@ public class PublicMenuAvailabilityController {
         return new AvailabilityEstimate(cartAvailable, true, Instant.now(), lines);
     }
 
-    public record AvailabilityRequest(@NotEmpty @Size(max = 20) List<@Valid AvailabilityLine> items) {}
+    public record AvailabilityRequest(@NotEmpty @Size(max = 100) List<@Valid AvailabilityLine> items) {}
     public record AvailabilityLine(@NotNull UUID menuItemId, @Positive @Max(50) int quantity,
                                    @Size(max = 30) List<@NotNull UUID> modifierIds) {
         public AvailabilityLine {

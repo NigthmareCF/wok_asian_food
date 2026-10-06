@@ -323,7 +323,7 @@ public class ClientPickupRequestController {
     public record PickupRequest(@NotNull Instant requestedFor, @Size(max = 500) String customerNote,
             PaymentPreference paymentPreference, Boolean invoiceRequested,
             @Size(max = 150) String invoiceName, @Size(max = 32) String invoiceTaxId,
-            @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {
+            @NotEmpty @Size(max = 100) List<@Valid RequestedItem> items) {
         public PickupRequest(Instant requestedFor, String customerNote, List<RequestedItem> items) {
             this(requestedFor, customerNote, null, null, null, null, items);
         }

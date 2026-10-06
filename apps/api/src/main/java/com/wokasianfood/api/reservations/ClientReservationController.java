@@ -57,7 +57,7 @@ public class ClientReservationController {
 
     public record Submission(@Min(1) @Max(50) int guests, @NotNull Instant requestedAt,
                              boolean preorder, @Size(max = 1000) String notes,
-                             @Size(max = 20) List<@Valid RequestedItem> items) {}
+                             @Size(max = 100) List<@Valid RequestedItem> items) {}
     public record RequestedItem(@NotNull UUID menuItemId, @Min(1) @Max(50) int quantity,
                                 @Size(max = 30) List<@NotNull UUID> modifierIds) {}
 }

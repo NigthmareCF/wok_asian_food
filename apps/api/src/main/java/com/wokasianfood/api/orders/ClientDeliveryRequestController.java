@@ -340,7 +340,7 @@ public class ClientDeliveryRequestController {
             @NotBlank @Pattern(regexp = "^" + GuatemalaPhone.PATTERN + "$") String contactPhone,
             @NotNull PaymentPreference paymentPreference,
             Boolean invoiceRequested, @Size(max = 150) String invoiceName, @Size(max = 32) String invoiceTaxId,
-            @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {
+            @NotEmpty @Size(max = 100) List<@Valid RequestedItem> items) {
         public DeliveryRequest(Instant requestedFor, String customerNote, String address, String reference,
                 String contactPhone, PaymentPreference paymentPreference, List<RequestedItem> items) {
             this(requestedFor, customerNote, address, reference, contactPhone, paymentPreference, null, null, null, items);

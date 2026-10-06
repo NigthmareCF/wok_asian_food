@@ -70,6 +70,28 @@ class PublicMenuAvailabilityIntegrationTest extends PostgresIntegrationTest {
                 Integer.class, ingredientId)).isEqualTo(1);
     }
 
+    @Test
+    void aggregatesSharedInventoryAcrossMoreThanTwentyDistinctProducts() {
+        var menuItems = java.util.stream.IntStream.range(0, 21).mapToObj(ignored -> createMenuItem()).toList();
+        UUID sharedIngredient = createInventoryItem(menuItems.getFirst());
+        jdbc.update("INSERT INTO wok.inventory_balances (item_id, quantity_on_hand) VALUES (?, 20)", sharedIngredient);
+        for (UUID menuItemId : menuItems) {
+            UUID sellableItemId = jdbc.queryForObject("SELECT item_id FROM wok.menu_items WHERE id = ?", UUID.class, menuItemId);
+            jdbc.update("INSERT INTO wok.item_recipe_components (parent_item_id, component_item_id, quantity) VALUES (?, ?, 1)",
+                    sellableItemId, sharedIngredient);
+        }
+
+        HttpResponse<String> response = estimateMany(menuItems);
+        assertThat(response.statusCode()).isEqualTo(200);
+        JsonNode estimate = body(response);
+        assertThat(estimate.path("availableEstimate").asBoolean()).isFalse();
+        assertThat(estimate.path("items").size()).isEqualTo(21);
+        assertThat(java.util.stream.StreamSupport.stream(estimate.path("items").spliterator(), false)
+                .allMatch(item -> item.path("status").asText().equals("UNAVAILABLE_ESTIMATE"))).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.inventory_reservations WHERE item_id = ?", Integer.class,
+                sharedIngredient)).isZero();
+    }
+
     private HttpResponse<String> estimate(UUID itemId, int quantity, UUID... modifierIds) {
         String ids = modifierIds == null || modifierIds.length == 0 ? "[]" : "[" +
                 java.util.Arrays.stream(modifierIds).map(id -> "\"" + id + "\"")
@@ -84,6 +106,13 @@ class PublicMenuAvailabilityIntegrationTest extends PostgresIntegrationTest {
                 "{\"menuItemId\":\"%s\",\"quantity\":1,\"modifierIds\":[]}]}"
                 ).formatted(trackedItem, untrackedItem);
         return post("/api/v1/public/menu/availability", null, payload);
+    }
+
+    private HttpResponse<String> estimateMany(java.util.List<UUID> menuItems) {
+        String lines = menuItems.stream()
+                .map(itemId -> "{\"menuItemId\":\"" + itemId + "\",\"quantity\":1,\"modifierIds\":[]}")
+                .collect(java.util.stream.Collectors.joining(","));
+        return post("/api/v1/public/menu/availability", null, "{\"items\":[" + lines + "]}");
     }
 
     private UUID createMenuItem() {

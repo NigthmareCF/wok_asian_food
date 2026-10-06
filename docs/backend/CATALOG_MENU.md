@@ -31,6 +31,8 @@ No se muestran `PENDING_DATA`, `TO_CONFIRM_RECIPE` ni otras notas internas al Cl
 
 Los importes de modificadores se vuelven a calcular en backend al crear/aceptar solicitudes y se guardan como snapshots. Clientes nunca envían el total autoritativo.
 
+La revisión de disponibilidad y las solicitudes remotas aceptan hasta 100 líneas como límite técnico de payload, no como límite de venta. El backend agrega los requerimientos de inventario compartidos entre todos los productos del carrito antes de estimar o reservar; repartir cantidades entre distintos SKU no aumenta la capacidad disponible.
+
 ## Opciones e incertidumbres
 
 - Onigiri: relleno obligatorio (Surimi +Q0, Atún chipotle +Q5), preparación obligatoria (Normal +Q0, Frito en panko +Q5). Totales esperados Q40/Q45/Q45/Q50.
