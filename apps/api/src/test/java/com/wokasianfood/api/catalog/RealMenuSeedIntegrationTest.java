@@ -33,7 +33,7 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
                 Integer.class)).isEqualTo(4);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items WHERE slug IS NOT NULL AND recipe_status='PENDING_DATA'",
                 Integer.class)).isEqualTo(31);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items mi JOIN wok.menu_item_modifier_groups link ON link.menu_item_id=mi.id JOIN wok.modifier_groups g ON g.id=link.group_id WHERE mi.slug IS NOT NULL AND g.name='SUSHI_EXTRAS'",
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items mi JOIN wok.menu_item_modifier_groups link ON link.menu_item_id=mi.id JOIN wok.modifier_groups g ON g.id=link.group_id WHERE mi.slug IS NOT NULL AND g.name='Extras'",
                 Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.items i JOIN wok.menu_items mi ON mi.item_id=i.id WHERE mi.slug IS NOT NULL AND i.track_inventory",
                 Integer.class)).isZero();

@@ -77,14 +77,18 @@ ON CONFLICT (slug) WHERE slug IS NOT NULL DO UPDATE SET
   visibility=EXCLUDED.visibility, status=EXCLUDED.status, display_order=EXCLUDED.display_order,
   age_restricted=EXCLUDED.age_restricted, recipe_status='PENDING_DATA', updated_at=now();
 
-CREATE TEMP TABLE seed_modifier_groups (name TEXT PRIMARY KEY, min_selection INTEGER, max_selection INTEGER, required BOOLEAN) ON COMMIT DROP;
+CREATE TEMP TABLE seed_modifier_groups (code TEXT PRIMARY KEY, display_name TEXT UNIQUE NOT NULL,
+  min_selection INTEGER, max_selection INTEGER, required BOOLEAN) ON COMMIT DROP;
 INSERT INTO seed_modifier_groups VALUES
- ('PANKO_VARIANT',1,1,true), ('ONIGIRI_FILLING',1,1,true), ('ONIGIRI_PREPARATION',1,1,true),
- ('SUSHI_EXTRAS',0,4,false), ('SPECIALTY_BASE',1,1,true), ('CERDO_SAUCE',1,1,true),
- ('SPICE_LEVEL',0,1,false), ('CARBONATED_FLAVOR',1,1,true), ('KOREAN_SODA_FLAVOR',1,1,true),
- ('JAPANESE_ICE_TEA_FLAVOR',1,1,true), ('TEA_VARIETY',1,1,true), ('SOJU_FLAVOR',1,1,true);
+ ('PANKO_VARIANT','Presentación',1,1,true), ('ONIGIRI_FILLING','Relleno',1,1,true),
+ ('ONIGIRI_PREPARATION','Preparación',1,1,true), ('SUSHI_EXTRAS','Extras',0,4,false),
+ ('SPECIALTY_BASE','Base incluida',1,1,true), ('CERDO_SAUCE','Salsa',1,1,true),
+ ('SPICE_LEVEL','Nivel de picante',0,1,false), ('CARBONATED_FLAVOR','Sabor',1,1,true),
+ ('KOREAN_SODA_FLAVOR','Sabor de soda coreana',1,1,true),
+ ('JAPANESE_ICE_TEA_FLAVOR','Sabor de Ice Tea Japonés',1,1,true),
+ ('TEA_VARIETY','Variedad de té',1,1,true), ('SOJU_FLAVOR','Sabor de soju',1,1,true);
 INSERT INTO modifier_groups (name,min_selection,max_selection,required)
-SELECT name,min_selection,max_selection,required FROM seed_modifier_groups
+SELECT display_name,min_selection,max_selection,required FROM seed_modifier_groups
 ON CONFLICT (name) DO UPDATE SET min_selection=EXCLUDED.min_selection,max_selection=EXCLUDED.max_selection,required=EXCLUDED.required;
 
 CREATE TEMP TABLE seed_modifier_options (group_name TEXT, name TEXT, price_delta NUMERIC(14,2), PRIMARY KEY(group_name,name)) ON COMMIT DROP;
@@ -100,7 +104,8 @@ INSERT INTO seed_modifier_options VALUES
  ('KOREAN_SODA_FLAVOR','Según disponibilidad',0),('JAPANESE_ICE_TEA_FLAVOR','Según disponibilidad',0),
  ('TEA_VARIETY','Según disponibilidad',0),('SOJU_FLAVOR','Según disponibilidad',0);
 INSERT INTO modifiers (group_id,name,price_delta,active)
-SELECT g.id,o.name,o.price_delta,true FROM seed_modifier_options o JOIN modifier_groups g ON g.name=o.group_name
+SELECT g.id,o.name,o.price_delta,true FROM seed_modifier_options o
+JOIN seed_modifier_groups sg ON sg.code=o.group_name JOIN modifier_groups g ON g.name=sg.display_name
 ON CONFLICT (group_id,name) DO UPDATE SET price_delta=EXCLUDED.price_delta,active=true;
 
 CREATE TEMP TABLE seed_product_groups (slug TEXT, group_name TEXT, display_order INTEGER, PRIMARY KEY(slug,group_name)) ON COMMIT DROP;
@@ -114,10 +119,12 @@ DELETE FROM menu_item_modifier_groups link
 USING menu_items mi, modifier_groups g
 WHERE link.menu_item_id=mi.id AND link.group_id=g.id
   AND mi.slug IN (SELECT slug FROM seed_menu_products)
-  AND g.name IN (SELECT name FROM seed_modifier_groups);
+  AND g.name IN (SELECT display_name FROM seed_modifier_groups);
 INSERT INTO menu_item_modifier_groups (menu_item_id,group_id,display_order)
 SELECT mi.id,g.id,pg.display_order FROM seed_product_groups pg
-JOIN menu_items mi ON mi.slug=pg.slug JOIN modifier_groups g ON g.name=pg.group_name
+JOIN menu_items mi ON mi.slug=pg.slug
+JOIN seed_modifier_groups sg ON sg.code=pg.group_name
+JOIN modifier_groups g ON g.name=sg.display_name
 ON CONFLICT (menu_item_id,group_id) DO UPDATE SET display_order=EXCLUDED.display_order;
 
 -- Sushi extra options are defined but intentionally not linked to every item:

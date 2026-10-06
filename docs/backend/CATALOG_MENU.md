@@ -7,7 +7,7 @@ La fuente de datos del menú vigente es `database/seeds/menu_real_dev.sql`. Es u
 - Categorías: Sushi, Especialidades, Bebidas y Bebidas +18.
 - Áreas: SUSHI_BAR, HOT_KITCHEN y BAR.
 - 31 productos vigentes, precios en GTQ y descripciones públicas entregadas por coordinación.
-- Opciones estructuradas para extras de sushi, variantes Panko, relleno/preparación de Onigiri, base de especialidades, variante de salsa de cerdo, sabor de bebidas variables y niveles estándar de picante. La relación `SUSHI_EXTRAS` ↔ producto queda sin asignar hasta que restaurante confirme compatibilidad; no se habilita para todos automáticamente.
+- Opciones estructuradas para extras de sushi, variantes Panko, relleno/preparación de Onigiri, base de especialidades, variante de salsa de cerdo, sabor de bebidas variables y niveles estándar de picante. Los códigos internos se muestran con nombres en español. El grupo `Extras` queda sin asignar a productos hasta que el restaurante confirme compatibilidad; no se habilita para todos automáticamente.
 - Marca `age_restricted` para cerveza y soju, disponible en la respuesta pública para que Cliente/app la presenten.
 - Slugs estables para referencias públicas y de desarrollo. Los canales siguen usando los UUID devueltos por API en pedidos.
 
