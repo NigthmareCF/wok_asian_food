@@ -4,7 +4,7 @@ import { isSameOrigin } from "@/modules/auth/server/request-origin";
 import { isUuid } from "@/modules/checkout/pickup-contract";
 type Options = {
   path: string;
-  method: "GET" | "POST" | "PUT" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   parse?: (v: unknown) => unknown;
   validate: (v: unknown) => boolean;
   idempotent?: boolean;

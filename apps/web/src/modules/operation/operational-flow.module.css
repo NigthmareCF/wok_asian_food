@@ -1,0 +1,78 @@
+.page {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+.header,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+.header {
+  justify-content: space-between;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  gap: 1rem;
+}
+.card {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.form {
+  display: grid;
+  gap: 1rem;
+}
+.form label {
+  display: grid;
+  gap: 0.35rem;
+}
+.form input,
+.form select,
+.form textarea,
+.page button,
+.page select,
+.page input {
+  min-height: 44px;
+  max-width: 100%;
+}
+.form input,
+.form select,
+.form textarea {
+  width: 100%;
+  padding: 0.6rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+.details dd {
+  margin: 0;
+}
+.notice {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}

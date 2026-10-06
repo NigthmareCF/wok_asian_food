@@ -149,6 +149,14 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
           </dd>
         </dl>
         <div className={styles.actions}>
+          {table.accountStatus === "OPEN" && table.accountId && (
+            <Link
+              className="button button--primary"
+              href={`/operation/orders/new?account=${table.accountId}`}
+            >
+              Nuevo pedido
+            </Link>
+          )}
           <button
             className="button button--primary"
             disabled={sending || !openable}

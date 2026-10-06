@@ -1,81 +1,144 @@
-import { useState } from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
-import { OrderDetailView } from "@/modules/orders/components/order-detail-view";
-import { OrderSessionProvider } from "@/modules/orders/order-session-provider";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import {
+  testDetails,
+  testId,
+  testLoad,
+  testOrder,
+  testTicket,
+} from "@/data/fixtures/operational-api-test";
 import { KitchenBoardView } from "./kitchen-board-view";
-
-afterEach(cleanup);
-
-const renderKitchen = (view: React.ReactNode = <KitchenBoardView />) =>
-  render(<OrderSessionProvider>{view}</OrderSessionProvider>);
-
-describe("KitchenBoardView", () => {
-  it("accepts a new command and moves it to preparation", async () => {
-    const user = userEvent.setup();
-    renderKitchen();
-
-    const newColumn = screen.getByRole("region", { name: "Nuevos" });
-    expect(within(newColumn).getByText("#A-107")).toBeInTheDocument();
-    await user.click(
-      within(newColumn).getByRole("button", { name: "Aceptar" }),
-    );
-
-    expect(
-      within(screen.getByRole("region", { name: "Preparando" })).getByText(
-        "#A-107",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("filters tickets by station and updates their ETA", async () => {
-    const user = userEvent.setup();
-    renderKitchen();
-
-    await user.click(screen.getByRole("button", { name: "Sushi" }));
-    expect(screen.getByText("#D-088")).toBeInTheDocument();
-    expect(screen.queryByText("#A-107")).not.toBeInTheDocument();
-
-    await user.selectOptions(
-      screen.getByLabelText("ETA de pedido D-088"),
-      "20 min",
-    );
-    expect(screen.getByLabelText("ETA de pedido D-088")).toHaveValue("20 min");
-  });
-
-  it("shows only the incremental update sent from an existing order", async () => {
-    const user = userEvent.setup();
-
-    function IntegratedHarness() {
-      const [showKitchen, setShowKitchen] = useState(false);
-      return (
-        <>
-          <button onClick={() => setShowKitchen(true)} type="button">
-            Mostrar cocina
-          </button>
-          {showKitchen ? (
-            <KitchenBoardView />
-          ) : (
-            <OrderDetailView orderId="A-107" />
-          )}
-        </>
-      );
+import { OrderListView } from "@/modules/orders/components/order-list-view";
+import type { KitchenTicket } from "../live-contract";
+let ticket: KitchenTicket;
+beforeEach(() => {
+  ticket = { ...testTicket };
+  vi.stubGlobal("crypto", { randomUUID: () => testId(40) });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url, options) => {
+      const path = String(url);
+      if (options?.method === "POST") {
+        ticket = { ...ticket, status: "PREPARING", rowVersion: 2 };
+        return Response.json(ticket);
+      }
+      if (options?.method === "PATCH") {
+        ticket = { ...ticket, status: "READY", rowVersion: 3 };
+        return Response.json(ticket);
+      }
+      if (path.includes("/load")) return Response.json([testLoad]);
+      if (path.includes("status=OPEN"))
+        return Response.json(ticket.status === "READY" ? [] : [ticket]);
+      if (path.includes("status=READY"))
+        return Response.json(ticket.status === "READY" ? [ticket] : []);
+      if (path.endsWith("/" + testOrder.id)) return Response.json(testDetails);
+      if (path === "/bff/operational/orders")
+        return Response.json([
+          {
+            ...testOrder,
+            status: ticket.status === "READY" ? "READY" : "SENT",
+          },
+        ]);
+      throw Error("Unexpected request " + path);
+    }),
+  );
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});
+it("claims, prepares and completes a ticket; READY remains visible in kitchen and orders", async () => {
+  const user = userEvent.setup();
+  const view = render(<KitchenBoardView />);
+  await user.click(
+    await screen.findByRole("button", { name: "Tomar comanda" }),
+  );
+  await user.click(await screen.findByRole("button", { name: "Marcar listo" }));
+  expect(await screen.findByText("Listo")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Tomar comanda" }),
+  ).not.toBeInTheDocument();
+  const calls = vi.mocked(fetch).mock.calls;
+  expect(calls.find((c) => c[1]?.method === "POST")?.[0]).toBe(
+    "/bff/operational/kitchen/tickets/" + testTicket.id + "/claim",
+  );
+  expect(
+    JSON.parse(String(calls.find((c) => c[1]?.method === "PATCH")?.[1]?.body)),
+  ).toEqual({ status: "READY", expectedVersion: 2 });
+  view.unmount();
+  render(<OrderListView />);
+  expect(await screen.findByText("Listo")).toBeInTheDocument();
+});
+it("maps products to their real station and disables unsupported actions", async () => {
+  const user = userEvent.setup();
+  render(<KitchenBoardView />);
+  await user.click(
+    await screen.findByRole("button", { name: "Ver productos" }),
+  );
+  expect(await screen.findByText(/2 × Arroz de prueba/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Cambiar ETA" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Editar líneas" })).toBeDisabled();
+});
+it("refreshes competing claims after 409", async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, options) => {
+    if (options?.method === "POST") {
+      ticket = { ...ticket, status: "PREPARING", rowVersion: 2 };
+      return Response.json({}, { status: 409 });
     }
-
-    renderKitchen(<IntegratedHarness />);
-    await user.click(screen.getByRole("button", { name: "Agregar producto" }));
-    await user.click(screen.getByRole("button", { name: /Edamame picante/ }));
-    await user.click(
-      screen.getByRole("button", { name: "Agregar a la cuenta" }),
-    );
-    await user.click(screen.getByRole("button", { name: "Enviar cambio" }));
-    await user.click(screen.getByRole("button", { name: "Confirmar cambio" }));
-    await user.click(screen.getByRole("button", { name: "Mostrar cocina" }));
-
-    expect(screen.getByText("Nuevo: Edamame picante (1)")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Nuevo: Wok teriyaki (2)"),
-    ).not.toBeInTheDocument();
+    return original(url, options);
   });
+  const user = userEvent.setup();
+  render(<KitchenBoardView />);
+  await user.click(
+    await screen.findByRole("button", { name: "Tomar comanda" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("409");
+  expect(
+    await screen.findByRole("button", { name: "Marcar listo" }),
+  ).toBeEnabled();
+});
+it("blocks duplicate claims during an unresolved request", async () => {
+  let finish!: (r: Response) => void;
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, options) =>
+    options?.method === "POST"
+      ? new Promise((r) => {
+          finish = r;
+        })
+      : original(url, options),
+  );
+  render(<KitchenBoardView />);
+  const button = await screen.findByRole("button", { name: "Tomar comanda" });
+  fireEvent.click(button);
+  fireEvent.click(button);
+  expect(
+    vi.mocked(fetch).mock.calls.filter((c) => c[1]?.method === "POST"),
+  ).toHaveLength(1);
+  expect(button).toBeDisabled();
+  finish(Response.json(testTicket));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Tomar comanda" })).toBeEnabled(),
+  );
+});
+it("does not permit actions when READY queue fails", async () => {
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation(async (url, options) =>
+    String(url).includes("status=READY")
+      ? Response.json({}, { status: 503 })
+      : original(url, options),
+  );
+  render(<KitchenBoardView />);
+  await screen.findByRole("alert");
+  expect(
+    await screen.findByRole("button", { name: "Tomar comanda" }),
+  ).toBeDisabled();
 });
