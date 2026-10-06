@@ -19,6 +19,7 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
     @Test
     void seedsTheCurrentMenuRepeatablyWithoutInventingRecipesOrStock() throws Exception {
         runSeed();
+        createLegacyPreparationAreasAndAttachExistingMenuItem();
         runSeed();
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_categories WHERE name IN ('Sushi','Especialidades','Bebidas','Bebidas +18')",
@@ -31,6 +32,15 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
                 .isEqualByComparingTo("70.00");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items WHERE age_restricted=true AND slug IN ('cerveza-nacional','cerveza-tsingtao','cerveza-sapporo','soju')",
                 Integer.class)).isEqualTo(4);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM wok.menu_items mi
+                JOIN wok.preparation_areas pa ON pa.id=mi.preparation_area_id
+                WHERE (mi.category_id=(SELECT id FROM wok.menu_categories WHERE name='Sushi') AND pa.code='COCINA_FRIA')
+                   OR (mi.category_id=(SELECT id FROM wok.menu_categories WHERE name='Especialidades') AND pa.code='COCINA_CALIENTE')
+                   OR (mi.category_id IN (SELECT id FROM wok.menu_categories WHERE name IN ('Bebidas','Bebidas +18')) AND pa.code='BARRA')
+                """, Integer.class)).isEqualTo(31);
+        assertThat(jdbc.queryForObject("SELECT active FROM wok.preparation_areas WHERE code='HOT_KITCHEN'", Boolean.class))
+                .isFalse();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items WHERE slug IS NOT NULL AND recipe_status='PENDING_DATA'",
                 Integer.class)).isEqualTo(31);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items mi JOIN wok.menu_item_modifier_groups link ON link.menu_item_id=mi.id JOIN wok.modifier_groups g ON g.id=link.group_id WHERE mi.slug IS NOT NULL AND g.name='Extras'",
@@ -73,5 +83,10 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
         try (Connection connection = DATABASE.createConnection("")) {
             ScriptUtils.executeSqlScript(connection, new FileSystemResource(seed));
         }
+    }
+
+    private void createLegacyPreparationAreasAndAttachExistingMenuItem() {
+        jdbc.update("INSERT INTO wok.preparation_areas(code, name) VALUES ('SUSHI_BAR', 'Barra de sushi'), ('HOT_KITCHEN', 'Cocina caliente'), ('BAR', 'Barra de bebidas')");
+        jdbc.update("UPDATE wok.menu_items SET preparation_area_id=(SELECT id FROM wok.preparation_areas WHERE code='HOT_KITCHEN') WHERE slug='pollo-naranja'");
     }
 }

@@ -5,7 +5,7 @@ La fuente de datos del menú vigente es `database/seeds/menu_real_dev.sql`. Es u
 ## Qué incorpora
 
 - Categorías: Sushi, Especialidades, Bebidas y Bebidas +18.
-- Áreas: SUSHI_BAR, HOT_KITCHEN y BAR.
+- Áreas canónicas: Sushi → `COCINA_FRIA`, Especialidades → `COCINA_CALIENTE`, Bebidas (incluida categoría +18) → `BARRA`. El seed consolida los códigos históricos `SUSHI_BAR`, `HOT_KITCHEN` y `BAR` sobre esas áreas para evitar estaciones duplicadas.
 - 31 productos vigentes, precios en GTQ y descripciones públicas entregadas por coordinación.
 - Opciones estructuradas para extras de sushi, variantes Panko, relleno/preparación de Onigiri, base de especialidades, variante de salsa de cerdo, sabor de bebidas variables y niveles estándar de picante. Los códigos internos se muestran con nombres en español. El grupo `Extras` queda sin asignar a productos hasta que el restaurante confirme compatibilidad; no se habilita para todos automáticamente.
 - Marca `age_restricted` para cerveza y soju, disponible en la respuesta pública para que Cliente/app la presenten.

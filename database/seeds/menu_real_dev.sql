@@ -12,9 +12,40 @@ ON CONFLICT (code) DO NOTHING;
 INSERT INTO menu_categories (name, display_order) VALUES
  ('Sushi', 10), ('Especialidades', 20), ('Bebidas', 30), ('Bebidas +18', 40)
 ON CONFLICT (name) DO UPDATE SET display_order = EXCLUDED.display_order;
+
+-- Reuse area aliases from earlier development seeds by canonicalizing them.
+-- If both names already exist, move menu rows to the canonical row and retire
+-- the alias rather than adding another active station with the same meaning.
+UPDATE menu_items AS item SET preparation_area_id=canonical.id,
+  updated_at=now(), row_version=item.row_version+1
+FROM preparation_areas AS legacy
+JOIN (VALUES
+  ('SUSHI_BAR', 'COCINA_FRIA'), ('HOT_KITCHEN', 'COCINA_CALIENTE'), ('BAR', 'BARRA')
+) AS area_map(legacy_code, canonical_code) ON legacy.code=area_map.legacy_code
+JOIN preparation_areas AS canonical ON canonical.code=area_map.canonical_code
+WHERE item.preparation_area_id=legacy.id;
+
+UPDATE preparation_areas AS legacy SET code=area_map.canonical_code,
+  name=area_map.display_name, active=true, updated_at=now(), row_version=legacy.row_version+1
+FROM (VALUES
+  ('SUSHI_BAR', 'COCINA_FRIA', 'Cocina fría'),
+  ('HOT_KITCHEN', 'COCINA_CALIENTE', 'Cocina caliente'),
+  ('BAR', 'BARRA', 'Barra')
+) AS area_map(legacy_code, canonical_code, display_name)
+WHERE legacy.code=area_map.legacy_code
+  AND NOT EXISTS (SELECT 1 FROM preparation_areas canonical WHERE canonical.code=area_map.canonical_code);
+
+UPDATE preparation_areas AS legacy SET active=false, updated_at=now(), row_version=legacy.row_version+1
+FROM preparation_areas AS canonical
+JOIN (VALUES
+  ('SUSHI_BAR', 'COCINA_FRIA'), ('HOT_KITCHEN', 'COCINA_CALIENTE'), ('BAR', 'BARRA')
+) AS area_map(legacy_code, canonical_code) ON canonical.code=area_map.canonical_code
+WHERE legacy.code=area_map.legacy_code;
+
 INSERT INTO preparation_areas (code, name) VALUES
- ('SUSHI_BAR', 'Barra de sushi'), ('HOT_KITCHEN', 'Cocina caliente'), ('BAR', 'Barra de bebidas')
-ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+ ('COCINA_FRIA', 'Cocina fría'), ('COCINA_CALIENTE', 'Cocina caliente'), ('BARRA', 'Barra')
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, active = true,
+  updated_at = now(), row_version = preparation_areas.row_version + 1;
 
 CREATE TEMP TABLE seed_menu_products (
   slug TEXT PRIMARY KEY, sku TEXT NOT NULL, name TEXT NOT NULL, description TEXT,
@@ -23,37 +54,37 @@ CREATE TEMP TABLE seed_menu_products (
 ) ON COMMIT DROP;
 
 INSERT INTO seed_menu_products VALUES
- ('maki-atun','MENU_MAKI_ATUN','Maki Atún','Atún fresco, pepino, zanahoria, queso especiado y mayonesa de jalapeño.','Sushi','SUSHI_BAR',70,false,10),
- ('maki-camaron','MENU_MAKI_CAMARON','Maki Camarón','Camarón pochado, pepino, zanahoria, queso especiado y mayonesa de jalapeño.','Sushi','SUSHI_BAR',65,false,20),
- ('uramaki-aguacate','MENU_URAMAKI_AGUACATE','Uramaki Aguacate','Surimi, zanahoria, pepino, queso especiado y mayonesa de jalapeño, con un top de aguacate fresco.','Sushi','SUSHI_BAR',65,false,30),
- ('uramaki-atun','MENU_URAMAKI_ATUN','Uramaki Atún','Pepino, zanahoria, queso especiado y aguacate con un top de atún fresco.','Sushi','SUSHI_BAR',70,false,40),
- ('uramaki-salmon','MENU_URAMAKI_SALMON','Uramaki Salmón','Surimi, aguacate y queso especiado con un top de salmón fresco y hojuelas de jalapeño.','Sushi','SUSHI_BAR',85,false,50),
- ('gamba-roll','MENU_GAMBA_ROLL','Gamba Roll','Camarón frito en panko con queso especiado y aguacate, bañado en salsa agridulce de la casa.','Sushi','SUSHI_BAR',75,false,60),
- ('camaron-crunchy','MENU_CAMARON_CRUNCHY','Camarón Crunchy','Camarón pochado, cebollín y queso especiado, frito en panko y bañado con mayonesa chipotle y praliné de sésamo.','Sushi','SUSHI_BAR',75,false,70),
- ('panko','MENU_PANKO','Panko','Cubos de arroz rellenos de queso especiado fritos en panko, con aguacate fresco, atún y ensalada de surimi semipicante. 6 cubos por porción.','Sushi','SUSHI_BAR',70,false,80),
- ('onigiris','MENU_ONIGIRIS','Onigiris','Porción de 3 unidades. Elige relleno y preparación.','Sushi','SUSHI_BAR',40,false,90),
- ('pollo-naranja','MENU_POLLO_NARANJA','Pollo a la naranja','Trozos de pollo fritos en panko bañados en salsa de naranja, acompañados de la base de su elección.','Especialidades','HOT_KITCHEN',65,false,10),
- ('pollo-teriyaki','MENU_POLLO_TERIYAKI','Pollo teriyaki','Trozos de pollo fritos en panko bañados en salsa teriyaki de la casa, acompañados de la base de su elección.','Especialidades','HOT_KITCHEN',65,false,20),
- ('pollo-agridulce','MENU_POLLO_AGRIDULCE','Pollo agridulce','Trozos de pollo fritos en panko bañados en salsa agridulce con elotitos dulces, acompañados de la base de su elección.','Especialidades','HOT_KITCHEN',65,false,30),
- ('cerdo-agridulce','MENU_CERDO_AGRIDULCE','Cerdo agridulce','Medallones de lomo de cerdo salteados bañados en salsa agridulce o agridulce picante, acompañados de la base de su elección.','Especialidades','HOT_KITCHEN',70,false,40),
- ('miso-ramen','MENU_MISO_RAMEN','Miso Ramen','Sopa caliente elaborada con fideos de harina, huevo, brotes, fideo de zanahoria, maíz dulce, lascas de cerdo marinado y fondo de cocción prolongada.','Especialidades','HOT_KITCHEN',70,false,50),
- ('carbonatada','MENU_CARBONATADA','Carbonatada','Bebida carbonatada. Elige sabor.','Bebidas','BAR',20,false,10),
- ('gaseosa-coca-cola','MENU_GASEOSA_COCA_COLA','Gaseosa Coca-Cola','Gaseosa Coca-Cola.','Bebidas','BAR',15,false,20),
- ('gaseosa-sprite','MENU_GASEOSA_SPRITE','Gaseosa Sprite','Gaseosa Sprite.','Bebidas','BAR',15,false,30),
- ('gaseosa-fanta-naranja','MENU_GASEOSA_FANTA_NARANJA','Gaseosa Fanta Naranja','Gaseosa Fanta Naranja.','Bebidas','BAR',15,false,40),
- ('soda-coreana','MENU_SODA_COREANA','Soda coreana','Sabores sujetos a disponibilidad.','Bebidas','BAR',20,false,50),
- ('ice-tea-japones','MENU_ICE_TEA_JAPONES','Ice Tea Japonés','Sabores sujetos a disponibilidad.','Bebidas','BAR',25,false,60),
- ('agua-pura','MENU_AGUA_PURA','Agua pura','Agua pura.','Bebidas','BAR',10,false,70),
- ('cafe','MENU_CAFE','Café','Café.','Bebidas','BAR',15,false,80),
- ('te','MENU_TE','Té','Variedades sujetas a disponibilidad.','Bebidas','BAR',10,false,90),
- ('matcha-latte','MENU_MATCHA_LATTE','Matcha Latte','Matcha verde tradicional con leche.','Bebidas','BAR',30,false,100),
- ('matcha-maracuya','MENU_MATCHA_MARACUYA','Matcha Maracuyá','Matcha verde tradicional con sabor a maracuyá.','Bebidas','BAR',35,false,110),
- ('matcha-kiwi','MENU_MATCHA_KIWI','Matcha Kiwi','Matcha verde tradicional con sabor a kiwi.','Bebidas','BAR',35,false,120),
- ('blue-matcha','MENU_BLUE_MATCHA','Blue Matcha','Preparado con matcha azul.','Bebidas','BAR',35,false,130),
- ('cerveza-nacional','MENU_CERVEZA_NACIONAL','Cerveza nacional · Gallo','Cerveza nacional marca Gallo.','Bebidas +18','BAR',20,true,10),
- ('cerveza-tsingtao','MENU_CERVEZA_TSINGTAO','Cerveza importada · Tsingtao','Cerveza importada. Sujeta a disponibilidad.','Bebidas +18','BAR',35,true,20),
- ('cerveza-sapporo','MENU_CERVEZA_SAPPORO','Cerveza importada · Sapporo','Cerveza importada. Sujeta a disponibilidad.','Bebidas +18','BAR',35,true,30),
- ('soju','MENU_SOJU','Soju','Sabores sujetos a disponibilidad.','Bebidas +18','BAR',45,true,40);
+ ('maki-atun','MENU_MAKI_ATUN','Maki Atún','Atún fresco, pepino, zanahoria, queso especiado y mayonesa de jalapeño.','Sushi','COCINA_FRIA',70,false,10),
+ ('maki-camaron','MENU_MAKI_CAMARON','Maki Camarón','Camarón pochado, pepino, zanahoria, queso especiado y mayonesa de jalapeño.','Sushi','COCINA_FRIA',65,false,20),
+ ('uramaki-aguacate','MENU_URAMAKI_AGUACATE','Uramaki Aguacate','Surimi, zanahoria, pepino, queso especiado y mayonesa de jalapeño, con un top de aguacate fresco.','Sushi','COCINA_FRIA',65,false,30),
+ ('uramaki-atun','MENU_URAMAKI_ATUN','Uramaki Atún','Pepino, zanahoria, queso especiado y aguacate con un top de atún fresco.','Sushi','COCINA_FRIA',70,false,40),
+ ('uramaki-salmon','MENU_URAMAKI_SALMON','Uramaki Salmón','Surimi, aguacate y queso especiado con un top de salmón fresco y hojuelas de jalapeño.','Sushi','COCINA_FRIA',85,false,50),
+ ('gamba-roll','MENU_GAMBA_ROLL','Gamba Roll','Camarón frito en panko con queso especiado y aguacate, bañado en salsa agridulce de la casa.','Sushi','COCINA_FRIA',75,false,60),
+ ('camaron-crunchy','MENU_CAMARON_CRUNCHY','Camarón Crunchy','Camarón pochado, cebollín y queso especiado, frito en panko y bañado con mayonesa chipotle y praliné de sésamo.','Sushi','COCINA_FRIA',75,false,70),
+ ('panko','MENU_PANKO','Panko','Cubos de arroz rellenos de queso especiado fritos en panko, con aguacate fresco, atún y ensalada de surimi semipicante. 6 cubos por porción.','Sushi','COCINA_FRIA',70,false,80),
+ ('onigiris','MENU_ONIGIRIS','Onigiris','Porción de 3 unidades. Elige relleno y preparación.','Sushi','COCINA_FRIA',40,false,90),
+ ('pollo-naranja','MENU_POLLO_NARANJA','Pollo a la naranja','Trozos de pollo fritos en panko bañados en salsa de naranja, acompañados de la base de su elección.','Especialidades','COCINA_CALIENTE',65,false,10),
+ ('pollo-teriyaki','MENU_POLLO_TERIYAKI','Pollo teriyaki','Trozos de pollo fritos en panko bañados en salsa teriyaki de la casa, acompañados de la base de su elección.','Especialidades','COCINA_CALIENTE',65,false,20),
+ ('pollo-agridulce','MENU_POLLO_AGRIDULCE','Pollo agridulce','Trozos de pollo fritos en panko bañados en salsa agridulce con elotitos dulces, acompañados de la base de su elección.','Especialidades','COCINA_CALIENTE',65,false,30),
+ ('cerdo-agridulce','MENU_CERDO_AGRIDULCE','Cerdo agridulce','Medallones de lomo de cerdo salteados bañados en salsa agridulce o agridulce picante, acompañados de la base de su elección.','Especialidades','COCINA_CALIENTE',70,false,40),
+ ('miso-ramen','MENU_MISO_RAMEN','Miso Ramen','Sopa caliente elaborada con fideos de harina, huevo, brotes, fideo de zanahoria, maíz dulce, lascas de cerdo marinado y fondo de cocción prolongada.','Especialidades','COCINA_CALIENTE',70,false,50),
+ ('carbonatada','MENU_CARBONATADA','Carbonatada','Bebida carbonatada. Elige sabor.','Bebidas','BARRA',20,false,10),
+ ('gaseosa-coca-cola','MENU_GASEOSA_COCA_COLA','Gaseosa Coca-Cola','Gaseosa Coca-Cola.','Bebidas','BARRA',15,false,20),
+ ('gaseosa-sprite','MENU_GASEOSA_SPRITE','Gaseosa Sprite','Gaseosa Sprite.','Bebidas','BARRA',15,false,30),
+ ('gaseosa-fanta-naranja','MENU_GASEOSA_FANTA_NARANJA','Gaseosa Fanta Naranja','Gaseosa Fanta Naranja.','Bebidas','BARRA',15,false,40),
+ ('soda-coreana','MENU_SODA_COREANA','Soda coreana','Sabores sujetos a disponibilidad.','Bebidas','BARRA',20,false,50),
+ ('ice-tea-japones','MENU_ICE_TEA_JAPONES','Ice Tea Japonés','Sabores sujetos a disponibilidad.','Bebidas','BARRA',25,false,60),
+ ('agua-pura','MENU_AGUA_PURA','Agua pura','Agua pura.','Bebidas','BARRA',10,false,70),
+ ('cafe','MENU_CAFE','Café','Café.','Bebidas','BARRA',15,false,80),
+ ('te','MENU_TE','Té','Variedades sujetas a disponibilidad.','Bebidas','BARRA',10,false,90),
+ ('matcha-latte','MENU_MATCHA_LATTE','Matcha Latte','Matcha verde tradicional con leche.','Bebidas','BARRA',30,false,100),
+ ('matcha-maracuya','MENU_MATCHA_MARACUYA','Matcha Maracuyá','Matcha verde tradicional con sabor a maracuyá.','Bebidas','BARRA',35,false,110),
+ ('matcha-kiwi','MENU_MATCHA_KIWI','Matcha Kiwi','Matcha verde tradicional con sabor a kiwi.','Bebidas','BARRA',35,false,120),
+ ('blue-matcha','MENU_BLUE_MATCHA','Blue Matcha','Preparado con matcha azul.','Bebidas','BARRA',35,false,130),
+ ('cerveza-nacional','MENU_CERVEZA_NACIONAL','Cerveza nacional · Gallo','Cerveza nacional marca Gallo.','Bebidas +18','BARRA',20,true,10),
+ ('cerveza-tsingtao','MENU_CERVEZA_TSINGTAO','Cerveza importada · Tsingtao','Cerveza importada. Sujeta a disponibilidad.','Bebidas +18','BARRA',35,true,20),
+ ('cerveza-sapporo','MENU_CERVEZA_SAPPORO','Cerveza importada · Sapporo','Cerveza importada. Sujeta a disponibilidad.','Bebidas +18','BARRA',35,true,30),
+ ('soju','MENU_SOJU','Soju','Sabores sujetos a disponibilidad.','Bebidas +18','BARRA',45,true,40);
 
 INSERT INTO items (sku, name, description, item_type_id, base_unit_id, track_inventory)
 SELECT p.sku, p.name, p.description, t.id, u.id, false

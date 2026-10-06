@@ -1,5 +1,13 @@
 # Progreso de planificación backend
 
+## 2026-10-06 — Áreas de preparación canónicas del menú
+
+- El seed real del menú ahora usa `COCINA_FRIA` para Sushi, `COCINA_CALIENTE` para Especialidades y `BARRA` para Bebidas y Bebidas +18, conforme al cierre de alcance vigente.
+- El seed reconcilia los alias anteriores (`SUSHI_BAR`, `HOT_KITCHEN`, `BAR`) de forma idempotente: renombra el alias si no existe el área canónica; si ambas existen, mueve las referencias de menú y desactiva el alias. No modifica migraciones ya publicadas ni cambia recetas/stock.
+- `RealMenuSeedIntegrationTest` también crea deliberadamente el caso de alias duplicado y verifica las 31 asignaciones, la consolidación y la repetición del seed.
+- Validación con PostgreSQL 18/Testcontainers y Flyway V1–V39: `RealMenuSeedIntegrationTest` 1/1, 0 fallos, 0 errores, 0 omitidas.
+- Se retiraron las cámaras del backlog LATER actual; `DEFERRED_CAMERA_INTEGRATION` queda como nota futura no bloqueante en el plan. El proveedor IA, gateway bancario, certificador FEL, proveedor email y dominio continúan como decisiones externas pendientes, no como motivo para detener slices independientes.
+
 ## 2026-10-05 — Reporte diario administrativo de ventas
 
 - Se añadió `GET /api/v1/admin/reports/sales/daily?from={date}&to={date}`, exclusivo de ADMIN y limitado a 31 días. Agrupa por día local `America/Guatemala` y moneda, sin sumar monedas distintas; separa venta capturada, reembolso, neto, propina y devolución de propina. Los reembolsos aparecen el día en que se registraron y los pagos voided no cuentan como ventas.

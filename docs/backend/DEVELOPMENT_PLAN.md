@@ -12,9 +12,11 @@
 | NEXT-1 | Solicitud de pickup/delivery y aceptación, cocina/KDS, inventario/producción y precios desde backend                     | NOW-2/3, menú/recetario para venta real |
 | NEXT-2 | Cuenta, pagos mixtos, propina, caja, FEL mock y outbox; luego adapters reales                                            | NEXT-1, proveedor para producción       |
 | NEXT-3 | Meta/web/app chat, STT, handoff y AI Gateway mock aislado; visión de voucher sin autocertificar pago                     | NOW-2, almacenamiento seguro            |
-| LATER  | Benchmarks IA/hardware, Apple, cámaras, realtime definitivo y optimización de red                                        | Evidencia de carga/proveedor            |
+| LATER  | Benchmarks IA/hardware, Apple, realtime definitivo y optimización de red                                                  | Evidencia de carga/proveedor            |
 
 Cada slice incluye migración, endpoint, permiso/ownership, UI afectada, test y diagrama; las interfaces externas se desarrollan con port + mock + pruebas antes del proveedor. Reservar una pista de integración continua entre DB/API/web/app, no cuatro verdades por canal. Las semanas calendario antiguas son referencia histórica y no acotan el alcance del producto.
+
+> **FUTURE / DEFERRED_CAMERA_INTEGRATION:** la integración Nexxt/cámaras queda fuera del alcance actual. No es blocker, prioridad ni requisito de aceptación; no invertir trabajo en pantallas, mocks o integración de cámaras durante esta fase.
 
 ## Control de entrega
 
