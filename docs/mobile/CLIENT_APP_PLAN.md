@@ -29,7 +29,7 @@ React Native + Expo + TypeScript + Expo Router. TanStack Query administra datos 
 | ---------------- | ------------------------------------------------------------------------------------------- | --------------------------------- |
 | APP-01 Base      | navegación, diseño accesible, estados carga/error/offline y configuración pública           | API/health                        |
 | APP-02 Identidad | registro CLIENT, verificación, login, Google, reset, sesión, logout y perfil                | IAM, email mock/real              |
-| APP-03 Catálogo  | menú público, modificadores, carrito local y disponibilidad estimada por producto/cantidad/opciones | catálogo e inventario; menú real |
+| APP-03 Catálogo  | menú público, modificadores, carrito local y disponibilidad estimada por producto/cantidad/opciones; muestra marca +18 del contrato | seed real disponible en rama backend; disponibilidad por receta/inventario sigue pendiente |
 | APP-04 Reservas  | formal y mesa digital, 3 h, evaluación previa de horarios configurados, estancia estimada, alternativas sugeridas, preorden con snapshots y opciones, solicitudes e historial | capacidad/reservas; disponibilidad de recursos real posterior |
 | APP-05 Pedidos   | pickup/delivery, dirección y contacto, checkout de solicitudes, ETA, seguimiento, historial y solicitud de cancelación aceptada con revisión Operativa | pedidos/KDS/ownership; cambios de líneas posteriores |
 | APP-06 Finanzas  | pasarela segura/3DS, métodos habilitados, facturas propias y perfiles fiscales              | pagos/FEL; adapter real pendiente |

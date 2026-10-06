@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-05 — Compatibilidad de catálogo real y productos +18
+
+- El tipo `PublicMenuItem` reconoce slug estable y `ageRestricted` del contrato público. Menú, preorden de reserva y pickup/delivery reutilizan el mismo catálogo backend; el Cliente muestra un aviso +18 sin inventar una verificación legal ni sustituir validación server-side.
+- El seed de productos y precios se agregó a la rama backend `feature/backend-capacity-order-lifecycle`; debe integrarse y ejecutarse manualmente en base de desarrollo. No se duplican productos dentro del paquete móvil.
+- Recetas/cantidades, stock real, sabores sujetos a disponibilidad y política de confirmación de edad siguen pendientes. La marca de UI es informativa, no una barrera de autorización.
+
 ## 2026-10-05 — Borradores de reserva aislados por cuenta
 
 - SecureStore ahora guarda cada borrador de reserva bajo una clave derivada de SHA-256 del correo normalizado; completar o borrar un borrador de una cuenta no sobreescribe ni elimina el de otra cuenta. Las claves de reintento conservan su formato anterior para no perder operaciones idempotentes pendientes.

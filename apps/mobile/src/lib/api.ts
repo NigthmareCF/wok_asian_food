@@ -99,11 +99,13 @@ export type PublicMenuCategory = {
 };
 export type PublicMenuItem = {
   id: string;
+  slug?: string | null;
   name: string;
   description?: string | null;
   price: number;
   currency: string;
   imageReference?: string | null;
+  ageRestricted?: boolean;
   estimatedPreparationSeconds: number;
   displayOrder: number;
   modifierGroups?: MenuModifierGroup[];

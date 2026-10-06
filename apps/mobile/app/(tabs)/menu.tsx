@@ -278,6 +278,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
             <Text style={{ flex: 1, color: palette.ink, fontSize: 17, fontWeight: "800" }}>{item.name}</Text>
             <Text style={{ color: palette.red, fontWeight: "800" }}>{formatPrice(item)}</Text>
           </View>
+          {item.ageRestricted ? <Notice>Producto +18 · consulta al personal sobre disponibilidad y requisitos.</Notice> : null}
           {item.description ? <Text style={ui.body}>{item.description}</Text> : null}
           <MenuItemOptions item={item} selectedIds={selectedModifiers[item.id] ?? []}
             onChange={(ids) => changeModifiers(item, ids)} disabled={Boolean(attempt)} />

@@ -266,6 +266,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
           const money = new Intl.NumberFormat("es-GT", { style: "currency", currency: item.currency });
           return <Card key={item.id}>
             <Text style={{ color: palette.ink, fontWeight: "800" }}>{item.name} · {money.format(menuItemUnitPrice(item, selectedIds))}</Text>
+            {item.ageRestricted ? <Notice>Producto +18 · consulta al personal sobre disponibilidad y requisitos.</Notice> : null}
             {item.description ? <Text style={ui.body}>{item.description}</Text> : null}
             <MenuItemOptions item={item} selectedIds={selectedIds} disabled={attemptRestored || busy}
               onChange={(ids) => { setPreorderModifiers((current) => ({ ...current, [item.id]: ids })); clearEvaluation(); }} />
