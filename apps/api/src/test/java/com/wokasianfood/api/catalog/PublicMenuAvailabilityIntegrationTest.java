@@ -20,6 +20,7 @@ class PublicMenuAvailabilityIntegrationTest extends PostgresIntegrationTest {
         UUID ingredientId = createInventoryItem(menuItemId);
         jdbc.update("INSERT INTO wok.item_recipe_components (parent_item_id, component_item_id, quantity) VALUES (?, ?, 1)",
                 sellableItemId, ingredientId);
+        jdbc.update("UPDATE wok.menu_items SET recipe_status = 'ACTIVE' WHERE id = ?", menuItemId);
         jdbc.update("INSERT INTO wok.inventory_balances (item_id, quantity_on_hand) VALUES (?, 5)", ingredientId);
         createExistingReservation(ingredientId, new BigDecimal("2.000000"));
 
@@ -79,6 +80,7 @@ class PublicMenuAvailabilityIntegrationTest extends PostgresIntegrationTest {
             UUID sellableItemId = jdbc.queryForObject("SELECT item_id FROM wok.menu_items WHERE id = ?", UUID.class, menuItemId);
             jdbc.update("INSERT INTO wok.item_recipe_components (parent_item_id, component_item_id, quantity) VALUES (?, ?, 1)",
                     sellableItemId, sharedIngredient);
+            jdbc.update("UPDATE wok.menu_items SET recipe_status = 'ACTIVE' WHERE id = ?", menuItemId);
         }
 
         HttpResponse<String> response = estimateMany(menuItems);

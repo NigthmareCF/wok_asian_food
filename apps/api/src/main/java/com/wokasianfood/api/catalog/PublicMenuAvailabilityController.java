@@ -67,7 +67,7 @@ public class PublicMenuAvailabilityController {
                 SELECT rc.component_item_id, rc.quantity
                 FROM wok.item_recipe_components rc
                 JOIN wok.menu_items mi ON mi.item_id = rc.parent_item_id
-                WHERE mi.id = ?
+                WHERE mi.id = ? AND mi.recipe_status = 'ACTIVE'
                 ORDER BY rc.component_item_id
                 """, (rs, row) -> new RecipeRequirement(rs.getObject("component_item_id", UUID.class),
                     rs.getBigDecimal("quantity")), line.menuItemId());

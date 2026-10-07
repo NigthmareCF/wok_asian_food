@@ -481,3 +481,9 @@
 - La aceptación Operativa de pickup/delivery ahora vuelve a leer y bloquear en modo compartido la capability efectiva. Si fue pausada/deshabilitada después de que el Cliente envió la solicitud, responde 503 y mantiene la solicitud en `PENDING_REVIEW`, sin crear pedido ni comanda; `MANUAL_APPROVAL` permite continuar cuando se atienda manualmente.
 - Esto alinea la decisión final con los gates existentes al enviar. El bloqueo compartido serializa la aceptación con una actualización administrativa concurrente del estado del servicio.
 - `OrderRequestDecisionIntegrationTest` verifica pausa, ausencia de side effects y aceptación posterior al reanudar. Suite focal y suite backend completa pasan con PostgreSQL 18/Testcontainers y Flyway V1–V41: 245 pruebas, 0 fallos, 0 errores y 0 omitidas.
+
+## 2026-10-07 — Las recetas pendientes no consumen inventario
+
+- El BOM de un producto de menú se considera inventario operativo sólo cuando `menu_items.recipe_status = ACTIVE`. Guardar componentes en `PENDING_DATA`, `DRAFT` o `ARCHIVED` ya no vuelve el producto rastreado ni crea reservas en pedidos; el endpoint de disponibilidad también responde `NOT_TRACKED` hasta la activación.
+- `PUT /api/v1/operational/inventory/items/{itemId}/recipe` admite `recipeStatus` para productos del menú. Omitirlo conserva el estado; activar requiere una lista no vacía de componentes existentes y rastreados. La transición se audita, y el producto se bloquea de forma determinista para serializar edición/activación contra una aceptación que calcula reservas. Las recetas de subproductos fuera del menú mantienen su operación normal de producción.
+- Pruebas PostgreSQL focales: `InventoryOrderIntegrationTest` 4/4, `PublicMenuAvailabilityIntegrationTest` 2/2 y `ProductionIntegrationTest` 2/2, sin fallos ni omisiones. Suite completa: 249/249, 0 fallos, 0 errores, 0 omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V44.

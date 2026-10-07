@@ -26,8 +26,9 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
         UUID menuItemId = createMenuItem(parentItemId, "25.00", token);
 
         JsonNode recipe = body(send("PUT", "/api/v1/operational/inventory/items/" + parentItemId + "/recipe", token, """
-                {"components":[{"componentItemId":"%s","quantity":2}]}
+                {"components":[{"componentItemId":"%s","quantity":2}],"recipeStatus":"ACTIVE"}
                 """.formatted(componentId), Map.of()));
+        assertThat(recipe.path("recipeStatus").asText()).isEqualTo("ACTIVE");
         assertThat(recipe.path("components")).hasSize(1);
         assertThat(recipe.path("components").get(0).path("quantity").decimalValue()).isEqualByComparingTo("2");
 
@@ -111,7 +112,7 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
         UUID parentItemId = createItem("PLATO", "Pizza Wok", "0");
         UUID menuItemId = createMenuItem(parentItemId, "30.00", token);
         body(send("PUT", "/api/v1/operational/inventory/items/" + parentItemId + "/recipe", token, """
-                {"components":[{"componentItemId":"%s","quantity":2}]}
+                {"components":[{"componentItemId":"%s","quantity":2}],"recipeStatus":"ACTIVE"}
                 """.formatted(componentId), Map.of()));
 
         UUID accountId = createAccount(actor, "Cuenta sin disponible");
@@ -121,6 +122,42 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
         assertThat(onHand(token, componentId)).isEqualByComparingTo("2");
         JsonNode detail = body(get("/api/v1/operational/inventory/items/" + componentId, token));
         assertThat(detail.path("item").path("status").asText()).isEqualTo("OUT");
+    }
+
+    @Test
+    void pendingMenuRecipeIsSavedWithoutAffectingAvailabilityOrOrdersUntilActivated() {
+        UUID actor = createUserWithRole("receta-pendiente-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID componentId = createItem("INGREDIENTE", "Ingrediente aún por confirmar", "0");
+        jdbc.update("INSERT INTO wok.inventory_balances (item_id, quantity_on_hand) VALUES (?, 2)", componentId);
+        UUID parentItemId = createItem("BEBIDA", "Bebida con receta pendiente", "0");
+        UUID menuItemId = createMenuItem(parentItemId, "30.00", token);
+
+        JsonNode pending = body(send("PUT", "/api/v1/operational/inventory/items/" + parentItemId + "/recipe", token, """
+                {"components":[{"componentItemId":"%s","quantity":1}]}
+                """.formatted(componentId), Map.of()));
+        assertThat(pending.path("recipeStatus").asText()).isEqualTo("PENDING_DATA");
+        JsonNode estimate = body(post("/api/v1/public/menu/availability", null, """
+                {"items":[{"menuItemId":"%s","quantity":5,"modifierIds":[]}]}
+                """.formatted(menuItemId), Map.of()));
+        assertThat(estimate.path("items").get(0).path("status").asText()).isEqualTo("NOT_TRACKED");
+
+        UUID account = createAccount(actor, "Cuenta receta pendiente");
+        UUID orderId = openOrder(token, account, menuItemId, 5);
+        assertThat(reserved(componentId)).isZero();
+        assertThat(count("SELECT count(*) FROM wok.inventory_reservations WHERE order_id = ?", orderId)).isZero();
+        assertThat(onHand(token, componentId)).isEqualByComparingTo("2");
+
+        JsonNode active = body(send("PUT", "/api/v1/operational/inventory/items/" + parentItemId + "/recipe", token, """
+                {"components":[{"componentItemId":"%s","quantity":1}],"recipeStatus":"ACTIVE"}
+                """.formatted(componentId), Map.of()));
+        assertThat(active.path("recipeStatus").asText()).isEqualTo("ACTIVE");
+        UUID activeAccount = createAccount(actor, "Cuenta receta activa");
+        var unavailable = post("/api/v1/operational/orders", token, """
+                {"accountId":"%s","channel":"PICKUP","guestCount":1,"items":[{"menuItemId":"%s","quantity":5,"fulfillment":"TAKEAWAY"}]}
+                """.formatted(activeAccount, menuItemId), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(unavailable.statusCode()).isEqualTo(409);
+        assertThat(onHand(token, componentId)).isEqualByComparingTo("2");
     }
 
     private int transition(String token, UUID orderId, String status, int expectedVersion) {

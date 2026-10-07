@@ -164,11 +164,15 @@ public class InventoryReservationService {
     private Map<UUID, BigDecimal> requirements(List<Line> lines) {
         Map<UUID, BigDecimal> required = new LinkedHashMap<>();
         for (Line line : lines) {
+            List<UUID> menuItems = jdbc.query("""
+                SELECT id FROM wok.menu_items WHERE id = ? FOR SHARE
+                """, (rs, row) -> rs.getObject("id", UUID.class), line.menuItemId());
+            if (menuItems.isEmpty()) throw new AuthException(409, "El producto dejó de estar disponible.");
             List<Component> components = jdbc.query("""
                 SELECT rc.component_item_id, rc.quantity
                 FROM wok.item_recipe_components rc
                 JOIN wok.menu_items mi ON mi.item_id = rc.parent_item_id
-                WHERE mi.id = ?
+                WHERE mi.id = ? AND mi.recipe_status = 'ACTIVE'
                 """, (rs, row) -> new Component(rs.getObject("component_item_id", UUID.class),
                     rs.getBigDecimal("quantity")), line.menuItemId());
             for (Component component : components) {

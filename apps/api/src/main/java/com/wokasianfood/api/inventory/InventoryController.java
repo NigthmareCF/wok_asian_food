@@ -82,7 +82,10 @@ public class InventoryController {
                                   @NotNull @DecimalMin("0.0") BigDecimal quantity,
                                   @Size(max = 300) String reason) {}
 
-    public record RecipeRequest(@NotEmpty @Size(max = 100) List<@Valid RecipeComponentRequest> components) {}
+    public record RecipeRequest(@NotEmpty @Size(max = 100) List<@Valid RecipeComponentRequest> components,
+                                RecipeStatus recipeStatus) {}
+
+    public enum RecipeStatus { DRAFT, PENDING_DATA, ACTIVE, ARCHIVED }
 
     public record RecipeComponentRequest(@NotNull UUID componentItemId,
                                          @NotNull @DecimalMin(value = "0.0", inclusive = false) BigDecimal quantity) {}
@@ -228,6 +231,7 @@ class InventoryService {
 
     RecipeDetails recipe(UUID itemId) {
         requireItem(itemId);
+        String recipeStatus = recipeStatus(itemId);
         List<RecipeComponent> components = jdbc.query("""
             SELECT rc.component_item_id, i.sku, i.name, u.code AS unit_code, rc.quantity
             FROM wok.item_recipe_components rc
@@ -238,7 +242,7 @@ class InventoryService {
             """, (rs, row) -> new RecipeComponent(rs.getObject("component_item_id", UUID.class),
                 rs.getString("sku"), rs.getString("name"), rs.getString("unit_code"),
                 rs.getBigDecimal("quantity")), itemId);
-        return new RecipeDetails(itemId, components);
+        return new RecipeDetails(itemId, recipeStatus, components);
     }
 
     @Transactional
@@ -246,6 +250,9 @@ class InventoryService {
                                       InventoryController.RecipeRequest request) {
         requireItem(itemId);
         List<InventoryController.RecipeComponentRequest> components = request.components();
+        String beforeStatus = lockRecipeStatus(itemId);
+        if (request.recipeStatus() != null && beforeStatus == null)
+            throw new AuthException(422, "Sólo un producto del menú tiene estado de receta administrable.");
         java.util.Set<UUID> seen = new java.util.HashSet<>();
         for (InventoryController.RecipeComponentRequest component : components) {
             if (component.componentItemId().equals(itemId))
@@ -265,12 +272,34 @@ class InventoryService {
                 VALUES (?, ?, ?)
                 """, itemId, component.componentItemId(), component.quantity());
         }
+        String afterStatus = request.recipeStatus() == null ? beforeStatus : request.recipeStatus().name();
+        if (request.recipeStatus() != null) {
+            jdbc.update("""
+                UPDATE wok.menu_items
+                SET recipe_status = ?, updated_at = now(), row_version = row_version + 1
+                WHERE item_id = ?
+                """, afterStatus, itemId);
+        }
         jdbc.update("""
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
-            VALUES (?, 'ITEM_RECIPE_UPDATED', 'ITEM', ?, jsonb_build_object('components', ?), 'SUCCESS', ?)
-            """, actor, itemId, components.size(), requestId);
+            VALUES (?, 'ITEM_RECIPE_UPDATED', 'ITEM', ?, jsonb_build_object('components', ?, 'recipeStatus', ?::text), 'SUCCESS', ?)
+            """, actor, itemId, components.size(), afterStatus, requestId);
         return recipe(itemId);
+    }
+
+    private String recipeStatus(UUID itemId) {
+        List<String> statuses = jdbc.query("""
+            SELECT recipe_status FROM wok.menu_items WHERE item_id = ? ORDER BY id LIMIT 1
+            """, (rs, row) -> rs.getString("recipe_status"), itemId);
+        return statuses.isEmpty() ? null : statuses.getFirst();
+    }
+
+    private String lockRecipeStatus(UUID itemId) {
+        List<String> statuses = jdbc.query("""
+            SELECT recipe_status FROM wok.menu_items WHERE item_id = ? ORDER BY id FOR UPDATE
+            """, (rs, row) -> rs.getString("recipe_status"), itemId);
+        return statuses.isEmpty() ? null : statuses.getFirst();
     }
 
     private void requireItem(UUID itemId) {
@@ -344,7 +373,7 @@ class InventoryService {
                            UUID responsibleUserId, java.time.Instant occurredAt) {}
     public record InventoryItemDetails(InventoryItem item, List<Movement> movements) {}
     public record RecipeComponent(UUID itemId, String sku, String name, String unit, BigDecimal quantity) {}
-    public record RecipeDetails(UUID parentItemId, List<RecipeComponent> components) {}
+    public record RecipeDetails(UUID parentItemId, String recipeStatus, List<RecipeComponent> components) {}
     public record MovementReceipt(UUID movementId, UUID itemId, String type, BigDecimal quantityDelta,
                                   BigDecimal quantityOnHand, String unit, boolean idempotentReplay) {}
 }
