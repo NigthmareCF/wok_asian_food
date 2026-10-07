@@ -2,7 +2,7 @@
 
 > **Plan vigente desde 2026-09-25.** El plan de pickup conservado más abajo queda `SUPERSEDED` como alcance total. La app cubre todo el canal Cliente. Se implementará por slices integrados con la API WOK; una pantalla Expo o un mock no acredita un caso de uso.
 
-## Estado verificado al 2026-10-05
+## Estado verificado al 2026-10-07
 
 La rama especializada `feature/mobile-shell` integra sesión WOK y varios recorridos reales; el historial de reservas ahora muestra los snapshots de preorden enviados por el Cliente. Sigue siendo una app parcial, no una entrega completa del canal Cliente. La evidencia más reciente está en [progreso móvil](../progress/MOBILE.md). El estado de cada slice evita contar una pantalla como funcionalidad terminada:
 
@@ -11,13 +11,13 @@ La rama especializada `feature/mobile-shell` integra sesión WOK y varios recorr
 | APP-01 Base | Expo SDK 57 / React Native 0.86, Expo Router y sesión con API WOK; exports Android/Web probados | Builds instalables y prueba física Android/iOS; más pruebas de interfaz y estados de red |
 | APP-02 Identidad | Registro/verificación/login/reset, refresh seguro, logout, perfil, sesiones, validación de correo/teléfono, Google OIDC y enlace autenticado de cuenta Google | Configurar clientes OAuth reales, MFA y pruebas instaladas de revocación/recuperación |
 | APP-03 Catálogo | Menú público, grupos de opciones, validación min/max, snapshots de selección/precio y consulta de disponibilidad estimada para el carrito completo de pickup/delivery | Prueba integrada en PostgreSQL; seed oficial y recetas reales bloqueados por coordinación |
-| APP-04 Reservas | Solicitud con mínimo 3 h, evaluación previa de horario/estancia contra `business_hours`, selección de hasta tres horarios alternativos, preorden con productos/opciones, borrador/clave de reintento, historial y cancelación pendiente | Capacidad real avanzada y pruebas de concurrencia/dispositivo |
+| APP-04 Reservas | Solicitud con mínimo 3 h, evaluación previa de horario/estancia, selección de hasta tres horarios alternativos, preorden con productos/opciones, borrador/clave de reintento, historial y cancelación pendiente; respeta `RESERVATIONS` al evaluar y enviar | Capacidad real avanzada y pruebas de concurrencia/dispositivo |
 | APP-05 Pedidos | Solicitudes pickup/delivery, opciones guardadas en cada renglón, direcciones, historial, tracking de cocina/despacho, polling y solicitud revisable para cancelar pedido aceptado | Cambios de líneas sujetos a Operativo; pruebas integrales con el equipo operativo |
 | APP-06 Finanzas | Consulta de intents mock para delivery aceptado; perfiles fiscales y facturas propias emitidas/detalle | Checkout, 3DS, webhooks/conciliación y FEL productivo; integraciones reales requieren proveedor |
 | APP-07 Atención | Conversaciones y mensajes de texto propios, reintento idempotente y refresco mientras la vista está enfocada | Adjuntos, notificaciones push, handoff verificable y pruebas de retención/aislamiento extendidas |
 | APP-08 Calidad | Helpers probados, ESLint, TypeScript y bundles Expo Android/Web | E2E/contract tests amplios, ownership A/B transversal y validación física de Android e iOS |
 
-La verificación más reciente alcanzó Vitest 43/43, ESLint, TypeScript y export Expo Android/Web. El polling de conversaciones, pedidos y reservas se suspende cuando la pantalla pierde foco, la app pasa a segundo plano o la sesión queda offline. Los borradores de reserva y comercio se aíslan por identidad; los intentos existentes conservan sus claves idempotentes para reintento tras reinicio. Google OIDC incluye login para identidades vinculadas y linking autenticado desde una sesión WOK; sigue desactivado hasta configurar IDs OAuth públicos. Las exports sólo verifican que Metro empaqueta plataformas y rutas; no acreditan binarios instalables ni UX real en dispositivos. No afirmar porcentaje global cerrado hasta medir requisitos con evidencia de cada slice.
+La verificación más reciente alcanzó Vitest 46/46, ESLint, TypeScript y export Expo Android/Web. Los formularios pickup, delivery y reserva consultan el estado público de su capability: pausar/deshabilitar bloquea nuevas solicitudes, el modo manual se comunica antes del envío y los reintentos idempotentes ya guardados pueden recuperar su resultado. El formulario de reserva refresca la capability mientras está enfocado; el backend revalida todos los envíos. Se distinguen estados no publicados y errores de consulta. Los exports sólo verifican empaquetado/rutas; no acreditan binarios instalables ni UX real en dispositivos. No afirmar porcentaje global cerrado hasta medir requisitos con evidencia de cada slice.
 
 ## Arquitectura vigente
 
