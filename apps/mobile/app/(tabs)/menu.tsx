@@ -419,14 +419,10 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
         </View> : null}
         {!session ? <View style={ui.section}><Notice>Para enviar tu solicitud, primero inicia sesión.</Notice><Link href="/account" style={ui.link}>Ir a Mi cuenta</Link></View> : null}
         {session?.offline ? <Notice>Estás sin conexión. La solicitud requiere confirmación del servidor y no se enviará automáticamente.</Notice> : null}
-        {quote ? <View style={ui.section}>
-          <Notice tone="success">Cotización del servidor: {new Intl.NumberFormat("es-GT", { style: "currency", currency: quote.currency }).format(quote.subtotal)} · cola activa {Math.ceil(quote.queueDelaySeconds / 60)} min · preparación propia {Math.ceil(quote.preparationSeconds / 60)} min · ETA total estimado {Math.ceil(quote.totalEtaSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
-          <Notice>La cotización no aparta inventario ni capacidad y no acepta el pedido. El equipo revisará la solicitud.</Notice>
-        </View> : null}
         {attempt ? <Notice>Hay un envío cuyo resultado no se confirmó. Reintenta exactamente la misma solicitud; la app conserva su clave para evitar duplicados.</Notice> : null}
         {!cartSelectionsValid ? <Notice tone="error">Completa las opciones requeridas para cada platillo antes de enviar.</Notice> : null}
         {quote ? <View style={ui.section}>
-          <Notice tone="success">Cotización del servidor: {new Intl.NumberFormat("es-GT", { style: "currency", currency: quote.currency }).format(quote.subtotal)} · preparación estimada {Math.ceil(quote.preparationSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
+          <Notice tone="success">Cotización del servidor: {new Intl.NumberFormat("es-GT", { style: "currency", currency: quote.currency }).format(quote.subtotal)} · cola activa {Math.ceil(quote.queueDelaySeconds / 60)} min · preparación propia {Math.ceil(quote.preparationSeconds / 60)} min · ETA total estimado {Math.ceil(quote.totalEtaSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
           <Notice>La cotización no aparta inventario ni capacidad y no acepta el pedido. El equipo revisará la solicitud.</Notice>
           <Button title="Solicitar una nueva cotización" secondary disabled={sending} onPress={clearQuoteDraft} />
         </View> : null}

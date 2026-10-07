@@ -1,5 +1,10 @@
 # Progreso de planificación móvil
 
+## 2026-10-07 — Quote ETA panel cleanup
+
+- Pickup now renders one quote summary containing queue delay, preparation time, total ETA, expiry and the review notice. Removed the duplicate older panel so the same estimate is not shown twice before confirmation.
+- Verification after cleanup: 59 Vitest tests, ESLint, TypeScript typecheck and Android Expo bundle export pass.
+
 ## 2026-10-07 — Cotización antes de pickup y delivery
 
 - Pickup y delivery solicitan primero una cotización autenticada al backend y muestran subtotal, demora de cola, preparación, ETA total estimado y vencimiento. La persona confirma en un segundo paso para enviar la solicitud con el mismo `Idempotency-Key` y `X-Order-Quote-Id`; el resultado sigue siendo `PENDING_REVIEW`.
