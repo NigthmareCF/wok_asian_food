@@ -1,12 +1,33 @@
+import { randomUUID } from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ReservationHistoryItem, ReservationResult } from "@/lib/api";
+import { ApiError, ReservationHistoryItem, ReservationResult } from "@/lib/api";
+import { normalizeAccountOwner } from "@/lib/account-storage";
+import { createReservationState } from "@/lib/reservation-attempt";
 import { useSession } from "@/providers/session-provider";
 
+const webValues = new Map<string, string>();
+const webStorage = {
+  getItemAsync: async (key: string) => webValues.get(key) ?? null,
+  setItemAsync: async (key: string, value: string) => { webValues.set(key, value); },
+  deleteItemAsync: async (key: string) => { webValues.delete(key); },
+};
+
 export default function ReservationsScreen() {
-  const { session, request } = useSession();
+  const context = useSession();
+  const owner = normalizeAccountOwner(context.session?.email);
+  const version = context.session?.version;
+  return <ReservationRequest key={`${owner ?? "guest"}:${version ?? 0}`} {...context} />;
+}
+
+type ReservationRequestProps = Pick<ReturnType<typeof useSession>, "session" | "request" | "ready">;
+function ReservationRequest({ session, request, ready: sessionReady }: ReservationRequestProps) {
+  const mounted = useRef(true);
+  const current = useCallback(() => mounted.current, []);
+  const [attemptState] = useState(() => createReservationState(Platform.OS === "web" ? webStorage : SecureStore, session?.email));
+  const saved = useSyncExternalStore(attemptState.subscribe, attemptState.getSnapshot, attemptState.getServerSnapshot);
   const [guests, setGuests] = useState("2");
   const [requestedAt, setRequestedAt] = useState("");
   const [notes, setNotes] = useState("");
@@ -21,101 +42,99 @@ export default function ReservationsScreen() {
   const [cancellingReservationId, setCancellingReservationId] = useState<string | null>(null);
   const [cancellationError, setCancellationError] = useState("");
   const [cancellationNotice, setCancellationNotice] = useState("");
-  const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftError, setDraftError] = useState("");
-  const pendingRequest = useRef<{ body: string; key: string } | null>(null);
+  const sending = useRef(false);
+
+  const restoreSaved = useCallback(() => attemptState.restore().then(() => {
+    if (!current()) return;
+    const restored = attemptState.getSnapshot();
+    if (restored.pending) {
+      const body = JSON.parse(restored.pending.body);
+      setGuests(String(body.guests)); setRequestedAt(body.requestedAt); setNotes(body.notes ?? ""); setPreorder(body.preorder);
+    } else if (restored.draft) {
+      setGuests(restored.draft.guests); setRequestedAt(restored.draft.requestedAt);
+      setNotes(restored.draft.notes); setPreorder(restored.draft.preorder); setDraftRestored(true);
+    }
+  }), [attemptState, current]);
+
+  useLayoutEffect(() => {
+    mounted.current = true;
+    attemptState.bindLifecycle(current);
+    return () => { mounted.current = false; };
+  }, [attemptState, current]);
+
+  useEffect(() => { void restoreSaved(); }, [restoreSaved]);
 
   useEffect(() => {
-    let active = true;
-    if (!session?.email) return () => { active = false; };
-    void Promise.resolve().then(async () => {
-      if (Platform.OS !== "web") {
-        const raw = await SecureStore.getItemAsync(reservationDraftKey);
-        if (raw) {
-          const draft = parseReservationDraft(raw);
-          if (draft && draft.ownerEmail === session.email && Date.now() - draft.savedAt < reservationDraftLifetimeMs) {
-            if (active) {
-              setGuests(draft.guests);
-              setRequestedAt(draft.requestedAt);
-              setNotes(draft.notes);
-              setPreorder(draft.preorder);
-              setDraftRestored(true);
-            }
-          } else if (draft && Date.now() - draft.savedAt >= reservationDraftLifetimeMs) {
-            await SecureStore.deleteItemAsync(reservationDraftKey);
-          } else if (!draft) {
-            await SecureStore.deleteItemAsync(reservationDraftKey);
-          }
-        }
-      }
-    }).catch(() => { if (active) setDraftError("No se pudo leer el borrador guardado en este dispositivo."); })
-      .finally(() => { if (active) setDraftReady(true); });
-    return () => { active = false; };
-  }, [session?.email]);
-
-  useEffect(() => {
-    if (!session?.email || !draftReady || Platform.OS === "web" || !hasReservationDraft(guests, requestedAt, notes, preorder)) return;
-    const draft: ReservationDraft = {
-      ownerEmail: session.email, guests, requestedAt, notes, preorder, savedAt: Date.now(),
-    };
+    if (!session?.email || !saved.ready || saved.pending || busy) return;
     const timer = setTimeout(() => {
-      void SecureStore.setItemAsync(reservationDraftKey, JSON.stringify(draft))
-        .then(() => setDraftError(""))
-        .catch(() => setDraftError("No se pudo guardar el borrador en este dispositivo."));
+      void attemptState.saveDraft({ ownerEmail: session.email, guests, requestedAt, notes, preorder, savedAt: Date.now() })
+        .then(() => { if (current()) setDraftError(""); })
+        .catch(() => { if (current()) setDraftError("No se pudo guardar el borrador en este dispositivo."); });
     }, 350);
     return () => clearTimeout(timer);
-  }, [session?.email, draftReady, guests, requestedAt, notes, preorder]);
+  }, [session?.email, saved.ready, saved.pending, busy, guests, requestedAt, notes, preorder, attemptState, current]);
 
   const refreshHistory = useCallback(async () => {
+    if (!current()) return;
     if (!session) { setHistory([]); return; }
     setHistoryLoading(true); setHistoryError("");
-    try { setHistory(await request<ReservationHistoryItem[]>("/api/v1/client/reservations")); }
-    catch (e) { setHistoryError(e instanceof Error ? e.message : "No se pudo cargar tu historial."); }
-    finally { setHistoryLoading(false); }
-  }, [request, session]);
+    try { const result = await request<ReservationHistoryItem[]>("/api/v1/client/reservations"); if (current()) setHistory(result); }
+    catch (e) { if (current()) setHistoryError(e instanceof Error ? e.message : "No se pudo cargar tu historial."); }
+    finally { if (current()) setHistoryLoading(false); }
+  }, [request, session, current]);
 
   useEffect(() => { void Promise.resolve().then(refreshHistory); }, [refreshHistory]);
 
   async function submit() {
+    if (!current() || sending.current) return;
     setError(""); setMessage("");
-    if (!session) { setError("Inicia sesión desde Mi cuenta para enviar una solicitud."); return; }
-    const date = new Date(requestedAt);
-    const count = Number(guests);
-    if (!Number.isInteger(count) || count < 1 || count > 50) { setError("Indica entre 1 y 50 personas."); return; }
-    if (!requestedAt || Number.isNaN(date.getTime())) { setError("Indica una fecha y hora válidas."); return; }
-    if (date.getTime() < Date.now() + 3 * 60 * 60 * 1000) { setError("Las solicitudes requieren al menos 3 horas de anticipación."); return; }
-    const body = JSON.stringify({ guests: count, requestedAt: date.toISOString(), preorder, notes: notes.trim() || null });
-    if (!pendingRequest.current || pendingRequest.current.body !== body) pendingRequest.current = { body, key: createRequestKey() };
-    setBusy(true);
+    if (!session || !sessionReady) { setError("Inicia sesión desde Mi cuenta para enviar una solicitud."); return; }
+    const snapshot = attemptState.getSnapshot();
+    if (!snapshot.ready) { setError("Espera mientras recuperamos la solicitud guardada."); return; }
+    let body = snapshot.pending?.body;
+    if (!body) {
+      const date = new Date(requestedAt);
+      const count = Number(guests);
+      if (!Number.isInteger(count) || count < 1 || count > 50) { setError("Indica entre 1 y 50 personas."); return; }
+      if (!requestedAt || Number.isNaN(date.getTime())) { setError("Indica una fecha y hora válidas."); return; }
+      if (date.getTime() < Date.now() + 3 * 60 * 60 * 1000) { setError("Las solicitudes requieren al menos 3 horas de anticipación."); return; }
+      body = JSON.stringify({ guests: count, requestedAt: date.toISOString(), preorder, notes: notes.trim() || null });
+    }
+    sending.current = true; setBusy(true);
     try {
-      const result = await request<ReservationResult>("/api/v1/client/reservations", {
-        method: "POST", headers: { "Idempotency-Key": pendingRequest.current.key }, body,
+      const pending = await attemptState.prepare(body, snapshot.pending?.key ?? randomUUID());
+      if (!current()) return;
+      const response = await request<unknown>("/api/v1/client/reservations", {
+        method: "POST", headers: { "Idempotency-Key": pending.key }, body: pending.body,
       });
-      pendingRequest.current = null;
-      if (Platform.OS !== "web") {
-        try { await SecureStore.deleteItemAsync(reservationDraftKey); }
-        catch { setDraftError("La solicitud se envió, pero no pudimos borrar el borrador local."); }
-      }
-      setDraftRestored(false);
+      if (!current()) return;
+      const result = await attemptState.acknowledge(pending.key, response);
+      if (!current()) return;
+      setDraftRestored(false); setDraftError("");
       setGuests("2"); setRequestedAt(""); setNotes(""); setPreorder(false);
       setMessageTone(result.submitted ? "success" : "info");
       setMessage(result.message || (result.submitted
         ? "Solicitud enviada; el equipo debe revisarla y confirmarla."
         : `La solicitud no fue aceptada automáticamente (${result.decision}).`));
       void refreshHistory();
-    } catch (e) { setError(e instanceof Error ? e.message : "No se pudo enviar la solicitud."); }
-    finally { setBusy(false); }
+    } catch (e) {
+      // HTTP status alone does not prove non-execution or release a previous uncertain attempt.
+      if (current()) setError(e instanceof ApiError ? e.message : "No pudimos confirmar el resultado. Reintenta la misma solicitud.");
+    } finally { sending.current = false; if (current()) setBusy(false); }
   }
 
   async function cancelRequest(reservationId: string) {
+    if (!current()) return;
     setCancellingReservationId(reservationId); setCancellationError(""); setCancellationNotice("");
     try {
       await request<{ reservationId: string; status: string }>(`/api/v1/client/reservations/${reservationId}`, { method: "DELETE" });
+      if (!current()) return;
       setCancellationNotice("Cancelamos tu solicitud pendiente.");
       await refreshHistory();
-    } catch (cause) { setCancellationError(cause instanceof Error ? cause.message : "No pudimos cancelar la solicitud."); }
-    finally { setCancellingReservationId(null); }
+    } catch (cause) { if (current()) setCancellationError(cause instanceof Error ? cause.message : "No pudimos cancelar la solicitud."); }
+    finally { if (current()) setCancellingReservationId(null); }
   }
 
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Planifica tu visita">Solicitar reserva</Heading>
@@ -124,16 +143,18 @@ export default function ReservationsScreen() {
     {draftRestored ? <Notice tone="success">Restauramos tu borrador guardado en este dispositivo.</Notice> : null}
     {session && Platform.OS !== "web" ? <Notice>El borrador se guarda en este dispositivo. Nunca se envía automáticamente al recuperar conexión.</Notice> : null}
     {draftError ? <Notice tone="error">{draftError}</Notice> : null}
+    {saved.error ? <><Notice tone="error">{saved.error}</Notice><Button title="Reintentar recuperación" secondary onPress={() => void restoreSaved()} /></> : null}
+    {saved.pending ? <Notice>Conservamos una solicitud sin resultado confirmado. Reintenta la misma solicitud; no se enviará automáticamente.</Notice> : null}
     <Card>
-      <Field label="Personas" keyboardType="number-pad" value={guests} onChangeText={setGuests} placeholder="2" />
-      <Field label="Fecha y hora" value={requestedAt} onChangeText={setRequestedAt} placeholder="2026-10-05T18:30" autoCapitalize="none" />
+      <Field label="Personas" keyboardType="number-pad" editable={saved.ready && !saved.pending && !busy} value={guests} onChangeText={setGuests} placeholder="2" />
+      <Field label="Fecha y hora" editable={saved.ready && !saved.pending && !busy} value={requestedAt} onChangeText={setRequestedAt} placeholder="2026-10-05T18:30" autoCapitalize="none" />
       <Text style={{ color: "#746e67", fontSize: 13 }}>Formato local: AAAA-MM-DDTHH:mm. Solicita con al menos 3 horas de anticipación.</Text>
-      <Field label="Solicitudes especiales (opcional)" value={notes} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} maxLength={500} textAlignVertical="top" />
-      <Button title={preorder ? "Preorden requerida: sí (tocar para cambiar)" : "¿Requieres preorden? No"} secondary onPress={() => setPreorder(!preorder)} />
+      <Field label="Solicitudes especiales (opcional)" editable={saved.ready && !saved.pending && !busy} value={notes} onChangeText={setNotes} placeholder="Cuéntanos cómo podemos ayudarte" multiline numberOfLines={3} maxLength={500} textAlignVertical="top" />
+      <Button title={preorder ? "Preorden requerida: sí (tocar para cambiar)" : "¿Requieres preorden? No"} secondary disabled={!saved.ready || Boolean(saved.pending) || busy} onPress={() => setPreorder(!preorder)} />
       {preorder ? <Text style={{ color: "#746e67", fontSize: 13 }}>Esto avisa al equipo para evaluar la solicitud; aún no agrega productos.</Text> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {message ? <Notice tone={messageTone}>{message}</Notice> : null}
-      <Button title="Enviar solicitud" busy={busy} onPress={submit} />
+      <Button title={saved.pending ? "Reintentar la misma solicitud" : "Enviar solicitud"} busy={busy} disabled={!session || !sessionReady || !saved.ready} onPress={submit} />
     </Card>
     {session ? <Card>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -161,33 +182,6 @@ export default function ReservationsScreen() {
   </Page></ScrollView>;
 }
 
-type ReservationDraft = {
-  ownerEmail: string;
-  guests: string;
-  requestedAt: string;
-  notes: string;
-  preorder: boolean;
-  savedAt: number;
-};
-
-const reservationDraftKey = "wok.client.reservation-draft.v1";
-const reservationDraftLifetimeMs = 30 * 24 * 60 * 60 * 1000;
-
-function parseReservationDraft(raw: string): ReservationDraft | null {
-  if (raw.length > 1800) return null;
-  try {
-    const value = JSON.parse(raw) as Partial<ReservationDraft>;
-    if (typeof value.ownerEmail !== "string" || typeof value.guests !== "string" ||
-        typeof value.requestedAt !== "string" || typeof value.notes !== "string" ||
-        typeof value.preorder !== "boolean" || typeof value.savedAt !== "number") return null;
-    return value as ReservationDraft;
-  } catch { return null; }
-}
-
-function hasReservationDraft(guests: string, requestedAt: string, notes: string, preorder: boolean) {
-  return guests !== "2" || requestedAt.length > 0 || notes.length > 0 || preorder;
-}
-
 function formatDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Horario no disponible" : date.toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" });
@@ -205,11 +199,4 @@ function decisionLabel(decision: ReservationResult["decision"], status?: string 
   if (decision === "REJECT") return "No disponible";
   if (decision === "ACCEPT" || decision === "ACCEPT_WITH_CONDITIONS") return "Pendiente de confirmación";
   return "En revisión por el equipo";
-}
-
-function createRequestKey() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
-    const random = Math.floor(Math.random() * 16);
-    return (character === "x" ? random : (random & 0x3) | 0x8).toString(16);
-  });
 }

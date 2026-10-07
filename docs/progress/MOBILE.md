@@ -1,12 +1,21 @@
 # Progreso de planificación móvil
 
+## 2026-10-06 — MP-02 durable reservation replay
+
+- The production reservation screen persists a validated owner/key/exact JSON body before POST and uses `expo-crypto` UUIDs. Restart restores pending requests without submission; retries retain the original body/key even when the form or requested date has changed.
+- Owner/session-keyed screen state resets form, history, errors, notices, and locks. Layout cleanup guards stale submit/history/cancellation closures; serialized owner-scoped storage prevents late operations from reaching another account. Guest cannot submit; web uses process-local isolated memory.
+- Only a schema-valid server evaluation whose `requestId` matches the idempotency key and whose `submitted`/reservation ID agree releases pending evidence. Core explicitly returns this key in `ReservationRequestService.Result`. HTTP error status alone does not distinguish non-execution from prior uncertain execution, so timeout, 5xx, and all 4xx retain the replay. Failed cleanup remains locked.
+- Drafts use a separate reservation namespace. Matching normalized legacy-owner evidence is copied without deleting the legacy key. A cleared scoped marker prevents completed requests from resurrecting an old draft. Pending attempts never expire automatically; expired/malformed ownerless drafts stay untouched.
+- Verification: fresh baseline mobile tests 30/30, typecheck/lint passed. RED observed 8 failing new tests (three missing-helper contracts and five actual-screen behavioral failures). GREEN: focused reservation tests 12/12, full mobile tests 42/42, typecheck/lint/diff checks passed. Interim React ref-in-render lint errors were corrected with lifecycle binding in layout effects, without suppressions.
+- Deterministic production-screen harness covers persistence-before-POST, storage/clear failures, restart replay, double tap, secure UUID, stale callbacks/responses/restores, logout/relogin, history/form isolation, and native-style/web draft boundaries. Real devices, native SecureStore, bundles, backend/HTTP runtime remain unverified. MP-02 local commit, independent parent spot-check, and native assessment are pending; no remote operation or original-checkout mutation occurred.
+
 ## 2026-10-06 — MP-01 account-isolated carts
 
 - The active mobile cart now selects an owner-normalized storage namespace and store for the current session. Account changes/logout immediately isolate items and pending pickup attempts; stale restores, queued writes, and retained callbacks cannot publish into the new account.
 - Guest selections remain independent. Legacy migration copies only a validated pending attempt whose normalized owner matches the session, deriving quantities from its immutable request body. Ownerless legacy carts are not assigned to arbitrary accounts, and legacy evidence is retained without cross-owner deletion.
 - The existing pickup prepare-before-POST path, exact pending body/key replay, quantity limits, and terminal-outcome rules are preserved. No auth, backend, UI redesign, payment, or dependency-install scope was added.
 - Baseline: mobile tests 18/18, typecheck, and lint passed after exposing installed dependencies through an ignored local junction. Focused RED observed seven isolation failures plus the missing new helper; focused GREEN passed 12/12, full mobile tests 30/30, typecheck/lint/diff checks passed.
-- Tests execute the production cart hook with deterministic React/session/storage boundaries, including delayed restore/persistence, same-owner relogin, guest/logout isolation, web memory, and persistence failure preventing submission. Native SecureStore/device/backend flows remain unverified. Local commit and native assessment remain pending; the original dirty checkout was not modified.
+- Tests execute the production cart hook with deterministic React/session/storage boundaries, including delayed restore/persistence, same-owner relogin, guest/logout isolation, web memory, and persistence failure preventing submission. Native SecureStore/device/backend flows remain unverified. MP-01 is committed as `f93be79efe782ed6304a1fda307a52840ab812fa` (352 authored lines); native assessment is `medium/under_budget`, with no START or approval. The original dirty checkout was not modified.
 
 ## 2026-10-02 — Auditoria de dependencias Expo
 

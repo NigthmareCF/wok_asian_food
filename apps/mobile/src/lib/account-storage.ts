@@ -8,12 +8,13 @@ export function normalizeAccountOwner(email?: string | null) {
   return email?.trim().toLowerCase() || null;
 }
 
-export function accountStorageKey(kind: "cart" | "pending", email?: string | null) {
+export function accountStorageKey(kind: "cart" | "pending" | "reservation-draft" | "reservation-pending", email?: string | null) {
   const owner = normalizeAccountOwner(email);
   // Fixed-width UTF-16 encoding avoids punctuation collisions and SecureStore-invalid keys.
   const encoded = owner?.split("").map((part) => part.charCodeAt(0).toString(16).padStart(4, "0")).join("");
   const suffix = owner === null ? "guest" : `owner-${encoded}`;
-  return `wok.pickup.${kind}.v2.${suffix}`;
+  const namespace = kind.startsWith("reservation-") ? "client" : "pickup";
+  return `wok.${namespace}.${kind}.v2.${suffix}`;
 }
 
 const queues = new WeakMap<AccountStorage, Promise<unknown>>();
