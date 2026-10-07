@@ -1,5 +1,10 @@
 # Progreso de identidad backend
 
+## 2026-10-07 — Evidencia persistente de refresh-token reuse
+
+- Se amplió `SecurityCompositionIntegrationTest`: después de rotar un refresh token y reproducir el token padre, la API devuelve 401, la base mantiene `revocation_reason=REFRESH_REUSE`, todos los refresh tokens de la sesión están revocados y existe exactamente un evento `REFRESH_TOKEN_REUSE` de severidad `CRITICAL`.
+- Validación PostgreSQL 18/Testcontainers, Flyway V1–V48: 4/4 pruebas de composición de seguridad aprobadas. Reuse invalida sesión y credenciales derivadas, no sólo la llamada que repitió el token.
+
 ## 2026-09-29 — Pruebas de recuperación de contraseña
 
 - Se agregaron pruebas del caso exitoso: el challenge de un solo uso se consume, cambia el hash de contraseña, invalida sesiones existentes y revoca sus refresh tokens.

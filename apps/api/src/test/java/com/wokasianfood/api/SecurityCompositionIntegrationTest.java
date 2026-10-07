@@ -112,6 +112,12 @@ class SecurityCompositionIntegrationTest extends PostgresIntegrationTest {
                 {"refreshToken":"%s"}
                 """.formatted(firstRefreshToken));
         assertThat(reuse.statusCode()).isEqualTo(401);
+        assertThat(jdbc.queryForObject("SELECT revocation_reason FROM wok.auth_sessions WHERE id=?::uuid",
+                String.class, sessionId)).isEqualTo("REFRESH_REUSE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.refresh_tokens WHERE session_id=?::uuid AND revoked_at IS NULL",
+                Integer.class, sessionId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.security_events WHERE session_id=?::uuid AND event_type='REFRESH_TOKEN_REUSE' AND severity='CRITICAL'",
+                Integer.class, sessionId)).isEqualTo(1);
         assertThat(get("/api/v1/client/sessions", accessToken).statusCode()).isEqualTo(401);
     }
 }
