@@ -4,7 +4,7 @@ import { Link } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
-import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, MenuAvailabilityEstimate, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, MenuAvailabilityEstimate, OrderQuoteReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { useSession } from "@/providers/session-provider";
 import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
@@ -19,7 +19,7 @@ import { useServiceHours } from "@/lib/use-service-hours";
 import { isValidPositiveApiInteger, MAX_API_INTEGER } from "@/lib/quantity-limits";
 import { canAddDistinctMenuLine, MAX_DISTINCT_MENU_LINES } from "@/lib/request-limits";
 
-type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
+type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody; phase?: "QUOTE" | "ORDER"; quoteId?: string };
 const legacyStorageKeys = { cart: "wok.delivery.cart.v1", modifiers: "wok.delivery.modifiers.v1", pending: "wok.delivery.pending.v1" };
 
 export default function DeliveryScreen() {
@@ -54,6 +54,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [invoiceTaxId, setInvoiceTaxId] = useState("");
   const [defaultTaxProfileLabel, setDefaultTaxProfileLabel] = useState("");
   const [pending, setPending] = useState<PendingAttempt | null>(null);
+  const [quoteDraft, setQuoteDraft] = useState<PendingAttempt | null>(null);
+  const [quote, setQuote] = useState<OrderQuoteReceipt | null>(null);
   const [receipt, setReceipt] = useState<DeliveryRequestReceipt | null>(null);
   const [history, setHistory] = useState<DeliveryRequestReceipt[]>([]);
   const [historyOwner, setHistoryOwner] = useState("");
@@ -114,7 +116,17 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         if (storedAttempt) {
           try {
             const parsed = JSON.parse(storedAttempt) as PendingAttempt;
-            if (parsed.email && parsed.key && parsed.body?.items?.length) setPending(parsed);
+            if (parsed.email && parsed.key && parsed.body?.items?.length) {
+              setRequestedFor(formatRestaurantLocalInput(parsed.body.requestedFor));
+              if (parsed.phase === "QUOTE") {
+                setQuoteDraft(parsed); setAddress(parsed.body.address); setReference(parsed.body.reference ?? "");
+                setContactPhone(formatGuatemalaPhone(parsed.body.contactPhone));
+                setCustomerNote(parsed.body.customerNote ?? ""); setPaymentPreference(parsed.body.paymentPreference);
+                setInvoiceRequested(parsed.body.invoiceRequested); setInvoiceName(parsed.body.invoiceName ?? "");
+                setInvoiceTaxId(parsed.body.invoiceTaxId ?? "");
+              }
+              else setPending(parsed);
+            }
             else void SecureStore.deleteItemAsync(keys.pending);
           } catch { void SecureStore.deleteItemAsync(keys.pending); }
         }
@@ -196,6 +208,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
     if (pending) return;
+    clearQuoteDraft();
     if (delta > 0 && !canAddDistinctMenuLine(cart, item.id)) {
       setError(`Puedes agregar hasta ${MAX_DISTINCT_MENU_LINES} productos distintos por solicitud.`);
       return;
@@ -220,8 +233,14 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   function changeModifiers(item: PublicMenuItem, ids: string[]) {
     if (pending) return;
+    clearQuoteDraft();
     availabilityRevision.current += 1; setAvailability(null); setAvailabilityLoading(false); setAvailabilityError("");
     setSelectedModifiers((current) => ({ ...current, [item.id]: ids }));
+  }
+
+  function clearQuoteDraft() {
+    setQuoteDraft(null); setQuote(null);
+    if (cartStorageKeys) void SecureStore.deleteItemAsync(cartStorageKeys.pending);
   }
 
   async function checkAvailability() {
@@ -241,32 +260,35 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   }
 
   function suggestTime() {
+    clearQuoteDraft();
     const prep = selected.reduce((sum, item) => sum + item.estimatedPreparationSeconds * cart[item.id], 0);
     const apiTime = Date.parse(menu?.asOf ?? "");
     if (!Number.isNaN(apiTime)) setRequestedFor(formatRestaurantLocalInput(new Date(apiTime + Math.max(30 * 60, prep + 60) * 1000).toISOString()));
   }
 
   async function submit(attempt?: PendingAttempt) {
-    if (deliveryService === "paused" && !attempt) { setError("El servicio de delivery está pausado temporalmente."); return; }
+    const existingAttempt = attempt ?? pending;
+    const existingDraft = quoteDraft;
+    if (deliveryService === "paused" && !existingAttempt) { setError("El servicio de delivery está pausado temporalmente."); return; }
     if (!session) { setError("Inicia sesión para enviar una solicitud de delivery."); return; }
     if (!cartStorageKeys || !cartRestored) { setError("Estamos preparando el carrito seguro de esta cuenta. Inténtalo de nuevo."); return; }
-    if (!attempt && !selectionsValid) {
+    if (!existingAttempt && !existingDraft && !selectionsValid) {
       setError("Completa las opciones requeridas para cada platillo antes de enviar."); return;
     }
-    if (!attempt && !isValidGuatemalaPhone(contactPhone)) {
+    if (!existingAttempt && !existingDraft && !isValidGuatemalaPhone(contactPhone)) {
       setError("Ingresa un teléfono de Guatemala válido: 8 dígitos en formato 0000 0000."); return;
     }
-    if (!attempt && (!selected.length || !address.trim() || !contactPhone.trim() || !requestedFor)) {
+    if (!existingAttempt && !existingDraft && (!selected.length || !address.trim() || !contactPhone.trim() || !requestedFor)) {
       setError("Completa productos, dirección, teléfono y horario solicitado."); return;
     }
-    let activeAttempt: PendingAttempt;
+    let draftAttempt: PendingAttempt;
     try {
-      const deliveryInstant = parseRestaurantLocalDateTime(requestedFor);
-      if (!attempt && !deliveryInstant) throw new Error("Indica una fecha y hora válidas en la hora de Guatemala.");
+      const deliveryInstant = existingAttempt || existingDraft ? null : parseRestaurantLocalDateTime(requestedFor);
+      if (!existingAttempt && !existingDraft && !deliveryInstant) throw new Error("Indica una fecha y hora válidas en la hora de Guatemala.");
       const slotStatus = serviceSlotStatus(publishedHours.day, requestedFor);
-      if (!attempt && (slotStatus === "closed" || slotStatus === "outside-hours"))
+      if (!existingAttempt && !existingDraft && (slotStatus === "closed" || slotStatus === "outside-hours"))
         throw new Error(slotStatus === "closed" ? "El servicio de delivery no opera en esa fecha." : "La hora elegida está fuera del horario publicado de delivery.");
-      activeAttempt = attempt ?? {
+      draftAttempt = existingAttempt ?? existingDraft ?? {
         email: session.email,
         key: createIdempotencyKey(),
         body: {
@@ -282,22 +304,48 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo preparar la solicitud."); return;
     }
-    if (activeAttempt.body.invoiceRequested && (!activeAttempt.body.invoiceName?.trim() || !activeAttempt.body.invoiceTaxId?.trim())) {
+    if (draftAttempt.body.invoiceRequested && (!draftAttempt.body.invoiceName?.trim() || !draftAttempt.body.invoiceTaxId?.trim())) {
       setError("Completa el nombre o razón social y el NIT para solicitar factura."); return;
     }
-    if (activeAttempt.email !== session.email) { setError(`Inicia sesión con ${activeAttempt.email} para reintentar la solicitud protegida.`); return; }
+    if (draftAttempt.email !== session.email) { setError(`Inicia sesión con ${draftAttempt.email} para reintentar la solicitud protegida.`); return; }
     setSending(true); setError(""); setNotice("");
+    let orderAttempt: PendingAttempt | null = existingAttempt;
     try {
+      if (!existingAttempt && (!quote || !quote.usable)) {
+        const quotingAttempt = { ...draftAttempt, phase: "QUOTE" as const };
+        setQuoteDraft(quotingAttempt);
+        await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(quotingAttempt));
+        const result = await request<OrderQuoteReceipt>("/api/v1/client/order-quotes", {
+          method: "POST", headers: { "Idempotency-Key": quotingAttempt.key },
+          body: JSON.stringify({ fulfillmentType: "DELIVERY", requestedFor: quotingAttempt.body.requestedFor,
+            items: quotingAttempt.body.items }),
+        });
+        setQuote(result);
+        if (!result.usable) throw new ApiError("La cotización venció. Solicita una nueva antes de enviar.", 409);
+        setNotice("Revisa el total y confirma para enviar la solicitud a revisión.");
+        return;
+      }
+      const activeAttempt = existingAttempt ?? {
+        ...draftAttempt, phase: "ORDER" as const, quoteId: quote?.quoteId,
+        body: { ...draftAttempt.body, customerNote: customerNote.trim() || undefined,
+          address: address.trim(), reference: reference.trim() || undefined, contactPhone: contactPhone.trim(),
+          paymentPreference, invoiceRequested, invoiceName: invoiceRequested ? invoiceName.trim() : undefined,
+          invoiceTaxId: invoiceRequested ? invoiceTaxId.trim() : undefined },
+      };
+      orderAttempt = activeAttempt;
       await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(activeAttempt));
       const result = await request<DeliveryRequestReceipt>("/api/v1/client/delivery-requests", {
-        method: "POST", headers: { "Idempotency-Key": activeAttempt.key }, body: JSON.stringify(activeAttempt.body),
+        method: "POST", headers: { "Idempotency-Key": activeAttempt.key,
+          ...(activeAttempt.quoteId ? { "X-Order-Quote-Id": activeAttempt.quoteId } : {}) }, body: JSON.stringify(activeAttempt.body),
       });
       await SecureStore.deleteItemAsync(cartStorageKeys.pending);
-      setPending(null); setReceipt(result); setCart({}); setSelectedModifiers({});
+      setPending(null); setQuoteDraft(null); setQuote(null); setReceipt(result); setCart({}); setSelectedModifiers({});
       await Promise.all([SecureStore.deleteItemAsync(cartStorageKeys.cart), SecureStore.deleteItemAsync(cartStorageKeys.modifiers)]);
       setHistory((current) => [result, ...current.filter((item) => item.requestId !== result.requestId)]); setHistoryOwner(session.email); setHistoryLoaded(true); setNotice("El restaurante recibió tu solicitud y debe revisar cobertura y disponibilidad.");
     } catch (cause) {
-      setPending(activeAttempt);
+      if (orderAttempt && cause instanceof ApiError && ((cause.status != null && cause.status >= 400 && cause.status < 500) || cause.status === 503)) {
+        setPending(null); setQuoteDraft(null); setQuote(null); void SecureStore.deleteItemAsync(cartStorageKeys.pending);
+      } else if (orderAttempt) setPending(orderAttempt);
       setError(cause instanceof ApiError ? cause.message : "No se confirmó el resultado. Reintenta la misma solicitud.");
     } finally { setSending(false); }
   }
@@ -446,14 +494,20 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         {defaultTaxProfileLabel ? <Text style={ui.body}>Datos precargados desde tu perfil «{defaultTaxProfileLabel}». Puedes editarlos para esta solicitud.</Text> : <Link href="/tax-profiles" style={ui.link}>Administrar perfiles fiscales</Link>}
         <Notice>Guardaremos estos datos como solicitud. La factura FEL requiere revisión y emisión posterior.</Notice>
       </View> : null}
-      <Field label="Horario que prefieres (hora de Guatemala)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" />
+      <Field label="Horario que prefieres (hora de Guatemala)" value={requestedFor} onChangeText={(value) => { clearQuoteDraft(); setRequestedFor(value); }} placeholder="AAAA-MM-DDTHH:mm" />
       <ServiceHoursNotice serviceName="delivery" localDateTime={requestedFor} day={publishedHours.day}
         loading={publishedHours.loading} error={publishedHours.error} />
       <Text style={ui.body}>Zona horaria del restaurante: {restaurantTimeZone}.</Text>
-      <Button title="Sugerir horario inicial" secondary onPress={suggestTime} disabled={!selected.length} />
+      <Button title="Sugerir horario inicial" secondary onPress={suggestTime} disabled={!selected.length || Boolean(pending)} />
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />
       {selected.length === 0 ? <Notice>Agrega al menos un producto.</Notice> : null}
-      <Button title="Enviar solicitud de delivery" busy={sending} disabled={(deliveryService === "paused" && !pending) || !session || !cartRestored || !selected.length || !selectionsValid} onPress={() => void submit()} />
+      {quote ? <View style={ui.section}>
+        <Notice tone="success">Cotización del servidor: {formatMoney(quote.subtotal, quote.currency)} · preparación estimada {Math.ceil(quote.preparationSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
+        <Notice>La cotización no aparta inventario ni capacidad y no acepta el pedido. El equipo revisará cobertura y disponibilidad.</Notice>
+        <Button title="Solicitar una nueva cotización" secondary disabled={sending} onPress={clearQuoteDraft} />
+      </View> : null}
+      <Button title={pending ? "Reintentar solicitud pendiente" : quote?.usable ? "Confirmar y enviar solicitud" : "Cotizar con el servidor"}
+        busy={sending} disabled={(deliveryService === "paused" && !pending && !quoteDraft) || !session || !cartRestored || !selected.length || !selectionsValid || !address.trim() || !isValidGuatemalaPhone(contactPhone)} onPress={() => void submit()} />
     </Card> : null}
   </Page></ScrollView>;
 }

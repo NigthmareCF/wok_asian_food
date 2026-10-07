@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
-import { ApiError, apiRequest, CustomerTaxProfile, MenuAvailabilityEstimate, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
+import { ApiError, apiRequest, CustomerTaxProfile, MenuAvailabilityEstimate, OrderQuoteReceipt, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { MenuItemOptions } from "@/components/menu-item-options";
 import { ServiceHoursNotice } from "@/components/service-hours-notice";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
@@ -18,7 +18,7 @@ import { useServiceHours } from "@/lib/use-service-hours";
 import { isValidPositiveApiInteger } from "@/lib/quantity-limits";
 import { canAddDistinctMenuLine, MAX_DISTINCT_MENU_LINES } from "@/lib/request-limits";
 
-type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
+type PickupAttempt = { email: string; key: string; body: PickupRequestBody; phase?: "QUOTE" | "ORDER"; quoteId?: string };
 const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
 
 function formatPrice(item: PublicMenuItem) {
@@ -57,6 +57,8 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   const [invoiceTaxId, setInvoiceTaxId] = useState("");
   const [defaultTaxProfileLabel, setDefaultTaxProfileLabel] = useState("");
   const [attempt, setAttempt] = useState<PickupAttempt | null>(null);
+  const [quoteDraft, setQuoteDraft] = useState<PickupAttempt | null>(null);
+  const [quote, setQuote] = useState<OrderQuoteReceipt | null>(null);
   const [sending, setSending] = useState(false);
   const [receipt, setReceipt] = useState<PickupRequestReceipt | null>(null);
   const [availability, setAvailability] = useState<MenuAvailabilityEstimate | null>(null);
@@ -158,7 +160,15 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
         if (storedAttempt) {
           try {
             const value = JSON.parse(storedAttempt) as PickupAttempt;
-            if (value.email && value.key && value.body?.items?.length) setAttempt(value);
+            if (value.email && value.key && value.body?.items?.length) {
+              setRequestedFor(formatRestaurantLocalInput(value.body.requestedFor));
+              if (value.phase === "QUOTE") {
+                setQuoteDraft(value); setCustomerNote(value.body.customerNote ?? "");
+                setPaymentPreference(value.body.paymentPreference); setInvoiceRequested(value.body.invoiceRequested);
+                setInvoiceName(value.body.invoiceName ?? ""); setInvoiceTaxId(value.body.invoiceTaxId ?? "");
+              }
+              else setAttempt(value);
+            }
             else void SecureStore.deleteItemAsync(keys.pending);
           } catch { void SecureStore.deleteItemAsync(keys.pending); }
         }
@@ -189,7 +199,15 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   const activePaymentPreference = attempt?.body.paymentPreference ?? paymentPreference;
   const activeInvoiceRequest = attempt?.body.invoiceRequested ?? invoiceRequested;
 
+  function clearQuoteDraft() {
+    setQuoteDraft(null);
+    setQuote(null);
+    if (Platform.OS !== "web" && cartStorageKeys) void SecureStore.deleteItemAsync(cartStorageKeys.pending);
+  }
+
   function changeQuantity(item: PublicMenuItem, delta: number) {
+    if (attempt) return;
+    clearQuoteDraft();
     if (delta > 0 && !canAddDistinctMenuLine(cart, item.id)) {
       setError(`Puedes agregar hasta ${MAX_DISTINCT_MENU_LINES} productos distintos por solicitud.`);
       return;
@@ -205,6 +223,8 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   }
 
   function changeModifiers(item: PublicMenuItem, ids: string[]) {
+    if (attempt) return;
+    clearQuoteDraft();
     availabilityRevision.current += 1; setAvailability(null); setAvailabilityLoading(false); setAvailabilityError("");
     setReceipt(null);
     setSelectedModifiers((current) => ({ ...current, [item.id]: ids }));
@@ -227,6 +247,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   }
 
   function suggestPickupTime() {
+    clearQuoteDraft();
     const preparationSeconds = cartItems.reduce((total, item) => total + item.estimatedPreparationSeconds * cart[item.id], 0);
     const leadSeconds = Math.max(15 * 60, preparationSeconds + 60);
     const serverTime = Date.parse(menu?.asOf ?? "");
@@ -241,14 +262,14 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
       setError(`Hay una solicitud anterior sin confirmar para ${attempt.email}. Inicia esa cuenta para reintentarla antes de enviar otra.`);
       return;
     }
-    const requestedPickupInstant = attempt ? null : parseRestaurantLocalDateTime(requestedFor);
+    const requestedPickupInstant = attempt || quoteDraft ? null : parseRestaurantLocalDateTime(requestedFor);
     if (!attempt && !requestedPickupInstant) { setError("Ingresa una fecha y hora válidas, usando la hora de Guatemala."); return; }
     const slotStatus = serviceSlotStatus(publishedHours.day, requestedFor);
-    if (!attempt && (slotStatus === "closed" || slotStatus === "outside-hours")) {
+    if (!attempt && !quoteDraft && (slotStatus === "closed" || slotStatus === "outside-hours")) {
       setError(slotStatus === "closed" ? "El servicio de pickup no opera en esa fecha." : "La hora elegida está fuera del horario publicado de pickup.");
       return;
     }
-    const activeAttempt = attempt ?? {
+    const draftAttempt = attempt ?? quoteDraft ?? {
       email: session.email,
       key: createIdempotencyKey(),
       body: {
@@ -262,18 +283,43 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
           modifierIds: [...(selectedModifiers[item.id] ?? [])].sort() })),
       },
     };
-    if (!activeAttempt.body.items.length) { setError("Agrega al menos un producto."); return; }
-    if (activeAttempt.body.invoiceRequested && (!activeAttempt.body.invoiceName?.trim() || !activeAttempt.body.invoiceTaxId?.trim())) {
+    if (!draftAttempt.body.items.length) { setError("Agrega al menos un producto."); return; }
+    if (draftAttempt.body.invoiceRequested && (!draftAttempt.body.invoiceName?.trim() || !draftAttempt.body.invoiceTaxId?.trim())) {
       setError("Completa el nombre o razón social y el NIT para solicitar factura."); return;
     }
-    if (Number.isNaN(Date.parse(activeAttempt.body.requestedFor))) { setError("Revisa la fecha y hora solicitadas."); return; }
+    if (Number.isNaN(Date.parse(draftAttempt.body.requestedFor))) { setError("Revisa la fecha y hora solicitadas."); return; }
     setError(null);
     setSending(true);
+    let orderAttempt: PickupAttempt | null = attempt;
     try {
+      if (!attempt && (!quote || !quote.usable)) {
+        const quotingAttempt = { ...draftAttempt, phase: "QUOTE" as const };
+        setQuoteDraft(quotingAttempt);
+        if (Platform.OS !== "web" && cartStorageKeys) await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(quotingAttempt));
+        const result = await request<OrderQuoteReceipt>("/api/v1/client/order-quotes", {
+          method: "POST",
+          headers: { "Idempotency-Key": quotingAttempt.key },
+          body: JSON.stringify({ fulfillmentType: "PICKUP", requestedFor: quotingAttempt.body.requestedFor,
+            items: quotingAttempt.body.items }),
+        });
+        setQuote(result);
+        if (!result.usable) throw new ApiError("La cotización venció. Revísala nuevamente antes de enviar.", 409);
+        return;
+      }
+      const activeAttempt = attempt ?? {
+        ...draftAttempt,
+        phase: "ORDER" as const,
+        quoteId: quote?.quoteId,
+        body: { ...draftAttempt.body, customerNote: customerNote.trim() || undefined,
+          paymentPreference, invoiceRequested, invoiceName: invoiceRequested ? invoiceName.trim() : undefined,
+          invoiceTaxId: invoiceRequested ? invoiceTaxId.trim() : undefined },
+      };
+      orderAttempt = activeAttempt;
       if (Platform.OS !== "web" && cartStorageKeys) await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(activeAttempt));
       const result = await request<PickupRequestReceipt>("/api/v1/client/order-requests", {
         method: "POST",
-        headers: { "Idempotency-Key": activeAttempt.key },
+        headers: { "Idempotency-Key": activeAttempt.key,
+          ...(activeAttempt.quoteId ? { "X-Order-Quote-Id": activeAttempt.quoteId } : {}) },
         body: JSON.stringify(activeAttempt.body),
       });
       if (Platform.OS !== "web") {
@@ -281,12 +327,19 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
           SecureStore.deleteItemAsync(cartStorageKeys.cart), SecureStore.deleteItemAsync(cartStorageKeys.modifiers)]);
       }
       setAttempt(null);
+      setQuoteDraft(null);
+      setQuote(null);
       setReceipt(result);
       setCart({});
       setSelectedModifiers({});
       setCustomerNote("");
     } catch (cause) {
-      setAttempt(activeAttempt);
+      if (orderAttempt && (cause instanceof ApiError) && ((cause.status != null && cause.status >= 400 && cause.status < 500) || cause.status === 503)) {
+        setAttempt(null);
+        setQuoteDraft(null);
+        setQuote(null);
+        if (Platform.OS !== "web" && cartStorageKeys) void SecureStore.deleteItemAsync(cartStorageKeys.pending);
+      } else if (orderAttempt) setAttempt(orderAttempt);
       setError(cause instanceof ApiError ? cause.message : "No pudimos confirmar el resultado. Reintenta la misma solicitud.");
     } finally { setSending(false); }
   }
@@ -346,7 +399,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
         {availabilityError ? <Notice tone="error">{availabilityError}</Notice> : null}
         {availability ? <AvailabilityNotice estimate={availability} products={cartItems} /> : null}
         <Button title="Sugerir primera hora" secondary onPress={suggestPickupTime} disabled={Boolean(attempt)} />
-        <Field label={`Fecha y hora solicitadas (hora de ${restaurantTimeZone})`} value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" editable={!attempt} />
+        <Field label={`Fecha y hora solicitadas (hora de ${restaurantTimeZone})`} value={requestedFor} onChangeText={(value) => { clearQuoteDraft(); setRequestedFor(value); }} placeholder="AAAA-MM-DDTHH:mm" editable={!attempt} />
         <ServiceHoursNotice serviceName="pickup" localDateTime={requestedFor} day={publishedHours.day}
           loading={publishedHours.loading} error={publishedHours.error} />
         <Field label="Comentarios (opcional)" value={attempt?.body.customerNote ?? customerNote} onChangeText={setCustomerNote} placeholder="Indicaciones para el equipo" editable={!attempt} maxLength={500} />
@@ -366,9 +419,18 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
         </View> : null}
         {!session ? <View style={ui.section}><Notice>Para enviar tu solicitud, primero inicia sesión.</Notice><Link href="/account" style={ui.link}>Ir a Mi cuenta</Link></View> : null}
         {session?.offline ? <Notice>Estás sin conexión. La solicitud requiere confirmación del servidor y no se enviará automáticamente.</Notice> : null}
+        {quote ? <View style={ui.section}>
+          <Notice tone="success">Cotización del servidor: {new Intl.NumberFormat("es-GT", { style: "currency", currency: quote.currency }).format(quote.subtotal)} · preparación estimada {Math.ceil(quote.preparationSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
+          <Notice>La cotización no aparta inventario ni capacidad y no acepta el pedido. El equipo revisará la solicitud.</Notice>
+        </View> : null}
         {attempt ? <Notice>Hay un envío cuyo resultado no se confirmó. Reintenta exactamente la misma solicitud; la app conserva su clave para evitar duplicados.</Notice> : null}
         {!cartSelectionsValid ? <Notice tone="error">Completa las opciones requeridas para cada platillo antes de enviar.</Notice> : null}
-        <Button title={attempt ? "Reintentar solicitud pendiente" : "Enviar solicitud de pickup"}
+        {quote ? <View style={ui.section}>
+          <Notice tone="success">Cotización del servidor: {new Intl.NumberFormat("es-GT", { style: "currency", currency: quote.currency }).format(quote.subtotal)} · preparación estimada {Math.ceil(quote.preparationSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
+          <Notice>La cotización no aparta inventario ni capacidad y no acepta el pedido. El equipo revisará la solicitud.</Notice>
+          <Button title="Solicitar una nueva cotización" secondary disabled={sending} onPress={clearQuoteDraft} />
+        </View> : null}
+        <Button title={attempt ? "Reintentar solicitud pendiente" : quote?.usable ? "Confirmar y enviar solicitud" : "Cotizar con el servidor"}
           onPress={() => void submitPickup()} busy={sending} disabled={(pickupService === "paused" && !attempt) || !session || !cartRestored || !cartSelectionsValid || (session.offline && !process.env.EXPO_PUBLIC_API_BASE_URL)} />
       </Card>
     </View> : null}

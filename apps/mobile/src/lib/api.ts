@@ -126,6 +126,25 @@ export type MenuAvailabilityEstimate = {
   asOf: string;
   items: { menuItemId: string; status: "AVAILABLE_ESTIMATE" | "UNAVAILABLE_ESTIMATE" | "NOT_TRACKED"; reasonCode: string | null }[];
 };
+export type OrderQuoteRequest = {
+  fulfillmentType: "PICKUP" | "DELIVERY";
+  requestedFor: string;
+  items: { menuItemId: string; quantity: number; modifierIds: string[] }[];
+};
+export type OrderQuoteReceipt = {
+  quoteId: string;
+  fulfillmentType: OrderQuoteRequest["fulfillmentType"];
+  requestedFor: string;
+  subtotal: number;
+  currency: string;
+  preparationSeconds: number;
+  status: "ACTIVE" | "CONSUMED" | "EXPIRED";
+  expiresAt: string;
+  usable: boolean;
+  message: string;
+  items: { menuItemId: string; name: string; quantity: number; unitPrice: number; lineTotal: number;
+    modifiers: { group: string; name: string; priceDelta: number }[] }[];
+};
 export type PublicServiceDay = {
   serviceType: "PICKUP" | "DELIVERY" | "DINE_IN" | "RESTAURANT" | "ONLINE";
   serviceDate: string;
