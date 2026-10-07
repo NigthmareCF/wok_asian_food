@@ -218,7 +218,7 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         Instant requestedAt = LocalDateTime.of(targetDate, LocalTime.of(18, 0)).atZone(ZONE).toInstant();
         String body = """
             {"guests":2,"requestedAt":"%s","preorder":true,"notes":"Sin picante",
-             "items":[{"menuItemId":"%s","quantity":2,"modifierIds":["%s"]}]}
+             "items":[{"menuItemId":"%s","quantity":51,"modifierIds":["%s"]}]}
             """.formatted(requestedAt, menuItemId, modifierId);
         String path = "/api/v1/client/reservations";
         String token = tokenFor(userId);
@@ -232,7 +232,7 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.reservation_request_items WHERE request_id = ?", java.math.BigDecimal.class, requestId))
                 .isEqualByComparingTo("23.00");
         assertThat(jdbc.queryForObject("SELECT line_total FROM wok.reservation_request_items WHERE request_id = ?", java.math.BigDecimal.class, requestId))
-                .isEqualByComparingTo("46.00");
+                .isEqualByComparingTo("1173.00");
         assertThat(jdbc.queryForObject("""
             SELECT count(*) FROM wok.reservation_request_item_modifiers m
             JOIN wok.reservation_request_items i ON i.id = m.reservation_request_item_id WHERE i.request_id = ?
@@ -274,7 +274,7 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         assertThat(replay.statusCode()).isEqualTo(first.statusCode());
         assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.reservation_request_items WHERE request_id = ?", java.math.BigDecimal.class, requestId))
                 .isEqualByComparingTo("23.00");
-        String changedBody = body.replace("\"quantity\":2", "\"quantity\":3");
+        String changedBody = body.replace("\"quantity\":51", "\"quantity\":52");
         var conflict = post(path, token, changedBody, Map.of("Idempotency-Key", requestId.toString()));
         assertThat(conflict.statusCode()).isEqualTo(409);
     }

@@ -47,7 +47,7 @@ public class ReservationRequestService {
         lockRequest(requestId);
         List<RequestedItem> requestedItems = request.items() == null ? List.of() : request.items();
         if (requestedItems.size() > 20 || requestedItems.stream().anyMatch(item -> item == null || item.menuItemId() == null
-                || item.quantity() < 1 || item.quantity() > 50 || (item.modifierIds() != null &&
+                || item.quantity() < 1 || (item.modifierIds() != null &&
                 (item.modifierIds().size() > 30 || item.modifierIds().stream().anyMatch(java.util.Objects::isNull))))
                 || requestedItems.stream().map(RequestedItem::menuItemId).distinct().count() != requestedItems.size())
             throw new AuthException(422, "Revisa los productos de la preorden.");

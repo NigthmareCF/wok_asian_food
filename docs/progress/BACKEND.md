@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Cantidades bulk sujetas a capacidad, no a un tope fijo
+
+- La disponibilidad pública ya no limita cada SKU a 50 unidades. `V43__allow_bulk_order_line_quantities.sql` sustituye los checks `1..50` de solicitudes pickup/delivery y snapshots de preorden por `quantity > 0`; la capa HTTP de preorden también admite cantidades mayores. El snapshot de reserva sigue siendo intención: no reserva inventario.
+- Pruebas PostgreSQL aceptan un pedido de 51 unidades cuando hay 60 en stock y la ETA cabe; además, el caso anterior confirma que 2 SKU de seis unidades que comparten un insumo de stock 10 quedan no disponibles y no se aceptan. La prueba de reserva conserva 51 unidades en snapshot sin consumir ni reservar inventario. Suite completa: 248/248, sin fallos/errores/omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V43.
+
+
 ## 2026-10-07 — Prueba adversarial de inventario compartido entre SKU
 
 - Se agregó una prueba de integración que prepara dos productos, cada uno con un modificador que consume el mismo recurso. Cada SKU pasa por separado con cantidad 6 y stock 10; el carrito combinado requiere 12 y el endpoint de disponibilidad lo marca no disponible.

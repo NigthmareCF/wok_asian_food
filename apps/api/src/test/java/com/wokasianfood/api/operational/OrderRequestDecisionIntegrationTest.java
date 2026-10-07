@@ -427,6 +427,46 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void acceptsBulkSkuQuantityAboveTheFormerAvailabilityLimitWhenStockAndTimeAllowIt() {
+        UUID menuItemId = seedMenuItem("Wok Pedido Mayorista", "20.00", "WOK_BULK_ORDER", 60);
+        UUID groupId = jdbc.queryForObject("""
+                INSERT INTO wok.modifier_groups (name, min_selection, max_selection, required)
+                VALUES ('Proteína mayorista', 1, 1, true) RETURNING id
+                """, UUID.class);
+        UUID modifierId = jdbc.queryForObject("""
+                INSERT INTO wok.modifiers (group_id, name, price_delta) VALUES (?, 'Proteína', 0) RETURNING id
+                """, UUID.class, groupId);
+        jdbc.update("INSERT INTO wok.menu_item_modifier_groups (menu_item_id, group_id) VALUES (?, ?)",
+                menuItemId, groupId);
+        UUID ingredientId = seedInventoryItem(menuItemId);
+        jdbc.update("INSERT INTO wok.inventory_balances (item_id, quantity_on_hand) VALUES (?, 60)", ingredientId);
+        jdbc.update("""
+                INSERT INTO wok.modifier_item_impacts (modifier_id, item_id, quantity_delta, affects_availability)
+                VALUES (?, ?, 1, true)
+                """, modifierId, ingredientId);
+
+        assertThat(body(post("/api/v1/public/menu/availability", null, """
+                {"items":[{"menuItemId":"%s","quantity":51,"modifierIds":["%s"]}]}
+                """.formatted(menuItemId, modifierId))).path("availableEstimate").asBoolean()).isTrue();
+
+        String requestedFor = Instant.now().plusSeconds(7_200).toString();
+        JsonNode submitted = body(post("/api/v1/client/order-requests", tokenForRole("CLIENT"), """
+                {"requestedFor":"%s","items":[{"menuItemId":"%s","quantity":51,"modifierIds":["%s"]}]}
+                """.formatted(requestedFor, menuItemId, modifierId),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID requestId = UUID.fromString(submitted.path("requestId").asText());
+        JsonNode accepted = body(post("/api/v1/operational/order-requests/" + requestId + "/decision",
+                tokenForRole("OPERATIONAL"), "{\"action\":\"ACCEPT\"}"));
+        UUID orderId = UUID.fromString(accepted.path("orderId").asText());
+
+        assertThat(accepted.path("status").asText()).isEqualTo("ACCEPTED");
+        assertThat(jdbc.queryForObject("""
+                SELECT quantity FROM wok.inventory_reservations
+                WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE'
+                """, BigDecimal.class, orderId, ingredientId)).isEqualByComparingTo("51.000000");
+    }
+
+    @Test
     void acceptsDeliveryRequestAsDeliveryOrderAndReplaysDecision() {
         UUID menuItemId = seedMenuItem("Wok Delivery", "18.00", "WOK_DELIVERY_DECISION", 60);
         String client = tokenForRole("CLIENT");

@@ -4,7 +4,6 @@ import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -137,7 +136,7 @@ public class PublicMenuAvailabilityController {
     }
 
     public record AvailabilityRequest(@NotEmpty @Size(max = 100) List<@Valid AvailabilityLine> items) {}
-    public record AvailabilityLine(@NotNull UUID menuItemId, @Positive @Max(50) int quantity,
+    public record AvailabilityLine(@NotNull UUID menuItemId, @Positive int quantity,
                                    @Size(max = 30) List<@NotNull UUID> modifierIds) {
         public AvailabilityLine {
             modifierIds = modifierIds == null ? List.of()
