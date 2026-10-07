@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Aceptación de solicitudes contra cola activa de cocina
+
+- `KitchenQueueEstimator` estima el tiempo por estación como la cola activa (máxima hora estimada de los tickets `QUEUED`/`PREPARING`) más el trabajo nuevo agregado y ponderado por cantidad. Al asignar trabajo bloquea las áreas de preparación en orden estable para serializar aceptaciones concurrentes y evitar que ambas reserven el mismo intervalo de capacidad.
+- La aceptación Operativa de pickup/delivery vuelve a validar el ETA contra el horario pedido en el punto común de encolado, después de reservar inventario y bajo el mismo lock de estación. Esto conserva el orden de locks de todos los flujos; si la hora ya no cabe, devuelve 422 y la transacción revierte también pedido y reservas. La creación de tickets usa la misma estimación para fijar `estimated_ready_at`.
+- `OrderServiceTest` verifica el ETA nuevo; `OrderRequestDecisionIntegrationTest` comprueba el rechazo PostgreSQL real cuando un pedido previo en la misma estación desplaza la cola más allá de la hora solicitada. Pruebas focales: 25 ejecutadas, 0 fallos/errores/omitidas con PostgreSQL 18/Testcontainers y Flyway V1–V39.
+- `bash ./mvnw -q test`: 235/235 pruebas, 0 fallos, 0 errores y 0 omitidas con Testcontainers activo, PostgreSQL 18 y Flyway V1–V39 desde esquema vacío.
+
 ## 2026-10-06 — Áreas de preparación canónicas del menú
 
 - El seed real del menú ahora usa `COCINA_FRIA` para Sushi, `COCINA_CALIENTE` para Especialidades y `BARRA` para Bebidas y Bebidas +18, conforme al cierre de alcance vigente.

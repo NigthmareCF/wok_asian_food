@@ -8,7 +8,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -188,8 +187,10 @@ class OrderRequestDecisionService {
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines(orderRequestId);
         boolean delivery = "DELIVERY".equals(current.fulfillmentType());
         UUID orderId = delivery
-                ? orders.createDeliveryOrder(actor, correlationId, "Delivery " + orderRequestId, lines)
-                : orders.createPickupOrder(actor, correlationId, "Pickup " + orderRequestId, lines);
+                ? orders.createDeliveryOrder(actor, correlationId, "Delivery " + orderRequestId, lines,
+                        current.requestedFor())
+                : orders.createPickupOrder(actor, correlationId, "Pickup " + orderRequestId, lines,
+                        current.requestedFor());
         applyAcceptedModifiers(actor, correlationId, orderRequestId, orderId);
         jdbc.update("""
             UPDATE wok.order_requests
@@ -207,18 +208,17 @@ class OrderRequestDecisionService {
 
     private void revalidate(Locked request) {
         List<Revalidated> items = jdbc.query("""
-            SELECT ri.menu_item_id, ri.quantity, ri.unit_price, mi.price AS current_price,
-                   mi.estimated_preparation_seconds, mi.currency_id
+            SELECT ri.menu_item_id, ri.quantity, ri.unit_price, mi.price AS current_price, mi.currency_id
             FROM wok.order_request_items ri
             JOIN wok.menu_items mi ON mi.id = ri.menu_item_id AND mi.status = 'ACTIVE'
             JOIN wok.items i ON i.id = mi.item_id AND i.active = true
             JOIN wok.menu_categories category ON category.id = mi.category_id AND category.active = true
             JOIN wok.preparation_areas area ON area.id = mi.preparation_area_id AND area.active = true
             WHERE ri.order_request_id = ?
-            FOR SHARE OF mi, i, category, area
+            FOR SHARE OF mi, i, category
             """, (rs, row) -> new Revalidated(rs.getObject("menu_item_id", UUID.class), rs.getInt("quantity"),
                 rs.getBigDecimal("unit_price"), rs.getBigDecimal("current_price"),
-                rs.getInt("estimated_preparation_seconds"), rs.getObject("currency_id", UUID.class)), request.id());
+                rs.getObject("currency_id", UUID.class)), request.id());
         Integer expected = jdbc.queryForObject("""
             SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?
             """, Integer.class, request.id());
@@ -247,11 +247,6 @@ class OrderRequestDecisionService {
         }
         if (currentSubtotal.compareTo(request.subtotal()) != 0)
             throw new AuthException(409, "El precio cambió desde que se envió la solicitud. Contacta al cliente antes de aceptarla.");
-        long prepSeconds = items.stream()
-                .mapToLong(item -> (long) item.preparationSeconds() * item.quantity())
-                .sum();
-        if (prepSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(prepSeconds)))
-            throw new AuthException(422, "El horario solicitado ya no alcanza para preparar la solicitud.");
     }
 
     private void applyAcceptedModifiers(UUID actor, UUID requestId, UUID orderRequestId, UUID orderId) {
@@ -323,7 +318,7 @@ class OrderRequestDecisionService {
                           UUID currencyId, UUID orderId, BigDecimal subtotal) {}
     private record AcceptedLine(UUID requestItemId, UUID orderItemId, BigDecimal unitPrice, int quantity) {}
     private record Revalidated(UUID menuItemId, int quantity, BigDecimal requestedPrice, BigDecimal currentPrice,
-                               int preparationSeconds, UUID currencyId) {}
+                               UUID currencyId) {}
 
     public record DecisionResult(UUID requestId, String status, UUID orderId, boolean idempotentReplay) {}
     public record OrderRequestSummary(UUID requestId, String fulfillmentType, String status, String customerName,

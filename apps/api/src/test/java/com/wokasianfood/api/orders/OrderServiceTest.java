@@ -65,7 +65,7 @@ class OrderServiceTest {
         verify(jdbc).update(contains("INSERT INTO wok.kitchen_tickets"), any(UUID.class), eq(insertedOrderId), eq(1),
                 eq(stationId));
         verify(jdbc).update(contains("INSERT INTO wok.kitchen_ticket_items"), any(UUID.class), any(UUID.class), eq(2));
-        verify(jdbc).update(contains("estimated_ready_at = now() + make_interval"), eq(300), any(UUID.class));
+        verify(jdbc).update(contains("estimated_ready_at = now() + make_interval"), eq(600), any(UUID.class));
         verify(jdbc).update(contains("INSERT INTO wok.order_status_history"), eq(insertedOrderId), eq(actor),
                 eq(requestId));
     }
@@ -351,8 +351,10 @@ class OrderServiceTest {
         when(jdbc.update(contains("kitchen_ticket_status_history"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("INSERT INTO wok.order_status_history"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("audit_logs"), any(Object[].class))).thenReturn(1);
-        when(jdbc.queryForObject(contains("status IN ('QUEUED', 'PREPARING')"), eq(Integer.class), eq(stationId)))
-                .thenReturn(1);
+        when(jdbc.query(contains("SELECT id FROM wok.preparation_areas WHERE id = ? AND active = true FOR UPDATE"),
+                any(RowMapper.class), eq(stationId))).thenReturn(List.of(stationId));
+        when(jdbc.queryForObject(contains("status IN ('QUEUED', 'PREPARING')"), eq(Long.class), eq(stationId)))
+                .thenReturn(0L);
     }
 
     private void stubDetails(UUID orderId, UUID menuItemId, UUID tableId) {

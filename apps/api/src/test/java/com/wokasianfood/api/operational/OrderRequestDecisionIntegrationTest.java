@@ -92,6 +92,40 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void rejectsPickupRequestWhenActiveKitchenQueuePushesItPastRequestedTime() {
+        UUID menuItemId = seedMenuItem("Wok Cola de Cocina", "25.00", "WOK_QUEUE_GATE", 1_200);
+        String client = tokenForRole("CLIENT");
+        String operator = tokenForRole("OPERATIONAL");
+
+        UUID firstRequestId = UUID.fromString(submit(client, menuItemId, 1,
+                Instant.now().plusSeconds(7_200).toString()).path("requestId").asText());
+        JsonNode firstDecision = body(post("/api/v1/operational/order-requests/" + firstRequestId + "/decision",
+                operator, """
+                {"action":"ACCEPT"}
+                """));
+        assertThat(firstDecision.path("status").asText()).isEqualTo("ACCEPTED");
+        UUID firstOrderId = UUID.fromString(firstDecision.path("orderId").asText());
+
+        UUID secondRequestId = UUID.fromString(submit(client, menuItemId, 1,
+                Instant.now().plusSeconds(1_800).toString()).path("requestId").asText());
+        int ordersBeforeSecondDecision = count("SELECT count(*) FROM wok.orders");
+
+        var response = post("/api/v1/operational/order-requests/" + secondRequestId + "/decision", operator,
+                """
+                {"action":"ACCEPT"}
+                """ );
+
+        assertThat(response.statusCode()).isEqualTo(422);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class,
+                secondRequestId)).isEqualTo("PENDING_REVIEW");
+        assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class,
+                secondRequestId)).isNull();
+        assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(ordersBeforeSecondDecision);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, firstOrderId))
+                .isEqualTo("SENT");
+    }
+
+    @Test
     void rejectsPickupRequestRequiringReason() {
         UUID menuItemId = seedMenuItem("Wok Reject", "30.00", "WOK_REJECT", 60);
         String client = tokenForRole("CLIENT");

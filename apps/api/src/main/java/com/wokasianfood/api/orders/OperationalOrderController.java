@@ -131,11 +131,13 @@ class OrderService {
     private final JdbcTemplate jdbc;
     private final IdempotencyStore idempotency;
     private final InventoryReservationService reservations;
+    private final KitchenQueueEstimator kitchenQueue;
 
     OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency, InventoryReservationService reservations) {
         this.jdbc = jdbc;
         this.idempotency = idempotency;
         this.reservations = reservations;
+        this.kitchenQueue = new KitchenQueueEstimator(jdbc);
     }
 
     public enum OrderStatus { SENT, PREPARING, READY, SERVED, CLOSED, CANCELLED }
@@ -255,7 +257,7 @@ class OrderService {
 
         reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
-        enqueueTickets(actor, requestId, orderId, newLines);
+        enqueueTickets(actor, requestId, orderId, newLines, null);
         jdbc.update("""
             INSERT INTO wok.order_status_history (order_id, from_status, to_status, actor_user_id, request_id)
             VALUES (?, NULL, 'SENT', ?, ?)
@@ -298,7 +300,7 @@ class OrderService {
         }
         reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
-        enqueueTickets(actor, requestId, orderId, newLines);
+        enqueueTickets(actor, requestId, orderId, newLines, null);
         jdbc.update("""
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
@@ -312,18 +314,21 @@ class OrderService {
 
     @Transactional
     public UUID createPickupOrder(UUID actor, UUID requestId, String accountName,
-                                  List<OperationalOrderController.OrderLineRequest> requestedLines) {
-        return createOffPremiseOrder(actor, requestId, accountName, Channel.PICKUP, requestedLines);
+                                  List<OperationalOrderController.OrderLineRequest> requestedLines,
+                                  Instant requestedFor) {
+        return createOffPremiseOrder(actor, requestId, accountName, Channel.PICKUP, requestedLines, requestedFor);
     }
 
     @Transactional
     public UUID createDeliveryOrder(UUID actor, UUID requestId, String accountName,
-                                    List<OperationalOrderController.OrderLineRequest> requestedLines) {
-        return createOffPremiseOrder(actor, requestId, accountName, Channel.DELIVERY, requestedLines);
+                                    List<OperationalOrderController.OrderLineRequest> requestedLines,
+                                    Instant requestedFor) {
+        return createOffPremiseOrder(actor, requestId, accountName, Channel.DELIVERY, requestedLines, requestedFor);
     }
 
     private UUID createOffPremiseOrder(UUID actor, UUID requestId, String accountName, Channel channel,
-                                       List<OperationalOrderController.OrderLineRequest> requestedLines) {
+                                       List<OperationalOrderController.OrderLineRequest> requestedLines,
+                                       Instant requestedFor) {
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines.stream()
                 .map(line -> new OperationalOrderController.OrderLineRequest(
                         line.menuItemId(), line.quantity(), "TAKEAWAY", line.notes()))
@@ -354,7 +359,7 @@ class OrderService {
         }
         reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
-        enqueueTickets(actor, requestId, orderId, newLines);
+        enqueueTickets(actor, requestId, orderId, newLines, requestedFor);
         jdbc.update("""
             INSERT INTO wok.order_status_history (order_id, from_status, to_status, actor_user_id, request_id)
             VALUES (?, NULL, 'SENT', ?, ?)
@@ -512,27 +517,48 @@ class OrderService {
         return rows.getFirst();
     }
 
-    private void enqueueTickets(UUID actor, UUID requestId, UUID orderId, List<NewLine> newLines) {
+    private void enqueueTickets(UUID actor, UUID requestId, UUID orderId, List<NewLine> newLines,
+                                Instant requestedFor) {
         Map<UUID, List<NewLine>> byStation = new LinkedHashMap<>();
         for (NewLine line : newLines) {
             byStation.computeIfAbsent(line.product().preparationAreaId(), key -> new ArrayList<>()).add(line);
         }
+        Map<UUID, Long> preparationByStation = new LinkedHashMap<>();
+        for (Map.Entry<UUID, List<NewLine>> entry : byStation.entrySet()) {
+            long preparationSeconds = entry.getValue().stream()
+                    .mapToLong(line -> Math.multiplyExact((long) line.product().preparationSeconds(), line.quantity()))
+                    .reduce(0L, Math::addExact);
+            preparationByStation.put(entry.getKey(), preparationSeconds);
+        }
+        KitchenQueueEstimator.Estimate queueEstimate = kitchenQueue.estimate(preparationByStation, true);
+        long totalReadyInSeconds = queueEstimate.overallReadySeconds();
+        if (totalReadyInSeconds > 86_400 || (requestedFor != null
+                && !requestedFor.isAfter(Instant.now().plusSeconds(totalReadyInSeconds))))
+            throw new AuthException(422, "La cola y preparación estimadas ya no caben en el horario solicitado.");
+        Map<UUID, Long> readyInSecondsByStation = queueEstimate.stations().stream()
+                .collect(java.util.stream.Collectors.toMap(KitchenQueueEstimator.StationEstimate::stationId,
+                        KitchenQueueEstimator.StationEstimate::readyInSeconds));
         int sequence = nextTicketSequence(orderId);
         for (Map.Entry<UUID, List<NewLine>> entry : byStation.entrySet()) {
-            int preparationSeconds = 0;
             UUID ticketId = UUID.randomUUID();
             jdbc.update("""
                 INSERT INTO wok.kitchen_tickets (id, order_id, sequence_no, station_id, status)
                 VALUES (?, ?, ?, ?, 'QUEUED')
                 """, ticketId, orderId, sequence, entry.getKey());
             for (NewLine line : entry.getValue()) {
-                preparationSeconds = Math.max(preparationSeconds, line.product().preparationSeconds());
                 jdbc.update("""
                     INSERT INTO wok.kitchen_ticket_items (ticket_id, order_item_id, quantity, action)
                     VALUES (?, ?, ?, 'NEW')
                     """, ticketId, line.orderItemId(), line.quantity());
             }
-            scheduleEta(ticketId, entry.getKey(), preparationSeconds);
+            long readyInSeconds = readyInSecondsByStation.get(entry.getKey());
+            if (readyInSeconds > 86_400)
+                throw new AuthException(422, "La carga de cocina excede el tiempo máximo operativo.");
+            jdbc.update("""
+                UPDATE wok.kitchen_tickets
+                SET estimated_ready_at = now() + make_interval(secs => ?), updated_at = now()
+                WHERE id = ?
+                """, Math.toIntExact(readyInSeconds), ticketId);
             jdbc.update("""
                 INSERT INTO wok.kitchen_ticket_status_history (ticket_id, from_status, to_status, actor_user_id, request_id)
                 VALUES (?, NULL, 'QUEUED', ?, ?)
@@ -546,23 +572,6 @@ class OrderService {
             SELECT COALESCE(max(sequence_no), 0) FROM wok.kitchen_tickets WHERE order_id = ?
             """, Integer.class, orderId);
         return (max == null ? 0 : max) + 1;
-    }
-
-    /**
-     * ETA por carga: el tiempo base del ticket se ajusta segun cuantos tickets activos comparte estacion.
-     */
-    private void scheduleEta(UUID ticketId, UUID stationId, int preparationSeconds) {
-        Integer queued = jdbc.queryForObject("""
-            SELECT count(*) FROM wok.kitchen_tickets
-            WHERE station_id = ? AND status IN ('QUEUED', 'PREPARING')
-            """, Integer.class, stationId);
-        int load = queued == null ? 1 : Math.max(1, queued);
-        int adjusted = Math.min(7200, preparationSeconds + (preparationSeconds * (load - 1)) / 4);
-        jdbc.update("""
-            UPDATE wok.kitchen_tickets
-            SET estimated_ready_at = now() + make_interval(secs => ?), updated_at = now()
-            WHERE id = ?
-            """, adjusted, ticketId);
     }
 
     private void cancelTickets(UUID actor, UUID requestId, UUID orderId) {
