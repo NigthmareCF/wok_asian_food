@@ -4,6 +4,7 @@
 
 - Pickup now renders one quote summary containing queue delay, preparation time, total ETA, expiry and the review notice. Removed the duplicate older panel so the same estimate is not shown twice before confirmation.
 - Verification after cleanup: 59 Vitest tests, ESLint, TypeScript typecheck and Android Expo bundle export pass.
+- Expo Web export also passes and emits 17 static routes, including menu, orders, delivery, invoices, messages, addresses, tax profiles and reservations. This confirms packaging/routes only, not installed-device or backend E2E behavior.
 
 ## 2026-10-07 — Cotización antes de pickup y delivery
 
