@@ -544,3 +544,8 @@
 
 - `PUT /api/v1/admin/users/{userId}/roles/{roleCode}` ahora conserva el `X-Request-Id` opcional en el evento de auditoría `USER_ROLE_GRANT/REVOKE`; cuando el cliente no envía ID, el backend genera uno y lo persiste. Se mantienen `expectedVersion`, motivo y autorización ADMIN.
 - `RoleAuthorizationIntegrationTest`: comprueba grant con ID del cliente y revoke sin header; ambos dejan actor/solicitud auditados. Focal: 8/8 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V48.
+
+## 2026-10-07 — Ownership del tracking de pedidos Cliente
+
+- Se agregó prueba de integración PostgreSQL que crea dos clientes con pedidos pickup aceptados y comprueba que `/api/v1/client/orders/tracking` devuelve únicamente el pedido del usuario autenticado, aunque exista un segundo pedido válido en la base.
+- Prueba focal: `ClientOrderTrackingOwnershipIntegrationTest`, PostgreSQL 18/Testcontainers y Flyway V1–V48. La consulta ya restringía por `customer_user_id`; esta prueba verifica el comportamiento completo mediante HTTP y la base real.
