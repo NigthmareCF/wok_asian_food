@@ -95,6 +95,61 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void courierCashIsReceivableUntilIdempotentlySettledIntoRegister() {
+        UUID actor = createUserWithRole("cajero-delivery-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        UUID courier = createUserWithRole("repartidor-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        String code = openRegister("DELIVERY");
+        UUID sessionId = openCash(token, code, "80.00");
+        UUID accountId = createAccount(actor, null, "Cobro delivery contra entrega");
+        UUID orderId = closedDeliveryOrder(accountId, actor, "50.00");
+        jdbc.update("""
+            INSERT INTO wok.delivery_dispatches (order_id, status, assigned_to_user_id, assigned_at, dispatched_at)
+            VALUES (?, 'OUT_FOR_DELIVERY', ?, now(), now())
+            """, orderId, courier);
+
+        UUID otherCourier = createUserWithRole("repartidor-otro-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        var unassignedCourier = post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CASH","collectionSource":"COURIER","courierUserId":"%s"}
+                """.formatted(otherCourier), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(unassignedCourier.statusCode()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = ?", accountId)).isZero();
+
+        JsonNode payment = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CASH","collectionSource":"COURIER","courierUserId":"%s","tipAmount":5.00}
+                """.formatted(courier), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID paymentId = UUID.fromString(payment.path("paymentId").asText());
+        assertThat(payment.path("accountStatus").asText()).isEqualTo("PAID");
+        assertThat(payment.path("cashSessionId").isMissingNode()).isTrue();
+        assertThat(payment.path("cashMovementId").isMissingNode()).isTrue();
+        assertThat(count("SELECT count(*) FROM wok.courier_cash_collections WHERE payment_id = ? AND status = 'PENDING_SETTLEMENT'", paymentId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT SUM(amount_delta) FROM wok.cash_movements WHERE cash_session_id = ?", BigDecimal.class, sessionId))
+                .isEqualByComparingTo("80.00");
+
+        JsonNode pending = body(get("/api/v1/operational/courier-cash/pending", token));
+        UUID collectionId = UUID.fromString(pending.get(0).path("collectionId").asText());
+        assertThat(pending.get(0).path("amount").decimalValue()).isEqualByComparingTo("50.00");
+        assertThat(pending.get(0).path("tip").decimalValue()).isEqualByComparingTo("5.00");
+
+        String settleKey = UUID.randomUUID().toString();
+        String settlePath = "/api/v1/operational/courier-cash/" + collectionId + "/settle";
+        JsonNode settled = body(post(settlePath, token,
+                "{\"cashSessionId\":\"" + sessionId + "\"}", Map.of("Idempotency-Key", settleKey)));
+        assertThat(settled.path("amount").decimalValue()).isEqualByComparingTo("50.00");
+        assertThat(settled.path("tip").decimalValue()).isEqualByComparingTo("5.00");
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE payment_id = ? AND movement_type = 'SALE'", paymentId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT SUM(amount_delta) FROM wok.cash_movements WHERE cash_session_id = ?", BigDecimal.class, sessionId))
+                .isEqualByComparingTo("135.00");
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id = ? AND reason = 'Propina entregada por repartidor'", sessionId)).isEqualTo(1);
+
+        JsonNode replay = body(post(settlePath, token,
+                "{\"cashSessionId\":\"" + sessionId + "\"}", Map.of("Idempotency-Key", settleKey)));
+        assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE payment_id = ?", paymentId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.courier_cash_collections WHERE id = ? AND status = 'SETTLED'", collectionId)).isEqualTo(1);
+    }
+
+    @Test
     void rejectsAccountsWithOpenOrdersAndWithoutConsumption() {
         UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
@@ -389,6 +444,18 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                        CASE WHEN ? IN ('CLOSED', 'CANCELLED') THEN now() ELSE NULL END
                 FROM wok.currencies WHERE code = 'GTQ'
                 """, id, uniqueCode("ORD-PAY"), accountId, status, total, total, actor, status);
+        return id;
+    }
+
+    private UUID closedDeliveryOrder(UUID accountId, UUID actor, String total) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wok.orders
+                    (id, code, account_id, dining_table_id, channel, status, subtotal, discount, total,
+                     currency_id, guest_count, opened_by, closed_at)
+                SELECT ?, ?, ?, NULL, 'DELIVERY', 'CLOSED', ?::numeric, 0, ?::numeric, id, 1, ?, now()
+                FROM wok.currencies WHERE code = 'GTQ'
+                """, id, uniqueCode("ORD-DELIVERY-PAY"), accountId, total, total, actor);
         return id;
     }
 

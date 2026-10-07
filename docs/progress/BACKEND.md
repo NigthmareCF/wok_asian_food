@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Efectivo de delivery en custodia del repartidor
+
+- Los pagos en efectivo contra entrega pueden registrar el cobro contra el repartidor asignado al despacho activo. La cuenta del cliente queda pagada, pero no se crea movimiento de caja hasta que el efectivo llegue físicamente al restaurante.
+- `GET /api/v1/operational/courier-cash/pending` lista la cartera pendiente para `cash:manage`; `POST /api/v1/operational/courier-cash/{collectionId}/settle` la deposita en una sesión abierta con idempotencia y auditoría. Venta y propina se registran en movimientos separados.
+- `V42__courier_cash_collections.sql` agrega la custodia y el permiso. La prueba de integración verifica rechazo de un courier no asignado, saldo de caja sin variación antes de liquidar, depósito exacto de venta/propina e idempotencia. Suite completa: 246/246, sin fallos/errores/omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V42.
+
+
 ## 2026-10-07 — Excepciones del calendario aplicadas a reservas
 
 - `JdbcOperatingHoursProvider` prioriza el override activo de `DINE_IN`, luego el de `RESTAURANT`, y sólo si no hay ninguno consulta el calendario semanal. Una excepción cerrada gana sobre el horario semanal, tanto en evaluación pública como en la revisión operativa.

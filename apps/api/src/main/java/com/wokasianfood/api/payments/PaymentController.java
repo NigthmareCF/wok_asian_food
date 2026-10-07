@@ -65,7 +65,9 @@ public class PaymentController {
                                  @DecimalMin(value = "0.01") BigDecimal amount,
                                  @DecimalMin(value = "0.00") BigDecimal tipAmount,
                                  @Size(max = 120) String reference,
-                                 @Size(max = 32) String registerCode) {}
+                                 @Size(max = 32) String registerCode,
+                                 CollectionSource collectionSource,
+                                 UUID courierUserId) {}
 
     public record RefundRequest(@DecimalMin(value = "0.00") BigDecimal amount,
                                 @DecimalMin(value = "0.00") BigDecimal tipAmount,
@@ -75,6 +77,7 @@ public class PaymentController {
                                 @NotBlank @Size(min = 3, max = 500) String reason) {}
 
     public enum PaymentMethod { CASH, CARD_EXTERNAL, TRANSFER }
+    public enum CollectionSource { REGISTER, COURIER }
     public enum RefundMethod { CASH, CARD_EXTERNAL, TRANSFER }
 }
 
@@ -95,16 +98,28 @@ class PaymentService {
                 ? null : request.reference().trim();
         String registerCode = request.registerCode() == null || request.registerCode().isBlank()
                 ? "MAIN" : request.registerCode().trim().toUpperCase(Locale.ROOT);
+        PaymentController.CollectionSource collectionSource = request.collectionSource() == null
+                ? PaymentController.CollectionSource.REGISTER : request.collectionSource();
+        UUID courierUserId = request.courierUserId();
+        if ((collectionSource == PaymentController.CollectionSource.COURIER)
+                != (request.method() == PaymentController.PaymentMethod.CASH && courierUserId != null))
+            throw new AuthException(422, "El cobro por repartidor requiere efectivo y una persona responsable; otros cobros van a caja.");
         String requestedAmount = request.amount() == null
                 ? "FULL" : request.amount().stripTrailingZeros().toPlainString();
         BigDecimal tip = request.tipAmount() == null ? BigDecimal.ZERO : request.tipAmount();
-        String hash = fingerprint(accountId.toString(), request.method().name(), requestedAmount,
-                tip.stripTrailingZeros().toPlainString(), reference, registerCode);
+        String hash = collectionSource == PaymentController.CollectionSource.COURIER
+                ? fingerprint(accountId.toString(), request.method().name(), requestedAmount,
+                    tip.stripTrailingZeros().toPlainString(), reference, registerCode, collectionSource.name(),
+                    courierUserId.toString())
+                : fingerprint(accountId.toString(), request.method().name(), requestedAmount,
+                    tip.stripTrailingZeros().toPlainString(), reference, registerCode);
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "ACCOUNT_PAYMENT_CAPTURED",
                 idempotencyKey, hash);
         if (claim.replay()) return receipt(claim.resourceId(), true);
 
         Account account = lockAccount(accountId);
+        if (collectionSource == PaymentController.CollectionSource.COURIER)
+            requireAssignedDeliveryCourier(accountId, courierUserId);
         if (!"OPEN".equals(account.status()) && !"IN_COBRO".equals(account.status()))
             throw new AuthException(409, "La cuenta ya fue cobrada o no admite cobros.");
         Billing billing = billing(accountId);
@@ -125,7 +140,8 @@ class PaymentService {
         BigDecimal remaining = outstanding.subtract(amount);
 
         UUID cashSessionId = null;
-        if (request.method() == PaymentController.PaymentMethod.CASH) {
+        if (request.method() == PaymentController.PaymentMethod.CASH
+                && collectionSource == PaymentController.CollectionSource.REGISTER) {
             cashSessionId = currentCashSession(registerCode);
             if (cashSessionId == null)
                 throw new AuthException(409, "No hay una caja abierta para registrar el cobro en efectivo.");
@@ -139,6 +155,13 @@ class PaymentService {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, paymentId, accountId, cashSessionId, amount, tip, billing.currencyId(),
                 request.method().name(), reference, actor, requestId);
+
+        if (collectionSource == PaymentController.CollectionSource.COURIER) {
+            jdbc.update("""
+                INSERT INTO wok.courier_cash_collections (payment_id, courier_user_id, recorded_by)
+                VALUES (?, ?, ?)
+                """, paymentId, courierUserId, actor);
+        }
 
         UUID cashMovementId = null;
         if (cashSessionId != null) {
@@ -172,6 +195,22 @@ class PaymentService {
             """, actor, paymentId, accountId, amount, tip, request.method().name(), remaining, requestId);
         idempotency.complete(actor.toString(), "ACCOUNT_PAYMENT_CAPTURED", idempotencyKey, paymentId);
         return receipt(paymentId, false);
+    }
+
+    private void requireAssignedDeliveryCourier(UUID accountId, UUID courierUserId) {
+        List<UUID> deliveries = jdbc.query("""
+            SELECT d.id FROM wok.orders o
+            JOIN wok.delivery_dispatches d ON d.order_id = o.id
+            JOIN wok.users u ON u.id = d.assigned_to_user_id
+            JOIN wok.user_roles ur ON ur.user_id = u.id
+            JOIN wok.roles r ON r.id = ur.role_id
+            WHERE o.account_id = ? AND o.channel = 'DELIVERY'
+              AND d.assigned_to_user_id = ? AND d.status IN ('OUT_FOR_DELIVERY', 'DELIVERED')
+              AND u.status = 'ACTIVE' AND r.code IN ('OPERATIONAL', 'ADMIN')
+            ORDER BY o.id, d.id FOR SHARE OF o, d
+            """, (rs, row) -> rs.getObject(1, UUID.class), accountId, courierUserId);
+        if (deliveries.isEmpty())
+            throw new AuthException(409, "El efectivo sólo puede asignarse al repartidor activo del pedido en curso.");
     }
 
     @Transactional
