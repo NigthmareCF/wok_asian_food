@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Prueba adversarial de inventario compartido entre SKU
+
+- Se agregó una prueba de integración que prepara dos productos, cada uno con un modificador que consume el mismo recurso. Cada SKU pasa por separado con cantidad 6 y stock 10; el carrito combinado requiere 12 y el endpoint de disponibilidad lo marca no disponible.
+- Aunque la solicitud quede pendiente para revisión humana, la aceptación vuelve a aplicar la reserva agregada; el caso devuelve 409 y verifica rollback de pedido, estado y reservas. Validación focal con PostgreSQL 18/Testcontainers y Flyway V1–V42: 1/1. Suite completa: 247/247, sin fallos/errores/omitidas.
+
+
 ## 2026-10-07 — Efectivo de delivery en custodia del repartidor
 
 - Los pagos en efectivo contra entrega pueden registrar el cobro contra el repartidor asignado al despacho activo. La cuenta del cliente queda pagada, pero no se crea movimiento de caja hasta que el efectivo llegue físicamente al restaurante.

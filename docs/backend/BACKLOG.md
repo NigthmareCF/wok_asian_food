@@ -20,7 +20,7 @@
 | AI-01   | NEXT   | Gateway/tool broker, mock, scope guard inicial, fallback y aislamiento sin DB verificados; falta runtime real, defensa adversarial, cola/handoff persistido y benchmark | CORE-01; GPU/modelo real `BLOCKED` |
 | MOB-01  | NEXT   | App Cliente completa por slices, misma API y sesión WOK                                         | IAM-01, contratos; ver plan móvil         |
 | ADM-01  | LATER  | El reporte diario ADMIN se verificó con guardas de rango/fecha futura y PostgreSQL; revisar integración con reportes frontend después de la integración por canal | Sin dependencia externa; API de solo lectura ya probada |
-| QA-01   | NOW    | auth, ownership, concurrencia, voucher, prompt injection, LAN/WAN y recuperación sin duplicados | Ejecutar junto a cada slice               |
+| QA-01   | NOW    | auth, ownership, concurrencia, capacidad compartida cross-SKU, voucher, prompt injection, LAN/WAN y recuperación sin duplicados | Ejecutar junto a cada slice |
 
 `BLOCKED` se usa sólo para el adapter productivo o seed que realmente requiere insumo externo; el resto continúa. Cada issue registra decisión → RN/HU → entidad/migración → caso de uso → endpoint → UI → test → diagrama.
 
