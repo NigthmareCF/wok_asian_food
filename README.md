@@ -9,7 +9,7 @@ con React Native y Expo.
 - `apps/web`: aplicacion Next.js para los contextos Cliente, Operativo y Administrativo.
 - `apps/api`: API Spring Boot compartida por web y movil.
 - `apps/mobile`: aplicacion Cliente con React Native y Expo.
-- `database/migrations`: migraciones Flyway V1-V12.
+- `database/migrations`: migraciones Flyway V1-V48, aplicadas por la API al arrancar.
 - `infra`: configuracion local de Docker, Nginx y correo de desarrollo.
 
 La ubicacion de Web permite trabajar como workspace y extraer `apps/web` si posteriormente se aprueban repositorios separados.
@@ -38,8 +38,16 @@ docker compose --profile dev up --build -d
 - OpenAPI: `http://localhost/api/v1/openapi`
 - Mailpit: `http://localhost:8025`
 
-La API aplica las migraciones V1-V12 al iniciar. Los valores de `.env` son
-locales y no deben agregarse a Git.
+La API aplica Flyway V1–V48 al iniciar. `db` sólo está en la red Docker privada; la entrada de clientes es Nginx. La integración de cobros, FEL, email productivo y Meta usa adapters/mocks hasta configurar proveedores reales. Los valores de `.env` son locales y no deben agregarse a Git.
+
+## Aplicación móvil Cliente
+
+```bash
+npm ci
+npm run start --workspace mobile
+```
+
+Configurar `EXPO_PUBLIC_API_BASE_URL` según `apps/mobile/.env.example`. Expo Go sirve para desarrollo; el export de bundle no es un APK instalable.
 
 ## Verificacion
 
@@ -50,12 +58,13 @@ npm run test
 npm run build:web
 npm run lint --workspace mobile
 npm run typecheck --workspace mobile
-cd apps/api && mvn verify
+cd apps/api && ./mvnw test
+npm run test --workspace mobile
+cd apps/mobile && npx expo export --platform android
+npx expo export --platform web
 ```
 
-GitHub Actions ejecuta estas comprobaciones en cada pull request dirigido a
-`development` o `production`. La verificacion integrada de Docker levanta una
-base vacia, aplica Flyway V1-V12 y consulta la salud de la API.
+Las pruebas de integración del backend usan PostgreSQL/Testcontainers y aplican las 48 migraciones desde una base vacía; Docker debe estar disponible. Los nombres de ramas y el historial remoto indican trabajo por validar mediante PR, no que esos cambios ya se hayan integrado a `development`.
 
 - [Arquitectura frontend](docs/frontend/ARCHITECTURE.md)
 - [Arquitectura backend](docs/backend/ARCHITECTURE.md)
