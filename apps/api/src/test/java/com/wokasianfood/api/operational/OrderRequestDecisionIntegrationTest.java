@@ -171,6 +171,39 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void pausedCapabilityKeepsExistingRemoteRequestPendingUntilServiceResumes() {
+        UUID menuItemId = seedMenuItem("Wok Pickup Pendiente", "25.00", "WOK_PENDING_PAUSE", 60);
+        String client = tokenForRole("CLIENT");
+        String operator = tokenForRole("OPERATIONAL");
+        UUID requestId = UUID.fromString(submit(client, menuItemId, 1,
+                Instant.now().plusSeconds(7_200).toString()).path("requestId").asText());
+        int ordersBefore = count("SELECT count(*) FROM wok.orders");
+
+        jdbc.update("UPDATE wok.service_capabilities SET status = 'PAUSED' WHERE code = 'PICKUP'");
+        try {
+            var pausedDecision = post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
+                    """
+                    {"action":"ACCEPT"}
+                    """);
+            assertThat(pausedDecision.statusCode()).isEqualTo(503);
+            assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, requestId))
+                    .isEqualTo("PENDING_REVIEW");
+            assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class, requestId))
+                    .isNull();
+            assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(ordersBefore);
+        } finally {
+            jdbc.update("UPDATE wok.service_capabilities SET status = 'MANUAL_APPROVAL' WHERE code = 'PICKUP'");
+        }
+
+        JsonNode resumed = body(post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
+                """
+                {"action":"ACCEPT"}
+                """));
+        assertThat(resumed.path("status").asText()).isEqualTo("ACCEPTED");
+        assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(ordersBefore + 1);
+    }
+
+    @Test
     void rejectsPickupRequestRequiringReason() {
         UUID menuItemId = seedMenuItem("Wok Reject", "30.00", "WOK_REJECT", 60);
         String client = tokenForRole("CLIENT");

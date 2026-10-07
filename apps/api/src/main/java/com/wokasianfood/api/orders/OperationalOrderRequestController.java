@@ -183,6 +183,7 @@ class OrderRequestDecisionService {
         if (!"PICKUP".equals(current.fulfillmentType()) && !"DELIVERY".equals(current.fulfillmentType()))
             throw new AuthException(422, "La modalidad de esta solicitud todavía no admite aceptación operativa.");
 
+        requireServiceEnabled(current.fulfillmentType());
         revalidate(current);
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines(orderRequestId);
         boolean delivery = "DELIVERY".equals(current.fulfillmentType());
@@ -204,6 +205,17 @@ class OrderRequestDecisionService {
             """, orderRequestId, actor);
         audit(actor, correlationId, orderRequestId, "ORDER_REQUEST_ACCEPTED", "ACCEPTED", null);
         return new DecisionResult(orderRequestId, "ACCEPTED", orderId, false);
+    }
+
+    private void requireServiceEnabled(String fulfillmentType) {
+        List<String> statuses = jdbc.query("""
+            SELECT status FROM wok.service_capabilities
+            WHERE code = ? AND effective_from <= now() AND (effective_until IS NULL OR effective_until > now())
+            ORDER BY effective_from DESC, id DESC LIMIT 1
+            FOR SHARE
+            """, (rs, row) -> rs.getString("status"), fulfillmentType);
+        if (statuses.isEmpty() || "PAUSED".equals(statuses.getFirst()) || "DISABLED".equals(statuses.getFirst()))
+            throw new AuthException(503, "El servicio está temporalmente indisponible; la solicitud sigue pendiente.");
     }
 
     private void revalidate(Locked request) {

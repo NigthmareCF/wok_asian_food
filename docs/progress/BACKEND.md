@@ -450,3 +450,9 @@
 - Los DTE siguen procesándose individualmente por el worker existente. Facturas `QUEUED`, `ISSUED` o `FAILED` no se vuelven a encolar por la operación masiva; repetir la clave devuelve el estado actual sin producir eventos duplicados. La operación serializa por atención.
 - El endpoint individual usa el mismo orden de bloqueo (cuenta y luego factura) para evitar inversión de locks al competir con la emisión masiva.
 - `InvoiceIntegrationTest`: 8/8 pasó con PostgreSQL 18/Testcontainers y Flyway V1–V41. Incluye permisos, varios borradores, una factura previamente encolada, conteo de outbox y replay idempotente sin eventos duplicados. La vista Operativa que consume este flujo aún debe integrarse desde frontend.
+
+## 2026-10-07 — Pausa de servicio respetada al aceptar solicitudes pendientes
+
+- La aceptación Operativa de pickup/delivery ahora vuelve a leer y bloquear en modo compartido la capability efectiva. Si fue pausada/deshabilitada después de que el Cliente envió la solicitud, responde 503 y mantiene la solicitud en `PENDING_REVIEW`, sin crear pedido ni comanda; `MANUAL_APPROVAL` permite continuar cuando se atienda manualmente.
+- Esto alinea la decisión final con los gates existentes al enviar. El bloqueo compartido serializa la aceptación con una actualización administrativa concurrente del estado del servicio.
+- `OrderRequestDecisionIntegrationTest` verifica pausa, ausencia de side effects y aceptación posterior al reanudar. Suite focal y suite backend completa pasan con PostgreSQL 18/Testcontainers y Flyway V1–V41: 245 pruebas, 0 fallos, 0 errores y 0 omitidas.
