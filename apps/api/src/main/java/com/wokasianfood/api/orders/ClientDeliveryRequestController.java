@@ -52,19 +52,28 @@ public class ClientDeliveryRequestController {
     private final JdbcTemplate jdbc;
     private final ModifierSelectionService modifiers;
     private final ServiceHoursPolicy serviceHours;
+    private final OrderQuoteService quotes;
 
     @Autowired
-    public ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
-        this.jdbc = jdbc; this.modifiers = modifiers; this.serviceHours = new ServiceHoursPolicy(jdbc);
+    public ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers, OrderQuoteService quotes) {
+        this.jdbc = jdbc; this.modifiers = modifiers; this.serviceHours = new ServiceHoursPolicy(jdbc); this.quotes = quotes;
     }
 
-    ClientDeliveryRequestController(JdbcTemplate jdbc) { this(jdbc, new ModifierSelectionService(jdbc)); }
+    ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
+        this(jdbc, modifiers, new OrderQuoteService(jdbc));
+    }
+
+    ClientDeliveryRequestController(JdbcTemplate jdbc) {
+        this(jdbc, new ModifierSelectionService(jdbc), new OrderQuoteService(jdbc));
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
     @Transactional
     public DeliveryRequestReceipt submit(@AuthenticationPrincipal Jwt jwt,
-            @RequestHeader("Idempotency-Key") UUID idempotencyKey, @Valid @RequestBody DeliveryRequest request) {
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "X-Order-Quote-Id", required = false) UUID quoteId,
+            @Valid @RequestBody DeliveryRequest request) {
         UUID userId = UUID.fromString(jwt.getSubject());
         String address = request.address().trim();
         String phone = request.contactPhone().trim();
@@ -123,6 +132,9 @@ public class ClientDeliveryRequestController {
             throw new AuthException(409, "No se pudo recuperar la solicitud idempotente.");
         }
         UUID requestId = created.getFirst();
+        if (quoteId != null) quotes.consume(userId, quoteId, ClientOrderQuoteController.FulfillmentType.DELIVERY,
+                request.requestedFor(), lines.stream().map(line -> new ClientOrderQuoteController.QuoteLineRequest(
+                        line.menuItemId(), line.quantity(), line.modifierIds())).toList(), subtotal, currencyId, requestId);
         for (int index = 0; index < products.size(); index++) {
             Product product = products.get(index);
             UUID requestItemId = jdbc.query("""
@@ -142,6 +154,10 @@ public class ClientDeliveryRequestController {
                 null,
                 "Recibimos la solicitud delivery. El equipo debe confirmar cobertura, disponibilidad y horario; todavía no es un pedido ni un pago.",
                 null, null, null, null, null, null, null);
+    }
+
+    DeliveryRequestReceipt submit(Jwt jwt, UUID idempotencyKey, DeliveryRequest request) {
+        return submit(jwt, idempotencyKey, null, request);
     }
 
     @GetMapping

@@ -49,19 +49,27 @@ public class ClientPickupRequestController {
     private final JdbcTemplate jdbc;
     private final ModifierSelectionService modifiers;
     private final ServiceHoursPolicy serviceHours;
+    private final OrderQuoteService quotes;
 
     @Autowired
-    public ClientPickupRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
-        this.jdbc = jdbc; this.modifiers = modifiers; this.serviceHours = new ServiceHoursPolicy(jdbc);
+    public ClientPickupRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers, OrderQuoteService quotes) {
+        this.jdbc = jdbc; this.modifiers = modifiers; this.serviceHours = new ServiceHoursPolicy(jdbc); this.quotes = quotes;
     }
 
-    ClientPickupRequestController(JdbcTemplate jdbc) { this(jdbc, new ModifierSelectionService(jdbc)); }
+    ClientPickupRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
+        this(jdbc, modifiers, new OrderQuoteService(jdbc));
+    }
+
+    ClientPickupRequestController(JdbcTemplate jdbc) {
+        this(jdbc, new ModifierSelectionService(jdbc), new OrderQuoteService(jdbc));
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
     @Transactional
     public PickupRequestReceipt submit(@AuthenticationPrincipal Jwt jwt,
             @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "X-Order-Quote-Id", required = false) UUID quoteId,
             @Valid @RequestBody PickupRequest request) {
         UUID customerId = UUID.fromString(jwt.getSubject());
         String note = request.customerNote() == null || request.customerNote().isBlank()
@@ -120,6 +128,9 @@ public class ClientPickupRequestController {
             throw new AuthException(409, "No se pudo recuperar la solicitud idempotente.");
         }
         UUID requestId = inserted.getFirst();
+        if (quoteId != null) quotes.consume(customerId, quoteId, ClientOrderQuoteController.FulfillmentType.PICKUP,
+                request.requestedFor(), lines.stream().map(line -> new ClientOrderQuoteController.QuoteLineRequest(
+                        line.menuItemId(), line.quantity(), line.modifierIds())).toList(), subtotal, currencyId, requestId);
         for (int i = 0; i < products.size(); i++) {
             Product product = products.get(i);
             UUID requestItemId = jdbc.query("""
@@ -138,6 +149,10 @@ public class ClientPickupRequestController {
                 currencyId, currencyCode, paymentPreference, invoice.requested(), invoice.name(), invoice.taxId(), false,
                 null,
                 "Recibimos tu solicitud. El equipo debe confirmar disponibilidad y horario antes de aceptarla.");
+    }
+
+    PickupRequestReceipt submit(Jwt jwt, UUID idempotencyKey, PickupRequest request) {
+        return submit(jwt, idempotencyKey, null, request);
     }
 
     @GetMapping
