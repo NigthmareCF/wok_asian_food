@@ -1,5 +1,13 @@
 # Progreso de planificación móvil
 
+## 2026-10-06 — MP-01 account-isolated carts
+
+- The active mobile cart now selects an owner-normalized storage namespace and store for the current session. Account changes/logout immediately isolate items and pending pickup attempts; stale restores, queued writes, and retained callbacks cannot publish into the new account.
+- Guest selections remain independent. Legacy migration copies only a validated pending attempt whose normalized owner matches the session, deriving quantities from its immutable request body. Ownerless legacy carts are not assigned to arbitrary accounts, and legacy evidence is retained without cross-owner deletion.
+- The existing pickup prepare-before-POST path, exact pending body/key replay, quantity limits, and terminal-outcome rules are preserved. No auth, backend, UI redesign, payment, or dependency-install scope was added.
+- Baseline: mobile tests 18/18, typecheck, and lint passed after exposing installed dependencies through an ignored local junction. Focused RED observed seven isolation failures plus the missing new helper; focused GREEN passed 12/12, full mobile tests 30/30, typecheck/lint/diff checks passed.
+- Tests execute the production cart hook with deterministic React/session/storage boundaries, including delayed restore/persistence, same-owner relogin, guest/logout isolation, web memory, and persistence failure preventing submission. Native SecureStore/device/backend flows remain unverified. Local commit and native assessment remain pending; the original dirty checkout was not modified.
+
 ## 2026-10-02 — Auditoria de dependencias Expo
 
 - El CI conserva el bloqueo de alertas altas y criticas mediante una politica verificable, en lugar de degradar Expo con `npm audit fix --force`.

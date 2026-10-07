@@ -8,6 +8,7 @@ const { createApiRequest, ApiError } = jiti("../src/lib/api-client.ts");
 const { identitySchemas, profileSchema, tokenPairSchema, formatGuatemalaPhoneInput, isGuatemalaPhone } = jiti("../src/lib/identity.ts");
 const { menuSchema, menuProducts, cartTotals, imageUri, pickupReceiptSchema } = jiti("../src/lib/catalog.ts");
 const { createCartState } = jiti("../src/lib/cart-state.ts");
+const { accountStorageKey } = jiti("../src/lib/account-storage.ts");
 const { createSessionState, refreshKey, emailKey } = jiti("../src/lib/session-state.ts");
 const productId = "bef0df01-a4cf-4ee9-a9ed-277ac338b7ee";
 const categoryId = "db76102a-9f0f-45cb-8d34-cfb5b16445f8";
@@ -119,8 +120,8 @@ test("cart subtotals remain separated by currency", () => {
   assert.deepEqual(cartTotals([product, second], { [productId]: 2, [categoryId]: 1 }), [{ currency: "GTQ", price: 136 }, { currency: "USD", price: 10 }]);
 });
 
-test("cart restores the existing storage keys and preserves removed products", async () => {
-  const saved = storage({ "wok.pickup.cart.v1": JSON.stringify({ [productId]: 2 }) });
+test("cart restores guest storage keys and preserves removed products", async () => {
+  const saved = storage({ [accountStorageKey("cart")]: JSON.stringify({ [productId]: 2 }) });
   const cart = createCartState(saved);
   cart.changeQuantity(productId, 1);
   assert.deepEqual(cart.getSnapshot().items, {});
@@ -131,42 +132,42 @@ test("cart restores the existing storage keys and preserves removed products", a
 });
 
 test("pending attempts lock every quantity edit and retain the exact replay key/body", async () => {
-  const saved = storage(); const cart = createCartState(saved);
+  const saved = storage(); const cart = createCartState(saved, attempt.email);
   await cart.restore(); cart.changeQuantity(productId, 1);
   await cart.prepareAttempt(attempt);
   cart.changeQuantity(productId, -1); cart.changeQuantity(productId, 1);
   assert.equal(cart.getSnapshot().items[productId], 1);
   await assert.rejects(cart.prepareAttempt({ ...attempt, key: categoryId }));
   await assert.rejects(cart.prepareAttempt({ ...attempt, body: { ...attempt.body, customerNote: "Changed payload" } }));
-  const restored = createCartState(saved); await restored.restore();
+  const restored = createCartState(saved, attempt.email); await restored.restore();
   assert.deepEqual(restored.getSnapshot().attempt, attempt);
   await restored.prepareAttempt(attempt);
-  assert.deepEqual(JSON.parse(saved.values.get("wok.pickup.pending.v1")), attempt);
+  assert.deepEqual(JSON.parse(saved.values.get(accountStorageKey("pending", attempt.email))), attempt);
   await restored.completeAttempt(attempt.key);
   assert.equal(restored.getSnapshot().attempt, null);
   assert.deepEqual(restored.getSnapshot().items, {});
 });
 
 test("storage errors and malformed pending attempts do not enable new writes", async () => {
-  const invalid = createCartState(storage({ "wok.pickup.pending.v1": "not-json" })); await invalid.restore();
+  const invalid = createCartState(storage({ [accountStorageKey("pending", attempt.email)]: "not-json" }), attempt.email); await invalid.restore();
   assert.equal(invalid.getSnapshot().ready, false);
   assert.ok(invalid.getSnapshot().error);
   let saves = 0;
-  const broken = createCartState({ ...storage(), setItemAsync: async () => { saves++; throw new Error("unavailable"); } });
+  const broken = createCartState({ ...storage(), setItemAsync: async () => { saves++; throw new Error("unavailable"); } }, attempt.email);
   await broken.restore(); await assert.rejects(broken.prepareAttempt(attempt));
   assert.equal(broken.getSnapshot().attempt.key, attempt.key);
   assert.equal(saves, 1);
 });
 
 test("confirmed validation rejections unlock the draft, but unknown outcomes do not", async () => {
-  const saved = storage(); const cart = createCartState(saved);
+  const saved = storage(); const cart = createCartState(saved, attempt.email);
   await cart.restore(); cart.changeQuantity(productId, 1); await cart.prepareAttempt(attempt);
   for (const status of [401, 409, 503]) await assert.rejects(cart.releaseRejectedAttempt(attempt.key, status));
   assert.equal(cart.getSnapshot().attempt.key, attempt.key);
   await cart.releaseRejectedAttempt(attempt.key, 422);
   assert.equal(cart.getSnapshot().attempt, null);
   assert.equal(cart.getSnapshot().items[productId], 1);
-  assert.equal(saved.values.has("wok.pickup.pending.v1"), false);
+  assert.equal(saved.values.has(accountStorageKey("pending", attempt.email)), false);
   cart.changeQuantity(productId, 1);
   assert.equal(cart.getSnapshot().items[productId], 2);
 });
