@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** Deterministic mock for local flows; it never claims that a payment was captured. */
 @Component
@@ -16,6 +17,8 @@ public class MockPaymentGateway implements PaymentGateway {
 
     @Override
     public PaymentIntent createIntent(UUID orderId, BigDecimal amount, String currency, String idempotencyKey) {
+        if (TransactionSynchronizationManager.isActualTransactionActive())
+            throw new IllegalStateException("Payment providers must be called outside database transactions");
         if (orderId == null || amount == null || amount.signum() <= 0 || currency == null
                 || !currency.trim().matches("(?i)[a-z]{3}") || idempotencyKey == null
                 || idempotencyKey.isBlank() || idempotencyKey.length() > 128) {

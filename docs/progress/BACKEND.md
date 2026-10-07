@@ -493,3 +493,10 @@
 - `InvoiceIssuanceWorker` ahora reclama el evento y carga el snapshot fiscal mediante transacciones breves, ejecuta `FiscalProvider.certify` sin transacción abierta y registra certificación o reintento en una transacción posterior. El UUID estable de factura sigue sirviendo para idempotencia/conciliación si el proceso cae después de certificar y antes de guardar.
 - El mock FEL rechaza invocaciones que ocurren dentro de una transacción; `InvoiceIntegrationTest` lo ejecuta en el flujo real del worker.
 - `InvoiceIntegrationTest`: 8/8 con PostgreSQL 18/Testcontainers y Flyway V1–V44. Suite completa: 249/249, 0 fallos, 0 errores, 0 omitidas.
+
+## 2026-10-07 — Creación de intentos de pago mediante outbox
+
+- `POST /api/v1/client/delivery-requests/{id}/payment-intents` ahora guarda el intento local `CREATED` y `PAYMENT_INTENT_CREATION_REQUESTED` en una sola transacción. El worker reclama el outbox, llama `PaymentGateway` sin conexión/transacción SQL retenida, y luego persiste referencia/estado; usa el UUID estable del intento como idempotency key del proveedor.
+- El adapter sólo es `MockPaymentGateway`; el Cliente puede leer `CREATED` mientras se procesa y luego `PENDING`. Fallos agotados quedan `UNKNOWN`, nunca `CAPTURED`; conciliación/webhook real sigue pendiente del proveedor autorizado. La app móvil muestra el estado inicial y consulta el endpoint actual mientras sigue `CREATED`.
+- Agregada Flyway V45 para permitir referencia externa nula hasta la respuesta y optimizar polling del outbox. La prueba de integración verifica el intento y el outbox atómicos, ownership, estado inicial, creación posterior del intento mock, replay sin duplicados y ausencia de cobro/captura.
+- Validación: `ClientPaymentIntentIntegrationTest` 2/2; suite backend completa 249/249, 0 fallos, 0 errores, 0 omitidas, PostgreSQL 18/Testcontainers/Flyway V1–V45. Mobile: Vitest 54/54, ESLint y TypeScript `--noEmit`.

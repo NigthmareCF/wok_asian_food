@@ -13,9 +13,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 class ClientPaymentIntentIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
+
+    @Autowired
+    private PaymentIntentCreationWorker paymentIntentWorker;
 
     @BeforeEach
     void openRemoteServiceHoursForPaymentIntentTests() {
@@ -57,11 +61,13 @@ class ClientPaymentIntentIntegrationTest extends PostgresIntegrationTest {
         UUID intentId = UUID.fromString(created.path("intentId").asText());
         assertThat(created.path("orderId").asText()).isEqualTo(orderId.toString());
         assertThat(created.path("provider").asText()).isEqualTo("MOCK");
-        assertThat(created.path("status").asText()).isEqualTo("PENDING");
+        assertThat(created.path("status").asText()).isEqualTo("CREATED");
+        assertThat(created.path("providerReference").isMissingNode()).isTrue();
         assertThat(created.path("amount").decimalValue()).isEqualByComparingTo("75.00");
         assertThat(created.path("currency").asText()).isEqualTo("GTQ");
         assertThat(created.path("message").asText()).contains("No se ha procesado");
         assertThat(count("SELECT count(*) FROM wok.payment_intents WHERE order_id = ?", orderId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE event_type = 'PAYMENT_INTENT_CREATION_REQUESTED' AND aggregate_id = ? AND published_at IS NULL", intentId)).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = (SELECT account_id FROM wok.orders WHERE id = ?)", orderId)).isZero();
         assertThat(jdbc.queryForObject("SELECT status FROM wok.order_accounts WHERE id = (SELECT account_id FROM wok.orders WHERE id = ?)",
                 String.class, orderId)).isEqualTo("OPEN");
@@ -69,14 +75,24 @@ class ClientPaymentIntentIntegrationTest extends PostgresIntegrationTest {
         HttpResponse<String> current = get(path + "/current", customer);
         assertThat(current.statusCode()).isEqualTo(200);
         assertThat(json.readTree(current.body()).path("intentId").asText()).isEqualTo(intentId.toString());
+        assertThat(json.readTree(current.body()).path("status").asText()).isEqualTo("CREATED");
 
         JsonNode replay = body(post(path, customer, "{}", Map.of("Idempotency-Key", idempotencyKey.toString())));
         assertThat(replay.path("intentId").asText()).isEqualTo(intentId.toString());
         assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+
+        paymentIntentWorker.createNext();
+        JsonNode providerPending = body(get(path + "/current", customer));
+        assertThat(providerPending.path("intentId").asText()).isEqualTo(intentId.toString());
+        assertThat(providerPending.path("status").asText()).isEqualTo("PENDING");
+        assertThat(providerPending.path("providerReference").asText()).startsWith("mock-");
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ? AND published_at IS NOT NULL", intentId)).isEqualTo(1);
+
         JsonNode recoveredWithNewKey = body(post(path, customer, "{}",
                 Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         assertThat(recoveredWithNewKey.path("intentId").asText()).isEqualTo(intentId.toString());
         assertThat(recoveredWithNewKey.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(recoveredWithNewKey.path("status").asText()).isEqualTo("PENDING");
         assertThat(count("SELECT count(*) FROM wok.payment_intents WHERE order_id = ?", orderId)).isEqualTo(1);
         assertThat(get(path + "/current", otherCustomer).statusCode()).isEqualTo(404);
         assertThat(post(path, otherCustomer, "{}", Map.of("Idempotency-Key", UUID.randomUUID().toString()))

@@ -54,3 +54,6 @@ wok:
     mode: ${WOK_FISCAL_MODE:mock}
     tax-rate: ${WOK_FISCAL_TAX_RATE:0.12}
     poll-ms: ${WOK_FISCAL_POLL_MS:5000}
+  payments:
+    # Online payment intent creation is asynchronous; this worker never confirms a capture.
+    poll-ms: ${WOK_PAYMENT_POLL_MS:3000}

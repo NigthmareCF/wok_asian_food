@@ -1,7 +1,6 @@
 package com.wokasianfood.api.payments;
 
 import com.wokasianfood.api.identity.AuthException;
-import com.wokasianfood.api.integration.PaymentGateway;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -34,12 +33,10 @@ public class ClientPaymentIntentController {
 
     private final JdbcTemplate jdbc;
     private final IdempotencyStore idempotency;
-    private final PaymentGateway gateway;
 
-    public ClientPaymentIntentController(JdbcTemplate jdbc, IdempotencyStore idempotency, PaymentGateway gateway) {
+    public ClientPaymentIntentController(JdbcTemplate jdbc, IdempotencyStore idempotency) {
         this.jdbc = jdbc;
         this.idempotency = idempotency;
-        this.gateway = gateway;
     }
 
     @PostMapping("/{requestId}/payment-intents")
@@ -106,25 +103,25 @@ public class ClientPaymentIntentController {
             return receipt(existingId, true);
         }
 
-        String providerKey = customerId + ":" + requestId + ":" + key;
-        PaymentGateway.PaymentIntent created = gateway.createIntent(
-                order.orderId(), outstanding, order.currencyCode(), providerKey);
-        if (created.state() == PaymentGateway.State.CAPTURED)
-            throw new IllegalStateException("Payment intent providers must not capture funds during intent creation");
-
         UUID intentId = jdbc.queryForObject("""
                 INSERT INTO wok.payment_intents
                     (order_id, account_id, customer_user_id, provider, provider_reference, amount, currency_id, status)
-                VALUES (?, ?, ?, 'MOCK', ?, ?, ?, ?)
+                VALUES (?, ?, ?, 'MOCK', NULL, ?, ?, 'CREATED')
                 RETURNING id
                 """, UUID.class, order.orderId(), order.accountId(), customerId,
-                created.providerReference(), outstanding, order.currencyId(), created.state().name());
+                outstanding, order.currencyId());
+        jdbc.update("""
+                INSERT INTO wok.outbox_events
+                    (aggregate_type, aggregate_id, aggregate_version, event_type, payload)
+                VALUES ('PAYMENT_INTENT', ?, 1, 'PAYMENT_INTENT_CREATION_REQUESTED',
+                        jsonb_build_object('paymentIntentId', ?))
+                """, intentId, intentId);
         jdbc.update("""
                 INSERT INTO wok.audit_logs
                     (actor_user_id, action, entity_type, entity_id, after_data, result)
                 VALUES (?, 'CLIENT_PAYMENT_INTENT_CREATED', 'PAYMENT_INTENT', ?,
-                        jsonb_build_object('orderId', ?, 'provider', 'MOCK', 'status', ?, 'amount', ?), 'SUCCESS')
-                """, customerId, intentId, order.orderId(), created.state().name(), outstanding);
+                        jsonb_build_object('orderId', ?, 'provider', 'MOCK', 'status', 'CREATED', 'amount', ?), 'SUCCESS')
+                """, customerId, intentId, order.orderId(), outstanding);
         idempotency.complete(customerId.toString(), OPERATION, key, intentId);
         return receipt(intentId, false);
     }
