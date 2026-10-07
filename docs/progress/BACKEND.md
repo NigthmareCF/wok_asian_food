@@ -5,6 +5,7 @@
 - V48 persiste holds por solicitud y distribución de preparación por estación con expiración configurable (12 minutos por defecto). El consumo del quote y el hold ocurren en la misma transacción; la cancelación/rechazo libera, aceptación convierte antes de crear tickets, y el worker expira holds vencidos sin aceptar automáticamente la solicitud.
 - Las cotizaciones sólo suman holds activos anteriores/iguales del mismo día Guatemala; los pedidos internos sin horario no quedan detrás de solicitudes remotas. Stock sigue sin reservarse y la revisión operativa conserva la última palabra.
 - Pruebas focalizadas: `ClientOrderQuoteIntegrationTest` 6/6 y `KitchenQueueEstimatorTest` 1/1, PostgreSQL 18/Testcontainers, Flyway V1–V48 desde cero. Incluyen quote→hold, liberación, conversión, expiración y estado PENDING_REVIEW.
+- Suite backend completa: 260/260, cero fallos/errores/omitidas. Móvil en su rama especializada: 59/59 Vitest, ESLint, TypeScript y export Android.
 
 ## 2026-10-07 — Grupos grandes de reserva pasan a revisión humana
 
