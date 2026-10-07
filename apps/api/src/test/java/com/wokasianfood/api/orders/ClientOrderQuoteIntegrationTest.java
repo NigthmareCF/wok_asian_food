@@ -13,9 +13,12 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 class ClientOrderQuoteIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
+    @Autowired private OrderCapacityHoldService capacityHolds;
+    @Autowired private KitchenQueueEstimator queueEstimator;
 
     @BeforeEach
     void openRemoteServiceHoursForQuoteTests() {
@@ -104,8 +107,33 @@ class ClientOrderQuoteIntegrationTest extends PostgresIntegrationTest {
         assertThat(request.path("status").asText()).isEqualTo("PENDING_REVIEW");
         assertThat(count("SELECT count(*) FROM wok.order_quotes WHERE id = ? AND status = 'CONSUMED' AND consumed_order_request_id = ?",
                 quoteId, UUID.fromString(request.path("requestId").asText()))).isEqualTo(1);
+        UUID requestId = UUID.fromString(request.path("requestId").asText());
+        assertThat(count("SELECT count(*) FROM wok.order_capacity_holds WHERE quote_id = ? AND order_request_id = ? AND status = 'ACTIVE'",
+                quoteId, requestId)).isEqualTo(1);
+        assertThat(count("SELECT COALESCE(sum(preparation_seconds), 0)::int FROM wok.order_capacity_hold_stations station JOIN wok.order_capacity_holds hold ON hold.id = station.hold_id WHERE hold.quote_id = ?",
+                quoteId)).isEqualTo(30);
         assertThat(count("SELECT count(*) FROM wok.orders WHERE id = (SELECT order_id FROM wok.order_requests WHERE id = ?)",
-                UUID.fromString(request.path("requestId").asText()))).isZero();
+                requestId)).isZero();
+
+        UUID stationId = jdbc.queryForObject("SELECT preparation_area_id FROM wok.menu_items WHERE id = ?", UUID.class, itemId);
+        assertThat(queueEstimator.estimate(Map.of(stationId, 30L), false, Instant.now().plusSeconds(1800))
+                .stations().getFirst().queueDelaySeconds()).isZero();
+        assertThat(queueEstimator.estimate(Map.of(stationId, 30L), false, requestedFor.plusSeconds(28 * 3600))
+                .stations().getFirst().queueDelaySeconds()).isZero();
+
+        JsonNode laterQuote = body(post("/api/v1/client/order-quotes", client,
+                quotePayload("PICKUP", requestedFor, itemId, 1),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(laterQuote.path("queueDelaySeconds").asInt()).isEqualTo(30);
+
+        HttpResponse<String> cancelled = send("DELETE", "/api/v1/client/order-requests/" + requestId, client, null, Map.of());
+        assertThat(cancelled.statusCode()).isEqualTo(200);
+        assertThat(count("SELECT count(*) FROM wok.order_capacity_holds WHERE quote_id = ? AND status = 'RELEASED'", quoteId)).isEqualTo(1);
+
+        JsonNode afterReleaseQuote = body(post("/api/v1/client/order-quotes", client,
+                quotePayload("PICKUP", requestedFor, itemId, 1),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(afterReleaseQuote.path("queueDelaySeconds").asInt()).isZero();
     }
 
     @Test
@@ -118,6 +146,55 @@ class ClientOrderQuoteIntegrationTest extends PostgresIntegrationTest {
                 Map.of("Idempotency-Key", UUID.randomUUID().toString())));
 
         assertThat(get("/api/v1/client/order-quotes/" + quote.path("quoteId").asText(), other).statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void operationalAcceptanceConvertsTheHoldIntoKitchenQueueWork() throws Exception {
+        UUID itemId = seedMenuItem("Queue converted item", "22.00", "QUOTE_CONVERT_TEST", 30);
+        String client = tokenForRole("CLIENT");
+        Instant requestedFor = Instant.now().plusSeconds(3600);
+        JsonNode quote = body(post("/api/v1/client/order-quotes", client,
+                quotePayload("PICKUP", requestedFor, itemId, 1),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID quoteId = UUID.fromString(quote.path("quoteId").asText());
+        JsonNode request = body(post("/api/v1/client/order-requests", client, """
+                {"requestedFor":"%s","paymentPreference":"CASH_AT_PICKUP","items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(requestedFor, itemId),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString(), "X-Order-Quote-Id", quoteId.toString())));
+        UUID requestId = UUID.fromString(request.path("requestId").asText());
+
+        JsonNode accepted = body(post("/api/v1/operational/order-requests/" + requestId + "/decision",
+                tokenForRole("OPERATIONAL"), """
+                {"action":"ACCEPT"}
+                """));
+
+        assertThat(accepted.path("status").asText()).isEqualTo("ACCEPTED");
+        assertThat(count("SELECT count(*) FROM wok.order_capacity_holds WHERE quote_id = ? AND status = 'CONVERTED'", quoteId)).isEqualTo(1);
+        JsonNode followingQuote = body(post("/api/v1/client/order-quotes", client,
+                quotePayload("PICKUP", requestedFor, itemId, 1),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(followingQuote.path("queueDelaySeconds").asInt()).isBetween(1, 30);
+    }
+
+    @Test
+    void expiredHoldIsReclaimedWhileTheRequestRemainsPendingReview() throws Exception {
+        UUID itemId = seedMenuItem("Expiring hold item", "22.00", "QUOTE_EXPIRE_TEST", 30);
+        String client = tokenForRole("CLIENT");
+        Instant requestedFor = Instant.now().plusSeconds(3600);
+        JsonNode quote = body(post("/api/v1/client/order-quotes", client,
+                quotePayload("PICKUP", requestedFor, itemId, 1),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID quoteId = UUID.fromString(quote.path("quoteId").asText());
+        JsonNode request = body(post("/api/v1/client/order-requests", client, """
+                {"requestedFor":"%s","paymentPreference":"CASH_AT_PICKUP","items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(requestedFor, itemId),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString(), "X-Order-Quote-Id", quoteId.toString())));
+        UUID requestId = UUID.fromString(request.path("requestId").asText());
+        jdbc.update("UPDATE wok.order_capacity_holds SET expires_at = now() - interval '1 second' WHERE quote_id = ?", quoteId);
+
+        assertThat(capacityHolds.expireDue()).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.order_capacity_holds WHERE quote_id = ? AND status = 'EXPIRED'", quoteId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.order_requests WHERE id = ? AND status = 'PENDING_REVIEW'", requestId)).isEqualTo(1);
     }
 
     private String quotePayload(String fulfillment, Instant requestedFor, UUID itemId, int quantity) {

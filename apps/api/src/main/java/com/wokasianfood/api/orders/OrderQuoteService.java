@@ -4,7 +4,10 @@ import com.wokasianfood.api.identity.AuthException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,8 +16,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class OrderQuoteService {
     private final JdbcTemplate jdbc;
+    private final KitchenQueueEstimator kitchenQueue;
+    private final OrderCapacityHoldService capacityHolds;
 
-    public OrderQuoteService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    @Autowired
+    public OrderQuoteService(JdbcTemplate jdbc, KitchenQueueEstimator kitchenQueue, OrderCapacityHoldService capacityHolds) {
+        this.jdbc = jdbc; this.kitchenQueue = kitchenQueue; this.capacityHolds = capacityHolds;
+    }
+
+    OrderQuoteService(JdbcTemplate jdbc) {
+        this(jdbc, new KitchenQueueEstimator(jdbc), new OrderCapacityHoldService(jdbc, 12));
+    }
 
     @Transactional
     public void consume(UUID customerId, UUID quoteId, ClientOrderQuoteController.FulfillmentType fulfillment,
@@ -41,11 +53,25 @@ public class OrderQuoteService {
         if (!quote.currencyId().equals(currencyId) || quote.subtotal().compareTo(currentSubtotal) != 0) {
             throw new AuthException(409, "El precio cambió desde la cotización. Cotiza de nuevo antes de enviar.");
         }
+        Map<UUID, Long> preparationByStation = jdbc.query("""
+                SELECT mi.preparation_area_id, sum(mi.estimated_preparation_seconds::bigint * qi.quantity)::bigint AS seconds
+                FROM wok.order_quote_items qi JOIN wok.menu_items mi ON mi.id = qi.menu_item_id
+                WHERE qi.order_quote_id = ? GROUP BY mi.preparation_area_id ORDER BY mi.preparation_area_id
+                """, rs -> {
+            Map<UUID, Long> values = new LinkedHashMap<>();
+            while (rs.next()) values.put(rs.getObject("preparation_area_id", UUID.class), rs.getLong("seconds"));
+            return values;
+        }, quoteId);
+        KitchenQueueEstimator.Estimate estimate = kitchenQueue.estimate(preparationByStation, true, requestedFor);
+        long etaSeconds = estimate.overallReadySeconds();
+        if (etaSeconds > 86_400 || !requestedFor.isAfter(Instant.now().plusSeconds(etaSeconds)))
+            throw new AuthException(409, "La cola de cocina cambió. Revisa otra hora antes de enviar la solicitud.");
         int consumed = jdbc.update("""
                 UPDATE wok.order_quotes SET status = 'CONSUMED', consumed_order_request_id = ?, consumed_at = now()
                 WHERE id = ? AND customer_user_id = ? AND status = 'ACTIVE' AND expires_at > now()
-                """, orderRequestId, quoteId, customerId);
+        """, orderRequestId, quoteId, customerId);
         if (consumed != 1) throw new AuthException(409, "La cotización dejó de estar disponible.");
+        capacityHolds.create(quoteId, orderRequestId, requestedFor, preparationByStation);
     }
 
     private record Quote(UUID id, String fulfillmentType, String fingerprint, BigDecimal subtotal,

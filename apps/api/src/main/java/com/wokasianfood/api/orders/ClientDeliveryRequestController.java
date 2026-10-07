@@ -53,10 +53,17 @@ public class ClientDeliveryRequestController {
     private final ModifierSelectionService modifiers;
     private final ServiceHoursPolicy serviceHours;
     private final OrderQuoteService quotes;
+    private final OrderCapacityHoldService capacityHolds;
 
     @Autowired
-    public ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers, OrderQuoteService quotes) {
-        this.jdbc = jdbc; this.modifiers = modifiers; this.serviceHours = new ServiceHoursPolicy(jdbc); this.quotes = quotes;
+    public ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers, OrderQuoteService quotes,
+            OrderCapacityHoldService capacityHolds) {
+        this.jdbc = jdbc; this.modifiers = modifiers; this.serviceHours = new ServiceHoursPolicy(jdbc);
+        this.quotes = quotes; this.capacityHolds = capacityHolds;
+    }
+
+    ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers, OrderQuoteService quotes) {
+        this(jdbc, modifiers, quotes, new OrderCapacityHoldService(jdbc, 12));
     }
 
     ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
@@ -235,6 +242,7 @@ public class ClientDeliveryRequestController {
             WHERE id = ? AND customer_user_id = ? AND fulfillment_type = 'DELIVERY' AND status = 'PENDING_REVIEW'
             """, customerId, requestId, customerId);
         if (changed != 1) throw new AuthException(409, "La solicitud delivery ya cambió de estado.");
+        capacityHolds.finish(requestId, OrderCapacityHoldService.EndState.RELEASED);
         jdbc.update("""
             INSERT INTO wok.order_request_events(order_request_id, event_type, actor_user_id, reason)
             VALUES (?, 'CANCELLED', ?, 'CANCELLED_BY_CLIENT')

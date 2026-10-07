@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Holds temporales de carga para pedidos remotos
+
+- V48 persiste holds por solicitud y distribución de preparación por estación con expiración configurable (12 minutos por defecto). El consumo del quote y el hold ocurren en la misma transacción; la cancelación/rechazo libera, aceptación convierte antes de crear tickets, y el worker expira holds vencidos sin aceptar automáticamente la solicitud.
+- Las cotizaciones sólo suman holds activos anteriores/iguales del mismo día Guatemala; los pedidos internos sin horario no quedan detrás de solicitudes remotas. Stock sigue sin reservarse y la revisión operativa conserva la última palabra.
+- Pruebas focalizadas: `ClientOrderQuoteIntegrationTest` 6/6 y `KitchenQueueEstimatorTest` 1/1, PostgreSQL 18/Testcontainers, Flyway V1–V48 desde cero. Incluyen quote→hold, liberación, conversión, expiración y estado PENDING_REVIEW.
+
 ## 2026-10-07 — Grupos grandes de reserva pasan a revisión humana
 
 - Retiré los límites fijos de 50 personas de evaluación pública, envío Cliente y snapshot persistido (`V44__allow_large_reservation_groups.sql`). Grupos desde 13 reciben `REQUIRES_HUMAN_APPROVAL`; no se convierten en aceptación automática. La estancia usa el rango especial actual 180–240 minutos, todavía sujeto a calibración con datos reales.

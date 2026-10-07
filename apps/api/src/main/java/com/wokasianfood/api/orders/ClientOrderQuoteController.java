@@ -114,7 +114,7 @@ public class ClientOrderQuoteController {
             subtotal = subtotal.add(effectivePrice(product.price(), selections.get(index))
                     .multiply(BigDecimal.valueOf(line.quantity())));
         }
-        KitchenQueueEstimator.Estimate queue = queueEstimator.estimate(preparationByStation, true);
+        KitchenQueueEstimator.Estimate queue = queueEstimator.estimate(preparationByStation, true, request.requestedFor());
         long preparationSeconds = queue.stations().stream().mapToLong(KitchenQueueEstimator.StationEstimate::preparationSeconds).max().orElse(0);
         long queueDelaySeconds = queue.stations().stream().mapToLong(KitchenQueueEstimator.StationEstimate::queueDelaySeconds).max().orElse(0);
         long totalEtaSeconds = queue.overallReadySeconds();

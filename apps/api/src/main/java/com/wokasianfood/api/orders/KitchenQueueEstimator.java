@@ -5,6 +5,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
+import java.sql.Timestamp;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +18,12 @@ public class KitchenQueueEstimator {
     public KitchenQueueEstimator(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     public Estimate estimate(Map<UUID, Long> preparationSecondsByStation, boolean lockStations) {
+        return estimate(preparationSecondsByStation, lockStations, null);
+    }
+
+    /** Remote scheduled requests include only holds for an earlier/equal slot on the same Guatemala service date.
+     * Unscheduled in-house work ignores remote holds so the restaurant keeps its local-first priority. */
+    public Estimate estimate(Map<UUID, Long> preparationSecondsByStation, boolean lockStations, Instant requestedFor) {
         if (preparationSecondsByStation == null || preparationSecondsByStation.isEmpty())
             return new Estimate(List.of(), 0);
         List<StationEstimate> stations = preparationSecondsByStation.entrySet().stream()
@@ -25,10 +33,22 @@ public class KitchenQueueEstimator {
                     if (lockStations) lockStation(stationId);
                     Long delay = jdbc.queryForObject("""
                             SELECT COALESCE(GREATEST(0,
-                                CEIL(EXTRACT(EPOCH FROM (MAX(estimated_ready_at) - now())))::bigint), 0)
-                            FROM wok.kitchen_tickets
-                            WHERE station_id = ? AND status IN ('QUEUED', 'PREPARING')
-                            """, Long.class, stationId);
+                                       CEIL(EXTRACT(EPOCH FROM (MAX(ticket.estimated_ready_at) - now())))::bigint), 0)
+                                   + COALESCE((
+                                       SELECT sum(allocation.preparation_seconds)::bigint
+                                       FROM wok.order_capacity_hold_stations allocation
+                                       JOIN wok.order_capacity_holds hold ON hold.id = allocation.hold_id
+                                       WHERE allocation.station_id = ? AND hold.status = 'ACTIVE' AND hold.expires_at > now()
+                                         AND ?::timestamptz IS NOT NULL
+                                         AND hold.requested_for <= ?
+                                         AND (hold.requested_for AT TIME ZONE 'America/Guatemala')::date
+                                             = (? AT TIME ZONE 'America/Guatemala')::date
+                                   ), 0)
+                            FROM wok.kitchen_tickets ticket
+                            WHERE ticket.station_id = ? AND ticket.status IN ('QUEUED', 'PREPARING')
+                            """, Long.class, stationId, requestedFor == null ? null : Timestamp.from(requestedFor),
+                            requestedFor == null ? null : Timestamp.from(requestedFor),
+                            requestedFor == null ? null : Timestamp.from(requestedFor), stationId);
                     long queueDelay = delay == null ? 0 : delay;
                     long preparation = Math.max(0, entry.getValue() == null ? 0 : entry.getValue());
                     return new StationEstimate(stationId, queueDelay, preparation,

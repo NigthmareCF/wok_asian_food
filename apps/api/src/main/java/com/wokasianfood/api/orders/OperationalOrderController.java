@@ -534,7 +534,7 @@ class OrderService {
                     .reduce(0L, Math::addExact);
             preparationByStation.put(entry.getKey(), preparationSeconds);
         }
-        KitchenQueueEstimator.Estimate queueEstimate = kitchenQueue.estimate(preparationByStation, true);
+        KitchenQueueEstimator.Estimate queueEstimate = kitchenQueue.estimate(preparationByStation, true, requestedFor);
         long totalReadyInSeconds = queueEstimate.overallReadySeconds();
         if (requestedFor != null) serviceHours.requireSlot(serviceType, requestedFor, true);
         if (totalReadyInSeconds > 86_400 || (requestedFor != null

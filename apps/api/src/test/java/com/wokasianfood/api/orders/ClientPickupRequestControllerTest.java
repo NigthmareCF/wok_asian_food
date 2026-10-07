@@ -192,6 +192,8 @@ class ClientPickupRequestControllerTest {
 
     private void stubRequestStatus(String status) {
         doAnswer(invocation -> {
+            String sql = invocation.getArgument(0);
+            if (sql.contains("FROM wok.order_capacity_holds")) return List.of();
             if (status == null) return List.of();
             @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
             ResultSet rs = mock(ResultSet.class);

@@ -66,6 +66,7 @@ class OrderRequestDecisionService {
     private final OrderService orders;
     private final ModifierSelectionService modifiers;
     private final InventoryReservationService inventory;
+    private final OrderCapacityHoldService capacityHolds;
 
     private static final org.springframework.jdbc.core.RowMapper<OrderRequestSummary> SUMMARY_MAPPER = (rs, row) ->
             new OrderRequestSummary(rs.getObject("request_id", UUID.class), rs.getString("fulfillment_type"),
@@ -77,11 +78,12 @@ class OrderRequestDecisionService {
                     rs.getString("decision_reason"), rs.getObject("order_id", UUID.class));
 
     OrderRequestDecisionService(JdbcTemplate jdbc, OrderService orders, ModifierSelectionService modifiers,
-                                InventoryReservationService inventory) {
+                                InventoryReservationService inventory, OrderCapacityHoldService capacityHolds) {
         this.jdbc = jdbc;
         this.orders = orders;
         this.modifiers = modifiers;
         this.inventory = inventory;
+        this.capacityHolds = capacityHolds;
     }
 
     List<OrderRequestSummary> list(String rawStatus, String rawFulfillmentType) {
@@ -167,6 +169,7 @@ class OrderRequestDecisionService {
         if (action == OperationalOrderRequestController.Action.REJECT) {
             String reason = request.reason() == null || request.reason().isBlank() ? null : request.reason().trim();
             if (reason == null) throw new AuthException(422, "Indica el motivo del rechazo.");
+            capacityHolds.finish(orderRequestId, OrderCapacityHoldService.EndState.RELEASED);
             jdbc.update("""
                 UPDATE wok.order_requests
                 SET status = 'REJECTED', decided_by = ?, decided_at = now(), decision_reason = ?, updated_at = now()
@@ -186,6 +189,7 @@ class OrderRequestDecisionService {
         requireServiceEnabled(current.fulfillmentType());
         revalidate(current);
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines(orderRequestId);
+        capacityHolds.finish(orderRequestId, OrderCapacityHoldService.EndState.CONVERTED);
         boolean delivery = "DELIVERY".equals(current.fulfillmentType());
         UUID orderId = delivery
                 ? orders.createDeliveryOrder(actor, correlationId, "Delivery " + orderRequestId, lines,

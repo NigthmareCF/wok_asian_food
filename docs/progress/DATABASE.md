@@ -1,5 +1,10 @@
 # Database progress
 
+## 2026-10-07 — Temporary remote order capacity holds
+
+- V48 adds `order_capacity_holds` and `order_capacity_hold_stations`, keyed to the consumed quote and pending request, with a bounded lifecycle (`ACTIVE`, `RELEASED`, `CONVERTED`, `EXPIRED`), expiry index, station foreign keys and positive preparation allocation checks.
+- The migration is verified by the Spring/Testcontainers backend suite from an empty PostgreSQL 18 database. The wider candidate 128-table model/ERD remains unreconciled; V48 extends the executable migration stream without claiming the candidate artifacts are final.
+
 ## 2026-09-30 — Customer App messaging foundation
 
 - V10 adds persistent `conversations` and `messages` following the messaging candidate: owner customer, APP channel, human handling mode, message direction/status, timestamps, and external-thread fields for later provider adapters.
