@@ -417,3 +417,4 @@
 - El DTO móvil permite `providerReference: null` mientras el backend procesa el evento de creación del intento. La pantalla de pedidos ya etiqueta `CREATED` como “inicializando” y mantiene polling enfocado mientras el intento permanezca en ese estado; después muestra el estado y referencia devueltos por el servidor.
 - El flujo no marca la cuenta pagada y sigue mostrando el aviso de que el mock no procesó ni confirmó fondos.
 - Verificación local: Vitest 54/54, ESLint y TypeScript `--noEmit`. La integración con PostgreSQL del backend verifica `CREATED` → `PENDING` y referencia del mock.
+- Verificación adicional: `npx expo export --platform android --output-dir /tmp/wok-mobile-export` generó bundle JS Android; no es APK instalable ni build EAS firmado.
