@@ -173,6 +173,40 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void issuesAllRemainingDraftsWithoutRequeuingInvoicesAlreadyInProgress() {
+        UUID actor = createUserWithRole("factura-lote-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta lote fiscal");
+        MenuItemSeed menu = seedMenuItem("Sushi lote", "100.00");
+        closedOrderWithItem(accountId, actor, menu, "Sushi lote", 1, "100.00", "100.00");
+
+        UUID alreadyQueued = draft(token, accountId, "20.00");
+        UUID firstDraft = draft(token, accountId, "30.00");
+        UUID secondDraft = draft(token, accountId, "50.00");
+        body(post(issuePath(alreadyQueued), token, null, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        String key = UUID.randomUUID().toString();
+        String batchPath = "/api/v1/operational/accounts/" + accountId + "/invoices/issue-drafts";
+        JsonNode batch = body(post(batchPath, token, null, Map.of("Idempotency-Key", key)));
+
+        assertThat(batch.path("queuedCount").asInt()).isEqualTo(2);
+        assertThat(batch.path("replay").asBoolean()).isFalse();
+        assertThat(batch.path("invoices")).hasSize(3);
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ?", alreadyQueued)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ?", firstDraft)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ?", secondDraft)).isEqualTo(1);
+
+        JsonNode replay = body(post(batchPath, token, null, Map.of("Idempotency-Key", key)));
+        assertThat(replay.path("queuedCount").asInt()).isZero();
+        assertThat(replay.path("replay").asBoolean()).isTrue();
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ?", firstDraft)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ?", secondDraft)).isEqualTo(1);
+
+        assertThat(post(batchPath, tokenForRole("CLIENT"), null,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())).statusCode()).isEqualTo(403);
+    }
+
+    @Test
     void rejectsIssuingAgainOrAnUnknownInvoice() {
         UUID actor = createUserWithRole("factura-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
@@ -234,6 +268,12 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
     private UUID draft(String token, UUID accountId) {
         return UUID.fromString(body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token, "{}",
                 Map.of("Idempotency-Key", UUID.randomUUID().toString()))).path("invoiceId").asText());
+    }
+
+    private UUID draft(String token, UUID accountId, String total) {
+        return UUID.fromString(body(post("/api/v1/operational/accounts/" + accountId + "/invoices", token,
+                "{\"total\":\"" + total + "\"}", Map.of("Idempotency-Key", UUID.randomUUID().toString())))
+                .path("invoiceId").asText());
     }
 
     private String issuePath(UUID invoiceId) {

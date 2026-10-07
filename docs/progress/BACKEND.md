@@ -443,3 +443,10 @@
 
 - `/api/v1/public/reservations/evaluate` delega en el servicio de solicitudes y revisa `RESERVATIONS` con el mismo row lock transaccional que el envío. Si la capability está `PAUSED`, `DISABLED` o ausente, no devuelve una evaluación de horario que parezca disponible; responde 503. `ENABLED` y `MANUAL_APPROVAL` conservan la evaluación normal.
 - La prueba PostgreSQL existente ahora comprueba evaluación pública bloqueada tanto con `PAUSED` como con `DISABLED`, además de probar el envío y la serialización con una pausa concurrente. Suite backend completa: 234 pruebas, 0 fallos, 0 errores, 0 omitidas; PostgreSQL 18/Testcontainers, Flyway V1–V39.
+
+## 2026-10-07 — Emisión por lote de facturas de una atención
+
+- Se agregó `POST /api/v1/operational/accounts/{accountId}/invoices/issue-drafts`, protegido con `invoices:manage`, `Idempotency-Key` y `X-Request-Id` opcional. Encola en una sola transacción todos los borradores `DRAFT` de la atención en el outbox existente y devuelve el estado detallado de cada factura.
+- Los DTE siguen procesándose individualmente por el worker existente. Facturas `QUEUED`, `ISSUED` o `FAILED` no se vuelven a encolar por la operación masiva; repetir la clave devuelve el estado actual sin producir eventos duplicados. La operación serializa por atención.
+- El endpoint individual usa el mismo orden de bloqueo (cuenta y luego factura) para evitar inversión de locks al competir con la emisión masiva.
+- `InvoiceIntegrationTest`: 8/8 pasó con PostgreSQL 18/Testcontainers y Flyway V1–V41. Incluye permisos, varios borradores, una factura previamente encolada, conteo de outbox y replay idempotente sin eventos duplicados. La vista Operativa que consume este flujo aún debe integrarse desde frontend.
