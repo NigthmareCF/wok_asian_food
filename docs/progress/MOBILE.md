@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-07 — Backend incorpora medidas preliminares de bebidas
+
+- Backend añadió al seed componentes medidos para matcha y carbonatada; volúmenes están normalizados en ML y la pulpa por sabor permanece no operativa hasta revisión de receta. La app sigue consumiendo el menú y sus opciones desde la misma API, sin copiar BOM ni precios localmente.
+- El estado de catálogo de este plan ahora distingue esas medidas guardadas de recetas completas: endulzante, hielo, rendimiento de jarabe y otras recetas aún requieren confirmación. No se deben presentar estas notas internas al cliente.
+- La integración app/API/seed en un stack conjunto y las pruebas de dispositivo todavía están pendientes; esta actualización documental no las declara verificadas.
+
 ## 2026-10-07 — Quote ETA panel cleanup
 
 - Pickup now renders one quote summary containing queue delay, preparation time, total ETA, expiry and the review notice. Removed the duplicate older panel so the same estimate is not shown twice before confirmation.
