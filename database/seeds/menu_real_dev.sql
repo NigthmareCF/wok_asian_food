@@ -12,7 +12,8 @@ ON CONFLICT (code) DO NOTHING;
 INSERT INTO units (code, name, dimension, factor_to_base) VALUES
  ('G', 'Gramo', 'MASS', 1), ('ML', 'Mililitro', 'VOLUME', 1),
  ('FL_OZ', 'Onza líquida', 'VOLUME', 29.573530)
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name, dimension=EXCLUDED.dimension,
+  factor_to_base=EXCLUDED.factor_to_base;
 INSERT INTO item_types (code, name) VALUES ('PRELIMINARY_INGREDIENT', 'Insumo de receta preliminar')
 ON CONFLICT (code) DO NOTHING;
 

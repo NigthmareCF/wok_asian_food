@@ -25,6 +25,7 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
     void seedsTheCurrentMenuAndPreliminaryDrinkMeasuresWithoutActivatingStockUse() throws Exception {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items WHERE slug IS NOT NULL", Integer.class)).isEqualTo(31);
         createLegacyPreparationAreasAndAttachExistingMenuItem();
+        jdbc.update("UPDATE wok.units SET factor_to_base=1 WHERE code='FL_OZ'");
         runSeed();
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_categories WHERE name IN ('Sushi','Especialidades','Bebidas','Bebidas +18')",
@@ -61,6 +62,8 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
         assertThat(recipeQuantity("blue-matcha", "ING_MATCHA_BLUE")).isEqualByComparingTo("1");
         assertThat(recipeQuantity("carbonatada", "ING_MINERAL_WATER_CAN")).isEqualByComparingTo("1");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.items i JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT' AND i.track_inventory", Integer.class)).isEqualTo(7);
+        assertThat(jdbc.queryForObject("SELECT factor_to_base FROM wok.units WHERE code='FL_OZ'", BigDecimal.class))
+                .isEqualByComparingTo("29.573530");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.inventory_balances b JOIN wok.items i ON i.id=b.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.item_recipe_components rc JOIN wok.menu_items mi ON mi.item_id=rc.parent_item_id WHERE mi.slug IN ('matcha-latte','matcha-kiwi','matcha-maracuya','blue-matcha','carbonatada') AND mi.recipe_status='ACTIVE'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.inventory_reservations reservation JOIN wok.items i ON i.id=reservation.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT'", Integer.class)).isZero();
