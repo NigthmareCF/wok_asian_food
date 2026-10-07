@@ -7,8 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
@@ -70,6 +73,7 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
 
     @AfterEach
     void restoreConfiguredRemoteServiceHours() {
+        jdbc.update("DELETE FROM wok.business_hours_overrides WHERE reason = 'Cierre especial de prueba'");
         jdbc.update("DELETE FROM wok.business_hours WHERE service_type IN ('PICKUP', 'DELIVERY')");
         setOpenWeekdays("PICKUP", LocalTime.of(14, 0), LocalTime.of(21, 30));
         setOpenWeekdays("DELIVERY", LocalTime.of(14, 0), LocalTime.of(21, 0));
@@ -182,6 +186,32 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(ordersBeforeSecondDecision);
         assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, firstOrderId))
                 .isEqualTo("SENT");
+    }
+
+    @Test
+    void acceptanceRechecksDailyServiceClosureAndLeavesRequestPending() {
+        UUID itemId = seedMenuItem("Wok closed service item", "25.00", "WOK_CLOSED_OVERRIDE", 60);
+        String client = tokenForRole("CLIENT");
+        String operator = tokenForRole("OPERATIONAL");
+        Instant requestedFor = Instant.now().plusSeconds(7_200);
+        UUID requestId = UUID.fromString(submit(client, itemId, 1, requestedFor.toString()).path("requestId").asText());
+        LocalDate serviceDate = requestedFor.atZone(ZoneId.of("America/Guatemala")).toLocalDate();
+        UUID admin = createUserWithRole("hours-admin-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        jdbc.update("""
+            INSERT INTO wok.business_hours_overrides
+                (service_type, service_date, is_open, timezone_name, reason, expires_at, created_by, updated_by)
+            VALUES ('PICKUP', ?, false, 'America/Guatemala', 'Cierre especial de prueba', ?, ?, ?)
+            """, serviceDate, Timestamp.from(serviceDate.plusDays(1)
+                .atStartOfDay(ZoneId.of("America/Guatemala")).toInstant()), admin, admin);
+
+        var response = post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
+                "{\"action\":\"ACCEPT\"}");
+
+        assertThat(response.statusCode()).isEqualTo(422);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, requestId))
+                .isEqualTo("PENDING_REVIEW");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.orders WHERE id = "
+                + "(SELECT order_id FROM wok.order_requests WHERE id = ?)", Integer.class, requestId)).isZero();
     }
 
     @Test

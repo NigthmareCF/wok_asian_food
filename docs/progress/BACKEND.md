@@ -553,5 +553,5 @@
 
 ## 2026-10-07 — Revalidación de capacidad al aceptar solicitudes
 
-- La aceptación Operativa vuelve a estimar carga de cocina bajo locks estables de estaciones. Excluye únicamente el hold de la solicitud que se está evaluando para evitar contarlo dos veces, e incluye los demás holds vigentes de la misma fecha/hora de servicio.
-- Si el ETA actualizado ya no cabe antes del horario solicitado, responde `409 Conflict`, conserva la solicitud pendiente y no crea un pedido. `ClientOrderQuoteIntegrationTest` cubre un hold vencido, otro hold que ocupa la estación y el rechazo seguro; `OrderRequestDecisionIntegrationTest` mantiene la cobertura de cola previa a vencer el hold. Suite completa: 264/264, cero fallos, errores u omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V48.
+- La aceptación Operativa vuelve a validar el horario semanal/excepción diaria del servicio y estima carga de cocina bajo locks estables. Excluye únicamente el hold de la solicitud en evaluación para no contarlo dos veces, e incluye los demás holds vigentes de la misma fecha/hora.
+- Si aparece un cierre especial o el ETA ya no cabe antes del horario pedido, la aceptación responde con conflicto/regla de negocio, conserva la solicitud pendiente y no crea pedido. `OrderRequestDecisionIntegrationTest` cubre el cierre diario y la cola; `ClientOrderQuoteIntegrationTest` cubre hold vencido más carga de otra solicitud. Suite completa: 265/265, cero fallos, errores u omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V48.

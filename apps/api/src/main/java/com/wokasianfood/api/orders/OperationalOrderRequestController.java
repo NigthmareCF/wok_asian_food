@@ -4,6 +4,7 @@ import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.catalog.ModifierSelectionService;
 import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
 import com.wokasianfood.api.inventory.InventoryReservationService;
+import com.wokasianfood.api.service.ServiceHoursPolicy;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -70,6 +71,7 @@ class OrderRequestDecisionService {
     private final InventoryReservationService inventory;
     private final OrderCapacityHoldService capacityHolds;
     private final KitchenQueueEstimator kitchenQueue;
+    private final ServiceHoursPolicy serviceHours;
 
     private static final org.springframework.jdbc.core.RowMapper<OrderRequestSummary> SUMMARY_MAPPER = (rs, row) ->
             new OrderRequestSummary(rs.getObject("request_id", UUID.class), rs.getString("fulfillment_type"),
@@ -89,6 +91,7 @@ class OrderRequestDecisionService {
         this.inventory = inventory;
         this.capacityHolds = capacityHolds;
         this.kitchenQueue = kitchenQueue;
+        this.serviceHours = new ServiceHoursPolicy(jdbc);
     }
 
     List<OrderRequestSummary> list(String rawStatus, String rawFulfillmentType) {
@@ -192,6 +195,7 @@ class OrderRequestDecisionService {
             throw new AuthException(422, "La modalidad de esta solicitud todavía no admite aceptación operativa.");
 
         requireServiceEnabled(current.fulfillmentType());
+        serviceHours.requireSlot(current.fulfillmentType(), current.requestedFor(), true);
         Map<UUID, Long> preparationByStation = revalidate(current);
         KitchenQueueEstimator.Estimate estimate = kitchenQueue.estimate(preparationByStation, true,
                 current.requestedFor(), orderRequestId);
