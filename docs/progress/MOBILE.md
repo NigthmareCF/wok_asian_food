@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-07 — Revalidación de la rama Expo Cliente
+
+- Se comprobó `feature/mobile-shell` actualizado con `origin/feature/mobile-shell` (HEAD `68b85ae`), sin cambios de aplicación pendientes.
+- Vitest: 43/43; ESLint y TypeScript pasan. `npx expo export --platform android` empaqueta Android correctamente; export Web genera 17 rutas estáticas. Estos exports no producen APK instalable ni sustituyen pruebas físicas.
+- No se cambió código móvil en esta continuación: catálogo, flujos Cliente, almacenamiento seguro, seguimiento y validaciones ya están presentes en esta punta. Siguen pendientes IDs de OAuth reales, validación Android/iOS instalada y conexión E2E contra el entorno integrado.
+
 ## 2026-10-05 — Compatibilidad de catálogo real y productos +18
 
 - El tipo `PublicMenuItem` reconoce slug estable y `ageRestricted` del contrato público. Menú, preorden de reserva y pickup/delivery reutilizan el mismo catálogo backend; el Cliente muestra un aviso +18 sin inventar una verificación legal ni sustituir validación server-side.
