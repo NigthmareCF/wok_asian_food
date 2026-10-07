@@ -377,3 +377,10 @@
 - Los borradores y modificadores de pickup y delivery ahora usan SecureStore namespaced por canal y por identidad (hash SHA-256 del correo normalizado); el espacio anónimo es independiente. Cambiar de cuenta ya no restaura el carrito de otra persona.
 - Las claves de reintento pendientes también quedan en el scope de la cuenta; los intentos legacy sólo se migran si el correo coincide con la sesión activa, conservando idempotencia. Se descartan carritos legacy sin dueño verificable.
 - Verificación: Vitest 40/40, ESLint, TypeScript y export Expo Android/Web (17 rutas). Tests unitarios validan separación entre cuentas/canales y el scope anónimo.
+
+## 2026-10-07 — Estado de reservas sincronizado con Admin
+
+- La pantalla Cliente consulta `RESERVATIONS` desde `/api/v1/public/service-capabilities` al abrirse y la refresca mientras está enfocada. Si Admin publica `PAUSED` o `DISABLED`, informa al cliente y bloquea solicitudes nuevas; `ENABLED` y `MANUAL_APPROVAL` siguen disponibles.
+- La app permite resolver un reintento idempotente previamente guardado incluso mientras el servicio está pausado, para no ocultar el resultado de una solicitud posiblemente aceptada antes de la pausa. El backend aplica la misma capability dentro de la transacción y sigue siendo autoritativo.
+- Si el estado no se pudo consultar, se informa que es desconocido; la app no inventa que esté disponible y deja que el backend valide el envío.
+- Verificación: Vitest 45/45, ESLint, TypeScript `--noEmit`, export Expo Android y Web (17 rutas). Los exports no son APK instalable ni prueba física de dispositivo.

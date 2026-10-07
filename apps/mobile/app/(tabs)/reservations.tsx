@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, PublicMenu, ReservationCapacityEvaluation, ReservationHistoryItem, ReservationPreorderItem, ReservationResult, apiRequest } from "@/lib/api";
+import { PublicServiceCapability, reservationServiceState } from "@/lib/reservation-service-status";
 import { parsePendingReservationAttempt, PendingReservationAttempt, resolvePendingReservationAttempt } from "@/lib/reservation-attempt";
 import { deleteSecurePayload, readSecurePayload, saveSecurePayload } from "@/lib/reservation-attempt-storage";
 import { legacyReservationDraftKey, reservationStorageKeys } from "@/lib/reservation-storage-keys";
@@ -35,6 +36,9 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   const [messageTone, setMessageTone] = useState<"info" | "success">("info");
   const [error, setError] = useState("");
   const [history, setHistory] = useState<ReservationHistoryItem[]>([]);
+  const [serviceCapabilities, setServiceCapabilities] = useState<PublicServiceCapability[] | null>(null);
+  const [serviceStatusError, setServiceStatusError] = useState("");
+  const [serviceStatusLoading, setServiceStatusLoading] = useState(false);
   const [evaluation, setEvaluation] = useState<ReservationCapacityEvaluation | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationError, setEvaluationError] = useState("");
@@ -146,6 +150,21 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   const hasPendingReservations = history.some((item) => item.reservationStatus === "REQUESTED");
   useFocusedPolling(refreshHistory, 30_000, Boolean(session && !session.offline && hasPendingReservations));
 
+  const refreshReservationService = useCallback(async () => {
+    setServiceStatusLoading(true);
+    try {
+      const capabilities = await apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities");
+      setServiceCapabilities(capabilities);
+      setServiceStatusError("");
+    } catch (cause) {
+      setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de las reservas.");
+    } finally { setServiceStatusLoading(false); }
+  }, []);
+
+  useEffect(() => { void Promise.resolve().then(refreshReservationService); }, [refreshReservationService]);
+  useFocusedPolling(refreshReservationService, 60_000, true);
+  const reservationService = reservationServiceState(serviceCapabilities);
+
   async function evaluateSchedule() {
     setEvaluation(null); setEvaluationError("");
     const date = parseRestaurantLocalDateTime(requestedAt);
@@ -172,6 +191,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
 
   async function submit() {
     setError(""); setMessage(""); setSubmissionAlternatives([]);
+    if (reservationService === "paused" && !attemptRestored) { setError("El restaurante pausó temporalmente las solicitudes de reserva."); return; }
     if (!session) { setError("Inicia sesión desde Mi cuenta para enviar una solicitud."); return; }
     const date = parseRestaurantLocalDateTime(requestedAt);
     const count = Number(guests);
@@ -245,6 +265,8 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page><Heading eyebrow="Planifica tu visita">Solicitar reserva</Heading>
     <Text style={ui.body}>El restaurante revisará capacidad y horario. Enviar una solicitud no confirma la reserva.</Text>
     {session?.offline ? <Notice>Sin conexión al restaurante. Puedes revisar tu borrador; enviar requiere conexión y confirmación del servidor.</Notice> : null}
+    {reservationService === "paused" ? <Notice>Las solicitudes de reserva están pausadas temporalmente. Puedes conservar tu borrador y volver a intentarlo cuando el servicio esté disponible.</Notice> : null}
+    {reservationService === "unknown" && (serviceStatusLoading || serviceStatusError) ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || "Consultando si el servicio de reservas está disponible…"}</Notice> : null}
     {draftRestored ? <Notice tone="success">Restauramos tu borrador guardado en este dispositivo.</Notice> : null}
     {attemptRestored ? <Notice tone="error">Hay un envío anterior cuyo resultado no se pudo confirmar. Al reenviar la misma información usaremos la misma clave para evitar duplicar la solicitud.</Notice> : null}
     {session && Platform.OS !== "web" ? <Notice>El borrador se guarda en este dispositivo. Nunca se envía automáticamente al recuperar conexión.</Notice> : null}
@@ -296,7 +318,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
       <Button title="Evaluar horario orientativo" secondary busy={evaluating} disabled={busy || evaluating || attemptRestored} onPress={() => void evaluateSchedule()} />
       {error ? <Notice tone="error">{error}</Notice> : null}
       {message ? <Notice tone={messageTone}>{message}</Notice> : null}
-      <Button title={attemptRestored ? "Reintentar solicitud pendiente" : "Enviar solicitud"} busy={busy} disabled={Boolean(session && Platform.OS !== "web" && !draftReady)} onPress={submit} />
+      <Button title={attemptRestored ? "Reintentar solicitud pendiente" : "Enviar solicitud"} busy={busy} disabled={(reservationService === "paused" && !attemptRestored) || Boolean(session && Platform.OS !== "web" && !draftReady)} onPress={submit} />
     </Card>
     {session ? <Card>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
