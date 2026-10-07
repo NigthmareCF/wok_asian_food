@@ -382,6 +382,7 @@
 
 - La pantalla Cliente consulta `RESERVATIONS` desde `/api/v1/public/service-capabilities` al abrirse y la refresca mientras está enfocada. Si Admin publica `PAUSED` o `DISABLED`, informa al cliente y bloquea solicitudes nuevas; `ENABLED` y `MANUAL_APPROVAL` siguen disponibles.
 - Los formularios de pickup y delivery consultan la misma fuente y comunican el estado `PAUSED`/`DISABLED` o la revisión `MANUAL_APPROVAL`. Conservan el reintento idempotente previamente guardado cuando el servicio se pausa.
+- Si la respuesta omite una capability, las pantallas indican que el estado no fue publicado; si la consulta falla, muestran el error de conexión por separado.
 - La app permite resolver un reintento idempotente previamente guardado incluso mientras el servicio está pausado, para no ocultar el resultado de una solicitud posiblemente aceptada antes de la pausa. El backend aplica la misma capability dentro de la transacción y sigue siendo autoritativo.
 - Si el estado no se pudo consultar, se informa que es desconocido; la app no inventa que esté disponible y deja que el backend valide el envío.
 - Verificación: Vitest 46/46, ESLint, TypeScript `--noEmit`, export Expo Android y Web (17 rutas). Los exports no son APK instalable ni prueba física de dispositivo.

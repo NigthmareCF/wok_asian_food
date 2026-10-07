@@ -66,6 +66,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [availabilityError, setAvailabilityError] = useState("");
   const [serviceCapabilities, setServiceCapabilities] = useState<PublicServiceCapability[] | null>(null);
   const [serviceStatusError, setServiceStatusError] = useState("");
+  const [serviceStatusLoading, setServiceStatusLoading] = useState(true);
   const availabilityRevision = useRef(0);
 
   useEffect(() => {
@@ -121,7 +122,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     let active = true;
     void apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities")
       .then((items) => { if (active) { setServiceCapabilities(items); setServiceStatusError(""); } })
-      .catch((cause: unknown) => { if (active) setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de delivery."); });
+      .catch((cause: unknown) => { if (active) setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de delivery."); })
+      .finally(() => { if (active) setServiceStatusLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -333,7 +335,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     <Heading eyebrow="Entrega a domicilio">Solicitar delivery</Heading>
     {deliveryService === "paused" ? <Notice>Las solicitudes delivery están pausadas temporalmente. Puedes conservar el carrito y volver a intentarlo cuando el servicio esté disponible.</Notice> : null}
     {deliveryService === "manual-approval" ? <Notice>El equipo revisará y confirmará cada solicitud de delivery antes de aceptarla.</Notice> : null}
-    {deliveryService === "unknown" ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || "Consultando el estado de delivery…"}</Notice> : null}
+    {deliveryService === "unknown" ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || (serviceStatusLoading ? "Consultando el estado de delivery…" : "El restaurante no publicó el estado de delivery.")}</Notice> : null}
     <Notice>El equipo debe confirmar cobertura, productos y horario. Esta solicitud no es un pedido aceptado, no reserva inventario y todavía no genera un cobro.</Notice>
     {session?.offline ? <Notice>Sin conexión: conserva la solicitud para reintentar manualmente cuando vuelva el acceso al servidor.</Notice> : null}
     {error ? <Notice tone="error">{error}</Notice> : null}

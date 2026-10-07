@@ -38,7 +38,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   const [history, setHistory] = useState<ReservationHistoryItem[]>([]);
   const [serviceCapabilities, setServiceCapabilities] = useState<PublicServiceCapability[] | null>(null);
   const [serviceStatusError, setServiceStatusError] = useState("");
-  const [serviceStatusLoading, setServiceStatusLoading] = useState(false);
+  const [serviceStatusLoading, setServiceStatusLoading] = useState(true);
   const [evaluation, setEvaluation] = useState<ReservationCapacityEvaluation | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [evaluationError, setEvaluationError] = useState("");
@@ -266,7 +266,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     <Text style={ui.body}>El restaurante revisará capacidad y horario. Enviar una solicitud no confirma la reserva.</Text>
     {session?.offline ? <Notice>Sin conexión al restaurante. Puedes revisar tu borrador; enviar requiere conexión y confirmación del servidor.</Notice> : null}
     {reservationService === "paused" ? <Notice>Las solicitudes de reserva están pausadas temporalmente. Puedes conservar tu borrador y volver a intentarlo cuando el servicio esté disponible.</Notice> : null}
-    {reservationService === "unknown" && (serviceStatusLoading || serviceStatusError) ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || "Consultando si el servicio de reservas está disponible…"}</Notice> : null}
+    {reservationService === "unknown" ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || (serviceStatusLoading ? "Consultando si el servicio de reservas está disponible…" : "El restaurante no publicó el estado del servicio de reservas. El equipo confirmará la solicitud.")}</Notice> : null}
     {draftRestored ? <Notice tone="success">Restauramos tu borrador guardado en este dispositivo.</Notice> : null}
     {attemptRestored ? <Notice tone="error">Hay un envío anterior cuyo resultado no se pudo confirmar. Al reenviar la misma información usaremos la misma clave para evitar duplicar la solicitud.</Notice> : null}
     {session && Platform.OS !== "web" ? <Notice>El borrador se guarda en este dispositivo. Nunca se envía automáticamente al recuperar conexión.</Notice> : null}

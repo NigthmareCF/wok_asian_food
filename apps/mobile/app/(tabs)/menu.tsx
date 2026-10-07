@@ -58,6 +58,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   const [availabilityError, setAvailabilityError] = useState("");
   const [serviceCapabilities, setServiceCapabilities] = useState<PublicServiceCapability[] | null>(null);
   const [serviceStatusError, setServiceStatusError] = useState("");
+  const [serviceStatusLoading, setServiceStatusLoading] = useState(true);
   const availabilityRevision = useRef(0);
   const taxProfileOwner = useRef("");
 
@@ -82,7 +83,8 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
     let active = true;
     void apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities")
       .then((items) => { if (active) { setServiceCapabilities(items); setServiceStatusError(""); } })
-      .catch((cause: unknown) => { if (active) setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de pickup."); });
+      .catch((cause: unknown) => { if (active) setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de pickup."); })
+      .finally(() => { if (active) setServiceStatusLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -272,7 +274,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
     <Heading eyebrow="Catálogo">Menú WOK</Heading>
     {pickupService === "paused" ? <Notice>Las solicitudes pickup están pausadas temporalmente. Puedes conservar el carrito y volver a intentarlo cuando el servicio esté disponible.</Notice> : null}
     {pickupService === "manual-approval" ? <Notice>El equipo revisará y confirmará cada solicitud de pickup antes de aceptarla.</Notice> : null}
-    {pickupService === "unknown" ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || "Consultando el estado de pickup…"}</Notice> : null}
+    {pickupService === "unknown" ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || (serviceStatusLoading ? "Consultando el estado de pickup…" : "El restaurante no publicó el estado de pickup.")}</Notice> : null}
     {attempt ? <Card>
       <Notice>Solicitud sin confirmar para {attempt.email}. Reintenta esta misma solicitud antes de editarla o enviar otra.</Notice>
       {session?.email === attempt.email ? <Button title="Reintentar solicitud pendiente" onPress={() => void submitPickup()} busy={sending} />
