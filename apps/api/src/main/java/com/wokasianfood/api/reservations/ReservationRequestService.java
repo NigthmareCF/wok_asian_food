@@ -54,6 +54,7 @@ public class ReservationRequestService {
         String payloadHash = hashRequest(request);
         Result replay = findReplay(userId, requestId, payloadHash);
         if (replay != null) return replay;
+        requireReservationRequestsEnabled();
         List<PreorderLine> preorderLines = requestedItems.stream().map(this::snapshotItem).toList();
 
         var assessment = capacity.assessTable(request.guests(), request.requestedAt(), Instant.now(), request.preorder());
@@ -110,6 +111,17 @@ public class ReservationRequestService {
         return new Result(requestId, reservationId, reservationId != null, assessment.decision(),
                 assessment.reasonCodes(), estimate.minimumMinutes(), estimate.maximumMinutes(), assessment.publicMessage(),
                 assessment.alternativeTimes());
+    }
+
+    private void requireReservationRequestsEnabled() {
+        List<String> statuses = jdbc.query("""
+            SELECT status FROM wok.service_capabilities
+            WHERE code = 'RESERVATIONS'
+              AND effective_from <= now() AND (effective_until IS NULL OR effective_until > now())
+            FOR SHARE
+            """, (rs, row) -> rs.getString("status"));
+        if (statuses.isEmpty() || "PAUSED".equals(statuses.getFirst()) || "DISABLED".equals(statuses.getFirst()))
+            throw new AuthException(503, "Las solicitudes de reserva están temporalmente pausadas.");
     }
 
     public List<HistoryItem> history(UUID userId) {

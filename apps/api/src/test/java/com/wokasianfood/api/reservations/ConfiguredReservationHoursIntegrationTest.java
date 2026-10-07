@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
+import java.sql.Connection;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,6 +13,9 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.UUID;
 import java.util.Map;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -75,6 +79,98 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         assertThat(retry.statusCode()).isEqualTo(200);
         assertThat(replay.path("requestId").asText()).isEqualTo(requestId.toString());
         assertThat(replay.path("alternativeTimes")).isEqualTo(submitted.path("alternativeTimes"));
+    }
+
+    @Test
+    void pausedReservationsRejectNewRequestsButManualApprovalRemainsAvailable() throws Exception {
+        UUID userId = createUserWithRole("reservation-service-state-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        jdbc.update("INSERT INTO wok.customer_profiles (user_id, full_name) VALUES (?, 'Cliente reserva')", userId);
+        String token = tokenFor(userId);
+        String previousStatus = jdbc.queryForObject(
+                "SELECT status FROM wok.service_capabilities WHERE code = 'RESERVATIONS'", String.class);
+        ZoneId zone = ZoneId.of("America/Guatemala");
+        LocalDate date = LocalDate.now(zone).plusDays(1);
+        while (date.getDayOfWeek() == java.time.DayOfWeek.MONDAY) date = date.plusDays(1);
+        Instant requestedAt = LocalDateTime.of(date, LocalTime.of(18, 0)).atZone(zone).toInstant();
+        String payload = """
+            {"guests":2,"requestedAt":"%s","preorder":true,"notes":"Prueba de estado"}
+            """.formatted(requestedAt);
+
+        try {
+            for (String status : List.of("PAUSED", "DISABLED")) {
+                jdbc.update("UPDATE wok.service_capabilities SET status = ? WHERE code = 'RESERVATIONS'", status);
+                UUID requestId = UUID.randomUUID();
+                var response = post("/api/v1/client/reservations", token, payload,
+                        Map.of("Idempotency-Key", requestId.toString()));
+                assertThat(response.statusCode()).as(response.body()).isEqualTo(503);
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservation_evaluations WHERE request_id = ?",
+                        Integer.class, requestId)).isZero();
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservations WHERE created_by = ?", Integer.class,
+                        userId)).isZero();
+            }
+
+            jdbc.update("UPDATE wok.service_capabilities SET status = 'MANUAL_APPROVAL' WHERE code = 'RESERVATIONS'");
+            UUID requestId = UUID.randomUUID();
+            var manualApproval = post("/api/v1/client/reservations", token, payload,
+                    Map.of("Idempotency-Key", requestId.toString()));
+            assertThat(manualApproval.statusCode()).as(manualApproval.body()).isEqualTo(202);
+            assertThat(json.readTree(manualApproval.body()).path("submitted").asBoolean()).isTrue();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservation_evaluations WHERE request_id = ?",
+                    Integer.class, requestId)).isEqualTo(1);
+        } finally {
+            jdbc.update("UPDATE wok.service_capabilities SET status = ? WHERE code = 'RESERVATIONS'", previousStatus);
+        }
+    }
+
+    @Test
+    void pausingReservationsWinsWhenItsLockPrecedesSubmission() throws Exception {
+        UUID userId = createUserWithRole("reservation-pause-race-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        jdbc.update("INSERT INTO wok.customer_profiles (user_id, full_name) VALUES (?, 'Cliente carrera')", userId);
+        String token = tokenFor(userId);
+        String previousStatus = jdbc.queryForObject(
+                "SELECT status FROM wok.service_capabilities WHERE code = 'RESERVATIONS'", String.class);
+        ZoneId zone = ZoneId.of("America/Guatemala");
+        LocalDate date = LocalDate.now(zone).plusDays(1);
+        while (date.getDayOfWeek() == java.time.DayOfWeek.MONDAY) date = date.plusDays(1);
+        Instant requestedAt = LocalDateTime.of(date, LocalTime.of(18, 0)).atZone(zone).toInstant();
+        String payload = """
+            {"guests":2,"requestedAt":"%s","preorder":true,"notes":"Prueba de concurrencia"}
+            """.formatted(requestedAt);
+        UUID requestId = UUID.randomUUID();
+
+        try {
+            try (Connection pauseTransaction = jdbc.getDataSource().getConnection()) {
+                pauseTransaction.setAutoCommit(false);
+                try (var statement = pauseTransaction.createStatement()) {
+                    statement.executeUpdate("UPDATE wok.service_capabilities SET status = 'PAUSED' WHERE code = 'RESERVATIONS'");
+                }
+
+                CompletableFuture<java.net.http.HttpResponse<String>> submission = CompletableFuture.supplyAsync(() ->
+                        post("/api/v1/client/reservations", token, payload,
+                                Map.of("Idempotency-Key", requestId.toString())));
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                boolean waitingOnCapabilityLock = false;
+                while (System.nanoTime() < deadline && !waitingOnCapabilityLock) {
+                    Integer waiters = jdbc.queryForObject("""
+                        SELECT count(*) FROM pg_stat_activity
+                        WHERE wait_event_type = 'Lock' AND query ILIKE '%service_capabilities%'
+                        """, Integer.class);
+                    waitingOnCapabilityLock = waiters != null && waiters > 0;
+                    if (!waitingOnCapabilityLock) Thread.sleep(20);
+                }
+                assertThat(waitingOnCapabilityLock).as("reservation submission waits for the capability update").isTrue();
+
+                pauseTransaction.commit();
+                var response = submission.get(5, TimeUnit.SECONDS);
+                assertThat(response.statusCode()).as(response.body()).isEqualTo(503);
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservation_evaluations WHERE request_id = ?",
+                        Integer.class, requestId)).isZero();
+                assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservations WHERE created_by = ?", Integer.class,
+                        userId)).isZero();
+            }
+        } finally {
+            jdbc.update("UPDATE wok.service_capabilities SET status = ? WHERE code = 'RESERVATIONS'", previousStatus);
+        }
     }
 
     @Test
