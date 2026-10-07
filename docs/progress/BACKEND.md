@@ -397,3 +397,10 @@
 - El seed idempotente ahora asocia Aguacate, Mayonesa chipotle, Mayonesa jalapeño y Salsa de anguila (Q5 cada uno) a los nueve productos Sushi vigentes. La administración conserva compatibilidad producto↔grupo editable; no se crean impactos de stock.
 - `RealMenuSeedIntegrationTest` verifica que los nueve productos expongan los cuatro extras por el selector usado por API y comprueba precio, idempotencia y ausencia de tracking ficticio. PostgreSQL 18/Testcontainers, Flyway V1–V39: 1/1, cero fallos/errores/omitidas.
 - Regresión: suite completa backend con PostgreSQL 18/Testcontainers y Flyway V1–V39: 231 pruebas, cero fallos, errores u omitidas.
+
+## 2026-10-07 — Transiciones delivery idempotentes
+
+- `PATCH /api/v1/operational/deliveries/{orderId}` ahora requiere `Idempotency-Key`. La clave queda acotada al actor y a `DELIVERY_DISPATCH_TRANSITION`; el fingerprint incluye pedido, acción, versión esperada, repartidor y motivo normalizado. Claim, transición, evento, auditoría y resultado idempotente comparten la transacción.
+- Un reintento con la misma clave y datos devuelve el despacho actual sin repetir eventos; reutilizar la clave con otro payload responde `409`. Se mantiene `expectedVersion` para conflictos de edición concurrente. `X-Request-Id` continúa siendo sólo correlación/auditoría.
+- Se corrigió el manejador global para responder `400` con mensaje neutro cuando falta un encabezado obligatorio o un parámetro UUID no tiene formato válido, en vez de filtrar errores de binding como `500`.
+- `OrderRequestDecisionIntegrationTest`: 11 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V39, incluyendo replay, clave/payload conflictivos, headers ausentes/malformados, contrato OpenAPI y conteo de eventos/auditoría sin duplicados: 0 fallos, 0 errores, 0 omitidas. Suite backend completa: 232 pruebas, 0 fallos, 0 errores y 0 omitidas.

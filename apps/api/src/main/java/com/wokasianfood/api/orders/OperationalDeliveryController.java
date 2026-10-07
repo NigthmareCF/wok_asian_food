@@ -1,11 +1,16 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -47,10 +52,11 @@ public class OperationalDeliveryController {
     @PatchMapping("/{orderId}")
     public DeliveryDispatchService.DispatchView transition(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID orderId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
             @Valid @RequestBody DispatchActionRequest request) {
         return deliveries.transition(UUID.fromString(jwt.getSubject()),
-                requestId == null ? UUID.randomUUID() : requestId, orderId, request);
+                idempotencyKey, requestId == null ? UUID.randomUUID() : requestId, orderId, request);
     }
 
     public record DispatchActionRequest(@NotNull Action action, @Positive int expectedVersion,
@@ -62,9 +68,11 @@ public class OperationalDeliveryController {
 @Service
 class DeliveryDispatchService {
     private final JdbcTemplate jdbc;
+    private final IdempotencyStore idempotency;
 
-    DeliveryDispatchService(JdbcTemplate jdbc) {
+    DeliveryDispatchService(JdbcTemplate jdbc, IdempotencyStore idempotency) {
         this.jdbc = jdbc;
+        this.idempotency = idempotency;
     }
 
     private static final String SELECT_VIEW = """
@@ -111,8 +119,13 @@ class DeliveryDispatchService {
     }
 
     @Transactional
-    DispatchView transition(UUID actor, UUID requestId, UUID orderId,
+    DispatchView transition(UUID actor, UUID idempotencyKey, UUID requestId, UUID orderId,
                             OperationalDeliveryController.DispatchActionRequest request) {
+        String reason = clean(request.reason());
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "DELIVERY_DISPATCH_TRANSITION",
+                idempotencyKey, fingerprint(orderId, request, reason));
+        if (claim.replay()) return view(claim.resourceId());
+
         List<DispatchRow> rows = jdbc.query("""
             SELECT d.id, d.status, d.assigned_to_user_id, d.row_version,
                    o.status AS order_status
@@ -128,7 +141,6 @@ class DeliveryDispatchService {
         if (request.expectedVersion() != current.rowVersion())
             throw new AuthException(409, "El despacho cambió. Actualiza la vista y vuelve a intentarlo.");
 
-        String reason = clean(request.reason());
         UUID assignedTo = current.assignedTo();
         DispatchStatus next;
         String failureReason = null;
@@ -208,7 +220,20 @@ class DeliveryDispatchService {
                     jsonb_build_object('status', ?, 'rowVersion', ?), ?, 'SUCCESS', ?)
             """, actor, current.id(), current.status().name(), current.rowVersion(), next.name(),
                 current.rowVersion() + 1, reason, requestId);
+        idempotency.complete(actor.toString(), "DELIVERY_DISPATCH_TRANSITION", idempotencyKey, orderId);
         return view(orderId);
+    }
+
+    private String fingerprint(UUID orderId,
+            OperationalDeliveryController.DispatchActionRequest request, String reason) {
+        String canonical = "delivery-dispatch-v1\n" + orderId + "\n" + request.action().name() + "\n"
+                + request.expectedVersion() + "\n" + request.assignedToUserId() + "\n" + (reason == null ? "" : reason);
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is not available", impossible);
+        }
     }
 
     private void requireEligibleCourier(UUID userId) {

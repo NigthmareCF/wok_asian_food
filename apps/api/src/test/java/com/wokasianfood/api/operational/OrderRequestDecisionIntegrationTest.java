@@ -17,6 +17,22 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
+    void publishesRequiredIdempotencyKeyForDeliveryTransitionsInOpenApi() {
+        JsonNode parameters = body(get("/api/v1/openapi", null)).path("paths")
+                .path("/api/v1/operational/deliveries/{orderId}").path("patch").path("parameters");
+        boolean requiredKey = false;
+        for (JsonNode parameter : parameters) {
+            if ("Idempotency-Key".equals(parameter.path("name").asText())
+                    && "header".equals(parameter.path("in").asText())
+                    && parameter.path("required").asBoolean()) {
+                requiredKey = true;
+                break;
+            }
+        }
+        assertThat(requiredKey).isTrue();
+    }
+
+    @Test
     void acceptsPickupRequestCreatingOrderAndReplaysDecision() {
         UUID menuItemId = seedMenuItem("Wok Pickup", "25.00", "WOK_DECISION", 120);
         JsonNode submitted = submit(tokenForRole("CLIENT"), menuItemId, 2, Instant.now().plusSeconds(900).toString());
@@ -329,7 +345,7 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         UUID courier = createUserWithRole("courier-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         UUID dispatchId = jdbc.queryForObject("SELECT id FROM wok.delivery_dispatches WHERE order_id = ?", UUID.class, orderId);
 
-        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        assertThat(dispatchPatch(orderId, operator,
                 "{\"action\":\"DISPATCH\",\"expectedVersion\":1}").statusCode()).isEqualTo(409);
         jdbc.update("UPDATE wok.orders SET status = 'READY' WHERE id = ?", orderId);
         jdbc.update("UPDATE wok.delivery_dispatches SET status = 'READY_FOR_DISPATCH', row_version = row_version + 1 WHERE id = ?",
@@ -339,38 +355,48 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         JsonNode couriers = body(get("/api/v1/operational/deliveries/eligible-couriers", operator));
         assertThat(couriers.findValuesAsText("userId")).contains(courier.toString());
         UUID clientUser = createUserWithRole("not-courier-" + UUID.randomUUID() + "@wok.test", "CLIENT");
-        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        assertThat(dispatchPatch(orderId, operator,
                 "{\"action\":\"ASSIGN\",\"assignedToUserId\":\"%s\",\"expectedVersion\":2}"
                         .formatted(clientUser)).statusCode()).isEqualTo(422);
 
-        JsonNode assigned = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        JsonNode assigned = body(dispatchPatch(orderId, operator,
                 "{\"action\":\"ASSIGN\",\"assignedToUserId\":\"%s\",\"expectedVersion\":2}".formatted(courier)));
         assertThat(assigned.path("status").asText()).isEqualTo("ASSIGNED");
         assertThat(assigned.path("assignedToUserId").asText()).isEqualTo(courier.toString());
         assertThat(assigned.path("rowVersion").asInt()).isEqualTo(3);
 
-        JsonNode dispatched = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
-                "{\"action\":\"DISPATCH\",\"expectedVersion\":3}"));
+        UUID dispatchKey = UUID.randomUUID();
+        String dispatchPayload = "{\"action\":\"DISPATCH\",\"expectedVersion\":3}";
+        JsonNode dispatched = body(dispatchPatch(orderId, operator, dispatchPayload, dispatchKey));
         assertThat(dispatched.path("status").asText()).isEqualTo("OUT_FOR_DELIVERY");
-        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        JsonNode dispatchReplay = body(dispatchPatch(orderId, operator, dispatchPayload, dispatchKey));
+        assertThat(dispatchReplay.path("status").asText()).isEqualTo(dispatched.path("status").asText());
+        assertThat(dispatchReplay.path("rowVersion").asInt()).isEqualTo(dispatched.path("rowVersion").asInt());
+        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator, dispatchPayload).statusCode())
+                .isEqualTo(400);
+        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator, dispatchPayload,
+                Map.of("Idempotency-Key", "not-a-uuid")).statusCode()).isEqualTo(400);
+        assertThat(dispatchPatch(orderId, operator,
+                "{\"action\":\"DISPATCH\",\"expectedVersion\":4}", dispatchKey).statusCode()).isEqualTo(409);
+        assertThat(dispatchPatch(orderId, operator,
                 "{\"action\":\"FAIL\",\"expectedVersion\":4}").statusCode()).isEqualTo(422);
 
-        JsonNode failed = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        JsonNode failed = body(dispatchPatch(orderId, operator,
                 "{\"action\":\"FAIL\",\"expectedVersion\":4,\"reason\":\"No respondió\"}"));
         assertThat(failed.path("status").asText()).isEqualTo("DELIVERY_FAILED");
-        JsonNode retried = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        JsonNode retried = body(dispatchPatch(orderId, operator,
                 "{\"action\":\"RETRY\",\"expectedVersion\":5,\"reason\":\"Cliente confirmó nueva entrega\"}"));
         assertThat(retried.path("status").asText()).isEqualTo("READY_FOR_DISPATCH");
         assertThat(retried.hasNonNull("assignedToUserId")).isFalse();
-        assertThat(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        assertThat(dispatchPatch(orderId, operator,
                 "{\"action\":\"ASSIGN\",\"assignedToUserId\":\"%s\",\"expectedVersion\":5}".formatted(courier))
                 .statusCode()).isEqualTo(409);
 
-        JsonNode reassigned = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        JsonNode reassigned = body(dispatchPatch(orderId, operator,
                 "{\"action\":\"ASSIGN\",\"assignedToUserId\":\"%s\",\"expectedVersion\":6}".formatted(courier)));
-        JsonNode secondDispatch = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        JsonNode secondDispatch = body(dispatchPatch(orderId, operator,
                 "{\"action\":\"DISPATCH\",\"expectedVersion\":7}"));
-        JsonNode delivered = body(patch("/api/v1/operational/deliveries/" + orderId, operator,
+        JsonNode delivered = body(dispatchPatch(orderId, operator,
                 "{\"action\":\"DELIVER\",\"expectedVersion\":8}"));
         assertThat(reassigned.path("status").asText()).isEqualTo("ASSIGNED");
         assertThat(secondDispatch.path("status").asText()).isEqualTo("OUT_FOR_DELIVERY");
@@ -506,6 +532,15 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         } catch (Exception failure) {
             throw new IllegalStateException(failure);
         }
+    }
+
+    private HttpResponse<String> dispatchPatch(UUID orderId, String token, String payload) {
+        return dispatchPatch(orderId, token, payload, UUID.randomUUID());
+    }
+
+    private HttpResponse<String> dispatchPatch(UUID orderId, String token, String payload, UUID idempotencyKey) {
+        return patch("/api/v1/operational/deliveries/" + orderId, token, payload,
+                Map.of("Idempotency-Key", idempotencyKey.toString()));
     }
 
     private JsonNode submit(String token, UUID menuItemId, int quantity, String requestedFor) {
