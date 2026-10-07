@@ -1,7 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { Link } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, apiRequest, CustomerAddress, CustomerTaxProfile, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, MenuAvailabilityEstimate, PublicMenu, PublicMenuItem } from "@/lib/api";
@@ -12,6 +12,7 @@ import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { CommerceStorageKeys, resolveCommerceStorageKeys } from "@/lib/commerce-storage";
 import { PublicServiceCapability, requestServiceState } from "@/lib/reservation-service-status";
+import { useFocusedPolling } from "@/lib/use-focused-polling";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const legacyStorageKeys = { cart: "wok.delivery.cart.v1", modifiers: "wok.delivery.modifiers.v1", pending: "wok.delivery.pending.v1" };
@@ -118,14 +119,18 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     return () => { active = false; };
   }, [session?.email]);
 
-  useEffect(() => {
-    let active = true;
-    void apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities")
-      .then((items) => { if (active) { setServiceCapabilities(items); setServiceStatusError(""); } })
-      .catch((cause: unknown) => { if (active) setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de delivery."); })
-      .finally(() => { if (active) setServiceStatusLoading(false); });
-    return () => { active = false; };
+  const refreshServiceCapabilities = useCallback(async () => {
+    setServiceStatusLoading(true);
+    try {
+      setServiceCapabilities(await apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities"));
+      setServiceStatusError("");
+    } catch (cause) {
+      setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de delivery.");
+    } finally { setServiceStatusLoading(false); }
   }, []);
+
+  useEffect(() => { void Promise.resolve().then(refreshServiceCapabilities); }, [refreshServiceCapabilities]);
+  useFocusedPolling(refreshServiceCapabilities, 60_000, true);
 
   useEffect(() => {
     if (!cartRestored || !cartStorageKeys) return;

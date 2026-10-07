@@ -11,6 +11,7 @@ import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { CommerceStorageKeys, resolveCommerceStorageKeys } from "@/lib/commerce-storage";
 import { PublicServiceCapability, requestServiceState } from "@/lib/reservation-service-status";
+import { useFocusedPolling } from "@/lib/use-focused-polling";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
 const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
@@ -79,14 +80,18 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
     return () => { mounted = false; };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    void apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities")
-      .then((items) => { if (active) { setServiceCapabilities(items); setServiceStatusError(""); } })
-      .catch((cause: unknown) => { if (active) setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de pickup."); })
-      .finally(() => { if (active) setServiceStatusLoading(false); });
-    return () => { active = false; };
+  const refreshServiceCapabilities = useCallback(async () => {
+    setServiceStatusLoading(true);
+    try {
+      setServiceCapabilities(await apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities"));
+      setServiceStatusError("");
+    } catch (cause) {
+      setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de pickup.");
+    } finally { setServiceStatusLoading(false); }
   }, []);
+
+  useEffect(() => { void Promise.resolve().then(refreshServiceCapabilities); }, [refreshServiceCapabilities]);
+  useFocusedPolling(refreshServiceCapabilities, 60_000, true);
 
   const pickupService = requestServiceState(serviceCapabilities, "PICKUP");
 
