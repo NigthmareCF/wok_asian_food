@@ -197,6 +197,52 @@ class ClientOrderQuoteIntegrationTest extends PostgresIntegrationTest {
         assertThat(count("SELECT count(*) FROM wok.order_requests WHERE id = ? AND status = 'PENDING_REVIEW'", requestId)).isEqualTo(1);
     }
 
+    @Test
+    void operationalAcceptanceRechecksCapacityAfterItsHoldExpires() throws Exception {
+        UUID itemId = seedMenuItem("Expired hold recheck item", "22.00", "QUOTE_RECHECK_TEST", 30);
+        UUID stationId = jdbc.queryForObject("SELECT preparation_area_id FROM wok.menu_items WHERE id = ?", UUID.class, itemId);
+        String client = tokenForRole("CLIENT");
+        Instant requestedFor = Instant.now().plusSeconds(3600);
+        UUID firstRequest = submitQuotedPickup(client, itemId, requestedFor);
+        UUID otherRequest = submitQuotedPickup(client, itemId, requestedFor);
+
+        jdbc.update("""
+            UPDATE wok.order_capacity_holds SET expires_at = now() - interval '1 second'
+            WHERE order_request_id = ?
+            """, firstRequest);
+        assertThat(capacityHolds.expireDue()).isEqualTo(1);
+        jdbc.update("""
+            UPDATE wok.order_capacity_holds SET expires_at = now() + interval '5 minutes'
+            WHERE order_request_id = ? AND status = 'ACTIVE'
+            """, otherRequest);
+        assertThat(jdbc.update("""
+            UPDATE wok.order_capacity_hold_stations allocation SET preparation_seconds = 7200
+            FROM wok.order_capacity_holds hold
+            WHERE allocation.hold_id = hold.id AND hold.order_request_id = ?
+              AND allocation.station_id = ? AND hold.status = 'ACTIVE'
+            """, otherRequest, stationId)).isEqualTo(1);
+
+        var response = post("/api/v1/operational/order-requests/" + firstRequest + "/decision",
+                tokenForRole("OPERATIONAL"), "{\"action\":\"ACCEPT\"}");
+
+        assertThat(response.statusCode()).as("body %s", response.body()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.order_requests WHERE id = ? AND status = 'PENDING_REVIEW'", firstRequest))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.orders WHERE id = (SELECT order_id FROM wok.order_requests WHERE id = ?)",
+                firstRequest)).isZero();
+    }
+
+    private UUID submitQuotedPickup(String client, UUID itemId, Instant requestedFor) throws Exception {
+        JsonNode quote = body(post("/api/v1/client/order-quotes", client,
+                quotePayload("PICKUP", requestedFor, itemId, 1),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        JsonNode request = body(post("/api/v1/client/order-requests", client, """
+                {"requestedFor":"%s","paymentPreference":"CASH_AT_PICKUP","items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(requestedFor, itemId), Map.of("Idempotency-Key", UUID.randomUUID().toString(),
+                "X-Order-Quote-Id", quote.path("quoteId").asText())));
+        return UUID.fromString(request.path("requestId").asText());
+    }
+
     private String quotePayload(String fulfillment, Instant requestedFor, UUID itemId, int quantity) {
         return """
                 {"fulfillmentType":"%s","requestedFor":"%s","items":[{"menuItemId":"%s","quantity":%d}]}

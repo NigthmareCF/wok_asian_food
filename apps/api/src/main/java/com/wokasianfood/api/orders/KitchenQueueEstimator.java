@@ -24,6 +24,12 @@ public class KitchenQueueEstimator {
     /** Remote scheduled requests include only holds for an earlier/equal slot on the same Guatemala service date.
      * Unscheduled in-house work ignores remote holds so the restaurant keeps its local-first priority. */
     public Estimate estimate(Map<UUID, Long> preparationSecondsByStation, boolean lockStations, Instant requestedFor) {
+        return estimate(preparationSecondsByStation, lockStations, requestedFor, null);
+    }
+
+    /** Excludes a request's own hold when rechecking it at operational acceptance. */
+    public Estimate estimate(Map<UUID, Long> preparationSecondsByStation, boolean lockStations,
+            Instant requestedFor, UUID excludedOrderRequestId) {
         if (preparationSecondsByStation == null || preparationSecondsByStation.isEmpty())
             return new Estimate(List.of(), 0);
         List<StationEstimate> stations = preparationSecondsByStation.entrySet().stream()
@@ -43,12 +49,13 @@ public class KitchenQueueEstimator {
                                          AND hold.requested_for <= ?
                                          AND (hold.requested_for AT TIME ZONE 'America/Guatemala')::date
                                              = (? AT TIME ZONE 'America/Guatemala')::date
+                                         AND hold.order_request_id IS DISTINCT FROM ?
                                    ), 0)
                             FROM wok.kitchen_tickets ticket
                             WHERE ticket.station_id = ? AND ticket.status IN ('QUEUED', 'PREPARING')
                             """, Long.class, stationId, requestedFor == null ? null : Timestamp.from(requestedFor),
                             requestedFor == null ? null : Timestamp.from(requestedFor),
-                            requestedFor == null ? null : Timestamp.from(requestedFor), stationId);
+                            requestedFor == null ? null : Timestamp.from(requestedFor), excludedOrderRequestId, stationId);
                     long queueDelay = delay == null ? 0 : delay;
                     long preparation = Math.max(0, entry.getValue() == null ? 0 : entry.getValue());
                     return new StationEstimate(stationId, queueDelay, preparation,

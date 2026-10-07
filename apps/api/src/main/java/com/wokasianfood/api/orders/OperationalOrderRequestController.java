@@ -9,7 +9,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -67,6 +69,7 @@ class OrderRequestDecisionService {
     private final ModifierSelectionService modifiers;
     private final InventoryReservationService inventory;
     private final OrderCapacityHoldService capacityHolds;
+    private final KitchenQueueEstimator kitchenQueue;
 
     private static final org.springframework.jdbc.core.RowMapper<OrderRequestSummary> SUMMARY_MAPPER = (rs, row) ->
             new OrderRequestSummary(rs.getObject("request_id", UUID.class), rs.getString("fulfillment_type"),
@@ -78,12 +81,14 @@ class OrderRequestDecisionService {
                     rs.getString("decision_reason"), rs.getObject("order_id", UUID.class));
 
     OrderRequestDecisionService(JdbcTemplate jdbc, OrderService orders, ModifierSelectionService modifiers,
-                                InventoryReservationService inventory, OrderCapacityHoldService capacityHolds) {
+                                InventoryReservationService inventory, OrderCapacityHoldService capacityHolds,
+                                KitchenQueueEstimator kitchenQueue) {
         this.jdbc = jdbc;
         this.orders = orders;
         this.modifiers = modifiers;
         this.inventory = inventory;
         this.capacityHolds = capacityHolds;
+        this.kitchenQueue = kitchenQueue;
     }
 
     List<OrderRequestSummary> list(String rawStatus, String rawFulfillmentType) {
@@ -187,7 +192,12 @@ class OrderRequestDecisionService {
             throw new AuthException(422, "La modalidad de esta solicitud todavía no admite aceptación operativa.");
 
         requireServiceEnabled(current.fulfillmentType());
-        revalidate(current);
+        Map<UUID, Long> preparationByStation = revalidate(current);
+        KitchenQueueEstimator.Estimate estimate = kitchenQueue.estimate(preparationByStation, true,
+                current.requestedFor(), orderRequestId);
+        long etaSeconds = estimate.overallReadySeconds();
+        if (etaSeconds > 86_400 || !current.requestedFor().isAfter(Instant.now().plusSeconds(etaSeconds)))
+            throw new AuthException(409, "La carga de cocina cambió; la solicitud sigue pendiente para nueva revisión.");
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines(orderRequestId);
         capacityHolds.finish(orderRequestId, OrderCapacityHoldService.EndState.CONVERTED);
         boolean delivery = "DELIVERY".equals(current.fulfillmentType());
@@ -222,9 +232,10 @@ class OrderRequestDecisionService {
             throw new AuthException(503, "El servicio está temporalmente indisponible; la solicitud sigue pendiente.");
     }
 
-    private void revalidate(Locked request) {
+    private Map<UUID, Long> revalidate(Locked request) {
         List<Revalidated> items = jdbc.query("""
-            SELECT ri.menu_item_id, ri.quantity, ri.unit_price, mi.price AS current_price, mi.currency_id
+            SELECT ri.menu_item_id, ri.quantity, ri.unit_price, mi.price AS current_price, mi.currency_id,
+                   mi.preparation_area_id, mi.estimated_preparation_seconds
             FROM wok.order_request_items ri
             JOIN wok.menu_items mi ON mi.id = ri.menu_item_id AND mi.status = 'ACTIVE'
             JOIN wok.items i ON i.id = mi.item_id AND i.active = true
@@ -234,7 +245,8 @@ class OrderRequestDecisionService {
             FOR SHARE OF mi, i, category
             """, (rs, row) -> new Revalidated(rs.getObject("menu_item_id", UUID.class), rs.getInt("quantity"),
                 rs.getBigDecimal("unit_price"), rs.getBigDecimal("current_price"),
-                rs.getObject("currency_id", UUID.class)), request.id());
+                rs.getObject("currency_id", UUID.class), rs.getObject("preparation_area_id", UUID.class),
+                rs.getLong("estimated_preparation_seconds")), request.id());
         Integer expected = jdbc.queryForObject("""
             SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?
             """, Integer.class, request.id());
@@ -243,6 +255,7 @@ class OrderRequestDecisionService {
         if (items.stream().anyMatch(item -> !item.currencyId().equals(request.currencyId())))
             throw new AuthException(422, "La moneda de la solicitud ya no coincide con el menú.");
         BigDecimal currentSubtotal = BigDecimal.ZERO;
+        Map<UUID, Long> preparationByStation = new LinkedHashMap<>();
         for (Revalidated item : items) {
             List<UUID> selectedIds = jdbc.query("""
                 SELECT selected.modifier_id FROM wok.order_request_item_modifiers selected
@@ -260,9 +273,17 @@ class OrderRequestDecisionService {
             if (currentUnitPrice.compareTo(item.requestedPrice()) != 0)
                 throw new AuthException(409, "El precio de un producto o sus opciones cambió. Contacta al cliente antes de aceptar.");
             currentSubtotal = currentSubtotal.add(currentUnitPrice.multiply(BigDecimal.valueOf(item.quantity())));
+            long seconds;
+            try {
+                seconds = Math.multiplyExact(item.preparationSeconds(), item.quantity());
+                preparationByStation.merge(item.stationId(), seconds, Math::addExact);
+            } catch (ArithmeticException overflow) {
+                throw new AuthException(422, "La carga de preparación supera el límite operativo.");
+            }
         }
         if (currentSubtotal.compareTo(request.subtotal()) != 0)
             throw new AuthException(409, "El precio cambió desde que se envió la solicitud. Contacta al cliente antes de aceptarla.");
+        return preparationByStation;
     }
 
     private void applyAcceptedModifiers(UUID actor, UUID requestId, UUID orderRequestId, UUID orderId) {
@@ -334,7 +355,7 @@ class OrderRequestDecisionService {
                           UUID currencyId, UUID orderId, BigDecimal subtotal) {}
     private record AcceptedLine(UUID requestItemId, UUID orderItemId, BigDecimal unitPrice, int quantity) {}
     private record Revalidated(UUID menuItemId, int quantity, BigDecimal requestedPrice, BigDecimal currentPrice,
-                               UUID currencyId) {}
+                               UUID currencyId, UUID stationId, long preparationSeconds) {}
 
     public record DecisionResult(UUID requestId, String status, UUID orderId, boolean idempotentReplay) {}
     public record OrderRequestSummary(UUID requestId, String fulfillmentType, String status, String customerName,

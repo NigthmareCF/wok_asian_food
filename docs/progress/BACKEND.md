@@ -550,3 +550,8 @@
 - Se agregó prueba de integración PostgreSQL que crea dos clientes con pedidos pickup aceptados y comprueba que `/api/v1/client/orders/tracking` devuelve únicamente el pedido del usuario autenticado, aunque exista un segundo pedido válido en la base.
 - Prueba focal: `ClientOrderTrackingOwnershipIntegrationTest`, PostgreSQL 18/Testcontainers y Flyway V1–V48. La consulta ya restringía por `customer_user_id`; esta prueba verifica el comportamiento completo mediante HTTP y la base real.
 - El endpoint de solicitudes de cambio también se probó con propiedades manipuladas `status=PAID` y `orderStatus=READY`: la solicitud queda en `PENDING_REVIEW` y pedido/solicitud conservan sus estados autoritativos. `ClientOrderChangeRequestIntegrationTest`: 4/4 con PostgreSQL 18/Testcontainers.
+
+## 2026-10-07 — Revalidación de capacidad al aceptar solicitudes
+
+- La aceptación Operativa vuelve a estimar carga de cocina bajo locks estables de estaciones. Excluye únicamente el hold de la solicitud que se está evaluando para evitar contarlo dos veces, e incluye los demás holds vigentes de la misma fecha/hora de servicio.
+- Si el ETA actualizado ya no cabe antes del horario solicitado, responde `409 Conflict`, conserva la solicitud pendiente y no crea un pedido. `ClientOrderQuoteIntegrationTest` cubre un hold vencido, otro hold que ocupa la estación y el rechazo seguro; `OrderRequestDecisionIntegrationTest` mantiene la cobertura de cola previa a vencer el hold. Suite completa: 264/264, cero fallos, errores u omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V48.

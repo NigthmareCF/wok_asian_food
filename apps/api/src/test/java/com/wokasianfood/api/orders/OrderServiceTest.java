@@ -354,7 +354,7 @@ class OrderServiceTest {
         when(jdbc.query(contains("SELECT id FROM wok.preparation_areas WHERE id = ? AND active = true FOR UPDATE"),
                 any(RowMapper.class), eq(stationId))).thenReturn(List.of(stationId));
         when(jdbc.queryForObject(contains("status IN ('QUEUED', 'PREPARING')"), eq(Long.class), eq(stationId),
-                isNull(), isNull(), isNull(), eq(stationId)))
+                isNull(), isNull(), isNull(), isNull(), eq(stationId)))
                 .thenReturn(0L);
     }
 

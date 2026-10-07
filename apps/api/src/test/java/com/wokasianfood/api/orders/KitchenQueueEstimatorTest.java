@@ -17,11 +17,13 @@ class KitchenQueueEstimatorTest {
         when(jdbc.queryForObject(org.mockito.ArgumentMatchers.contains("MAX(ticket.estimated_ready_at)"),
                 org.mockito.ArgumentMatchers.eq(Long.class), org.mockito.ArgumentMatchers.eq(sushi),
                 org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
-                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(sushi))).thenReturn(30L);
+                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(sushi))).thenReturn(30L);
         when(jdbc.queryForObject(org.mockito.ArgumentMatchers.contains("MAX(ticket.estimated_ready_at)"),
                 org.mockito.ArgumentMatchers.eq(Long.class), org.mockito.ArgumentMatchers.eq(hotKitchen),
                 org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
-                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(hotKitchen))).thenReturn(50L);
+                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(hotKitchen))).thenReturn(50L);
 
         KitchenQueueEstimator.Estimate estimate = new KitchenQueueEstimator(jdbc)
                 .estimate(Map.of(sushi, 20L, hotKitchen, 40L), false);

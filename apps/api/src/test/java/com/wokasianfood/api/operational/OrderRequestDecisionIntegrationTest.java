@@ -174,7 +174,7 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 {"action":"ACCEPT"}
                 """ );
 
-        assertThat(response.statusCode()).isEqualTo(422);
+        assertThat(response.statusCode()).isEqualTo(409);
         assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class,
                 secondRequestId)).isEqualTo("PENDING_REVIEW");
         assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class,
