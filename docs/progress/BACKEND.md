@@ -410,3 +410,8 @@
 - `ReservationRequestService` valida `service_capabilities.RESERVATIONS` después de resolver replays idempotentes y antes de evaluar capacidad, leer/snapshotear preórdenes o insertar datos. `ENABLED` y `MANUAL_APPROVAL` permiten continuar; `PAUSED`, `DISABLED` o capability ausente responden `503`.
 - La consulta toma `FOR SHARE` dentro de la transacción, por lo que una pausa administrativa que gana la carrera se respeta antes de crear evaluación/reserva; las operaciones ya guardadas/reintentadas conservan su resultado idempotente.
 - `ConfiguredReservationHoursIntegrationTest`: 5 pruebas PostgreSQL 18/Testcontainers; valida ambas capacidades bloqueadas sin evaluación ni reserva, que `MANUAL_APPROVAL` permite una solicitud pendiente y que una pausa que bloquea primero hace esperar la solicitud HTTP para luego responder 503 sin persistencia. Suite completa Flyway V1–V39: 234 pruebas, 0 fallos, 0 errores, 0 omitidas.
+
+## 2026-10-07 — La evaluación pública también respeta la pausa de reservas
+
+- `/api/v1/public/reservations/evaluate` delega en el servicio de solicitudes y revisa `RESERVATIONS` con el mismo row lock transaccional que el envío. Si la capability está `PAUSED`, `DISABLED` o ausente, no devuelve una evaluación de horario que parezca disponible; responde 503. `ENABLED` y `MANUAL_APPROVAL` conservan la evaluación normal.
+- La prueba PostgreSQL existente ahora comprueba evaluación pública bloqueada tanto con `PAUSED` como con `DISABLED`, además de probar el envío y la serialización con una pausa concurrente. Suite backend completa: 234 pruebas, 0 fallos, 0 errores, 0 omitidas; PostgreSQL 18/Testcontainers, Flyway V1–V39.

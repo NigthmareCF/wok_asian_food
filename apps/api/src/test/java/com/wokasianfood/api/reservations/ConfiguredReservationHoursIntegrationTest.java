@@ -99,6 +99,9 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         try {
             for (String status : List.of("PAUSED", "DISABLED")) {
                 jdbc.update("UPDATE wok.service_capabilities SET status = ? WHERE code = 'RESERVATIONS'", status);
+                var evaluation = post("/api/v1/public/reservations/evaluate", null,
+                        "{\"guests\":2,\"requestedAt\":\"%s\",\"preorder\":true}".formatted(requestedAt), Map.of());
+                assertThat(evaluation.statusCode()).as(evaluation.body()).isEqualTo(503);
                 UUID requestId = UUID.randomUUID();
                 var response = post("/api/v1/client/reservations", token, payload,
                         Map.of("Idempotency-Key", requestId.toString()));

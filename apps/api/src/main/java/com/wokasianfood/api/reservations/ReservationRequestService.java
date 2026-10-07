@@ -124,6 +124,12 @@ public class ReservationRequestService {
             throw new AuthException(503, "Las solicitudes de reserva están temporalmente pausadas.");
     }
 
+    @Transactional
+    public OperationalCapacityService.Assessment evaluateCapacity(int guests, Instant requestedAt, boolean preorder) {
+        requireReservationRequestsEnabled();
+        return capacity.assessTable(guests, requestedAt, Instant.now(), preorder);
+    }
+
     public List<HistoryItem> history(UUID userId) {
         List<HistoryItem> history = jdbc.query("""
             SELECT e.request_id, e.reservation_id, e.requested_for_at, e.party_size, e.decision,

@@ -14,12 +14,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/public/reservations")
 public class ReservationEvaluationController {
-    private final OperationalCapacityService capacity;
-    public ReservationEvaluationController(OperationalCapacityService capacity) { this.capacity = capacity; }
+    private final ReservationRequestService requests;
+    public ReservationEvaluationController(ReservationRequestService requests) { this.requests = requests; }
 
     @PostMapping("/evaluate")
     public Evaluation evaluate(@Valid @RequestBody Request request) {
-        var assessment = capacity.assessTable(request.guests(), request.requestedAt(), Instant.now(), request.preorder());
+        var assessment = requests.evaluateCapacity(request.guests(), request.requestedAt(), request.preorder());
         return new Evaluation(false, assessment);
     }
 
