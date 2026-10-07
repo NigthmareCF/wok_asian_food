@@ -38,7 +38,7 @@ docker compose --profile dev up --build -d
 - OpenAPI: `http://localhost/api/v1/openapi`
 - Mailpit: `http://localhost:8025`
 
-La API aplica Flyway V1–V48 al iniciar. `db` sólo está en la red Docker privada; la entrada de clientes es Nginx. La integración de cobros, FEL, email productivo y Meta usa adapters/mocks hasta configurar proveedores reales. Los valores de `.env` son locales y no deben agregarse a Git.
+La API aplica Flyway V1–V48 al iniciar. En desarrollo, `.env.example` habilita el seed repetible `database/seeds/menu_real_dev.sql`: publica los 31 productos y sus opciones, sin crear recetas ni stock. Se desactiva con `WOK_CATALOG_SEED_ENABLED=false` antes de cualquier despliegue productivo. `db` sólo está en la red Docker privada; la entrada de clientes es Nginx. La integración de cobros, FEL, email productivo y Meta usa adapters/mocks hasta configurar proveedores reales. Los valores de `.env` son locales y no deben agregarse a Git.
 
 ## Aplicación móvil Cliente
 

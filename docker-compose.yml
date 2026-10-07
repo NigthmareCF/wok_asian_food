@@ -43,6 +43,8 @@ services:
       WOK_AUTH_JWT_SECRET_BASE64: ${WOK_AUTH_JWT_SECRET_BASE64:?Set WOK_AUTH_JWT_SECRET_BASE64 in an ignored .env file}
       WOK_AUTH_CHALLENGE_PEPPER_BASE64: ${WOK_AUTH_CHALLENGE_PEPPER_BASE64:?Set WOK_AUTH_CHALLENGE_PEPPER_BASE64 in an ignored .env file}
       WOK_AI_MODE: ${WOK_AI_MODE:-disabled}
+      WOK_CATALOG_SEED_ENABLED: ${WOK_CATALOG_SEED_ENABLED:-false}
+      WOK_CATALOG_SEED_FILE: ${WOK_CATALOG_SEED_FILE:-file:/database/seeds/menu_real_dev.sql}
       WOK_AI_SERVICE_TOKEN: ${WOK_AI_SERVICE_TOKEN:-}
       WOK_EMAIL_MODE: ${WOK_EMAIL_MODE:-mock}
       WOK_EMAIL_HEALTH_ENABLED: ${WOK_EMAIL_HEALTH_ENABLED:-false}
@@ -52,6 +54,7 @@ services:
       SPRING_MAIL_PASSWORD: ${WOK_SMTP_PASSWORD:-}
     volumes:
       - ./database/migrations:/database/migrations:ro
+      - ./database/seeds:/database/seeds:ro
     depends_on:
       db:
         condition: service_healthy

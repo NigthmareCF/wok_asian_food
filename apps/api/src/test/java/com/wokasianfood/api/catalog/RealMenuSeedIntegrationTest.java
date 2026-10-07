@@ -10,15 +10,20 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        "wok.catalog.seed-enabled=true",
+        "wok.catalog.seed-file=file:../../database/seeds/menu_real_dev.sql"
+})
 class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
     void seedsTheCurrentMenuRepeatablyWithoutInventingRecipesOrStock() throws Exception {
-        runSeed();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items WHERE slug IS NOT NULL", Integer.class)).isEqualTo(31);
         createLegacyPreparationAreasAndAttachExistingMenuItem();
         runSeed();
 

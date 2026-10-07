@@ -7,6 +7,11 @@
 - Pruebas focalizadas: `ClientOrderQuoteIntegrationTest` 6/6 y `KitchenQueueEstimatorTest` 1/1, PostgreSQL 18/Testcontainers, Flyway V1–V48 desde cero. Incluyen quote→hold, liberación, conversión, expiración y estado PENDING_REVIEW.
 - Suite backend completa: 260/260, cero fallos/errores/omitidas. Móvil en su rama especializada: 59/59 Vitest, ESLint, TypeScript y export Android.
 
+## 2026-10-07 — Seed del menú al iniciar entorno de desarrollo
+
+- La API ejecuta `database/seeds/menu_real_dev.sql` después de Flyway sólo cuando `WOK_CATALOG_SEED_ENABLED=true`; el archivo es configurable. Compose monta el seed sin incluirlo en las migraciones, y `.env.example` de desarrollo lo habilita. El SQL es idempotente y conserva `PENDING_DATA`, sin inventar BOM ni activar consumo de inventario.
+- `RealMenuSeedIntegrationTest` inicia con la opción habilitada y prueba desde PostgreSQL limpio que 31 productos aparecen antes de ejecutar el seed manual repetido; las verificaciones existentes confirman precios, extras, áreas, +18, stock y lectura pública. Focal: 1/1, Flyway V1–V48.
+
 ## 2026-10-07 — Grupos grandes de reserva pasan a revisión humana
 
 - Retiré los límites fijos de 50 personas de evaluación pública, envío Cliente y snapshot persistido (`V44__allow_large_reservation_groups.sql`). Grupos desde 13 reciben `REQUIRES_HUMAN_APPROVAL`; no se convierten en aceptación automática. La estancia usa el rango especial actual 180–240 minutos, todavía sujeto a calibración con datos reales.
