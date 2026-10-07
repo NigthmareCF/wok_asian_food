@@ -518,4 +518,4 @@
 
 - V47 agrega al snapshot persistido `queue_delay_seconds` y `total_eta_seconds`. El quote agrupa preparación por área y consulta la cola activa bajo locks de estación ordenados; reporta el cuello de botella entre estaciones, separando demora de cola, preparación y ETA total. Estos valores son estimaciones sujetas a cambios en cocina.
 - Pickup y delivery muestran los tres valores estimados. No se reserva esa capacidad durante la cotización y el equipo debe reevaluar al aceptar.
-- Cambios y test de persistencia añadidos después de la ejecución focal con PostgreSQL V1–V46. Validación nueva de compilación/contrato y migración V47 pendiente de PostgreSQL accesible; Testcontainers está deshabilitado por acceso denegado a Docker en esta sesión.
+- `ClientOrderQuoteIntegrationTest`: 4/4 pasa con Testcontainers PostgreSQL, Flyway V1–V47 aplicado desde esquema vacío. `KitchenQueueEstimatorTest`: 1/1. Suite backend completa posterior a V47: 258/258, 0 fallidas, 0 errores, 0 omitidas; incluye los tests PostgreSQL/Testcontainers. Para Mockito en este JDK se ejecutó con `-DargLine=-javaagent:<byte-buddy-agent-1.18.11.jar>`.
