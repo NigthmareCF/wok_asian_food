@@ -18,4 +18,14 @@ describe("reservation pre-order payload", () => {
     expect(() => buildReservationPreorderItems([product], { "dish-1": 1 }, {})).toThrow("Completa las opciones");
     expect(() => buildReservationPreorderItems([], { "missing": 1 }, {})).toThrow("Revisa las cantidades");
   });
+
+  it("supports bulk quantities above the previous client-side cap", () => {
+    expect(buildReservationPreorderItems([product], { "dish-1": 51 }, { "dish-1": ["modifier-1"] }))
+      .toEqual([{ menuItemId: "dish-1", quantity: 51, modifierIds: ["modifier-1"] }]);
+  });
+
+  it("rejects quantities outside the backend integer range", () => {
+    expect(() => buildReservationPreorderItems([product], { "dish-1": 2_147_483_648 }, { "dish-1": ["modifier-1"] }))
+      .toThrow("Revisa las cantidades de la preorden.");
+  });
 });

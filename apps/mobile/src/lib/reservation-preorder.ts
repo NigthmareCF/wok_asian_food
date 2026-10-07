@@ -1,5 +1,6 @@
 import { PublicMenuItem, ReservationPreorderItem } from "./api";
 import { menuModifiersAreValid } from "./menu-options";
+import { isValidPositiveApiInteger } from "./quantity-limits";
 
 export function buildReservationPreorderItems(
   products: PublicMenuItem[],
@@ -11,7 +12,7 @@ export function buildReservationPreorderItems(
   if (selected.length > 20) throw new Error("Puedes incluir hasta 20 productos distintos en la preorden.");
   return selected.map(([menuItemId, quantity]) => {
     const product = productsById.get(menuItemId);
-    if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 50)
+    if (!product || !isValidPositiveApiInteger(quantity))
       throw new Error("Revisa las cantidades de la preorden.");
     const modifierIds = selectedModifiers[menuItemId] ?? [];
     if (!menuModifiersAreValid(product.modifierGroups, modifierIds))

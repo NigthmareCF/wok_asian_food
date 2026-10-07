@@ -13,6 +13,7 @@ import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { buildReservationPreorderItems } from "@/lib/reservation-preorder";
 import { useSession } from "@/providers/session-provider";
 import { useFocusedPolling } from "@/lib/use-focused-polling";
+import { isValidPositiveApiInteger, MAX_API_INTEGER } from "@/lib/quantity-limits";
 
 export default function ReservationsScreen() {
   const { session, request } = useSession();
@@ -169,7 +170,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     setEvaluation(null); setEvaluationError("");
     const date = parseRestaurantLocalDateTime(requestedAt);
     const count = Number(guests);
-    if (!Number.isInteger(count) || count < 1 || count > 50) { setEvaluationError("Indica entre 1 y 50 personas."); return; }
+    if (!isValidPositiveApiInteger(count)) { setEvaluationError("Indica una cantidad entera válida de personas."); return; }
     if (!date) { setEvaluationError("Indica una fecha y hora válidas en la hora de Guatemala."); return; }
     const revision = ++evaluationRevision.current;
     setEvaluating(true);
@@ -195,7 +196,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
     if (!session) { setError("Inicia sesión desde Mi cuenta para enviar una solicitud."); return; }
     const date = parseRestaurantLocalDateTime(requestedAt);
     const count = Number(guests);
-    if (!Number.isInteger(count) || count < 1 || count > 50) { setError("Indica entre 1 y 50 personas."); return; }
+    if (!isValidPositiveApiInteger(count)) { setError("Indica una cantidad entera válida de personas."); return; }
     if (!date) { setError("Indica una fecha y hora válidas en la hora de Guatemala."); return; }
     if (date.getTime() < Date.now() + 3 * 60 * 60 * 1000) { setError("Las solicitudes requieren al menos 3 horas de anticipación."); return; }
     let items: ReservationPreorderItem[];
@@ -295,7 +296,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
             <View style={ui.row}>
               <Button title="−" secondary disabled={quantity === 0 || attemptRestored || busy} onPress={() => { setPreorderQuantities((current) => ({ ...current, [item.id]: Math.max(0, (current[item.id] ?? 0) - 1) })); clearEvaluation(); }} />
               <Text style={ui.body}>{quantity}</Text>
-              <Button title="Agregar" disabled={attemptRestored || busy || quantity >= 50 || !menuModifiersAreValid(item.modifierGroups, selectedIds)}
+              <Button title="Agregar" disabled={attemptRestored || busy || quantity >= MAX_API_INTEGER || !menuModifiersAreValid(item.modifierGroups, selectedIds)}
                 onPress={() => { setPreorderQuantities((current) => ({ ...current, [item.id]: (current[item.id] ?? 0) + 1 })); clearEvaluation(); }} />
             </View>
           </Card>;
@@ -394,7 +395,7 @@ function parseReservationDraft(raw: string): ReservationDraft | null {
     if (!rawQuantities || typeof rawQuantities !== "object" || Array.isArray(rawQuantities) ||
         !rawModifiers || typeof rawModifiers !== "object" || Array.isArray(rawModifiers)) return null;
     const preorderQuantities = Object.fromEntries(Object.entries(rawQuantities).filter(([id, quantity]) =>
-      idPattern.test(id) && Number.isInteger(quantity) && Number(quantity) >= 1 && Number(quantity) <= 50)) as Record<string, number>;
+      idPattern.test(id) && isValidPositiveApiInteger(quantity))) as Record<string, number>;
     const preorderModifiers = Object.fromEntries(Object.entries(rawModifiers).filter(([id, ids]) => idPattern.test(id) &&
       Array.isArray(ids) && ids.length <= 30 && ids.every((modifierId) => typeof modifierId === "string" && idPattern.test(modifierId)))) as Record<string, string[]>;
     return { ...value, preorderQuantities, preorderModifiers } as ReservationDraft;

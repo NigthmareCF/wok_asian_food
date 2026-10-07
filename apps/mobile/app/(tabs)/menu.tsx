@@ -15,6 +15,7 @@ import { PublicServiceCapability, requestServiceState } from "@/lib/reservation-
 import { useFocusedPolling } from "@/lib/use-focused-polling";
 import { serviceSlotStatus } from "@/lib/service-hours";
 import { useServiceHours } from "@/lib/use-service-hours";
+import { isValidPositiveApiInteger } from "@/lib/quantity-limits";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
 const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
@@ -30,7 +31,7 @@ function createIdempotencyKey() {
 function validCart(value: unknown): Record<string, number> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value).filter(([id, quantity]) =>
-    /^[0-9a-f-]{36}$/i.test(id) && Number.isInteger(quantity) && Number(quantity) > 0 && Number(quantity) <= 50,
+    /^[0-9a-f-]{36}$/i.test(id) && isValidPositiveApiInteger(quantity),
   )) as Record<string, number>;
 }
 
@@ -194,7 +195,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
     if (quantity <= 0) {
       const next = { ...cart }; delete next[item.id]; setCart(next);
       setSelectedModifiers((current) => { const selected = { ...current }; delete selected[item.id]; return selected; });
-    } else if (quantity <= 50) setCart({ ...cart, [item.id]: quantity });
+    } else if (isValidPositiveApiInteger(quantity)) setCart({ ...cart, [item.id]: quantity });
   }
 
   function changeModifiers(item: PublicMenuItem, ids: string[]) {

@@ -405,3 +405,9 @@
 - `CLIENT_APP_PLAN.md` ahora refleja el código actual: menú/API y reservas/pedidos consumen contratos reales; el catálogo oficial tiene un seed de 31 productos en `feature/backend-capacity-order-lifecycle`, y las recetas completas/inventario automático siguen pendientes. El endpoint de calendario ya existe en backend, pero la prueba cruzada requiere integrar los worktrees.
 - Se corrigió documentación obsoleta: la app no usa TanStack Query, React Hook Form, Zod ni cliente OpenAPI generado; mantiene hooks/fetch y DTOs TypeScript locales. El plan distingue exports JS de APK instalable y el EAS profile de una build completada.
 - La rama backend publicó `945d5c3` (emisión FEL por lote) y `e70c291` (pausa de servicio revalidada al aceptar solicitudes remotas); falta probar esos commits dentro del stack integrado. La app no cambió código funcional por estas correcciones.
+
+## 2026-10-07 — Cantidades grandes alineadas con backend
+
+- Pickup, delivery y preórdenes de reserva ya no limitan cada producto a 50 unidades; la evaluación y solicitud de reservas tampoco limitan el grupo a 50 personas. La validación del cliente admite enteros positivos dentro del rango `int32` usado por los DTOs del backend. El servidor sigue decidiendo capacidad, stock y revisión humana.
+- Carritos y borradores persistidos aplican el mismo límite de transporte al restaurarse, evitando que los datos guardados rechacen cantidades que el formulario sí admite.
+- Verificación: Vitest 54/54, ESLint, TypeScript `--noEmit`; búsqueda de topes 50 en flujos de cantidad/grupo sin resultados. Añadidas pruebas para una preorden de 51 unidades y rechazo fuera del rango API.

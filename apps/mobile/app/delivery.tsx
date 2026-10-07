@@ -16,6 +16,7 @@ import { PublicServiceCapability, requestServiceState } from "@/lib/reservation-
 import { useFocusedPolling } from "@/lib/use-focused-polling";
 import { serviceSlotStatus } from "@/lib/service-hours";
 import { useServiceHours } from "@/lib/use-service-hours";
+import { isValidPositiveApiInteger, MAX_API_INTEGER } from "@/lib/quantity-limits";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const legacyStorageKeys = { cart: "wok.delivery.cart.v1", modifiers: "wok.delivery.modifiers.v1", pending: "wok.delivery.pending.v1" };
@@ -206,7 +207,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       const next = { ...current };
       const quantity = (next[item.id] ?? 0) + delta;
       if (quantity < 1) delete next[item.id];
-      else if (quantity <= 50) next[item.id] = quantity;
+      else if (isValidPositiveApiInteger(quantity)) next[item.id] = quantity;
       return next;
     });
   }
@@ -392,7 +393,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       {item.description ? <Text style={ui.body}>{item.description}</Text> : null}
       <MenuItemOptions item={item} selectedIds={selectedModifiers[item.id] ?? []}
         onChange={(ids) => changeModifiers(item, ids)} disabled={Boolean(pending)} />
-      <View style={ui.row}><Button title="−" secondary disabled={Boolean(pending) || !cart[item.id]} onPress={() => changeQuantity(item, -1)} /><Text style={ui.body}>{cart[item.id] ?? 0}</Text><Button title="Agregar" disabled={Boolean(pending) || !menuModifiersAreValid(item.modifierGroups, selectedModifiers[item.id])} onPress={() => changeQuantity(item, 1)} /></View>
+      <View style={ui.row}><Button title="−" secondary disabled={Boolean(pending) || !cart[item.id]} onPress={() => changeQuantity(item, -1)} /><Text style={ui.body}>{cart[item.id] ?? 0}</Text><Button title="Agregar" disabled={Boolean(pending) || cart[item.id] === MAX_API_INTEGER || !menuModifiersAreValid(item.modifierGroups, selectedModifiers[item.id])} onPress={() => changeQuantity(item, 1)} /></View>
     </Card>)}
     {!pending ? <Card>
       <Heading eyebrow="Datos de entrega">¿A dónde lo llevamos?</Heading>
@@ -459,7 +460,7 @@ function validCart(value: unknown): Record<string, number> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return Object.fromEntries(Object.entries(value).filter(([id, quantity]) =>
     /^[0-9a-f-]{36}$/i.test(id) && typeof quantity === "number"
-      && Number.isInteger(quantity) && quantity > 0 && quantity <= 50,
+      && isValidPositiveApiInteger(quantity),
   )) as Record<string, number>;
 }
 
