@@ -71,6 +71,15 @@ public class ClientPickupRequestController {
         PickupRequestReceipt previous = existing(customerId, idempotencyKey, fingerprint, true);
         if (previous != null) return previous;
 
+        List<String> serviceStatuses = jdbc.query("""
+            SELECT status FROM wok.service_capabilities
+            WHERE code = 'PICKUP' AND effective_from <= now() AND (effective_until IS NULL OR effective_until > now())
+            ORDER BY effective_from DESC, id DESC LIMIT 1 FOR SHARE
+            """, (rs, row) -> rs.getString("status"));
+        if (serviceStatuses.isEmpty() || "PAUSED".equals(serviceStatuses.getFirst())
+                || "DISABLED".equals(serviceStatuses.getFirst()))
+            throw new AuthException(503, "La solicitud pickup está temporalmente indisponible.");
+
         List<List<SelectedModifier>> selections = lines.stream()
                 .map(line -> modifiers.validate(line.menuItemId(), line.modifierIds())).toList();
 

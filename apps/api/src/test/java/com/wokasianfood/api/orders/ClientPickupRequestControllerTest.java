@@ -29,6 +29,8 @@ class ClientPickupRequestControllerTest {
     @BeforeEach
     void allowItemsWithoutConfiguredModifierGroups() {
         org.mockito.Mockito.lenient().when(modifiers.validate(any(UUID.class), anyList())).thenReturn(List.of());
+        org.mockito.Mockito.lenient().doReturn(List.of("MANUAL_APPROVAL")).when(jdbc)
+                .query(contains("FROM wok.service_capabilities"), any(RowMapper.class));
     }
 
     @Test
@@ -199,7 +201,9 @@ class ClientPickupRequestControllerTest {
                 return List.of(mapper.mapRow(rs, 0));
             }
             ResultSet rs = mock(ResultSet.class);
-            if (sql.contains("FROM wok.menu_items mi")) {
+            if (sql.contains("FROM wok.service_capabilities")) {
+                when(rs.getString("status")).thenReturn("MANUAL_APPROVAL");
+            } else if (sql.contains("FROM wok.menu_items mi")) {
                 when(rs.getObject("id", UUID.class)).thenReturn(menuItemId);
                 when(rs.getString("name")).thenReturn("Pad Thai");
                 when(rs.getBigDecimal("price")).thenReturn(new BigDecimal("10.25"));

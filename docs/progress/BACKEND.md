@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Pausa de servicio aplicada a solicitudes pickup
+
+- Pickup ahora consulta su capability persistida antes de crear una solicitud; `PAUSED`, `DISABLED` o ausencia de estado responde 503. `ENABLED` y `MANUAL_APPROVAL` siguen aceptando solicitudes para revisión humana. Igual que delivery, la consulta toma `FOR SHARE` hasta terminar la transacción, por lo que un cambio concurrente de Admin se serializa antes o después del envío.
+- El replay idempotente existente se resuelve antes del gate: una pausa no vuelve imposible recuperar la respuesta de una solicitud que ya fue aceptada. Delivery mantiene la misma semántica y ahora también retiene el lock compartido hasta commit.
+- `OrderRequestDecisionIntegrationTest` prueba pausa, no persistencia de solicitud nueva y replay del original; las pruebas focales de solicitudes y controladores suman 27/27 con PostgreSQL 18/Testcontainers y Flyway V1–V39.
+- Suite backend completa: `bash ./mvnw -q test`, 236/236 pruebas, 0 fallos, 0 errores y 0 omitidas; PostgreSQL 18/Testcontainers con Flyway V1–V39.
+
 ## 2026-10-07 — Aceptación de solicitudes contra cola activa de cocina
 
 - `KitchenQueueEstimator` estima el tiempo por estación como la cola activa (máxima hora estimada de los tickets `QUEUED`/`PREPARING`) más el trabajo nuevo agregado y ponderado por cantidad. Al asignar trabajo bloquea las áreas de preparación en orden estable para serializar aceptaciones concurrentes y evitar que ambas reserven el mismo intervalo de capacidad.

@@ -76,7 +76,7 @@ public class ClientDeliveryRequestController {
         List<String> serviceStatuses = jdbc.query("""
             SELECT status FROM wok.service_capabilities
             WHERE code = 'DELIVERY' AND effective_from <= now() AND (effective_until IS NULL OR effective_until > now())
-            ORDER BY effective_from DESC, id DESC LIMIT 1
+            ORDER BY effective_from DESC, id DESC LIMIT 1 FOR SHARE
             """, (rs, row) -> rs.getString("status"));
         if (serviceStatuses.isEmpty() || "PAUSED".equals(serviceStatuses.getFirst()) || "DISABLED".equals(serviceStatuses.getFirst()))
             throw new AuthException(503, "La solicitud delivery está temporalmente indisponible.");

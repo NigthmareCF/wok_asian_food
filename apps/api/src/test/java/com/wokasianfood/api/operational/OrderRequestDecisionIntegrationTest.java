@@ -126,6 +126,35 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void pickupCapabilityBlocksNewRequestsButPreservesIdempotentReplay() {
+        UUID menuItemId = seedMenuItem("Wok Pickup Pausable", "25.00", "WOK_PICKUP_PAUSE", 60);
+        String client = tokenForRole("CLIENT");
+        UUID replayKey = UUID.randomUUID();
+        String payload = """
+                {"requestedFor":"%s","items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(Instant.now().plusSeconds(7_200), menuItemId);
+        JsonNode original = body(post("/api/v1/client/order-requests", client, payload,
+                Map.of("Idempotency-Key", replayKey.toString())));
+        UUID originalRequestId = UUID.fromString(original.path("requestId").asText());
+
+        jdbc.update("UPDATE wok.service_capabilities SET status = 'PAUSED' WHERE code = 'PICKUP'");
+        try {
+            UUID pausedKey = UUID.randomUUID();
+            var paused = post("/api/v1/client/order-requests", client, payload,
+                    Map.of("Idempotency-Key", pausedKey.toString()));
+            assertThat(paused.statusCode()).isEqualTo(503);
+            assertThat(count("SELECT count(*) FROM wok.order_requests WHERE idempotency_key = ?", pausedKey)).isZero();
+
+            JsonNode replay = body(post("/api/v1/client/order-requests", client, payload,
+                    Map.of("Idempotency-Key", replayKey.toString())));
+            assertThat(replay.path("requestId").asText()).isEqualTo(originalRequestId.toString());
+            assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+        } finally {
+            jdbc.update("UPDATE wok.service_capabilities SET status = 'MANUAL_APPROVAL' WHERE code = 'PICKUP'");
+        }
+    }
+
+    @Test
     void rejectsPickupRequestRequiringReason() {
         UUID menuItemId = seedMenuItem("Wok Reject", "30.00", "WOK_REJECT", 60);
         String client = tokenForRole("CLIENT");
