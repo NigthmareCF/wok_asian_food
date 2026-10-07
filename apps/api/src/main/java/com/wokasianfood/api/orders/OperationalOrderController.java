@@ -1,6 +1,7 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.platform.RequestLimits;
 import com.wokasianfood.api.inventory.InventoryReservationService;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import com.wokasianfood.api.service.ServiceHoursPolicy;
@@ -91,13 +92,13 @@ public class OperationalOrderController {
                 requestId == null ? UUID.randomUUID() : requestId, orderId, idempotencyKey, request);
     }
 
-    public record AddItemsRequest(@NotEmpty @Size(max = 50) List<@Valid OrderLineRequest> items) {}
+    public record AddItemsRequest(@NotEmpty @Size(max = RequestLimits.MAX_DISTINCT_MENU_LINES) List<@Valid OrderLineRequest> items) {}
 
     public record OpenOrderRequest(@NotNull UUID accountId,
                                    @Size(min = 2, max = 20) String channel,
                                    @Positive int guestCount,
                                    @Size(max = 500) String notes,
-                                   @NotEmpty @Size(max = 50) List<@Valid OrderLineRequest> items) {}
+                                   @NotEmpty @Size(max = RequestLimits.MAX_DISTINCT_MENU_LINES) List<@Valid OrderLineRequest> items) {}
 
     public record OrderLineRequest(@NotNull UUID menuItemId, @Positive int quantity,
                                    @Size(min = 2, max = 20) String fulfillment,
@@ -627,7 +628,8 @@ class OrderService {
 
     private List<OperationalOrderController.OrderLineRequest> normalizedLines(
             List<OperationalOrderController.OrderLineRequest> items) {
-        if (items == null || items.isEmpty() || items.size() > 50) throw new AuthException(400, "Revisa los productos enviados.");
+        if (items == null || items.isEmpty() || items.size() > RequestLimits.MAX_DISTINCT_MENU_LINES)
+            throw new AuthException(400, "Revisa los productos enviados.");
         if (items.stream().anyMatch(item -> item.menuItemId() == null || item.fulfillment() == null)
                 || items.stream().anyMatch(item -> "BARRIL".equalsIgnoreCase(item.fulfillment().trim())))
             throw new AuthException(400, "Revisa el tipo de servicio de cada producto.");

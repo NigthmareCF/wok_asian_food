@@ -500,3 +500,9 @@
 - El adapter sólo es `MockPaymentGateway`; el Cliente puede leer `CREATED` mientras se procesa y luego `PENDING`. Fallos agotados quedan `UNKNOWN`, nunca `CAPTURED`; conciliación/webhook real sigue pendiente del proveedor autorizado. La app móvil muestra el estado inicial y consulta el endpoint actual mientras sigue `CREATED`.
 - Agregada Flyway V45 para permitir referencia externa nula hasta la respuesta y optimizar polling del outbox. La prueba de integración verifica el intento y el outbox atómicos, ownership, estado inicial, creación posterior del intento mock, replay sin duplicados y ausencia de cobro/captura.
 - Validación: `ClientPaymentIntentIntegrationTest` 2/2; suite backend completa 249/249, 0 fallos, 0 errores, 0 omitidas, PostgreSQL 18/Testcontainers/Flyway V1–V45. Mobile: Vitest 54/54, ESLint y TypeScript `--noEmit`.
+
+## 2026-10-07 — Límite común para pedidos con muchos productos distintos
+
+- La inspección posterior encontró que el antiguo máximo de 20 líneas seguía activo en los controladores pickup/delivery y en preórdenes de reserva, pese a que la matriz ya describía 100. Ahora todos esos flujos, la disponibilidad pública y las órdenes operativas comparten `RequestLimits.MAX_DISTINCT_MENU_LINES = 100`; las DTOs también aplican el mismo límite antes de entrar al caso de uso.
+- Este límite sólo acota el tamaño del request. Reglas de stock y capacidad agregada siguen evaluándose en backend; la solicitud pickup/delivery continúa en revisión y la preorden no crea una orden.
+- Pruebas focalizadas: `OrderRequestDecisionIntegrationTest`, `ConfiguredReservationHoursIntegrationTest` y `OperationalFlowIntegrationTest`, 33/33 con PostgreSQL 18/Testcontainers y Flyway V1–V45. Cubren 21 líneas pickup/delivery, 21 líneas de preorden sin crear pedido, 51 líneas operativas y rechazo de 101 líneas en el límite HTTP. Suite backend completa: 253/253, 0 fallos, 0 errores, 0 omitidas.

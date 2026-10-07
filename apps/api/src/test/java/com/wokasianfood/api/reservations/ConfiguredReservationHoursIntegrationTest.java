@@ -15,6 +15,8 @@ import java.time.ZoneId;
 import java.util.UUID;
 import java.util.Map;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,32 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
     private static final ZoneId ZONE = ZoneId.of("America/Guatemala");
     private final ObjectMapper json = new ObjectMapper();
     @Autowired private ReservationRequestService reservationRequests;
+
+    @Test
+    void acceptsPreordersWithMoreThanTwentyDistinctProductsWithoutCreatingAnOrder() throws Exception {
+        UUID userId = createUserWithRole("reservation-many-lines-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        jdbc.update("INSERT INTO wok.customer_profiles (user_id, full_name) VALUES (?, 'Cliente muchas líneas')", userId);
+        String token = tokenFor(userId);
+        var menuItems = IntStream.range(0, 21).mapToObj(index -> createMenuItem()).toList();
+        String itemPayload = menuItems.stream()
+                .map(id -> "{\"menuItemId\":\"" + id + "\",\"quantity\":1}")
+                .collect(Collectors.joining(","));
+        LocalDate targetDate = LocalDate.now(ZONE).plusDays(7);
+        while (targetDate.getDayOfWeek() == java.time.DayOfWeek.MONDAY) targetDate = targetDate.plusDays(1);
+        Instant requestedAt = LocalDateTime.of(targetDate, LocalTime.of(18, 0)).atZone(ZONE).toInstant();
+        UUID requestId = UUID.randomUUID();
+        int ordersBefore = jdbc.queryForObject("SELECT count(*) FROM wok.orders", Integer.class);
+
+        var response = post("/api/v1/client/reservations", token, """
+                {"guests":60,"requestedAt":"%s","preorder":true,"items":[%s]}
+                """.formatted(requestedAt, itemPayload), Map.of("Idempotency-Key", requestId.toString()));
+
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(202);
+        assertThat(json.readTree(response.body()).path("decision").asText()).isEqualTo("REQUIRES_HUMAN_APPROVAL");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservation_request_items WHERE request_id = ?",
+                Integer.class, requestId)).isEqualTo(21);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.orders", Integer.class)).isEqualTo(ordersBefore);
+    }
 
     @Test
     void publicEvaluationHonorsDailyRestaurantClosureOverride() throws Exception {

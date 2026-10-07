@@ -4,6 +4,7 @@ import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.catalog.ModifierSelectionService;
 import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
 import com.wokasianfood.api.service.ServiceHoursPolicy;
+import com.wokasianfood.api.platform.RequestLimits;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -227,7 +228,8 @@ public class ClientPickupRequestController {
     }
 
     private List<RequestedItem> normalizedLines(List<RequestedItem> items) {
-        if (items == null || items.isEmpty() || items.size() > 20) throw new AuthException(400, "Revisa los productos enviados.");
+        if (items == null || items.isEmpty() || items.size() > RequestLimits.MAX_DISTINCT_MENU_LINES)
+            throw new AuthException(400, "Revisa los productos enviados.");
         if (items.stream().map(RequestedItem::menuItemId).anyMatch(id -> id == null)
                 || new HashSet<>(items.stream().map(RequestedItem::menuItemId).toList()).size() != items.size())
             throw new AuthException(400, "Cada producto debe aparecer una sola vez.");
@@ -335,7 +337,7 @@ public class ClientPickupRequestController {
     public record PickupRequest(@NotNull Instant requestedFor, @Size(max = 500) String customerNote,
             PaymentPreference paymentPreference, Boolean invoiceRequested,
             @Size(max = 150) String invoiceName, @Size(max = 32) String invoiceTaxId,
-            @NotEmpty @Size(max = 100) List<@Valid RequestedItem> items) {
+            @NotEmpty @Size(max = RequestLimits.MAX_DISTINCT_MENU_LINES) List<@Valid RequestedItem> items) {
         public PickupRequest(Instant requestedFor, String customerNote, List<RequestedItem> items) {
             this(requestedFor, customerNote, null, null, null, null, items);
         }

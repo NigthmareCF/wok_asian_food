@@ -3,6 +3,7 @@ package com.wokasianfood.api.reservations;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.catalog.ModifierSelectionService;
+import com.wokasianfood.api.platform.RequestLimits;
 import com.wokasianfood.api.identity.AuthException;
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
@@ -46,7 +47,7 @@ public class ReservationRequestService {
     public Result submit(UUID userId, UUID requestId, Request request) {
         lockRequest(requestId);
         List<RequestedItem> requestedItems = request.items() == null ? List.of() : request.items();
-        if (requestedItems.size() > 20 || requestedItems.stream().anyMatch(item -> item == null || item.menuItemId() == null
+        if (requestedItems.size() > RequestLimits.MAX_DISTINCT_MENU_LINES || requestedItems.stream().anyMatch(item -> item == null || item.menuItemId() == null
                 || item.quantity() < 1 || (item.modifierIds() != null &&
                 (item.modifierIds().size() > 30 || item.modifierIds().stream().anyMatch(java.util.Objects::isNull))))
                 || requestedItems.stream().map(RequestedItem::menuItemId).distinct().count() != requestedItems.size())

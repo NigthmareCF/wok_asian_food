@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,47 @@ import org.junit.jupiter.api.Test;
 class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
 
     private final ObjectMapper json = new ObjectMapper();
+
+    @Test
+    void acceptsPickupAndDeliveryRequestsWithMoreThanTwentyDistinctProducts() {
+        var menuItems = IntStream.range(0, 21)
+                .mapToObj(index -> seedMenuItem("Wok many line " + index, "1.00", "WOK_MANY_LINES", 1))
+                .toList();
+        String itemPayload = menuItems.stream()
+                .map(id -> "{\"menuItemId\":\"" + id + "\",\"quantity\":1}")
+                .collect(Collectors.joining(","));
+        String requestedFor = Instant.now().plusSeconds(7_200).toString();
+        String client = tokenForRole("CLIENT");
+
+        JsonNode pickup = body(post("/api/v1/client/order-requests", client, """
+                {"requestedFor":"%s","items":[%s]}
+                """.formatted(requestedFor, itemPayload), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(pickup.path("status").asText()).isEqualTo("PENDING_REVIEW");
+        assertThat(count("SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?",
+                UUID.fromString(pickup.path("requestId").asText()))).isEqualTo(21);
+
+        JsonNode delivery = body(post("/api/v1/client/delivery-requests", client, """
+                {"requestedFor":"%s","address":"Zona 10, Ciudad de Guatemala",
+                 "contactPhone":"+502 5555-0101","paymentPreference":"CASH_ON_DELIVERY",
+                 "invoiceRequested":false,"items":[%s]}
+                """.formatted(requestedFor, itemPayload), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(delivery.path("status").asText()).isEqualTo("PENDING_REVIEW");
+        assertThat(count("SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?",
+                UUID.fromString(delivery.path("requestId").asText()))).isEqualTo(21);
+    }
+
+    @Test
+    void rejectsMoreThanOneHundredRequestLinesAtTheTransportBoundary() {
+        String items = IntStream.range(0, 101)
+                .mapToObj(index -> "{\"menuItemId\":\"" + UUID.randomUUID() + "\",\"quantity\":1}")
+                .collect(Collectors.joining(","));
+        UUID key = UUID.randomUUID();
+        var response = post("/api/v1/client/order-requests", tokenForRole("CLIENT"), """
+                {"requestedFor":"%s","items":[%s]}
+                """.formatted(Instant.now().plusSeconds(7_200), items), Map.of("Idempotency-Key", key.toString()));
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(count("SELECT count(*) FROM wok.order_requests WHERE idempotency_key = ?", key)).isZero();
+    }
 
     @BeforeEach
     void allowRemoteRequestFixturesAcrossServiceHours() {

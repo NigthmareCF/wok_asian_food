@@ -9,11 +9,36 @@ import java.math.BigDecimal;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
 
     private final ObjectMapper json = new ObjectMapper();
+
+    @Test
+    void operationalOrderAcceptsMoreThanFiftyDistinctProductLines() {
+        String token = tokenForRole("OPERATIONAL");
+        UUID tableId = createDiningTable("Mesa muchas lineas");
+        UUID accountId = UUID.fromString(body(post("/api/v1/operational/tables/" + tableId + "/open", token, null))
+                .path("accountId").asText());
+        var menuItems = IntStream.range(0, 51)
+                .mapToObj(index -> seedMenuItem("Wok operational line " + index + " " + UUID.randomUUID(),
+                        "1.00", "WOK_OP_MANY_LINES", 1))
+                .toList();
+        String items = menuItems.stream().map(id -> "{\"menuItemId\":\"" + id
+                + "\",\"quantity\":1,\"fulfillment\":\"DINE_IN\"}").collect(Collectors.joining(","));
+
+        JsonNode order = body(post("/api/v1/operational/orders", token, """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":2,"items":[%s]}
+                """.formatted(accountId, items), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        assertThat(order.path("itemCount").asInt()).isEqualTo(51);
+        UUID orderId = UUID.fromString(order.path("orderId").asText());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_items WHERE order_id = ?",
+                Integer.class, orderId)).isEqualTo(51);
+    }
 
     @Test
     void movesTableThroughOrderKitchenServiceAndClosingAgainstPostgres() {

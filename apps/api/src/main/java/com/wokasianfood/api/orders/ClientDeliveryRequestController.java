@@ -5,6 +5,7 @@ import com.wokasianfood.api.catalog.ModifierSelectionService;
 import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
 import com.wokasianfood.api.service.ServiceHoursPolicy;
 import com.wokasianfood.api.platform.GuatemalaPhone;
+import com.wokasianfood.api.platform.RequestLimits;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -244,7 +245,8 @@ public class ClientDeliveryRequestController {
     }
 
     private List<RequestedItem> normalize(List<RequestedItem> items) {
-        if (items == null || items.isEmpty() || items.size() > 20) throw new AuthException(400, "Revisa los productos enviados.");
+        if (items == null || items.isEmpty() || items.size() > RequestLimits.MAX_DISTINCT_MENU_LINES)
+            throw new AuthException(400, "Revisa los productos enviados.");
         if (items.stream().map(RequestedItem::menuItemId).anyMatch(id -> id == null)
                 || new HashSet<>(items.stream().map(RequestedItem::menuItemId).toList()).size() != items.size())
             throw new AuthException(400, "Cada producto debe aparecer una sola vez.");
@@ -343,7 +345,7 @@ public class ClientDeliveryRequestController {
             @NotBlank @Pattern(regexp = "^" + GuatemalaPhone.PATTERN + "$") String contactPhone,
             @NotNull PaymentPreference paymentPreference,
             Boolean invoiceRequested, @Size(max = 150) String invoiceName, @Size(max = 32) String invoiceTaxId,
-            @NotEmpty @Size(max = 100) List<@Valid RequestedItem> items) {
+            @NotEmpty @Size(max = RequestLimits.MAX_DISTINCT_MENU_LINES) List<@Valid RequestedItem> items) {
         public DeliveryRequest(Instant requestedFor, String customerNote, String address, String reference,
                 String contactPhone, PaymentPreference paymentPreference, List<RequestedItem> items) {
             this(requestedFor, customerNote, address, reference, contactPhone, paymentPreference, null, null, null, items);
