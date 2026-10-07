@@ -10,6 +10,7 @@ import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { CommerceStorageKeys, resolveCommerceStorageKeys } from "@/lib/commerce-storage";
+import { PublicServiceCapability, requestServiceState } from "@/lib/reservation-service-status";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
 const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
@@ -55,6 +56,8 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   const [availability, setAvailability] = useState<MenuAvailabilityEstimate | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
+  const [serviceCapabilities, setServiceCapabilities] = useState<PublicServiceCapability[] | null>(null);
+  const [serviceStatusError, setServiceStatusError] = useState("");
   const availabilityRevision = useRef(0);
   const taxProfileOwner = useRef("");
 
@@ -74,6 +77,16 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    void apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities")
+      .then((items) => { if (active) { setServiceCapabilities(items); setServiceStatusError(""); } })
+      .catch((cause: unknown) => { if (active) setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de pickup."); });
+    return () => { active = false; };
+  }, []);
+
+  const pickupService = requestServiceState(serviceCapabilities, "PICKUP");
 
   useEffect(() => {
     let active = true;
@@ -203,6 +216,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   }
 
   async function submitPickup() {
+    if (pickupService === "paused" && !attempt) { setError("El servicio de pickup está pausado temporalmente."); return; }
     if (!session) { setError("Inicia sesión para enviar una solicitud de pickup."); return; }
     if (Platform.OS !== "web" && !cartStorageKeys) { setError("Estamos preparando el carrito seguro de esta cuenta. Inténtalo de nuevo."); return; }
     if (attempt && attempt.email !== session.email) {
@@ -256,6 +270,9 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
 
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
     <Heading eyebrow="Catálogo">Menú WOK</Heading>
+    {pickupService === "paused" ? <Notice>Las solicitudes pickup están pausadas temporalmente. Puedes conservar el carrito y volver a intentarlo cuando el servicio esté disponible.</Notice> : null}
+    {pickupService === "manual-approval" ? <Notice>El equipo revisará y confirmará cada solicitud de pickup antes de aceptarla.</Notice> : null}
+    {pickupService === "unknown" ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || "Consultando el estado de pickup…"}</Notice> : null}
     {attempt ? <Card>
       <Notice>Solicitud sin confirmar para {attempt.email}. Reintenta esta misma solicitud antes de editarla o enviar otra.</Notice>
       {session?.email === attempt.email ? <Button title="Reintentar solicitud pendiente" onPress={() => void submitPickup()} busy={sending} />
@@ -327,7 +344,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
         {attempt ? <Notice>Hay un envío cuyo resultado no se confirmó. Reintenta exactamente la misma solicitud; la app conserva su clave para evitar duplicados.</Notice> : null}
         {!cartSelectionsValid ? <Notice tone="error">Completa las opciones requeridas para cada platillo antes de enviar.</Notice> : null}
         <Button title={attempt ? "Reintentar solicitud pendiente" : "Enviar solicitud de pickup"}
-          onPress={() => void submitPickup()} busy={sending} disabled={!session || !cartRestored || !cartSelectionsValid || (session.offline && !process.env.EXPO_PUBLIC_API_BASE_URL)} />
+          onPress={() => void submitPickup()} busy={sending} disabled={(pickupService === "paused" && !attempt) || !session || !cartRestored || !cartSelectionsValid || (session.offline && !process.env.EXPO_PUBLIC_API_BASE_URL)} />
       </Card>
     </View> : null}
   </Page></ScrollView>;

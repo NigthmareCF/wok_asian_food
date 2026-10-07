@@ -11,6 +11,7 @@ import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-pho
 import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { CommerceStorageKeys, resolveCommerceStorageKeys } from "@/lib/commerce-storage";
+import { PublicServiceCapability, requestServiceState } from "@/lib/reservation-service-status";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const legacyStorageKeys = { cart: "wok.delivery.cart.v1", modifiers: "wok.delivery.modifiers.v1", pending: "wok.delivery.pending.v1" };
@@ -63,6 +64,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [availability, setAvailability] = useState<MenuAvailabilityEstimate | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
+  const [serviceCapabilities, setServiceCapabilities] = useState<PublicServiceCapability[] | null>(null);
+  const [serviceStatusError, setServiceStatusError] = useState("");
   const availabilityRevision = useRef(0);
 
   useEffect(() => {
@@ -113,6 +116,14 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       .finally(() => { if (active) { setLoading(false); setCartRestored(true); } });
     return () => { active = false; };
   }, [session?.email]);
+
+  useEffect(() => {
+    let active = true;
+    void apiRequest<PublicServiceCapability[]>("/api/v1/public/service-capabilities")
+      .then((items) => { if (active) { setServiceCapabilities(items); setServiceStatusError(""); } })
+      .catch((cause: unknown) => { if (active) setServiceStatusError(cause instanceof ApiError ? cause.message : "No pudimos consultar el estado de delivery."); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!cartRestored || !cartStorageKeys) return;
@@ -168,6 +179,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const selectionsValid = selected.every((item) => menuModifiersAreValid(item.modifierGroups, selectedModifiers[item.id]));
   const subtotal = selected.reduce((total, item) => total + menuItemUnitPrice(item, selectedModifiers[item.id]) * cart[item.id], 0);
   const visibleHistory = session?.email === historyOwner ? history : [];
+  const deliveryService = requestServiceState(serviceCapabilities, "DELIVERY");
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
     if (pending) return;
@@ -217,6 +229,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   }
 
   async function submit(attempt?: PendingAttempt) {
+    if (deliveryService === "paused" && !attempt) { setError("El servicio de delivery está pausado temporalmente."); return; }
     if (!session) { setError("Inicia sesión para enviar una solicitud de delivery."); return; }
     if (!cartStorageKeys || !cartRestored) { setError("Estamos preparando el carrito seguro de esta cuenta. Inténtalo de nuevo."); return; }
     if (!attempt && !selectionsValid) {
@@ -318,6 +331,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   return <ScrollView contentContainerStyle={{ flexGrow: 1 }}><Page>
     <Heading eyebrow="Entrega a domicilio">Solicitar delivery</Heading>
+    {deliveryService === "paused" ? <Notice>Las solicitudes delivery están pausadas temporalmente. Puedes conservar el carrito y volver a intentarlo cuando el servicio esté disponible.</Notice> : null}
+    {deliveryService === "manual-approval" ? <Notice>El equipo revisará y confirmará cada solicitud de delivery antes de aceptarla.</Notice> : null}
+    {deliveryService === "unknown" ? <Notice tone={serviceStatusError ? "error" : "info"}>{serviceStatusError || "Consultando el estado de delivery…"}</Notice> : null}
     <Notice>El equipo debe confirmar cobertura, productos y horario. Esta solicitud no es un pedido aceptado, no reserva inventario y todavía no genera un cobro.</Notice>
     {session?.offline ? <Notice>Sin conexión: conserva la solicitud para reintentar manualmente cuando vuelva el acceso al servidor.</Notice> : null}
     {error ? <Notice tone="error">{error}</Notice> : null}
@@ -414,7 +430,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       <Button title="Sugerir horario inicial" secondary onPress={suggestTime} disabled={!selected.length} />
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />
       {selected.length === 0 ? <Notice>Agrega al menos un producto.</Notice> : null}
-      <Button title="Enviar solicitud de delivery" busy={sending} disabled={!session || !cartRestored || !selected.length || !selectionsValid} onPress={() => void submit()} />
+      <Button title="Enviar solicitud de delivery" busy={sending} disabled={(deliveryService === "paused" && !pending) || !session || !cartRestored || !selected.length || !selectionsValid} onPress={() => void submit()} />
     </Card> : null}
   </Page></ScrollView>;
 }
