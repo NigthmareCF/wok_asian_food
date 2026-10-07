@@ -411,3 +411,9 @@
 - Pickup, delivery y preórdenes de reserva ya no limitan cada producto a 50 unidades; la evaluación y solicitud de reservas tampoco limitan el grupo a 50 personas. La validación del cliente admite enteros positivos dentro del rango `int32` usado por los DTOs del backend. El servidor sigue decidiendo capacidad, stock y revisión humana.
 - Carritos y borradores persistidos aplican el mismo límite de transporte al restaurarse, evitando que los datos guardados rechacen cantidades que el formulario sí admite.
 - Verificación: Vitest 54/54, ESLint, TypeScript `--noEmit`; búsqueda de topes 50 en flujos de cantidad/grupo sin resultados. Añadidas pruebas para una preorden de 51 unidades y rechazo fuera del rango API.
+
+## 2026-10-07 — Estado asíncrono de intento de pago
+
+- El DTO móvil permite `providerReference: null` mientras el backend procesa el evento de creación del intento. La pantalla de pedidos ya etiqueta `CREATED` como “inicializando” y mantiene polling enfocado mientras el intento permanezca en ese estado; después muestra el estado y referencia devueltos por el servidor.
+- El flujo no marca la cuenta pagada y sigue mostrando el aviso de que el mock no procesó ni confirmó fondos.
+- Verificación local: Vitest 54/54, ESLint y TypeScript `--noEmit`. La integración con PostgreSQL del backend verifica `CREATED` → `PENDING` y referencia del mock.

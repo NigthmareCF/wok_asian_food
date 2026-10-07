@@ -190,7 +190,7 @@ export type PaymentIntentReceipt = {
   intentId: string;
   orderId: string;
   provider: "MOCK";
-  providerReference: string;
+  providerReference: string | null;
   amount: number;
   currency: string;
   status: "CREATED" | "PENDING" | "REQUIRES_ACTION" | "AUTHORIZED" | "CAPTURED" | "FAILED" | "CANCELLED" | "UNKNOWN" | "REFUNDED";

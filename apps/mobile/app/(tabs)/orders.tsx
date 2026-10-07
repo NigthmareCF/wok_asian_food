@@ -101,8 +101,10 @@ function OrderHistory() {
   }, [request, session]);
 
   useEffect(() => { void Promise.resolve().then(refreshDelivery); }, [refreshDelivery]);
-  useFocusedPolling(refreshDelivery, 30_000, Boolean(session && !session.offline && deliveryRequests.some((item) =>
-    item.status === "ACCEPTED" && item.dispatchStatus !== "DELIVERED" && item.dispatchStatus !== "CANCELLED")));
+  useFocusedPolling(refreshDelivery, 30_000, Boolean(session && !session.offline && (
+    deliveryRequests.some((item) => item.status === "ACCEPTED" && item.dispatchStatus !== "DELIVERED" && item.dispatchStatus !== "CANCELLED")
+      || Object.values(paymentIntents).some((intent) => intent.status === "CREATED")
+  )));
 
   const refreshTracking = useCallback(async () => {
     if (!session || session.offline) { setTrackedOrders([]); setTrackingError(""); return; }
