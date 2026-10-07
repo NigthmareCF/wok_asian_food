@@ -1,5 +1,13 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Calendario pickup/delivery y excepciones diarias
+
+- `V40__pickup_delivery_service_hours.sql` provisiona pickup martes–domingo 14:00–21:30 y delivery 14:00–21:00 en `America/Guatemala`, usando las referencias operativas vigentes. `ServiceHoursPolicy` valida el slot en el endpoint Cliente y lo vuelve a validar bajo lock en aceptación, junto con la cola de cocina.
+- `V41__business_hours_daily_overrides.sql` agrega excepciones fechadas, cierre excepcional, motivo, actor, versión optimista y expiración a medianoche local. Admin puede listarlas/crearlas/actualizarlas con `hours:manage` y auditoría; `GET /api/v1/public/service-hours` entrega hasta 31 días para web/app. Excepciones activas sustituyen la ventana semanal; al expirar, aplica la semana normal.
+- La aceptación toma lock transaccional por servicio/fecha para serializarse también con la creación concurrente de una excepción, además del lock compartido sobre filas efectivas. Esto cubre el caso sin fila de override, donde un `FOR SHARE` por sí solo no bloquearía inserciones concurrentes.
+- Las pruebas legacy de ciclo de pedido/cobro fijan explícitamente un horario amplio para que sus fixtures no dependan de la hora real; restauran el horario de negocio al terminar. Las pruebas de calendario verifican por separado los límites reales.
+- Pruebas PostgreSQL focales: 35/35, 0 fallos/errores/omitidas. Suite backend completa: 241/241, 0 fallos/errores/omitidas; Testcontainers PostgreSQL 18 aplicó Flyway V1–V41 desde esquema vacío.
+
 ## 2026-10-07 — Pausa de servicio aplicada a solicitudes pickup
 
 - Pickup ahora consulta su capability persistida antes de crear una solicitud; `PAUSED`, `DISABLED` o ausencia de estado responde 503. `ENABLED` y `MANUAL_APPROVAL` siguen aceptando solicitudes para revisión humana. Igual que delivery, la consulta toma `FOR SHARE` hasta terminar la transacción, por lo que un cambio concurrente de Admin se serializa antes o después del envío.

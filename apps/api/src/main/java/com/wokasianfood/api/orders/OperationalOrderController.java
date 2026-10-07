@@ -3,6 +3,7 @@ package com.wokasianfood.api.orders;
 import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.inventory.InventoryReservationService;
 import com.wokasianfood.api.platform.IdempotencyStore;
+import com.wokasianfood.api.service.ServiceHoursPolicy;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -132,12 +133,14 @@ class OrderService {
     private final IdempotencyStore idempotency;
     private final InventoryReservationService reservations;
     private final KitchenQueueEstimator kitchenQueue;
+    private final ServiceHoursPolicy serviceHours;
 
     OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency, InventoryReservationService reservations) {
         this.jdbc = jdbc;
         this.idempotency = idempotency;
         this.reservations = reservations;
         this.kitchenQueue = new KitchenQueueEstimator(jdbc);
+        this.serviceHours = new ServiceHoursPolicy(jdbc);
     }
 
     public enum OrderStatus { SENT, PREPARING, READY, SERVED, CLOSED, CANCELLED }
@@ -257,7 +260,7 @@ class OrderService {
 
         reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
-        enqueueTickets(actor, requestId, orderId, newLines, null);
+        enqueueTickets(actor, requestId, orderId, newLines, null, null);
         jdbc.update("""
             INSERT INTO wok.order_status_history (order_id, from_status, to_status, actor_user_id, request_id)
             VALUES (?, NULL, 'SENT', ?, ?)
@@ -300,7 +303,7 @@ class OrderService {
         }
         reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
-        enqueueTickets(actor, requestId, orderId, newLines, null);
+        enqueueTickets(actor, requestId, orderId, newLines, null, null);
         jdbc.update("""
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
@@ -359,7 +362,7 @@ class OrderService {
         }
         reserveStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
-        enqueueTickets(actor, requestId, orderId, newLines, requestedFor);
+        enqueueTickets(actor, requestId, orderId, newLines, requestedFor, channel.name());
         jdbc.update("""
             INSERT INTO wok.order_status_history (order_id, from_status, to_status, actor_user_id, request_id)
             VALUES (?, NULL, 'SENT', ?, ?)
@@ -518,7 +521,7 @@ class OrderService {
     }
 
     private void enqueueTickets(UUID actor, UUID requestId, UUID orderId, List<NewLine> newLines,
-                                Instant requestedFor) {
+                                Instant requestedFor, String serviceType) {
         Map<UUID, List<NewLine>> byStation = new LinkedHashMap<>();
         for (NewLine line : newLines) {
             byStation.computeIfAbsent(line.product().preparationAreaId(), key -> new ArrayList<>()).add(line);
@@ -532,6 +535,7 @@ class OrderService {
         }
         KitchenQueueEstimator.Estimate queueEstimate = kitchenQueue.estimate(preparationByStation, true);
         long totalReadyInSeconds = queueEstimate.overallReadySeconds();
+        if (requestedFor != null) serviceHours.requireSlot(serviceType, requestedFor, true);
         if (totalReadyInSeconds > 86_400 || (requestedFor != null
                 && !requestedFor.isAfter(Instant.now().plusSeconds(totalReadyInSeconds))))
             throw new AuthException(422, "La cola y preparación estimadas ya no caben en el horario solicitado.");

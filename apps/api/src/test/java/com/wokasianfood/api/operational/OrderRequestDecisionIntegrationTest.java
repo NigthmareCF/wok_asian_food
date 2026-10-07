@@ -8,13 +8,29 @@ import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
 
     private final ObjectMapper json = new ObjectMapper();
+
+    @BeforeEach
+    void allowRemoteRequestFixturesAcrossServiceHours() {
+        setEveryWeekday("PICKUP", LocalTime.MIDNIGHT, LocalTime.of(23, 59));
+        setEveryWeekday("DELIVERY", LocalTime.MIDNIGHT, LocalTime.of(23, 59));
+    }
+
+    @AfterEach
+    void restoreConfiguredRemoteServiceHours() {
+        jdbc.update("DELETE FROM wok.business_hours WHERE service_type IN ('PICKUP', 'DELIVERY')");
+        setOpenWeekdays("PICKUP", LocalTime.of(14, 0), LocalTime.of(21, 30));
+        setOpenWeekdays("DELIVERY", LocalTime.of(14, 0), LocalTime.of(21, 0));
+    }
 
     @Test
     void publishesRequiredIdempotencyKeyForDeliveryTransitionsInOpenApi() {
@@ -635,6 +651,27 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
 
     private int count(String sql, Object... arguments) {
         return jdbc.queryForObject(sql, Integer.class, arguments);
+    }
+
+    private void setEveryWeekday(String service, LocalTime opensAt, LocalTime closesAt) {
+        for (int weekday = 1; weekday <= 7; weekday++) {
+            jdbc.update("""
+                INSERT INTO wok.business_hours (service_type, weekday, opens_at, closes_at, timezone_name, active)
+                VALUES (?, ?, ?, ?, 'America/Guatemala', true)
+                ON CONFLICT (service_type, weekday) DO UPDATE
+                SET opens_at = excluded.opens_at, closes_at = excluded.closes_at,
+                    timezone_name = excluded.timezone_name, active = true
+                """, service, weekday, opensAt, closesAt);
+        }
+    }
+
+    private void setOpenWeekdays(String service, LocalTime opensAt, LocalTime closesAt) {
+        for (int weekday = 2; weekday <= 7; weekday++) {
+            jdbc.update("""
+                INSERT INTO wok.business_hours (service_type, weekday, opens_at, closes_at, timezone_name, active)
+                VALUES (?, ?, ?, ?, 'America/Guatemala', true)
+                """, service, weekday, opensAt, closesAt);
+        }
     }
 
     private UUID seedMenuItem(String name, String price, String stationCode, int preparationSeconds) {

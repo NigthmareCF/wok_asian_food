@@ -6,6 +6,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +24,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers(disabledWithoutDocker = true)
 public abstract class PostgresIntegrationTest {
+
+    private static final ZoneId RESTAURANT_ZONE = ZoneId.of("America/Guatemala");
 
     protected static final PostgreSQLContainer<?> DATABASE = new PostgreSQLContainer<>("postgres:18-alpine")
             .withDatabaseName("wok")
@@ -71,6 +76,34 @@ public abstract class PostgresIntegrationTest {
                 """, userId, roleCode);
         }
         return userId;
+    }
+
+    /** Opens today's remote-service window for tests whose purpose is unrelated to the schedule. */
+    protected void allowRemoteRequestsAtAnyTimeToday() {
+        setTodayHours("PICKUP", LocalTime.MIDNIGHT, LocalTime.of(23, 59, 59));
+        setTodayHours("DELIVERY", LocalTime.MIDNIGHT, LocalTime.of(23, 59, 59));
+    }
+
+    /** Restores the configured baseline for today after a schedule-independent test. */
+    protected void restoreBaselineRemoteHoursToday() {
+        int weekday = LocalDate.now(RESTAURANT_ZONE).getDayOfWeek().getValue();
+        if (weekday == 1) {
+            jdbc.update("DELETE FROM wok.business_hours WHERE weekday = ? AND service_type IN ('PICKUP', 'DELIVERY')", weekday);
+            return;
+        }
+        setTodayHours("PICKUP", LocalTime.of(14, 0), LocalTime.of(21, 30));
+        setTodayHours("DELIVERY", LocalTime.of(14, 0), LocalTime.of(21, 0));
+    }
+
+    private void setTodayHours(String serviceType, LocalTime opensAt, LocalTime closesAt) {
+        int weekday = LocalDate.now(RESTAURANT_ZONE).getDayOfWeek().getValue();
+        jdbc.update("""
+            INSERT INTO wok.business_hours (service_type, weekday, opens_at, closes_at, timezone_name, active)
+            VALUES (?, ?, ?, ?, 'America/Guatemala', true)
+            ON CONFLICT (service_type, weekday) DO UPDATE
+            SET opens_at = EXCLUDED.opens_at, closes_at = EXCLUDED.closes_at,
+                timezone_name = EXCLUDED.timezone_name, active = true
+            """, serviceType, weekday, opensAt, closesAt);
     }
 
     protected UUID openSession(UUID userId) {

@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -82,7 +83,16 @@ class ClientPickupRequestControllerTest {
     void rejectsUnpublishedProductsWithoutCreatingRequest() {
         UUID userId = UUID.randomUUID();
         UUID menuItemId = UUID.randomUUID();
-        doAnswer(invocation -> List.of()).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
+        doAnswer(invocation -> {
+            String sql = invocation.getArgument(0);
+            if (!sql.contains("FROM wok.business_hours")) return List.of();
+            @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
+            ResultSet rs = mock(ResultSet.class);
+            when(rs.getObject("opens_at", LocalTime.class)).thenReturn(LocalTime.MIDNIGHT);
+            when(rs.getObject("closes_at", LocalTime.class)).thenReturn(LocalTime.of(23, 59));
+            when(rs.getString("timezone_name")).thenReturn("America/Guatemala");
+            return List.of(mapper.mapRow(rs, 0));
+        }).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
         var request = new ClientPickupRequestController.PickupRequest(Instant.now().plusSeconds(3600), null,
                 List.of(new ClientPickupRequestController.RequestedItem(menuItemId, 1)));
 
@@ -203,6 +213,12 @@ class ClientPickupRequestControllerTest {
             ResultSet rs = mock(ResultSet.class);
             if (sql.contains("FROM wok.service_capabilities")) {
                 when(rs.getString("status")).thenReturn("MANUAL_APPROVAL");
+            } else if (sql.contains("FROM wok.business_hours_overrides")) {
+                return List.of();
+            } else if (sql.contains("FROM wok.business_hours")) {
+                when(rs.getObject("opens_at", LocalTime.class)).thenReturn(LocalTime.MIDNIGHT);
+                when(rs.getObject("closes_at", LocalTime.class)).thenReturn(LocalTime.of(23, 59));
+                when(rs.getString("timezone_name")).thenReturn("America/Guatemala");
             } else if (sql.contains("FROM wok.menu_items mi")) {
                 when(rs.getObject("id", UUID.class)).thenReturn(menuItemId);
                 when(rs.getString("name")).thenReturn("Pad Thai");

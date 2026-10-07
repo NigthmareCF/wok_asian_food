@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import com.wokasianfood.api.catalog.ModifierSelectionService;
@@ -132,8 +133,13 @@ class ClientDeliveryRequestControllerTest {
             String sql = invocation.getArgument(0);
             @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
             if (sql.contains("FROM wok.order_requests")) return List.of();
+            if (sql.contains("FROM wok.business_hours_overrides")) return List.of();
             ResultSet rs = org.mockito.Mockito.mock(ResultSet.class);
-            if (sql.contains("FROM wok.menu_items")) {
+            if (sql.contains("FROM wok.business_hours")) {
+                when(rs.getObject("opens_at", LocalTime.class)).thenReturn(LocalTime.MIDNIGHT);
+                when(rs.getObject("closes_at", LocalTime.class)).thenReturn(LocalTime.of(23, 59));
+                when(rs.getString("timezone_name")).thenReturn("America/Guatemala");
+            } else if (sql.contains("FROM wok.menu_items")) {
                 when(rs.getObject("id", UUID.class)).thenReturn(menuItemId);
                 when(rs.getString("name")).thenReturn("Pad Thai");
                 when(rs.getBigDecimal("price")).thenReturn(new BigDecimal("48.00"));

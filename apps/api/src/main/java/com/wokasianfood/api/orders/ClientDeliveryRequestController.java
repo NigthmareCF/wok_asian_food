@@ -3,6 +3,7 @@ package com.wokasianfood.api.orders;
 import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.catalog.ModifierSelectionService;
 import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
+import com.wokasianfood.api.service.ServiceHoursPolicy;
 import com.wokasianfood.api.platform.GuatemalaPhone;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -49,10 +50,11 @@ public class ClientDeliveryRequestController {
             rs.getInt("estimated_preparation_seconds"));
     private final JdbcTemplate jdbc;
     private final ModifierSelectionService modifiers;
+    private final ServiceHoursPolicy serviceHours;
 
     @Autowired
     public ClientDeliveryRequestController(JdbcTemplate jdbc, ModifierSelectionService modifiers) {
-        this.jdbc = jdbc; this.modifiers = modifiers;
+        this.jdbc = jdbc; this.modifiers = modifiers; this.serviceHours = new ServiceHoursPolicy(jdbc);
     }
 
     ClientDeliveryRequestController(JdbcTemplate jdbc) { this(jdbc, new ModifierSelectionService(jdbc)); }
@@ -102,6 +104,7 @@ public class ClientDeliveryRequestController {
         }
         if (preparationSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(preparationSeconds)))
             throw new AuthException(422, "El horario solicitado es anterior al tiempo mínimo de preparación.");
+        serviceHours.requireSlot("DELIVERY", request.requestedFor(), false);
 
         List<UUID> created = jdbc.query("""
             INSERT INTO wok.order_requests

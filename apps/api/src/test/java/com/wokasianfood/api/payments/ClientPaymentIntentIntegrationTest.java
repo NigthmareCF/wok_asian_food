@@ -10,10 +10,22 @@ import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class ClientPaymentIntentIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
+
+    @BeforeEach
+    void openRemoteServiceHoursForPaymentIntentTests() {
+        allowRemoteRequestsAtAnyTimeToday();
+    }
+
+    @AfterEach
+    void restoreConfiguredRemoteServiceHours() {
+        restoreBaselineRemoteHoursToday();
+    }
 
     @Test
     void createsOneOwnedPendingIntentAndNeverRecordsCapturedPayment() throws Exception {
