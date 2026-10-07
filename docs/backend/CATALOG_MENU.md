@@ -15,7 +15,13 @@ El seed puede repetirse: las categorías se identifican por nombre, áreas por c
 
 ## Separación de receta
 
-Todo producto cargado mantiene `recipe_status = PENDING_DATA` y `items.track_inventory = false`. No se cargan ingredientes, recetas, cantidades, tiempos obligatorios, mermas, rendimientos, stock, `modifier_item_impacts` ni consumo automático. Las sugerencias de composición del prompt son pistas preliminares, nunca fuente de descuentos de inventario. Productos pueden aparecer y solicitarse; su disponibilidad se reporta `NOT_TRACKED` hasta que una receta verificada configure seguimiento.
+Los productos del menú mantienen `recipe_status = PENDING_DATA` y `items.track_inventory = false`. El seed incluye ahora siete insumos de bebidas con `track_inventory = true`, sin existencias iniciales, y 15 componentes cuantificados para las bebidas que se pueden representar sin ambigüedad. Esos renglones son borradores: reserva y consumo sólo leen recetas de productos cuyo estado sea `ACTIVE`. Las dos pulpas de carbonatada están vinculadas a sus opciones de sabor como `modifier_item_impacts` con `affects_availability = false`; no participan en disponibilidad ni en reservas.
+
+Cantidades capturadas: matcha 1 g; agua 2 oz líquidas; leche 5 oz líquidas; pulpa de kiwi o maracuyá 1 oz líquida para los matcha saborizados; y una lata completa de agua mineral por carbonatada. El seed usa `G`, `FL_OZ` y `UNIT` como unidades base del insumo correspondiente. Hielo “para completar” queda como instrucción sin cantidad.
+
+El equivalente indicado de 2 oz de endulzante no se convierte a azúcar ni a jarabe hasta que se confirme si esa medida es por peso o volumen y si representa jarabe terminado. Así no se duplican ambos insumos ni se mezcla masa con volumen. La proporción conocida de jarabe simple es azúcar:agua 1:1 por peso; el ejemplo de tanda usa 70 oz de cada uno. No se inventa el rendimiento final: permanece `TO_MEASURE`, y esta tanda todavía no es BOM ejecutable. No se estiman tiempos ni mermas.
+
+Ninguna receta preliminar activa consumo. Los productos del menú siguen sin tracking propio y su disponibilidad continúa siendo manual hasta que se verifiquen receta e inventario. La salida de desarrollo tampoco crea saldos ni reservas.
 
 No se muestran `PENDING_DATA`, `TO_CONFIRM_RECIPE` ni otras notas internas al Cliente. La respuesta pública incluye nombre, descripción, precio, moneda, opciones, slug y bandera `ageRestricted`; no expone el estado de receta.
 
@@ -45,4 +51,4 @@ La revisión de disponibilidad y las solicitudes remotas aceptan hasta 100 líne
 
 ## Validación
 
-La prueba `RealMenuSeedIntegrationTest` ejecuta el seed dos veces contra PostgreSQL 18, revisa cardinalidades/precios/restricciones y compatibilidad de extras, verifica que no haya tracking ni impactos inventados, calcula las cuatro combinaciones de Onigiri y consulta menú y producto por slug a través de HTTP. Esta prueba valida el catálogo y el contrato; no certifica recetas, stock real, autorización legal +18 ni disponibilidad de operación del restaurante.
+La prueba `RealMenuSeedIntegrationTest` ejecuta el seed dos veces contra PostgreSQL 18, revisa cardinalidades/precios/restricciones y compatibilidad de extras, comprueba los componentes preliminares/unidades, la pulpa de carbonatada no operativa, el estado pendiente de receta y la ausencia de saldos/reservas, calcula las cuatro combinaciones de Onigiri y consulta menú y producto por slug a través de HTTP. Esta prueba valida el catálogo y el contrato; no certifica recetas completas, stock real, autorización legal +18 ni disponibilidad de operación del restaurante.

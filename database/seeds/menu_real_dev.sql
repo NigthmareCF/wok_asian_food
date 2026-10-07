@@ -1,12 +1,18 @@
 -- WOK's current printed menu (development catalog seed; safe to run repeatedly).
 -- Run manually after Flyway in a disposable development database. This file is
--- not a Flyway migration and creates no recipe quantities, stock, or consumption.
+-- not a Flyway migration. It includes preliminary measured beverage components,
+-- but leaves all menu recipes PENDING_DATA so they cannot reserve/consume stock.
 BEGIN;
 SET search_path = wok, public;
 
 INSERT INTO item_types (code, name) VALUES ('MENU_PRODUCT', 'Producto de menú')
 ON CONFLICT (code) DO NOTHING;
 INSERT INTO units (code, name, dimension, factor_to_base) VALUES ('UNIT', 'Unidad', 'COUNT', 1)
+ON CONFLICT (code) DO NOTHING;
+INSERT INTO units (code, name, dimension, factor_to_base) VALUES
+ ('G', 'Gramo', 'MASS', 1), ('FL_OZ', 'Onza líquida', 'VOLUME', 1)
+ON CONFLICT (code) DO NOTHING;
+INSERT INTO item_types (code, name) VALUES ('PRELIMINARY_INGREDIENT', 'Insumo de receta preliminar')
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO menu_categories (name, display_order) VALUES
@@ -108,6 +114,49 @@ ON CONFLICT (slug) WHERE slug IS NOT NULL DO UPDATE SET
   visibility=EXCLUDED.visibility, status=EXCLUDED.status, display_order=EXCLUDED.display_order,
   age_restricted=EXCLUDED.age_restricted, recipe_status='PENDING_DATA', updated_at=now();
 
+-- Confirmed beverage measures only. Base-unit quantities use the unit named on
+-- each item. Sweetener is deliberately excluded until coordination confirms
+-- whether the stated 2 oz is a mass measure or prepared-syrup volume.
+CREATE TEMP TABLE seed_preliminary_ingredients (
+  sku TEXT PRIMARY KEY, name TEXT NOT NULL, unit_code TEXT NOT NULL
+) ON COMMIT DROP;
+INSERT INTO seed_preliminary_ingredients VALUES
+ ('ING_MATCHA_GREEN','Matcha verde','G'),
+ ('ING_MATCHA_BLUE','Matcha azul','G'),
+ ('ING_WATER','Agua','FL_OZ'),
+ ('ING_MILK','Leche','FL_OZ'),
+ ('ING_KIWI_PULP','Pulpa de kiwi','FL_OZ'),
+ ('ING_PASSIONFRUIT_PULP','Pulpa de maracuyá','FL_OZ'),
+ ('ING_MINERAL_WATER_CAN','Lata de agua mineral','UNIT');
+INSERT INTO items (sku,name,description,item_type_id,base_unit_id,track_inventory)
+SELECT ingredient.sku,ingredient.name,'Insumo preliminar; sin existencia inicial.',type.id,unit.id,true
+FROM seed_preliminary_ingredients ingredient
+JOIN item_types type ON type.code='PRELIMINARY_INGREDIENT'
+JOIN units unit ON unit.code=ingredient.unit_code
+ON CONFLICT (sku) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,
+  item_type_id=EXCLUDED.item_type_id,base_unit_id=EXCLUDED.base_unit_id,
+  track_inventory=true,active=true,updated_at=now(),row_version=items.row_version+1;
+
+-- Recipe rows are retained as drafts: inventory reservation and consumption
+-- only read components for ACTIVE menu recipes. Ice is a fill-to-volume step
+-- with no confirmed measure and is not converted to a fabricated quantity.
+CREATE TEMP TABLE seed_preliminary_recipe_components (
+  product_slug TEXT NOT NULL, component_sku TEXT NOT NULL, quantity NUMERIC(18,6) NOT NULL,
+  PRIMARY KEY(product_slug,component_sku)
+) ON COMMIT DROP;
+INSERT INTO seed_preliminary_recipe_components VALUES
+ ('matcha-latte','ING_MATCHA_GREEN',1),('matcha-latte','ING_WATER',2),('matcha-latte','ING_MILK',5),
+ ('matcha-kiwi','ING_MATCHA_GREEN',1),('matcha-kiwi','ING_WATER',2),('matcha-kiwi','ING_MILK',5),('matcha-kiwi','ING_KIWI_PULP',1),
+ ('matcha-maracuya','ING_MATCHA_GREEN',1),('matcha-maracuya','ING_WATER',2),('matcha-maracuya','ING_MILK',5),('matcha-maracuya','ING_PASSIONFRUIT_PULP',1),
+ ('blue-matcha','ING_MATCHA_BLUE',1),('blue-matcha','ING_WATER',2),('blue-matcha','ING_MILK',5),
+ ('carbonatada','ING_MINERAL_WATER_CAN',1);
+INSERT INTO item_recipe_components(parent_item_id,component_item_id,quantity)
+SELECT product.item_id,component.id,recipe.quantity
+FROM seed_preliminary_recipe_components recipe
+JOIN menu_items product ON product.slug=recipe.product_slug
+JOIN items component ON component.sku=recipe.component_sku
+ON CONFLICT (parent_item_id,component_item_id) DO UPDATE SET quantity=EXCLUDED.quantity;
+
 CREATE TEMP TABLE seed_modifier_groups (code TEXT PRIMARY KEY, display_name TEXT UNIQUE NOT NULL,
   min_selection INTEGER, max_selection INTEGER, required BOOLEAN) ON COMMIT DROP;
 INSERT INTO seed_modifier_groups VALUES
@@ -139,6 +188,18 @@ SELECT g.id,o.name,o.price_delta,true FROM seed_modifier_options o
 JOIN seed_modifier_groups sg ON sg.code=o.group_name JOIN modifier_groups g ON g.name=sg.display_name
 ON CONFLICT (group_id,name) DO UPDATE SET price_delta=EXCLUDED.price_delta,active=true;
 
+-- Known carbonatada flavor pulp quantities are preserved as non-operative
+-- hints. Turning affects_availability on requires recipe review/activation.
+INSERT INTO modifier_item_impacts(modifier_id,item_id,quantity_delta,affects_availability)
+SELECT modifier.id,ingredient.id,2,false
+FROM modifiers modifier
+JOIN modifier_groups group_row ON group_row.id=modifier.group_id AND group_row.name='Sabor'
+JOIN items ingredient ON ingredient.sku=CASE modifier.name
+  WHEN 'Kiwi' THEN 'ING_KIWI_PULP' WHEN 'Maracuyá' THEN 'ING_PASSIONFRUIT_PULP' END
+WHERE modifier.name IN ('Kiwi','Maracuyá')
+ON CONFLICT (modifier_id,item_id) DO UPDATE SET quantity_delta=EXCLUDED.quantity_delta,
+  affects_availability=false;
+
 CREATE TEMP TABLE seed_product_groups (slug TEXT, group_name TEXT, display_order INTEGER, PRIMARY KEY(slug,group_name)) ON COMMIT DROP;
 INSERT INTO seed_product_groups VALUES
  ('maki-atun','SUSHI_EXTRAS',1),('maki-camaron','SUSHI_EXTRAS',1),
@@ -165,5 +226,7 @@ ON CONFLICT (menu_item_id,group_id) DO UPDATE SET display_order=EXCLUDED.display
 -- The current Sushi menu is configured to allow these four add-ons. Admin may
 -- adjust product compatibility later; these links do not imply stock impact.
 -- Manual availability until recipes and verified inventory are delivered.
--- Ingredient hints stay documentation-only; no modifier_item_impacts are seeded.
+-- Manual availability until recipes and verified inventory are delivered.
+-- Carbonatada pulp impacts are retained with affects_availability=false until
+-- the recipe is reviewed and explicitly activated.
 COMMIT;

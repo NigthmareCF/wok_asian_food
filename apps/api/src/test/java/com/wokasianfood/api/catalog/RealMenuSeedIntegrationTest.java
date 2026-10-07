@@ -22,7 +22,7 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
-    void seedsTheCurrentMenuRepeatablyWithoutInventingRecipesOrStock() throws Exception {
+    void seedsTheCurrentMenuAndPreliminaryDrinkMeasuresWithoutActivatingStockUse() throws Exception {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items WHERE slug IS NOT NULL", Integer.class)).isEqualTo(31);
         createLegacyPreparationAreasAndAttachExistingMenuItem();
         runSeed();
@@ -48,6 +48,24 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
                 .isFalse();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items WHERE slug IS NOT NULL AND recipe_status='PENDING_DATA'",
                 Integer.class)).isEqualTo(31);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM wok.item_recipe_components rc
+                JOIN wok.menu_items product ON product.item_id=rc.parent_item_id
+                WHERE product.slug IN ('matcha-latte','matcha-kiwi','matcha-maracuya','blue-matcha','carbonatada')
+                """, Integer.class)).isEqualTo(15);
+        assertThat(recipeQuantity("matcha-latte", "ING_MATCHA_GREEN")).isEqualByComparingTo("1");
+        assertThat(recipeQuantity("matcha-latte", "ING_WATER")).isEqualByComparingTo("2");
+        assertThat(recipeQuantity("matcha-latte", "ING_MILK")).isEqualByComparingTo("5");
+        assertThat(recipeQuantity("matcha-kiwi", "ING_KIWI_PULP")).isEqualByComparingTo("1");
+        assertThat(recipeQuantity("matcha-maracuya", "ING_PASSIONFRUIT_PULP")).isEqualByComparingTo("1");
+        assertThat(recipeQuantity("blue-matcha", "ING_MATCHA_BLUE")).isEqualByComparingTo("1");
+        assertThat(recipeQuantity("carbonatada", "ING_MINERAL_WATER_CAN")).isEqualByComparingTo("1");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.items i JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT' AND i.track_inventory", Integer.class)).isEqualTo(7);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.inventory_balances b JOIN wok.items i ON i.id=b.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.item_recipe_components rc JOIN wok.menu_items mi ON mi.item_id=rc.parent_item_id WHERE mi.slug IN ('matcha-latte','matcha-kiwi','matcha-maracuya','blue-matcha','carbonatada') AND mi.recipe_status='ACTIVE'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.inventory_reservations reservation JOIN wok.items i ON i.id=reservation.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.modifier_item_impacts impact JOIN wok.items i ON i.id=impact.item_id WHERE i.sku IN ('ING_KIWI_PULP','ING_PASSIONFRUIT_PULP') AND impact.affects_availability=false", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.modifier_item_impacts impact JOIN wok.items i ON i.id=impact.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT' AND impact.affects_availability=true", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items mi JOIN wok.menu_item_modifier_groups link ON link.menu_item_id=mi.id JOIN wok.modifier_groups g ON g.id=link.group_id WHERE mi.slug IS NOT NULL AND g.name='Extras'",
                 Integer.class)).isEqualTo(9);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.items i JOIN wok.menu_items mi ON mi.item_id=i.id WHERE mi.slug IS NOT NULL AND i.track_inventory",
@@ -86,6 +104,15 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
 
     private BigDecimal delta(java.util.List<ModifierSelectionService.ModifierOption> options, String name) {
         return options.stream().filter(option -> option.name().equals(name)).findFirst().orElseThrow().priceDelta();
+    }
+
+    private BigDecimal recipeQuantity(String slug, String componentSku) {
+        return jdbc.queryForObject("""
+                SELECT rc.quantity FROM wok.item_recipe_components rc
+                JOIN wok.menu_items product ON product.item_id=rc.parent_item_id
+                JOIN wok.items component ON component.id=rc.component_item_id
+                WHERE product.slug=? AND component.sku=?
+                """, BigDecimal.class, slug, componentSku);
     }
 
     private void runSeed() throws Exception {
