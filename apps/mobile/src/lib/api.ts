@@ -138,6 +138,8 @@ export type OrderQuoteReceipt = {
   subtotal: number;
   currency: string;
   preparationSeconds: number;
+  queueDelaySeconds: number;
+  totalEtaSeconds: number;
   status: "ACTIVE" | "CONSUMED" | "EXPIRED";
   expiresAt: string;
   usable: boolean;

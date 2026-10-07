@@ -502,7 +502,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />
       {selected.length === 0 ? <Notice>Agrega al menos un producto.</Notice> : null}
       {quote ? <View style={ui.section}>
-        <Notice tone="success">Cotización del servidor: {formatMoney(quote.subtotal, quote.currency)} · preparación estimada {Math.ceil(quote.preparationSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
+        <Notice tone="success">Cotización del servidor: {formatMoney(quote.subtotal, quote.currency)} · cola activa {Math.ceil(quote.queueDelaySeconds / 60)} min · preparación propia {Math.ceil(quote.preparationSeconds / 60)} min · ETA total estimado {Math.ceil(quote.totalEtaSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
         <Notice>La cotización no aparta inventario ni capacidad y no acepta el pedido. El equipo revisará cobertura y disponibilidad.</Notice>
         <Button title="Solicitar una nueva cotización" secondary disabled={sending} onPress={clearQuoteDraft} />
       </View> : null}

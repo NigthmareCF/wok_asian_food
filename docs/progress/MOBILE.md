@@ -2,7 +2,7 @@
 
 ## 2026-10-07 — Cotización antes de pickup y delivery
 
-- Pickup y delivery solicitan primero una cotización autenticada al backend y muestran el subtotal calculado por servidor, tiempo estimado de preparación y vencimiento. La persona confirma en un segundo paso para enviar la solicitud con el mismo `Idempotency-Key` y `X-Order-Quote-Id`; el resultado sigue siendo `PENDING_REVIEW`.
+- Pickup y delivery solicitan primero una cotización autenticada al backend y muestran subtotal, demora de cola, preparación, ETA total estimado y vencimiento. La persona confirma en un segundo paso para enviar la solicitud con el mismo `Idempotency-Key` y `X-Order-Quote-Id`; el resultado sigue siendo `PENDING_REVIEW`.
 - Se preserva en SecureStore la fase de cotización o el envío cuyo resultado es incierto. Al reabrir la app se restaura horario, productos, opciones y datos de formulario necesarios; editar productos/opciones/horario invalida la cotización y permite solicitar otra. Los reintentos de pedido usan el mismo quote y cuerpo para evitar duplicados.
 - La UI explica que el quote no aparta capacidad ni inventario y no acepta ni cobra el pedido. El backend vuelve a validar al revisar/aceptar. Quote vencido puede solicitarse nuevamente; las respuestas definitivas de rechazo limpian el intento que ya no se puede reintentar.
 - Verificación: Vitest, ESLint, TypeScript y export de bundle Expo Android; el export no es un APK instalable. El build de producción requiere distribuir un APK firmado por separado.
