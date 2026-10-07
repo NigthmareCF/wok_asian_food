@@ -16,6 +16,7 @@ import { useFocusedPolling } from "@/lib/use-focused-polling";
 import { serviceSlotStatus } from "@/lib/service-hours";
 import { useServiceHours } from "@/lib/use-service-hours";
 import { isValidPositiveApiInteger } from "@/lib/quantity-limits";
+import { canAddDistinctMenuLine, MAX_DISTINCT_MENU_LINES } from "@/lib/request-limits";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
 const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
@@ -189,6 +190,11 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   const activeInvoiceRequest = attempt?.body.invoiceRequested ?? invoiceRequested;
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
+    if (delta > 0 && !canAddDistinctMenuLine(cart, item.id)) {
+      setError(`Puedes agregar hasta ${MAX_DISTINCT_MENU_LINES} productos distintos por solicitud.`);
+      return;
+    }
+    setError(null);
     availabilityRevision.current += 1; setAvailability(null); setAvailabilityLoading(false); setAvailabilityError("");
     setReceipt(null);
     const quantity = (cart[item.id] ?? 0) + delta;

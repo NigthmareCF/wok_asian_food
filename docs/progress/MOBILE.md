@@ -423,3 +423,8 @@
 
 - La app ahora permite hasta 100 productos distintos en una preorden, alineada con el límite de transporte backend; cantidades por SKU siguen usando el rango `int32`.
 - Pruebas cubren más de 20 productos distintos y rechazo al exceder 100.
+
+## 2026-10-07 — Carritos alineados con el límite de solicitudes
+
+- Menú/pickup y delivery impiden agregar un producto distinto después de alcanzar 100 líneas, con mensaje visible en español; permiten aumentar cantidades de productos ya incluidos. Esto evita que un catálogo administrable amplio produzca solicitudes que el backend rechazará por límite de transporte.
+- La regla se comparte con preórdenes mediante `canAddDistinctMenuLine` y queda cubierta al límite y por debajo de él en Vitest. Verificación: 59/59 pruebas, ESLint, TypeScript y export Expo Android completan correctamente; el export es un bundle, no un APK instalable.
