@@ -68,5 +68,9 @@ class AdminBusinessHoursIntegrationTest extends PostgresIntegrationTest {
             {"opensAt":"14:00:00","closesAt":"20:00:00","timezoneName":"No/Existe",
              "active":true,"expectedVersion":0,"reason":"Zona inválida"}
             """, Map.of()).statusCode()).isEqualTo(422);
+        assertThat(send("PUT", endpoint, token, """
+            {"opensAt":"14:00:00","closesAt":"20:00:00","timezoneName":"UTC",
+             "active":true,"expectedVersion":0,"reason":"Zona ajena al restaurante"}
+            """, Map.of()).statusCode()).isEqualTo(422);
     }
 }
