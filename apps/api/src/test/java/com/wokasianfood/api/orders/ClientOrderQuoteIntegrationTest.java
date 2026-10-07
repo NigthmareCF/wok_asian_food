@@ -45,6 +45,8 @@ class ClientOrderQuoteIntegrationTest extends PostgresIntegrationTest {
         assertThat(quote.path("status").asText()).isEqualTo("ACTIVE");
         assertThat(quote.path("usable").asBoolean()).isTrue();
         assertThat(quote.path("preparationSeconds").asInt()).isEqualTo(120);
+        assertThat(quote.path("queueDelaySeconds").asInt()).isZero();
+        assertThat(quote.path("totalEtaSeconds").asInt()).isEqualTo(120);
         assertThat(quote.path("items").get(0).path("name").asText()).isEqualTo("Quote item");
         assertThat(quote.path("items").get(0).path("lineTotal").decimalValue()).isEqualByComparingTo("75.00");
         assertThat(quote.path("message").asText()).contains("volverá a validar capacidad e inventario");

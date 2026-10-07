@@ -23,6 +23,8 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.HashSet;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -50,12 +52,14 @@ public class ClientOrderQuoteController {
     private final ModifierSelectionService modifiers;
     private final PublicMenuAvailabilityController availability;
     private final ServiceHoursPolicy serviceHours;
+    private final KitchenQueueEstimator queueEstimator;
 
     public ClientOrderQuoteController(JdbcTemplate jdbc, ModifierSelectionService modifiers,
-            PublicMenuAvailabilityController availability) {
+            PublicMenuAvailabilityController availability, KitchenQueueEstimator queueEstimator) {
         this.jdbc = jdbc;
         this.modifiers = modifiers;
         this.availability = availability;
+        this.queueEstimator = queueEstimator;
         this.serviceHours = new ServiceHoursPolicy(jdbc);
     }
 
@@ -100,18 +104,22 @@ public class ClientOrderQuoteController {
         if (products.stream().anyMatch(product -> !product.currencyId().equals(currencyId)))
             throw new AuthException(422, "No se pueden mezclar monedas en una cotización.");
 
-        long preparationSeconds = 0;
+        Map<UUID, Long> preparationByStation = new HashMap<>();
         BigDecimal subtotal = BigDecimal.ZERO;
         for (int index = 0; index < lines.size(); index++) {
             QuoteLineRequest line = lines.get(index);
             Product product = products.get(index);
-            preparationSeconds = Math.addExact(preparationSeconds,
-                    Math.multiplyExact((long) product.preparationSeconds(), line.quantity()));
+            preparationByStation.merge(product.stationId(),
+                    Math.multiplyExact((long) product.preparationSeconds(), line.quantity()), Math::addExact);
             subtotal = subtotal.add(effectivePrice(product.price(), selections.get(index))
                     .multiply(BigDecimal.valueOf(line.quantity())));
         }
-        if (preparationSeconds > Duration.ofHours(24).toSeconds()
-                || !request.requestedFor().isAfter(Instant.now().plusSeconds(preparationSeconds)))
+        KitchenQueueEstimator.Estimate queue = queueEstimator.estimate(preparationByStation, true);
+        long preparationSeconds = queue.stations().stream().mapToLong(KitchenQueueEstimator.StationEstimate::preparationSeconds).max().orElse(0);
+        long queueDelaySeconds = queue.stations().stream().mapToLong(KitchenQueueEstimator.StationEstimate::queueDelaySeconds).max().orElse(0);
+        long totalEtaSeconds = queue.overallReadySeconds();
+        if (totalEtaSeconds > Duration.ofHours(24).toSeconds()
+                || !request.requestedFor().isAfter(Instant.now().plusSeconds(totalEtaSeconds)))
             throw new AuthException(422, "El horario solicitado es anterior al tiempo mínimo de preparación.");
         serviceHours.requireSlot(serviceCode, request.requestedFor(), false);
 
@@ -126,12 +134,12 @@ public class ClientOrderQuoteController {
         List<UUID> inserted = jdbc.query("""
                 INSERT INTO wok.order_quotes
                     (customer_user_id, fulfillment_type, idempotency_key, request_fingerprint,
-                     requested_for, subtotal, currency_id, preparation_seconds, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (customer_user_id, idempotency_key) DO NOTHING
+                     requested_for, subtotal, currency_id, preparation_seconds, queue_delay_seconds, total_eta_seconds, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (customer_user_id, idempotency_key) DO NOTHING
                 RETURNING id
                 """, (rs, row) -> rs.getObject(1, UUID.class), customerId, serviceCode,
                 idempotencyKey, fingerprint, Timestamp.from(request.requestedFor()), subtotal, currencyId,
-                preparationSeconds, Timestamp.from(expiresAt));
+                preparationSeconds, queueDelaySeconds, totalEtaSeconds, Timestamp.from(expiresAt));
         if (inserted.isEmpty()) {
             List<QuoteHeader> raced = jdbc.query("""
                     SELECT id, request_fingerprint, status, expires_at FROM wok.order_quotes
@@ -172,12 +180,13 @@ public class ClientOrderQuoteController {
     private QuoteReceipt getQuote(UUID customerId, UUID quoteId) {
         List<QuoteReceipt> headers = jdbc.query("""
                 SELECT q.id, q.fulfillment_type, q.requested_for, q.subtotal, currency.code AS currency,
-                       q.preparation_seconds, q.status, q.expires_at
+                       q.preparation_seconds, q.queue_delay_seconds, q.total_eta_seconds, q.status, q.expires_at
                 FROM wok.order_quotes q JOIN wok.currencies currency ON currency.id = q.currency_id
                 WHERE q.id = ? AND q.customer_user_id = ?
                 """, (rs, row) -> new QuoteReceipt(rs.getObject("id", UUID.class), rs.getString("fulfillment_type"),
                 rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"), rs.getString("currency"),
-                rs.getInt("preparation_seconds"), rs.getString("status"), rs.getTimestamp("expires_at").toInstant(),
+                rs.getInt("preparation_seconds"), rs.getInt("queue_delay_seconds"), rs.getInt("total_eta_seconds"),
+                rs.getString("status"), rs.getTimestamp("expires_at").toInstant(),
                 "ACTIVE".equals(rs.getString("status")) && rs.getTimestamp("expires_at").toInstant().isAfter(Instant.now()),
                 "La cotización es una estimación; el equipo volverá a validar capacidad e inventario antes de aceptar.", List.of()),
                 quoteId, customerId);
@@ -192,7 +201,7 @@ public class ClientOrderQuoteController {
                 quoteModifiers(rs.getObject("id", UUID.class))), quoteId);
         String currentStatus = jdbc.queryForObject("SELECT status FROM wok.order_quotes WHERE id = ?", String.class, quoteId);
         return new QuoteReceipt(header.quoteId(), header.fulfillmentType(), header.requestedFor(), header.subtotal(),
-                header.currency(), header.preparationSeconds(), currentStatus, header.expiresAt(),
+                header.currency(), header.preparationSeconds(), header.queueDelaySeconds(), header.totalEtaSeconds(), currentStatus, header.expiresAt(),
                 "ACTIVE".equals(currentStatus) && header.expiresAt().isAfter(Instant.now()), header.message(), items);
     }
 
@@ -214,7 +223,7 @@ public class ClientOrderQuoteController {
         for (QuoteLineRequest line : lines) {
             List<Product> found = jdbc.query("""
                     SELECT mi.id, mi.name, mi.price, mi.currency_id, currency.code AS currency,
-                           mi.estimated_preparation_seconds
+                           mi.estimated_preparation_seconds, mi.preparation_area_id
                     FROM wok.menu_items mi JOIN wok.items item ON item.id = mi.item_id
                     JOIN wok.menu_categories category ON category.id = mi.category_id AND category.active = true
                     JOIN wok.preparation_areas area ON area.id = mi.preparation_area_id AND area.active = true
@@ -223,7 +232,7 @@ public class ClientOrderQuoteController {
                     FOR SHARE OF mi, item, category, area
                     """, (rs, row) -> new Product(rs.getObject("id", UUID.class), rs.getString("name"),
                     rs.getBigDecimal("price"), rs.getObject("currency_id", UUID.class), rs.getString("currency"),
-                    rs.getInt("estimated_preparation_seconds")), line.menuItemId());
+                    rs.getInt("estimated_preparation_seconds"), rs.getObject("preparation_area_id", UUID.class)), line.menuItemId());
             if (found.isEmpty()) return List.of();
             products.add(found.getFirst());
         }
@@ -267,12 +276,13 @@ public class ClientOrderQuoteController {
     }
     public enum FulfillmentType { PICKUP, DELIVERY }
     public record QuoteReceipt(UUID quoteId, String fulfillmentType, Instant requestedFor, BigDecimal subtotal,
-            String currency, int preparationSeconds, String status, Instant expiresAt, boolean usable,
+            String currency, int preparationSeconds, int queueDelaySeconds, int totalEtaSeconds,
+            String status, Instant expiresAt, boolean usable,
             String message, List<QuoteLine> items) {}
     public record QuoteLine(UUID menuItemId, String name, int quantity, BigDecimal unitPrice,
             BigDecimal lineTotal, List<QuoteModifier> modifiers) {}
     public record QuoteModifier(String group, String name, BigDecimal priceDelta) {}
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currency,
-            int preparationSeconds) {}
+            int preparationSeconds, UUID stationId) {}
     private record QuoteHeader(UUID id, String fingerprint, String status, Instant expiresAt) {}
 }
