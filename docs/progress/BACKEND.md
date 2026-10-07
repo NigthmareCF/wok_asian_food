@@ -534,7 +534,7 @@
 
 ## 2026-10-07 — Componentes preliminares medidos para bebidas
 
-- El seed idempotente de catálogo agrega siete insumos de bebidas sin saldos y 15 componentes de receta conocidos para Matcha Latte, Matcha Kiwi, Matcha Maracuyá, Blue Matcha y Carbonatada. La lata de agua mineral queda como una unidad completa; las cantidades registradas conservan gramos y onzas líquidas según la unidad base del insumo.
+- El seed idempotente de catálogo agrega siete insumos de bebidas sin saldos y 15 componentes de receta conocidos para Matcha Latte, Matcha Kiwi, Matcha Maracuyá, Blue Matcha y Carbonatada. La lata de agua mineral queda como una unidad completa; volúmenes se normalizan a mililitros con `FL_OZ=29.573530 ML` y masas permanecen en gramos.
 - Las recetas del menú permanecen `PENDING_DATA`; reservas y consumo de pedidos sólo usan recetas `ACTIVE`. Los modificadores Kiwi/Maracuyá de Carbonatada conservan su componente conocido de 2 oz como impacto no operativo (`affects_availability=false`) porque el modelo sólo soporta impactos operativos de modificador, no una receta variante en borrador.
 - El endulzante de 2 oz queda pendiente de confirmar como medida por peso o volumen. Se documenta la proporción del jarabe simple 1:1 por peso y el ejemplo de 70 oz + 70 oz, con rendimiento `TO_MEASURE`; no se crean componentes de tanda ni se descuentan azúcar y jarabe a la vez. Hielo para completar tampoco recibe cantidad inventada.
 - `RealMenuSeedIntegrationTest`: 1/1 pasó contra PostgreSQL 18/Testcontainers, aplicando las 48 migraciones desde una base vacía. Comprueba repetición idempotente, medidas preliminares, recetas no activas, y ausencia de inventario/reservas iniciales.

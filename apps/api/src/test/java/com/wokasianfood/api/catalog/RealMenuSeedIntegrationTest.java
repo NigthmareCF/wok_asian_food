@@ -54,17 +54,17 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
                 WHERE product.slug IN ('matcha-latte','matcha-kiwi','matcha-maracuya','blue-matcha','carbonatada')
                 """, Integer.class)).isEqualTo(15);
         assertThat(recipeQuantity("matcha-latte", "ING_MATCHA_GREEN")).isEqualByComparingTo("1");
-        assertThat(recipeQuantity("matcha-latte", "ING_WATER")).isEqualByComparingTo("2");
-        assertThat(recipeQuantity("matcha-latte", "ING_MILK")).isEqualByComparingTo("5");
-        assertThat(recipeQuantity("matcha-kiwi", "ING_KIWI_PULP")).isEqualByComparingTo("1");
-        assertThat(recipeQuantity("matcha-maracuya", "ING_PASSIONFRUIT_PULP")).isEqualByComparingTo("1");
+        assertThat(recipeQuantity("matcha-latte", "ING_WATER")).isEqualByComparingTo("59.14706");
+        assertThat(recipeQuantity("matcha-latte", "ING_MILK")).isEqualByComparingTo("147.86765");
+        assertThat(recipeQuantity("matcha-kiwi", "ING_KIWI_PULP")).isEqualByComparingTo("29.57353");
+        assertThat(recipeQuantity("matcha-maracuya", "ING_PASSIONFRUIT_PULP")).isEqualByComparingTo("29.57353");
         assertThat(recipeQuantity("blue-matcha", "ING_MATCHA_BLUE")).isEqualByComparingTo("1");
         assertThat(recipeQuantity("carbonatada", "ING_MINERAL_WATER_CAN")).isEqualByComparingTo("1");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.items i JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT' AND i.track_inventory", Integer.class)).isEqualTo(7);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.inventory_balances b JOIN wok.items i ON i.id=b.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.item_recipe_components rc JOIN wok.menu_items mi ON mi.item_id=rc.parent_item_id WHERE mi.slug IN ('matcha-latte','matcha-kiwi','matcha-maracuya','blue-matcha','carbonatada') AND mi.recipe_status='ACTIVE'", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.inventory_reservations reservation JOIN wok.items i ON i.id=reservation.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT'", Integer.class)).isZero();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.modifier_item_impacts impact JOIN wok.items i ON i.id=impact.item_id WHERE i.sku IN ('ING_KIWI_PULP','ING_PASSIONFRUIT_PULP') AND impact.affects_availability=false", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.modifier_item_impacts impact JOIN wok.items i ON i.id=impact.item_id WHERE i.sku IN ('ING_KIWI_PULP','ING_PASSIONFRUIT_PULP') AND impact.quantity_delta=59.14706 AND impact.affects_availability=false", Integer.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.modifier_item_impacts impact JOIN wok.items i ON i.id=impact.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT' AND impact.affects_availability=true", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.menu_items mi JOIN wok.menu_item_modifier_groups link ON link.menu_item_id=mi.id JOIN wok.modifier_groups g ON g.id=link.group_id WHERE mi.slug IS NOT NULL AND g.name='Extras'",
                 Integer.class)).isEqualTo(9);

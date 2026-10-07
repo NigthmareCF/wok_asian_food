@@ -10,7 +10,8 @@ ON CONFLICT (code) DO NOTHING;
 INSERT INTO units (code, name, dimension, factor_to_base) VALUES ('UNIT', 'Unidad', 'COUNT', 1)
 ON CONFLICT (code) DO NOTHING;
 INSERT INTO units (code, name, dimension, factor_to_base) VALUES
- ('G', 'Gramo', 'MASS', 1), ('FL_OZ', 'Onza líquida', 'VOLUME', 1)
+ ('G', 'Gramo', 'MASS', 1), ('ML', 'Mililitro', 'VOLUME', 1),
+ ('FL_OZ', 'Onza líquida', 'VOLUME', 29.573530)
 ON CONFLICT (code) DO NOTHING;
 INSERT INTO item_types (code, name) VALUES ('PRELIMINARY_INGREDIENT', 'Insumo de receta preliminar')
 ON CONFLICT (code) DO NOTHING;
@@ -123,10 +124,10 @@ CREATE TEMP TABLE seed_preliminary_ingredients (
 INSERT INTO seed_preliminary_ingredients VALUES
  ('ING_MATCHA_GREEN','Matcha verde','G'),
  ('ING_MATCHA_BLUE','Matcha azul','G'),
- ('ING_WATER','Agua','FL_OZ'),
- ('ING_MILK','Leche','FL_OZ'),
- ('ING_KIWI_PULP','Pulpa de kiwi','FL_OZ'),
- ('ING_PASSIONFRUIT_PULP','Pulpa de maracuyá','FL_OZ'),
+ ('ING_WATER','Agua','ML'),
+ ('ING_MILK','Leche','ML'),
+ ('ING_KIWI_PULP','Pulpa de kiwi','ML'),
+ ('ING_PASSIONFRUIT_PULP','Pulpa de maracuyá','ML'),
  ('ING_MINERAL_WATER_CAN','Lata de agua mineral','UNIT');
 INSERT INTO items (sku,name,description,item_type_id,base_unit_id,track_inventory)
 SELECT ingredient.sku,ingredient.name,'Insumo preliminar; sin existencia inicial.',type.id,unit.id,true
@@ -145,10 +146,10 @@ CREATE TEMP TABLE seed_preliminary_recipe_components (
   PRIMARY KEY(product_slug,component_sku)
 ) ON COMMIT DROP;
 INSERT INTO seed_preliminary_recipe_components VALUES
- ('matcha-latte','ING_MATCHA_GREEN',1),('matcha-latte','ING_WATER',2),('matcha-latte','ING_MILK',5),
- ('matcha-kiwi','ING_MATCHA_GREEN',1),('matcha-kiwi','ING_WATER',2),('matcha-kiwi','ING_MILK',5),('matcha-kiwi','ING_KIWI_PULP',1),
- ('matcha-maracuya','ING_MATCHA_GREEN',1),('matcha-maracuya','ING_WATER',2),('matcha-maracuya','ING_MILK',5),('matcha-maracuya','ING_PASSIONFRUIT_PULP',1),
- ('blue-matcha','ING_MATCHA_BLUE',1),('blue-matcha','ING_WATER',2),('blue-matcha','ING_MILK',5),
+ ('matcha-latte','ING_MATCHA_GREEN',1),('matcha-latte','ING_WATER',59.14706),('matcha-latte','ING_MILK',147.86765),
+ ('matcha-kiwi','ING_MATCHA_GREEN',1),('matcha-kiwi','ING_WATER',59.14706),('matcha-kiwi','ING_MILK',147.86765),('matcha-kiwi','ING_KIWI_PULP',29.57353),
+ ('matcha-maracuya','ING_MATCHA_GREEN',1),('matcha-maracuya','ING_WATER',59.14706),('matcha-maracuya','ING_MILK',147.86765),('matcha-maracuya','ING_PASSIONFRUIT_PULP',29.57353),
+ ('blue-matcha','ING_MATCHA_BLUE',1),('blue-matcha','ING_WATER',59.14706),('blue-matcha','ING_MILK',147.86765),
  ('carbonatada','ING_MINERAL_WATER_CAN',1);
 INSERT INTO item_recipe_components(parent_item_id,component_item_id,quantity)
 SELECT product.item_id,component.id,recipe.quantity
@@ -191,7 +192,7 @@ ON CONFLICT (group_id,name) DO UPDATE SET price_delta=EXCLUDED.price_delta,activ
 -- Known carbonatada flavor pulp quantities are preserved as non-operative
 -- hints. Turning affects_availability on requires recipe review/activation.
 INSERT INTO modifier_item_impacts(modifier_id,item_id,quantity_delta,affects_availability)
-SELECT modifier.id,ingredient.id,2,false
+SELECT modifier.id,ingredient.id,59.14706,false
 FROM modifiers modifier
 JOIN modifier_groups group_row ON group_row.id=modifier.group_id AND group_row.name='Sabor'
 JOIN items ingredient ON ingredient.sku=CASE modifier.name
