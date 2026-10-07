@@ -487,3 +487,9 @@
 - El BOM de un producto de menú se considera inventario operativo sólo cuando `menu_items.recipe_status = ACTIVE`. Guardar componentes en `PENDING_DATA`, `DRAFT` o `ARCHIVED` ya no vuelve el producto rastreado ni crea reservas en pedidos; el endpoint de disponibilidad también responde `NOT_TRACKED` hasta la activación.
 - `PUT /api/v1/operational/inventory/items/{itemId}/recipe` admite `recipeStatus` para productos del menú. Omitirlo conserva el estado; activar requiere una lista no vacía de componentes existentes y rastreados. La transición se audita, y el producto se bloquea de forma determinista para serializar edición/activación contra una aceptación que calcula reservas. Las recetas de subproductos fuera del menú mantienen su operación normal de producción.
 - Pruebas PostgreSQL focales: `InventoryOrderIntegrationTest` 4/4, `PublicMenuAvailabilityIntegrationTest` 2/2 y `ProductionIntegrationTest` 2/2, sin fallos ni omisiones. Suite completa: 249/249, 0 fallos, 0 errores, 0 omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V44.
+
+## 2026-10-07 — Proveedor FEL fuera de transacciones SQL
+
+- `InvoiceIssuanceWorker` ahora reclama el evento y carga el snapshot fiscal mediante transacciones breves, ejecuta `FiscalProvider.certify` sin transacción abierta y registra certificación o reintento en una transacción posterior. El UUID estable de factura sigue sirviendo para idempotencia/conciliación si el proceso cae después de certificar y antes de guardar.
+- El mock FEL rechaza invocaciones que ocurren dentro de una transacción; `InvoiceIntegrationTest` lo ejecuta en el flujo real del worker.
+- `InvoiceIntegrationTest`: 8/8 con PostgreSQL 18/Testcontainers y Flyway V1–V44. Suite completa: 249/249, 0 fallos, 0 errores, 0 omitidas.

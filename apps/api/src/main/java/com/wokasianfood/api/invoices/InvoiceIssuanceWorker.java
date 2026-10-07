@@ -8,9 +8,10 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
-/** Toma un evento de emision del outbox, certifica con el proveedor fiscal y actualiza la factura. */
+/** Claims issuance work transactionally, calls the fiscal provider without a DB transaction, then persists the result. */
 @Component
 public class InvoiceIssuanceWorker {
     private static final int MAX_ATTEMPTS = 5;
@@ -18,14 +19,16 @@ public class InvoiceIssuanceWorker {
 
     private final JdbcTemplate jdbc;
     private final ObjectProvider<FiscalProvider> providers;
+    private final TransactionTemplate transactions;
 
-    public InvoiceIssuanceWorker(JdbcTemplate jdbc, ObjectProvider<FiscalProvider> providers) {
+    public InvoiceIssuanceWorker(JdbcTemplate jdbc, ObjectProvider<FiscalProvider> providers,
+                                 PlatformTransactionManager transactionManager) {
         this.jdbc = jdbc;
         this.providers = providers;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     @Scheduled(fixedDelayString = "${wok.fiscal.poll-ms:5000}", initialDelayString = "${wok.fiscal.poll-ms:5000}")
-    @Transactional
     public void issueNext() {
         FiscalProvider provider = providers.getIfAvailable();
         if (provider == null) return;
@@ -35,6 +38,28 @@ public class InvoiceIssuanceWorker {
     }
 
     private boolean processOne(FiscalProvider provider) {
+        QueuedEvent event = transactions.execute(status -> claimNext());
+        if (event == null) return false;
+
+        Invoice invoice = transactions.execute(status -> loadInvoice(event.invoiceId()));
+        if (invoice == null || "ISSUED".equals(invoice.status())) {
+            transactions.executeWithoutResult(status -> publish(event.eventId()));
+            return true;
+        }
+
+        try {
+            // Deliberately outside a database transaction: provider latency must not hold SQL locks/connections.
+            FiscalProvider.Certification certification = provider.certify(new FiscalProvider.CertificationRequest(
+                    invoice.id(), invoice.accountName(), invoice.total(), invoice.taxTotal(),
+                    invoice.customerName(), invoice.customerTaxId(), invoice.lines()));
+            transactions.executeWithoutResult(status -> complete(event, invoice, certification));
+        } catch (RuntimeException error) {
+            transactions.executeWithoutResult(status -> recordFailure(event, error));
+        }
+        return true;
+    }
+
+    private QueuedEvent claimNext() {
         List<QueuedEvent> claimed = jdbc.query("""
             UPDATE wok.outbox_events
             SET attempt_count = attempt_count + 1,
@@ -49,63 +74,67 @@ public class InvoiceIssuanceWorker {
             RETURNING id, aggregate_id, attempt_count
             """, (rs, row) -> new QueuedEvent(rs.getObject("id", UUID.class),
                 rs.getObject("aggregate_id", UUID.class), rs.getInt("attempt_count")));
-        if (claimed.isEmpty()) return false;
-        QueuedEvent event = claimed.getFirst();
-        try {
-            Invoice invoice = loadInvoice(event.invoiceId());
-            if (invoice == null || "ISSUED".equals(invoice.status())) {
-                publish(event.eventId());
-                return true;
-            }
-            FiscalProvider.Certification certification = provider.certify(new FiscalProvider.CertificationRequest(
-                    invoice.id(), invoice.accountName(), invoice.total(), invoice.taxTotal(),
-                    invoice.customerName(), invoice.customerTaxId(), invoice.lines()));
+        return claimed.isEmpty() ? null : claimed.getFirst();
+    }
+
+    private void complete(QueuedEvent event, Invoice invoice, FiscalProvider.Certification certification) {
+        int issued = jdbc.update("""
+            UPDATE wok.invoices
+            SET status = 'ISSUED', authorization_number = ?, dte_uuid = ?, provider_ref = ?,
+                issued_at = now(), error = NULL, updated_at = now(), issued_by = created_by,
+                row_version = row_version + 1
+            WHERE id = ? AND status = 'QUEUED'
+            """, certification.authorizationNumber(), certification.dteUuid(),
+                certification.providerRef(), invoice.id());
+        if (issued == 0) {
+            List<String> statuses = jdbc.query("SELECT status FROM wok.invoices WHERE id = ?",
+                    (rs, row) -> rs.getString(1), invoice.id());
+            if (!statuses.contains("ISSUED"))
+                throw new IllegalStateException("Invoice left QUEUED without a persisted certification result");
+            publish(event.eventId());
+            return;
+        }
+        publish(event.eventId());
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            VALUES (?, 'INVOICE_ISSUED', 'INVOICE', ?,
+                    jsonb_build_object('authorizationNumber', ?, 'total', ?), 'SUCCESS', ?)
+            """, invoice.createdBy(), invoice.id(), certification.authorizationNumber(), invoice.total(),
+                invoice.requestId());
+    }
+
+    private void recordFailure(QueuedEvent event, RuntimeException error) {
+        boolean dead = event.attemptCount() >= MAX_ATTEMPTS;
+        jdbc.update("""
+            UPDATE wok.outbox_events
+            SET last_error = ?, next_attempt_at = now() + interval '1 minute' * attempt_count,
+                claimed_until = NULL, claimed_by = NULL,
+                published_at = CASE WHEN ? THEN now() ELSE NULL END
+            WHERE id = ?
+            """, error.getClass().getSimpleName(), dead, event.eventId());
+        if (dead) {
             jdbc.update("""
                 UPDATE wok.invoices
-                SET status = 'ISSUED', authorization_number = ?, dte_uuid = ?, provider_ref = ?,
-                    issued_at = now(), error = NULL, updated_at = now(), issued_by = created_by,
-                    row_version = row_version + 1
-                WHERE id = ?
-                """, certification.authorizationNumber(), certification.dteUuid(),
-                certification.providerRef(), invoice.id());
-            publish(event.eventId());
-            jdbc.update("""
-                INSERT INTO wok.audit_logs
-                    (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
-                VALUES (?, 'INVOICE_ISSUED', 'INVOICE', ?,
-                        jsonb_build_object('authorizationNumber', ?, 'total', ?), 'SUCCESS', ?)
-                """, invoice.createdBy(), invoice.id(), certification.authorizationNumber(), invoice.total(),
-                invoice.requestId());
-        } catch (RuntimeException error) {
-            boolean dead = event.attemptCount() >= MAX_ATTEMPTS;
-            jdbc.update("""
-                UPDATE wok.outbox_events
-                SET last_error = ?, next_attempt_at = now() + interval '1 minute' * attempt_count,
-                    published_at = CASE WHEN ? THEN now() ELSE NULL END
-                WHERE id = ?
-                """, error.getClass().getSimpleName(), dead, event.eventId());
-            if (dead) {
-                jdbc.update("""
-                    UPDATE wok.invoices
-                    SET status = 'FAILED', error = ?, updated_at = now(), row_version = row_version + 1
-                    WHERE id = ? AND status = 'QUEUED'
-                    """, "No se pudo emitir: " + error.getClass().getSimpleName(), event.invoiceId());
-            }
+                SET status = 'FAILED', error = ?, updated_at = now(), row_version = row_version + 1
+                WHERE id = ? AND status = 'QUEUED'
+                """, "No se pudo emitir: " + error.getClass().getSimpleName(), event.invoiceId());
         }
-        return true;
     }
 
     private void publish(UUID eventId) {
-        jdbc.update("UPDATE wok.outbox_events SET published_at = now(), last_error = NULL WHERE id = ?", eventId);
+        jdbc.update("""
+            UPDATE wok.outbox_events SET published_at = now(), last_error = NULL,
+                claimed_until = NULL, claimed_by = NULL
+            WHERE id = ?
+            """, eventId);
     }
 
     private Invoice loadInvoice(UUID invoiceId) {
         List<Invoice> rows = jdbc.query("""
             SELECT i.id, i.status, i.total, i.tax_total, i.customer_name, i.customer_tax_id,
                    i.created_by, i.request_id, a.name AS account_name
-            FROM wok.invoices i
-            JOIN wok.order_accounts a ON a.id = i.account_id
-            WHERE i.id = ?
+            FROM wok.invoices i JOIN wok.order_accounts a ON a.id = i.account_id WHERE i.id = ?
             """, (rs, row) -> new Invoice(rs.getObject("id", UUID.class), rs.getString("status"),
                 rs.getBigDecimal("total"), rs.getBigDecimal("tax_total"), rs.getString("customer_name"),
                 rs.getString("customer_tax_id"), rs.getObject("created_by", UUID.class),
@@ -115,8 +144,8 @@ public class InvoiceIssuanceWorker {
         List<FiscalProvider.CertificationLine> lines = jdbc.query("""
             SELECT description, quantity, unit_price FROM wok.invoice_items
             WHERE invoice_id = ? ORDER BY created_at, id
-            """, (rs, row) -> new FiscalProvider.CertificationLine(rs.getString("description"), rs.getInt("quantity"),
-                rs.getBigDecimal("unit_price")), invoiceId);
+            """, (rs, row) -> new FiscalProvider.CertificationLine(rs.getString("description"),
+                rs.getInt("quantity"), rs.getBigDecimal("unit_price")), invoiceId);
         return new Invoice(invoice.id(), invoice.status(), invoice.total(), invoice.taxTotal(),
                 invoice.customerName(), invoice.customerTaxId(), invoice.createdBy(), invoice.requestId(),
                 invoice.accountName(), lines);

@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** Adaptador simulado: numeracion determinista y DTE reproducible, sin certificar ante la SAT. */
 @Component
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Component;
 public class MockFiscalProvider implements FiscalProvider {
     @Override
     public Certification certify(CertificationRequest request) {
+        if (TransactionSynchronizationManager.isActualTransactionActive())
+            throw new IllegalStateException("Fiscal providers must be called outside database transactions");
         String token = request.invoiceId().toString().replace("-", "").substring(0, 12).toUpperCase();
         UUID dteUuid = UUID.nameUUIDFromBytes(("wok-dte:" + request.invoiceId()).getBytes(StandardCharsets.UTF_8));
         return new Certification("MOCK-" + token, dteUuid, "MOCK");
