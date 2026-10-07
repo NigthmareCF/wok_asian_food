@@ -7,11 +7,14 @@ import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/compo
 import { useSession } from "@/providers/session-provider";
 import { ApiError, apiRequest, CustomerTaxProfile, MenuAvailabilityEstimate, PickupRequestBody, PickupRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { MenuItemOptions } from "@/components/menu-item-options";
+import { ServiceHoursNotice } from "@/components/service-hours-notice";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { CommerceStorageKeys, resolveCommerceStorageKeys } from "@/lib/commerce-storage";
 import { PublicServiceCapability, requestServiceState } from "@/lib/reservation-service-status";
 import { useFocusedPolling } from "@/lib/use-focused-polling";
+import { serviceSlotStatus } from "@/lib/service-hours";
+import { useServiceHours } from "@/lib/use-service-hours";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody };
 const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
@@ -94,6 +97,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
   useFocusedPolling(refreshServiceCapabilities, 60_000, true);
 
   const pickupService = requestServiceState(serviceCapabilities, "PICKUP");
+  const publishedHours = useServiceHours("PICKUP", requestedFor);
 
   useEffect(() => {
     let active = true;
@@ -232,6 +236,11 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
     }
     const requestedPickupInstant = attempt ? null : parseRestaurantLocalDateTime(requestedFor);
     if (!attempt && !requestedPickupInstant) { setError("Ingresa una fecha y hora válidas, usando la hora de Guatemala."); return; }
+    const slotStatus = serviceSlotStatus(publishedHours.day, requestedFor);
+    if (!attempt && (slotStatus === "closed" || slotStatus === "outside-hours")) {
+      setError(slotStatus === "closed" ? "El servicio de pickup no opera en esa fecha." : "La hora elegida está fuera del horario publicado de pickup.");
+      return;
+    }
     const activeAttempt = attempt ?? {
       email: session.email,
       key: createIdempotencyKey(),
@@ -331,6 +340,8 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
         {availability ? <AvailabilityNotice estimate={availability} products={cartItems} /> : null}
         <Button title="Sugerir primera hora" secondary onPress={suggestPickupTime} disabled={Boolean(attempt)} />
         <Field label={`Fecha y hora solicitadas (hora de ${restaurantTimeZone})`} value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" editable={!attempt} />
+        <ServiceHoursNotice serviceName="pickup" localDateTime={requestedFor} day={publishedHours.day}
+          loading={publishedHours.loading} error={publishedHours.error} />
         <Field label="Comentarios (opcional)" value={attempt?.body.customerNote ?? customerNote} onChangeText={setCustomerNote} placeholder="Indicaciones para el equipo" editable={!attempt} maxLength={500} />
         <View style={ui.section}>
           <Text style={{ color: palette.ink, fontWeight: "800" }}>Preferencia de pago al recoger</Text>

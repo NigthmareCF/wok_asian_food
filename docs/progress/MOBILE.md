@@ -1,8 +1,14 @@
 # Progreso de planificación móvil
 
+## 2026-10-07 — Calendario pickup/delivery desde el backend
+
+- La app consulta `GET /api/v1/public/service-hours` para la fecha elegida en Pickup y Delivery; muestra cierre, horario semanal o excepción diaria y vuelve a consultar al mantener la pantalla enfocada.
+- Si el horario recibido marca la fecha cerrada o la hora fuera de ventana, la app detiene el envío y explica el intervalo publicado. Si el calendario no carga, mantiene visible la limitación y permite que el backend decida; el servidor siempre revalida al crear/aceptar la solicitud.
+- Pruebas Vitest: 50/50; ESLint, TypeScript y export Expo para Android/Web pasan (17 rutas web). La exportación confirma bundle/rutas, no APK ni prueba física. El endpoint se incorporó en `feature/backend-capacity-order-lifecycle` (`ad37bb1`), todavía debe integrarse para que un entorno compartido lo tenga disponible.
+
 ## 2026-10-07 — Revalidación de la rama Expo Cliente
 
-- Se comprobó `feature/mobile-shell` actualizado con `origin/feature/mobile-shell` (HEAD `68b85ae`), sin cambios de aplicación pendientes.
+- En ese punto se comprobó `feature/mobile-shell` sincronizada con `origin/feature/mobile-shell` (HEAD `6780dda`), sin cambios de aplicación pendientes.
 - Vitest: 43/43; ESLint y TypeScript pasan. `npx expo export --platform android` empaqueta Android correctamente; export Web genera 17 rutas estáticas. Estos exports no producen APK instalable ni sustituyen pruebas físicas.
 - No se cambió código móvil en esta continuación: catálogo, flujos Cliente, almacenamiento seguro, seguimiento y validaciones ya están presentes en esta punta. Siguen pendientes IDs de OAuth reales, validación Android/iOS instalada y conexión E2E contra el entorno integrado.
 

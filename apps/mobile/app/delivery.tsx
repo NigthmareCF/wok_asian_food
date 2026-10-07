@@ -9,10 +9,13 @@ import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLo
 import { useSession } from "@/providers/session-provider";
 import { formatGuatemalaPhone, isValidGuatemalaPhone } from "@/lib/guatemala-phone";
 import { MenuItemOptions } from "@/components/menu-item-options";
+import { ServiceHoursNotice } from "@/components/service-hours-notice";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
 import { CommerceStorageKeys, resolveCommerceStorageKeys } from "@/lib/commerce-storage";
 import { PublicServiceCapability, requestServiceState } from "@/lib/reservation-service-status";
 import { useFocusedPolling } from "@/lib/use-focused-polling";
+import { serviceSlotStatus } from "@/lib/service-hours";
+import { useServiceHours } from "@/lib/use-service-hours";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const legacyStorageKeys = { cart: "wok.delivery.cart.v1", modifiers: "wok.delivery.modifiers.v1", pending: "wok.delivery.pending.v1" };
@@ -187,6 +190,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const subtotal = selected.reduce((total, item) => total + menuItemUnitPrice(item, selectedModifiers[item.id]) * cart[item.id], 0);
   const visibleHistory = session?.email === historyOwner ? history : [];
   const deliveryService = requestServiceState(serviceCapabilities, "DELIVERY");
+  const publishedHours = useServiceHours("DELIVERY", requestedFor);
 
   function changeQuantity(item: PublicMenuItem, delta: number) {
     if (pending) return;
@@ -252,6 +256,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     try {
       const deliveryInstant = parseRestaurantLocalDateTime(requestedFor);
       if (!attempt && !deliveryInstant) throw new Error("Indica una fecha y hora válidas en la hora de Guatemala.");
+      const slotStatus = serviceSlotStatus(publishedHours.day, requestedFor);
+      if (!attempt && (slotStatus === "closed" || slotStatus === "outside-hours"))
+        throw new Error(slotStatus === "closed" ? "El servicio de delivery no opera en esa fecha." : "La hora elegida está fuera del horario publicado de delivery.");
       activeAttempt = attempt ?? {
         email: session.email,
         key: createIdempotencyKey(),
@@ -433,6 +440,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         <Notice>Guardaremos estos datos como solicitud. La factura FEL requiere revisión y emisión posterior.</Notice>
       </View> : null}
       <Field label="Horario que prefieres (hora de Guatemala)" value={requestedFor} onChangeText={setRequestedFor} placeholder="AAAA-MM-DDTHH:mm" />
+      <ServiceHoursNotice serviceName="delivery" localDateTime={requestedFor} day={publishedHours.day}
+        loading={publishedHours.loading} error={publishedHours.error} />
       <Text style={ui.body}>Zona horaria del restaurante: {restaurantTimeZone}.</Text>
       <Button title="Sugerir horario inicial" secondary onPress={suggestTime} disabled={!selected.length} />
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />

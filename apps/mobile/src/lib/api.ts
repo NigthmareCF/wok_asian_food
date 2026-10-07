@@ -126,6 +126,15 @@ export type MenuAvailabilityEstimate = {
   asOf: string;
   items: { menuItemId: string; status: "AVAILABLE_ESTIMATE" | "UNAVAILABLE_ESTIMATE" | "NOT_TRACKED"; reasonCode: string | null }[];
 };
+export type PublicServiceDay = {
+  serviceType: "PICKUP" | "DELIVERY" | "DINE_IN" | "RESTAURANT" | "ONLINE";
+  serviceDate: string;
+  open: boolean;
+  opensAt: string | null;
+  closesAt: string | null;
+  timezoneName: string;
+  source: "WEEKLY" | "OVERRIDE" | "CLOSED";
+};
 export type RequestModifierSnapshot = { group: string; name: string; priceDelta: number };
 export type PickupRequestBody = {
   requestedFor: string;
