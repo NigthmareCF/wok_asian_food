@@ -549,3 +549,4 @@
 
 - Se agregó prueba de integración PostgreSQL que crea dos clientes con pedidos pickup aceptados y comprueba que `/api/v1/client/orders/tracking` devuelve únicamente el pedido del usuario autenticado, aunque exista un segundo pedido válido en la base.
 - Prueba focal: `ClientOrderTrackingOwnershipIntegrationTest`, PostgreSQL 18/Testcontainers y Flyway V1–V48. La consulta ya restringía por `customer_user_id`; esta prueba verifica el comportamiento completo mediante HTTP y la base real.
+- El endpoint de solicitudes de cambio también se probó con propiedades manipuladas `status=PAID` y `orderStatus=READY`: la solicitud queda en `PENDING_REVIEW` y pedido/solicitud conservan sus estados autoritativos. `ClientOrderChangeRequestIntegrationTest`: 4/4 con PostgreSQL 18/Testcontainers.

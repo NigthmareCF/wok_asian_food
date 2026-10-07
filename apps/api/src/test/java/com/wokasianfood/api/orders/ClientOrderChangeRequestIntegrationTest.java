@@ -17,6 +17,23 @@ import org.junit.jupiter.api.Test;
 class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
 
+    @Test
+    void clientSuppliedOrderStatesCannotChangeTheAuthoritativeOrderState() {
+        AcceptedOrder order = acceptedPickup();
+
+        HttpResponse<String> response = post("/api/v1/client/order-requests/" + order.requestId() + "/change-requests",
+                order.clientToken(), """
+                    {"reason":"Quiero cambiar mi solicitud","status":"PAID","orderStatus":"READY"}
+                    """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(body(response).path("status").asText()).isEqualTo("PENDING_REVIEW");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, order.orderId()))
+                .isEqualTo("SENT");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, order.requestId()))
+                .isEqualTo("ACCEPTED");
+    }
+
     @BeforeEach
     void openRemoteServiceHoursForOrderLifecycleTests() {
         allowRemoteRequestsAtAnyTimeToday();
