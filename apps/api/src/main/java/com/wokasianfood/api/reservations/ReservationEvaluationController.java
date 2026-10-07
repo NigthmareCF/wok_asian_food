@@ -1,7 +1,6 @@
 package com.wokasianfood.api.reservations;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
@@ -23,6 +22,6 @@ public class ReservationEvaluationController {
         return new Evaluation(false, assessment);
     }
 
-    public record Request(@Min(1) @Max(50) int guests, @NotNull Instant requestedAt, boolean preorder) {}
+    public record Request(@Min(1) int guests, @NotNull Instant requestedAt, boolean preorder) {}
     public record Evaluation(boolean confirmed, OperationalCapacityService.Assessment assessment) {}
 }

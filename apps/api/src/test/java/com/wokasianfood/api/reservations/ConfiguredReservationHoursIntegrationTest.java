@@ -217,7 +217,7 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         if (targetDate.getDayOfWeek() == java.time.DayOfWeek.MONDAY) targetDate = targetDate.plusDays(1);
         Instant requestedAt = LocalDateTime.of(targetDate, LocalTime.of(18, 0)).atZone(ZONE).toInstant();
         String body = """
-            {"guests":2,"requestedAt":"%s","preorder":true,"notes":"Sin picante",
+            {"guests":60,"requestedAt":"%s","preorder":true,"notes":"Sin picante",
              "items":[{"menuItemId":"%s","quantity":51,"modifierIds":["%s"]}]}
             """.formatted(requestedAt, menuItemId, modifierId);
         String path = "/api/v1/client/reservations";
@@ -227,6 +227,7 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
         assertThat(first.statusCode()).as(first.body()).isBetween(200, 299);
         JsonNode result = json.readTree(first.body());
         assertThat(result.path("submitted").asBoolean()).isTrue();
+        assertThat(result.path("decision").asText()).isEqualTo("REQUIRES_HUMAN_APPROVAL");
         UUID reservationId = UUID.fromString(result.path("reservationId").asText());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservation_request_items WHERE request_id = ?", Integer.class, requestId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.reservation_request_items WHERE request_id = ?", java.math.BigDecimal.class, requestId))

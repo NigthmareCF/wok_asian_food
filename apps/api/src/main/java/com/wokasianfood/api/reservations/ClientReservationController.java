@@ -1,7 +1,6 @@
 package com.wokasianfood.api.reservations;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -55,7 +54,7 @@ public class ClientReservationController {
         return requests.cancelPending(UUID.fromString(jwt.getSubject()), reservationId);
     }
 
-    public record Submission(@Min(1) @Max(50) int guests, @NotNull Instant requestedAt,
+    public record Submission(@Min(1) int guests, @NotNull Instant requestedAt,
                              boolean preorder, @Size(max = 1000) String notes,
                              @Size(max = 100) List<@Valid RequestedItem> items) {}
     public record RequestedItem(@NotNull UUID menuItemId, @Min(1) int quantity,

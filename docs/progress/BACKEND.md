@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Grupos grandes de reserva pasan a revisión humana
+
+- Retiré los límites fijos de 50 personas de evaluación pública, envío Cliente y snapshot persistido (`V44__allow_large_reservation_groups.sql`). Grupos desde 13 reciben `REQUIRES_HUMAN_APPROVAL`; no se convierten en aceptación automática. La estancia usa el rango especial actual 180–240 minutos, todavía sujeto a calibración con datos reales.
+- La prueba de reserva ahora envía un grupo de 60, guarda party size y preorden de 51, y confirma que la evaluación pide revisión humana; no descuenta inventario ni crea un pedido. Prueba focal 1/1 con PostgreSQL 18/Testcontainers y Flyway V1–V44. Suite completa: 248/248, sin fallos/errores/omitidas.
+
+
 ## 2026-10-07 — Cantidades bulk sujetas a capacidad, no a un tope fijo
 
 - La disponibilidad pública ya no limita cada SKU a 50 unidades. `V43__allow_bulk_order_line_quantities.sql` sustituye los checks `1..50` de solicitudes pickup/delivery y snapshots de preorden por `quantity > 0`; la capa HTTP de preorden también admite cantidades mayores. El snapshot de reserva sigue siendo intención: no reserva inventario.
