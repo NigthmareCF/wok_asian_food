@@ -399,3 +399,9 @@
 - Se añadió `apps/mobile/eas.json` con perfiles de development client, preview APK interno e instalación de producción. El README explica login/vinculación EAS, configuración de `EXPO_PUBLIC_API_BASE_URL` en el entorno de build y diferencia el QR de Expo Go de la URL de instalación del APK.
 - Se confirmó que esta laptop no tiene `adb`, `sdkmanager`, `ANDROID_HOME` ni `eas.json` previo; no se afirmó un APK firmado. El export Android generado es un bundle JS, no instalable.
 - Verificación: JSON EAS parsea; Vitest 50/50, ESLint y TypeScript pasan. `eas build` queda listo para ejecutarse al vincular un proyecto/cuenta Expo y configurar la URL de backend alcanzable desde el dispositivo.
+
+## 2026-10-07 — Estado móvil y dependencias sincronizados
+
+- `CLIENT_APP_PLAN.md` ahora refleja el código actual: menú/API y reservas/pedidos consumen contratos reales; el catálogo oficial tiene un seed de 31 productos en `feature/backend-capacity-order-lifecycle`, y las recetas completas/inventario automático siguen pendientes. El endpoint de calendario ya existe en backend, pero la prueba cruzada requiere integrar los worktrees.
+- Se corrigió documentación obsoleta: la app no usa TanStack Query, React Hook Form, Zod ni cliente OpenAPI generado; mantiene hooks/fetch y DTOs TypeScript locales. El plan distingue exports JS de APK instalable y el EAS profile de una build completada.
+- La rama backend publicó `945d5c3` (emisión FEL por lote) y `e70c291` (pausa de servicio revalidada al aceptar solicitudes remotas); falta probar esos commits dentro del stack integrado. La app no cambió código funcional por estas correcciones.
