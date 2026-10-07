@@ -393,3 +393,9 @@
 - La app permite resolver un reintento idempotente previamente guardado incluso mientras el servicio está pausado, para no ocultar el resultado de una solicitud posiblemente aceptada antes de la pausa. El backend aplica la misma capability dentro de la transacción y sigue siendo autoritativo.
 - Si el estado no se pudo consultar, se informa que es desconocido; la app no inventa que esté disponible y deja que el backend valide el envío.
 - Verificación: Vitest 46/46, ESLint, TypeScript `--noEmit`, export Expo Android y Web (17 rutas). Los exports no son APK instalable ni prueba física de dispositivo.
+
+## 2026-10-07 — Perfil EAS para APK Android de revisión
+
+- Se añadió `apps/mobile/eas.json` con perfiles de development client, preview APK interno e instalación de producción. El README explica login/vinculación EAS, configuración de `EXPO_PUBLIC_API_BASE_URL` en el entorno de build y diferencia el QR de Expo Go de la URL de instalación del APK.
+- Se confirmó que esta laptop no tiene `adb`, `sdkmanager`, `ANDROID_HOME` ni `eas.json` previo; no se afirmó un APK firmado. El export Android generado es un bundle JS, no instalable.
+- Verificación: JSON EAS parsea; Vitest 50/50, ESLint y TypeScript pasan. `eas build` queda listo para ejecutarse al vincular un proyecto/cuenta Expo y configurar la URL de backend alcanzable desde el dispositivo.

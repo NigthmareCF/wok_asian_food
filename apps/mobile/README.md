@@ -22,6 +22,17 @@ npm run start:dev-client --workspace mobile
 
 El backend emite un nonce criptográfico de un solo uso; la app lo pasa al SDK de Google y envía el ID token, nonce y tipo de cliente al backend WOK. La app sólo conserva el refresh token WOK en SecureStore y el access token WOK en memoria. No guarda tokens Google.
 
+## APK Android para revisión
+
+`eas.json` define los perfiles `development` (development client) y `preview` (APK instalable, distribución interna). Para generar un APK desde EAS Build no hace falta instalar Android SDK en la laptop, pero sí iniciar sesión en una cuenta Expo y vincular el proyecto EAS. Configura `EXPO_PUBLIC_API_BASE_URL` en el entorno `preview` de EAS con una URL que alcance el backend desde el teléfono; una dirección `localhost` sólo apunta al propio teléfono y no sirve para una API en la laptop. La URL es pública y puede quedar en el bundle, no coloques secretos allí.
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest build --platform android --profile preview
+```
+
+EAS entrega una URL instalable para el APK terminado. El QR de Metro/Expo Go sólo abre un bundle de desarrollo; no descarga ni instala el APK. Google Sign-In nativo requiere un development build y los identificadores OAuth públicos/documentados arriba. En esta laptop no están configurados `ANDROID_HOME`, `adb`, `sdkmanager` ni un proyecto EAS vinculado, por lo que aquí sólo se pudo exportar el bundle Android, no firmar un APK.
+
 La URL y los flags `EXPO_PUBLIC_*` son visibles en el paquete de la app y nunca deben contener secretos. La API debe exponer HTTPS fuera de una LAN de desarrollo controlada.
 
 ## Funcionalidad disponible
