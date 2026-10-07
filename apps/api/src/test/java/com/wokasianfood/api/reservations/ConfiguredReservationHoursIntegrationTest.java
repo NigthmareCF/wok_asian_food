@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.sql.Connection;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +24,29 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
     private static final ZoneId ZONE = ZoneId.of("America/Guatemala");
     private final ObjectMapper json = new ObjectMapper();
     @Autowired private ReservationRequestService reservationRequests;
+
+    @Test
+    void publicEvaluationHonorsDailyRestaurantClosureOverride() throws Exception {
+        LocalDate target = LocalDate.now(ZONE).plusDays(7);
+        UUID actor = createUserWithRole("calendar-admin-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        jdbc.update("""
+            INSERT INTO wok.business_hours_overrides
+                (service_type, service_date, is_open, timezone_name, reason, expires_at, created_by, updated_by)
+            VALUES ('RESTAURANT', ?, false, 'America/Guatemala', 'Cierre diario de prueba', ?, ?, ?)
+            """, target, Timestamp.from(target.plusDays(1).atStartOfDay(ZONE).toInstant()), actor, actor);
+        try {
+            Instant requestedAt = LocalDateTime.of(target, LocalTime.of(18, 0)).atZone(ZONE).toInstant();
+            var response = post("/api/v1/public/reservations/evaluate", null, """
+                {"guests":2,"requestedAt":"%s","preorder":false}
+                """.formatted(requestedAt));
+            assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+            JsonNode result = json.readTree(response.body());
+            assertThat(result.path("assessment").path("decision").asText()).isEqualTo("SUGGEST_OTHER_TIME");
+            assertThat(result.path("assessment").path("reasonCodes").toString()).contains("RESTAURANT_CLOSED");
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours_overrides WHERE service_type = 'RESTAURANT' AND service_date = ?", target);
+        }
+    }
 
     @Test
     void publicEvaluationUsesActiveDineInHoursFromDatabase() throws Exception {

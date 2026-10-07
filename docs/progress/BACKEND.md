@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Excepciones del calendario aplicadas a reservas
+
+- `JdbcOperatingHoursProvider` prioriza el override activo de `DINE_IN`, luego el de `RESTAURANT`, y sólo si no hay ninguno consulta el calendario semanal. Una excepción cerrada gana sobre el horario semanal, tanto en evaluación pública como en la revisión operativa.
+- `CONFIRM` vuelve a validar anticipación y calendario efectivo bajo locks advisory por fecha/semana y locks compartidos de las filas de horario existentes. Admin toma las mismas llaves al insertar/actualizar semana u override; una modificación concurrente no puede cerrarse entre la validación y la confirmación.
+- Pruebas PostgreSQL nuevas cubren cierre diario en evaluación pública y bloqueo de confirmación por cierre excepcional. Suite completa: 243/243, 0 fallos/errores/omitidas, PostgreSQL 18/Testcontainers, Flyway V1–V41.
+
 ## 2026-10-07 — Calendario pickup/delivery y excepciones diarias
 
 - `V40__pickup_delivery_service_hours.sql` provisiona pickup martes–domingo 14:00–21:30 y delivery 14:00–21:00 en `America/Guatemala`, usando las referencias operativas vigentes. `ServiceHoursPolicy` valida el slot en el endpoint Cliente y lo vuelve a validar bajo lock en aceptación, junto con la cola de cocina.

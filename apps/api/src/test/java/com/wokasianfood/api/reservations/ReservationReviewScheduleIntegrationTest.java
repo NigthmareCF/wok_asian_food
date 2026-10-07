@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -44,8 +45,30 @@ class ReservationReviewScheduleIntegrationTest extends PostgresIntegrationTest {
         }
     }
 
+    @Test
+    void staffCannotConfirmWhenDailyOverrideClosesTheRestaurant() throws Exception {
+        ReviewCase review = createReviewCase(LocalTime.of(14, 0), LocalTime.of(22, 0));
+        UUID adminId = createUserWithRole("override-admin-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        jdbc.update("""
+            INSERT INTO wok.business_hours_overrides
+                (service_type, service_date, is_open, timezone_name, reason, expires_at, created_by, updated_by)
+            VALUES ('DINE_IN', ?, false, 'America/Guatemala', 'Cierre excepcional', ?, ?, ?)
+            """, review.serviceDate(), Timestamp.from(review.serviceDate().plusDays(1).atStartOfDay(ZONE).toInstant()),
+                adminId, adminId);
+        try {
+            var response = decide(review, "CONFIRM");
+            assertThat(response.statusCode()).isEqualTo(409);
+            assertThat(response.body()).contains("no tiene horario activo");
+            assertThat(jdbc.queryForObject("SELECT status FROM wok.reservations WHERE id = ?", String.class,
+                    review.reservationId())).isEqualTo("REQUESTED");
+        } finally {
+            cleanup(review);
+        }
+    }
+
     private ReviewCase createReviewCase(LocalTime opensAt, LocalTime closesAt) throws Exception {
         LocalDate date = LocalDate.now(ZONE).plusDays(1);
+        while (date.getDayOfWeek() == java.time.DayOfWeek.MONDAY) date = date.plusDays(1);
         UUID hoursId = UUID.randomUUID();
         jdbc.update("""
             INSERT INTO wok.business_hours (id, service_type, weekday, opens_at, closes_at, timezone_name)
@@ -61,7 +84,7 @@ class ReservationReviewScheduleIntegrationTest extends PostgresIntegrationTest {
                 Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(submitted.statusCode()).as(submitted.body()).isEqualTo(202);
         UUID reservationId = UUID.fromString(json.readTree(submitted.body()).path("reservationId").asText());
-        return new ReviewCase(hoursId, reservationId, tokenForRole("OPERATIONAL"));
+        return new ReviewCase(hoursId, date, reservationId, tokenForRole("OPERATIONAL"));
     }
 
     private java.net.http.HttpResponse<String> decide(ReviewCase review, String decision) {
@@ -73,7 +96,9 @@ class ReservationReviewScheduleIntegrationTest extends PostgresIntegrationTest {
 
     private void cleanup(ReviewCase review) {
         jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", review.hoursId());
+        jdbc.update("DELETE FROM wok.business_hours_overrides WHERE service_type = 'DINE_IN' AND service_date = ?",
+                review.serviceDate());
     }
 
-    private record ReviewCase(UUID hoursId, UUID reservationId, String staffToken) {}
+    private record ReviewCase(UUID hoursId, LocalDate serviceDate, UUID reservationId, String staffToken) {}
 }

@@ -155,6 +155,7 @@ public class AdminBusinessHoursController {
         if (!RESTAURANT_ZONE.equals(zone))
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "El horario debe usar la zona America/Guatemala.");
 
+        ServiceHoursPolicy.lockWeeklySchedule(jdbc, normalizedType, weekday);
         List<BusinessHours> currentRows = jdbc.query("""
             SELECT id, service_type, weekday, opens_at, closes_at, timezone_name, active, row_version
             FROM wok.business_hours WHERE service_type = ? AND weekday = ? FOR UPDATE

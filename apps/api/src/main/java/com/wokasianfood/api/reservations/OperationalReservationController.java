@@ -1,5 +1,6 @@
 package com.wokasianfood.api.reservations;
 
+import com.wokasianfood.api.service.ServiceHoursPolicy;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -7,6 +8,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -188,7 +190,13 @@ class ReservationReviewService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "La solicitud ya no cumple la anticipación mínima. Recházala y pide al cliente elegir otro horario.");
         var local = reservation.reservationAt().atZone(RESTAURANT_ZONE);
-        var window = operatingHours.forDate(local.toLocalDate());
+        LocalDate serviceDate = local.toLocalDate();
+        int weekday = serviceDate.getDayOfWeek().getValue();
+        for (String serviceType : List.of("DINE_IN", "RESTAURANT"))
+            ServiceHoursPolicy.lockServiceDate(jdbc, serviceType, serviceDate);
+        for (String serviceType : List.of("DINE_IN", "RESTAURANT"))
+            ServiceHoursPolicy.lockWeeklySchedule(jdbc, serviceType, weekday);
+        var window = operatingHours.forDate(serviceDate, true);
         if (window.isEmpty())
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "El restaurante no tiene horario activo para ese día. Rechaza la solicitud para que el cliente elija otro horario.");

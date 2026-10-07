@@ -88,9 +88,14 @@ public class ServiceHoursPolicy {
             throw new AuthException(422, "La hora solicitada está fuera del horario de este servicio.");
     }
 
-    static void lockServiceDate(JdbcTemplate jdbc, String serviceType, LocalDate serviceDate) {
+    public static void lockServiceDate(JdbcTemplate jdbc, String serviceType, LocalDate serviceDate) {
         jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
                 rs -> {}, serviceType + ":" + serviceDate);
+    }
+
+    public static void lockWeeklySchedule(JdbcTemplate jdbc, String serviceType, int weekday) {
+        jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                rs -> {}, "weekly:" + serviceType + ":" + weekday);
     }
 
     private record DailyOverride(boolean isOpen, LocalTime opensAt, LocalTime closesAt, ZoneId zone) {}
