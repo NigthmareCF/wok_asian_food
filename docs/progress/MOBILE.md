@@ -418,3 +418,8 @@
 - El flujo no marca la cuenta pagada y sigue mostrando el aviso de que el mock no procesó ni confirmó fondos.
 - Verificación local: Vitest 54/54, ESLint y TypeScript `--noEmit`. La integración con PostgreSQL del backend verifica `CREATED` → `PENDING` y referencia del mock.
 - Verificación adicional: `npx expo export --platform android --output-dir /tmp/wok-mobile-export` generó bundle JS Android; no es APK instalable ni build EAS firmado.
+
+## 2026-10-07 — Límite de líneas de preorden alineado
+
+- La app ahora permite hasta 100 productos distintos en una preorden, alineada con el límite de transporte backend; cantidades por SKU siguen usando el rango `int32`.
+- Pruebas cubren más de 20 productos distintos y rechazo al exceder 100.
