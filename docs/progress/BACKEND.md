@@ -539,3 +539,8 @@
 - El endulzante de 2 oz queda pendiente de confirmar como medida por peso o volumen. Se documenta la proporción del jarabe simple 1:1 por peso y el ejemplo de 70 oz + 70 oz, con rendimiento `TO_MEASURE`; no se crean componentes de tanda ni se descuentan azúcar y jarabe a la vez. Hielo para completar tampoco recibe cantidad inventada.
 - `RealMenuSeedIntegrationTest`: 1/1 pasó contra PostgreSQL 18/Testcontainers, aplicando las 48 migraciones desde una base vacía. Comprueba repetición idempotente, medidas preliminares, recetas no activas, y ausencia de inventario/reservas iniciales.
 - Compatibilidad al re-ejecutar: el seed actualiza `FL_OZ.factor_to_base` al factor confirmado (29.573530 ml), incluso si el valor anterior quedó en 1; la integración reproduce ese estado previo y valida su corrección.
+
+## 2026-10-07 — Correlación de auditoría en cambios de roles
+
+- `PUT /api/v1/admin/users/{userId}/roles/{roleCode}` ahora conserva el `X-Request-Id` opcional en el evento de auditoría `USER_ROLE_GRANT/REVOKE`; cuando el cliente no envía ID, el backend genera uno y lo persiste. Se mantienen `expectedVersion`, motivo y autorización ADMIN.
+- `RoleAuthorizationIntegrationTest`: comprueba grant con ID del cliente y revoke sin header; ambos dejan actor/solicitud auditados. Focal: 8/8 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V48.

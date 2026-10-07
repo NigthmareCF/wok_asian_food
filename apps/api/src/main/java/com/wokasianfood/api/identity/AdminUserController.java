@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,9 +43,12 @@ public class AdminUserController {
 
     @PutMapping("/{userId}/roles/{roleCode}")
     public AdminUser changeRole(@PathVariable UUID userId, @PathVariable String roleCode,
-                                @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody RoleChange request) {
+                                @AuthenticationPrincipal Jwt jwt,
+                                @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+                                @Valid @RequestBody RoleChange request) {
         return users.changeRole(UUID.fromString(jwt.getSubject()), userId, roleCode,
-                request.action(), request.reason().trim(), request.expectedVersion());
+                request.action(), request.reason().trim(), request.expectedVersion(),
+                requestId == null ? UUID.randomUUID() : requestId);
     }
 
     public record RoleChange(Action action, @NotBlank @Size(min = 3, max = 500) String reason,
@@ -81,7 +85,7 @@ class AdminUserService {
 
     @Transactional
     public AdminUserController.AdminUser changeRole(UUID actor, UUID userId, String roleCode,
-            AdminUserController.Action action, String reason, int expectedVersion) {
+            AdminUserController.Action action, String reason, int expectedVersion, UUID requestId) {
         String role = roleCode.trim().toUpperCase(java.util.Locale.ROOT);
         if (!MANAGED_ROLES.contains(role)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ese rol no se administra desde este flujo.");
         List<UUID> roleIds = jdbc.query("SELECT id FROM wok.roles WHERE code = ? AND active FOR UPDATE",
@@ -130,7 +134,7 @@ class AdminUserService {
             VALUES (?, ?, 'USER_ROLE', ?, jsonb_build_object('role', ?, 'active', ?),
                     jsonb_build_object('role', ?, 'active', ?), ?, 'SUCCESS', ?)
             """, actor, "USER_ROLE_" + action.name(), userId, role, active, role,
-                action == AdminUserController.Action.GRANT, reason, UUID.randomUUID());
+                action == AdminUserController.Action.GRANT, reason, requestId);
         UserRow changed = new UserRow(target.id, target.email, target.displayName, target.status,
                 target.rowVersion + 1, target.createdAt);
         return map(changed);

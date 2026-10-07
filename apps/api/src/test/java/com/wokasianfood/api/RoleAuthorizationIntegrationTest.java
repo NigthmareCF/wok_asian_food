@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.net.http.HttpResponse;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
@@ -54,6 +56,34 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
         assertThat(get(OPERATIONAL_ORDERS, admin).statusCode()).isEqualTo(200);
         assertThat(get(OPERATIONAL_KITCHEN, admin).statusCode()).isEqualTo(200);
         assertThat(get(CLIENT_SESSIONS, admin).statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    void correlatesRoleChangeAuditWithProvidedRequestIdAndGeneratesOneWhenMissing() {
+        UUID adminId = createUserWithRole("admin-audit-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        String adminToken = tokenFor(adminId);
+        UUID customerId = createUserWithRole("role-target-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID requestId = UUID.randomUUID();
+
+        HttpResponse<String> granted = send("PUT", ADMIN_USERS + "/" + customerId + "/roles/OPERATIONAL",
+                adminToken, """
+                        {"action":"GRANT","reason":"Asignación autorizada","expectedVersion":1}
+                        """, Map.of("X-Request-Id", requestId.toString()));
+
+        assertThat(granted.statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT request_id FROM wok.audit_logs WHERE entity_id=? AND action='USER_ROLE_GRANT'",
+                UUID.class, customerId)).isEqualTo(requestId);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE entity_id=? AND action='USER_ROLE_GRANT' AND actor_user_id=?",
+                Integer.class, customerId, adminId)).isEqualTo(1);
+
+        HttpResponse<String> revoked = send("PUT", ADMIN_USERS + "/" + customerId + "/roles/OPERATIONAL",
+                adminToken, """
+                        {"action":"REVOKE","reason":"Fin de la asignación","expectedVersion":2}
+                        """, Map.of());
+
+        assertThat(revoked.statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT request_id IS NOT NULL FROM wok.audit_logs WHERE entity_id=? AND action='USER_ROLE_REVOKE'",
+                Boolean.class, customerId)).isTrue();
     }
 
     @Test
