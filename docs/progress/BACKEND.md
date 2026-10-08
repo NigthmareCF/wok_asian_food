@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Reconciliación de archivos huérfanos de comprobantes
+
+- Un worker periódico revisa un lote máximo de 100 archivos de comprobante con más de 24 horas y consulta PostgreSQL por cada UUID. Sólo elimina un archivo cuando la consulta confirma que no existe fila asociada; una falla de filesystem o DB interrumpe la ejecución sin borrar el candidato.
+- Pruebas cubren limpieza de huérfano, conservación de archivo referenciado, conservación de archivo reciente y fallo de consulta DB. Sin migración ni cambios HTTP.
+- Suite backend: 68 suites / 294 pruebas, cero fallos/errores/omitidas; PostgreSQL 18 con Testcontainers y Flyway V1–V51. La prueba puntual unitaria pasa 3/3.
+
 ## 2026-10-08 — Recuperación de lease agotado del correo
 
 - Si el proceso cae durante el quinto intento de envío, el outbox ya no deja el registro en `SENDING` indefinidamente: el worker marca `DEAD` los leases vencidos que agotaron sus intentos, incluso si el proveedor de correo no está disponible.

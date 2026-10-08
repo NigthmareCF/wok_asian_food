@@ -2,9 +2,13 @@ package com.wokasianfood.api.payments;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -51,6 +55,26 @@ final class PaymentEvidenceStorage {
 
     void delete(UUID id) {
         try { Files.deleteIfExists(path(id)); } catch (IOException ignored) { }
+    }
+
+    List<UUID> filesOlderThan(Instant cutoff, String afterId, int limit) {
+        if (limit < 1 || !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) return List.of();
+        List<UUID> candidates = new ArrayList<>();
+        try (var files = Files.newDirectoryStream(root, "*.evidence")) {
+            for (Path file : files) {
+                if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)
+                        || !Files.getLastModifiedTime(file, LinkOption.NOFOLLOW_LINKS).toInstant().isBefore(cutoff)) continue;
+                String filename = file.getFileName().toString();
+                try {
+                    UUID id = UUID.fromString(filename.substring(0, filename.length() - ".evidence".length()));
+                    if (afterId == null || id.toString().compareTo(afterId) > 0) candidates.add(id);
+                }
+                catch (IllegalArgumentException ignored) { }
+            }
+            return candidates.stream().sorted(java.util.Comparator.comparing(UUID::toString)).limit(limit).toList();
+        } catch (IOException failure) {
+            throw new IllegalStateException("Could not inspect payment evidence storage", failure);
+        }
     }
 
     private Path path(UUID id) {
