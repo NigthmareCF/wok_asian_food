@@ -132,15 +132,27 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
         assertThat(pending.get(0).path("tip").decimalValue()).isEqualByComparingTo("5.00");
 
         String settleKey = UUID.randomUUID().toString();
+        UUID settleRequestId = UUID.randomUUID();
         String settlePath = "/api/v1/operational/courier-cash/" + collectionId + "/settle";
         JsonNode settled = body(post(settlePath, token,
-                "{\"cashSessionId\":\"" + sessionId + "\"}", Map.of("Idempotency-Key", settleKey)));
+                "{\"cashSessionId\":\"" + sessionId + "\"}", Map.of("Idempotency-Key", settleKey,
+                        "X-Request-Id", settleRequestId.toString())));
         assertThat(settled.path("amount").decimalValue()).isEqualByComparingTo("50.00");
         assertThat(settled.path("tip").decimalValue()).isEqualByComparingTo("5.00");
         assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE payment_id = ? AND movement_type = 'SALE'", paymentId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT SUM(amount_delta) FROM wok.cash_movements WHERE cash_session_id = ?", BigDecimal.class, sessionId))
                 .isEqualByComparingTo("135.00");
         assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id = ? AND reason = 'Propina entregada por repartidor'", sessionId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id = ? "
+                + "AND request_id = ? AND payment_id = ? AND movement_type = 'SALE'",
+                sessionId, settleRequestId, paymentId)).isEqualTo(1);
+        UUID tipMovementRequestId = UUID.nameUUIDFromBytes((settleRequestId + ":courier-tip")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id = ? "
+                + "AND request_id = ? AND reason = 'Propina entregada por repartidor'",
+                sessionId, tipMovementRequestId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE action = 'COURIER_CASH_SETTLED' "
+                + "AND entity_id = ? AND request_id = ?", collectionId, settleRequestId)).isEqualTo(1);
 
         JsonNode replay = body(post(settlePath, token,
                 "{\"cashSessionId\":\"" + sessionId + "\"}", Map.of("Idempotency-Key", settleKey)));

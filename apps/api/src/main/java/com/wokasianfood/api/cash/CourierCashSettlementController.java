@@ -117,7 +117,8 @@ class CourierCashSettlementService {
                 INSERT INTO wok.cash_movements
                     (cash_session_id, movement_type, amount_delta, reason, responsible_user_id, request_id)
                 VALUES (?, 'INCOME', ?, 'Propina entregada por repartidor', ?, ?)
-                """, cashSessionId, collection.tip(), actor, UUID.randomUUID());
+                """, cashSessionId, collection.tip(), actor,
+                UUID.nameUUIDFromBytes((requestId + ":courier-tip").getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         }
         int changed = jdbc.update("""
             UPDATE wok.courier_cash_collections

@@ -555,3 +555,8 @@
 
 - La aceptación Operativa vuelve a validar el horario semanal/excepción diaria del servicio y estima carga de cocina bajo locks estables. Excluye únicamente el hold de la solicitud en evaluación para no contarlo dos veces, e incluye los demás holds vigentes de la misma fecha/hora.
 - Si aparece un cierre especial o el ETA ya no cabe antes del horario pedido, la aceptación responde con conflicto/regla de negocio, conserva la solicitud pendiente y no crea pedido. `OrderRequestDecisionIntegrationTest` cubre el cierre diario y la cola; `ClientOrderQuoteIntegrationTest` cubre hold vencido más carga de otra solicitud. Suite completa: 265/265, cero fallos, errores u omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V48.
+
+## 2026-10-07 — Correlación en liquidación de efectivo courier
+
+- El movimiento de venta y la auditoría conservan el `X-Request-Id` de liquidación. La propina usa un UUID determinista derivado (`<request-id>:courier-tip`) para respetar la restricción DB de unicidad por movimiento y mantener una relación reproducible con la solicitud.
+- `PaymentIntegrationTest` verifica ambos identificadores correlacionados y que la repetición idempotente no duplica movimientos.
