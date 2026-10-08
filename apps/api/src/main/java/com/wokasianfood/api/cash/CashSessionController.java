@@ -147,7 +147,7 @@ class CashSessionService {
     public CashSession open(UUID actor, UUID requestId, UUID idempotencyKey,
                             CashSessionController.OpenRequest request) {
         String code = request.registerCode().trim().toUpperCase(Locale.ROOT);
-        BigDecimal openingFloat = request.openingFloat();
+        BigDecimal openingFloat = money(request.openingFloat(), "fondo de apertura");
         String hash = fingerprint("OPEN", code, openingFloat.toPlainString());
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "CASH_SESSION_OPENED",
                 idempotencyKey, hash);
@@ -203,7 +203,7 @@ class CashSessionService {
     @Transactional
     public CashMovement addMovement(UUID sessionId, UUID actor, UUID requestId, UUID idempotencyKey,
                                     CashSessionController.MovementRequest request) {
-        BigDecimal amount = request.amount();
+        BigDecimal amount = money(request.amount(), "monto del movimiento");
         String hash = fingerprint("MOVEMENT", sessionId.toString(), request.type().name(),
                 amount.toPlainString(), request.reason().trim());
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "CASH_MOVEMENT_RECORDED",
@@ -233,7 +233,8 @@ class CashSessionService {
     @Transactional
     public CashSession close(UUID sessionId, UUID actor, UUID requestId, UUID idempotencyKey,
                              CashSessionController.CloseRequest request) {
-        String hash = fingerprint("CASH_SESSION_CLOSE", sessionId.toString(), request.countedCash().toPlainString(),
+        BigDecimal countedCash = money(request.countedCash(), "efectivo contado");
+        String hash = fingerprint("CASH_SESSION_CLOSE", sessionId.toString(), countedCash.toPlainString(),
                 Integer.toString(request.expectedVersion()));
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "CASH_SESSION_CLOSED",
                 idempotencyKey, hash);
@@ -244,12 +245,12 @@ class CashSessionService {
             throw new AuthException(409, "La caja ya está cerrada.");
         if (session.rowVersion() != request.expectedVersion())
             throw new AuthException(409, "La caja cambió. Actualiza la vista y vuelve a intentarlo.");
-        BigDecimal expected = expectedCash(sessionId);
+        BigDecimal expected = money(expectedCash(sessionId), "saldo esperado de caja");
         jdbc.update("""
             INSERT INTO wok.cash_reconciliations
                 (cash_session_id, expected_cash, counted_cash, counted_by, is_final)
             VALUES (?, ?, ?, ?, true)
-            """, sessionId, expected, request.countedCash(), actor);
+            """, sessionId, expected, countedCash, actor);
         jdbc.update("""
             UPDATE wok.cash_sessions
             SET status = 'CLOSED', closed_by = ?, closed_at = now(), updated_by = ?, updated_at = now(),
@@ -261,7 +262,7 @@ class CashSessionService {
                 (actor_user_id, action, entity_type, entity_id, before_data, after_data, result, request_id)
             VALUES (?, 'CASH_SESSION_CLOSED', 'CASH_SESSION', ?,
                     jsonb_build_object('expectedCash', ?), jsonb_build_object('countedCash', ?), 'SUCCESS', ?)
-            """, actor, sessionId, expected, request.countedCash(), requestId);
+            """, actor, sessionId, expected, countedCash, requestId);
         idempotency.complete(actor.toString(), "CASH_SESSION_CLOSED", idempotencyKey, sessionId);
         return details(sessionId);
     }
@@ -269,22 +270,23 @@ class CashSessionService {
     @Transactional
     public Reconciliation reconcile(UUID sessionId, UUID actor, UUID requestId,
                                     CashSessionController.ReconciliationRequest request) {
+        BigDecimal countedCash = money(request.countedCash(), "efectivo contado");
         SessionRow session = lock(sessionId);
         if (!"OPEN".equals(session.status()))
             throw new AuthException(409, "La caja ya está cerrada.");
-        BigDecimal expected = expectedCash(sessionId);
+        BigDecimal expected = money(expectedCash(sessionId), "saldo esperado de caja");
         String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
         UUID reconciliationId = jdbc.queryForObject("""
             INSERT INTO wok.cash_reconciliations
                 (cash_session_id, expected_cash, counted_cash, counted_by, is_final, notes)
             VALUES (?, ?, ?, ?, false, ?) RETURNING id
-            """, UUID.class, sessionId, expected, request.countedCash(), actor, notes);
+            """, UUID.class, sessionId, expected, countedCash, actor, notes);
         jdbc.update("""
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
             VALUES (?, 'CASH_RECONCILED', 'CASH_SESSION', ?,
                     jsonb_build_object('expectedCash', ?, 'countedCash', ?), 'SUCCESS', ?)
-            """, actor, sessionId, expected, request.countedCash(), requestId);
+            """, actor, sessionId, expected, countedCash, requestId);
         return reconciliation(reconciliationId);
     }
 
@@ -379,6 +381,17 @@ class CashSessionService {
             SELECT COALESCE(SUM(amount_delta), 0) FROM wok.cash_movements WHERE cash_session_id = ?
             """, BigDecimal.class, sessionId);
         return expected == null ? BigDecimal.ZERO : expected;
+    }
+
+    private BigDecimal money(BigDecimal value, String label) {
+        try {
+            BigDecimal normalized = value.setScale(2, java.math.RoundingMode.UNNECESSARY);
+            if (normalized.precision() > 14)
+                throw new AuthException(422, "El " + label + " supera el monto permitido.");
+            return normalized;
+        } catch (ArithmeticException invalidScale) {
+            throw new AuthException(422, "El " + label + " admite hasta dos decimales.");
+        }
     }
 
     private String fingerprint(String... parts) {

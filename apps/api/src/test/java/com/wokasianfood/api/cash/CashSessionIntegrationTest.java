@@ -131,6 +131,56 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void rejectsCashValuesPostgresWouldRoundOrCannotStore() {
+        String token = tokenForRole("OPERATIONAL");
+        String code = uniqueCode("CAJA-MONTO");
+        openRegister(code);
+
+        var roundedOpening = post("/api/v1/operational/cash-sessions", token, """
+                {"registerCode":"%s","openingFloat":1.005}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        var oversizedOpening = post("/api/v1/operational/cash-sessions", token, """
+                {"registerCode":"%s","openingFloat":1000000000000.00}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(roundedOpening.statusCode()).isEqualTo(422);
+        assertThat(oversizedOpening.statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.cash_sessions s JOIN wok.cash_registers r "
+                + "ON r.id = s.cash_register_id WHERE r.code = ?", code)).isZero();
+
+        JsonNode opened = body(post("/api/v1/operational/cash-sessions", token, """
+                {"registerCode":"%s","openingFloat":10.00}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID sessionId = UUID.fromString(opened.path("id").asText());
+        var roundedMovement = post("/api/v1/operational/cash-sessions/" + sessionId + "/movements", token, """
+                {"type":"INCOME","amount":1.005,"reason":"Prueba de precisión"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        var oversizedMovement = post("/api/v1/operational/cash-sessions/" + sessionId + "/movements", token, """
+                {"type":"INCOME","amount":1000000000000.00,"reason":"Prueba de límite"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(roundedMovement.statusCode()).isEqualTo(422);
+        assertThat(oversizedMovement.statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id = ?", sessionId)).isEqualTo(1);
+
+        var roundedReconciliation = post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations",
+                token, """
+                {"countedCash":1.005}
+                """);
+        var oversizedReconciliation = post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations",
+                token, """
+                {"countedCash":1000000000000.00}
+                """);
+        var roundedClose = post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
+                {"countedCash":1.005,"expectedVersion":1}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(roundedReconciliation.statusCode()).isEqualTo(422);
+        assertThat(oversizedReconciliation.statusCode()).isEqualTo(422);
+        assertThat(roundedClose.statusCode()).isEqualTo(422);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.cash_sessions WHERE id = ?", String.class, sessionId))
+                .isEqualTo("OPEN");
+        assertThat(count("SELECT count(*) FROM wok.cash_reconciliations WHERE cash_session_id = ?", sessionId)).isZero();
+    }
+
+    @Test
     void rejectsSecondOpenUnknownRegisterAndUnauthorizedRole() {
         String token = tokenForRole("OPERATIONAL");
         String code = uniqueCode("CAJA");

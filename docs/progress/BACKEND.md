@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Validación exacta de importes de caja
+
+- Los valores de fondo de apertura, movimientos, arqueos intermedios y cierre ahora se normalizan a dos decimales sin redondear y se limitan a la precisión de `NUMERIC(14,2)`. Se valida también el saldo esperado antes de persistir una conciliación.
+- `CashSessionIntegrationTest` 6/6 verifica entradas `1.005` y `1000000000000.00`; se rechazan con 422 y no dejan sesiones, movimientos ni arqueos parciales.
+- Suite completa: 67 suites / 289 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V51. No requiere migración.
+
 ## 2026-10-08 — Protección de movimientos de caja multimoneda
 
 - Los cobros en efectivo, reembolsos en efectivo y liquidaciones de efectivo de repartidor ahora comparan la moneda del pago con la moneda de la caja antes de escribir movimientos. Una diferencia responde 422 y la transacción no deja una venta, devolución ni liquidación parcial.
