@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Build Android ARM64 de tamaño reducido
+
+- Se generó un APK debug ARM64 para `com.anonymous.wokasianfood` (`/tmp/wok-client-arm64-debug.apk`), de 89 MiB, SHA-256 `11c12971eb3c3b21d41bb183a41145e710473a0cd14bdd6612834e8813054502`. El artefacto también está en `/tmp/wok-mobile-drop/` para servirlo localmente durante la revisión; no se agrega al repositorio.
+- Es un Expo Development Client: requiere que Metro esté accesible en la misma red y no es un preview autónomo. La firma APK v2 fue verificada. No hay prueba de instalación/ejecución en teléfono porque ADB no puede abrir su socket en este entorno.
+- Este APK ARM64 reemplaza como artefacto recomendado el build multi-ABI de 249 MB descrito abajo; ese APK anterior sigue siendo una copia local histórica.
+
 ## 2026-10-08 — APK Android debug compilado localmente
 
 - Se generó `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk` con Android SDK/NDK instalados fuera del repositorio. APK de 249 MB, application ID `com.anonymous.wokasianfood`, firmado con la clave debug local; `apksigner verify` confirma la firma APK v2. El proyecto nativo `android/` es generado/ignorado y no se versiona.
