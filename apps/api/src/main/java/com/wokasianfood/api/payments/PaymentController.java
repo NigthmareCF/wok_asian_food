@@ -104,9 +104,11 @@ class PaymentService {
         if ((collectionSource == PaymentController.CollectionSource.COURIER)
                 != (request.method() == PaymentController.PaymentMethod.CASH && courierUserId != null))
             throw new AuthException(422, "El cobro por repartidor requiere efectivo y una persona responsable; otros cobros van a caja.");
-        String requestedAmount = request.amount() == null
-                ? "FULL" : request.amount().stripTrailingZeros().toPlainString();
-        BigDecimal tip = request.tipAmount() == null ? BigDecimal.ZERO : request.tipAmount();
+        BigDecimal requestedPaymentAmount = request.amount() == null
+                ? null : money(request.amount(), "monto de cobro");
+        BigDecimal tip = money(request.tipAmount() == null ? BigDecimal.ZERO : request.tipAmount(), "monto de propina");
+        String requestedAmount = requestedPaymentAmount == null
+                ? "FULL" : requestedPaymentAmount.stripTrailingZeros().toPlainString();
         String hash = collectionSource == PaymentController.CollectionSource.COURIER
                 ? fingerprint(accountId.toString(), request.method().name(), requestedAmount,
                     tip.stripTrailingZeros().toPlainString(), reference, registerCode, collectionSource.name(),
@@ -134,7 +136,7 @@ class PaymentService {
         BigDecimal outstanding = billing.total().subtract(previouslyPaid);
         if (outstanding.signum() <= 0)
             throw new AuthException(409, "La cuenta no tiene saldo pendiente.");
-        BigDecimal amount = request.amount() == null ? outstanding : request.amount();
+        BigDecimal amount = requestedPaymentAmount == null ? outstanding : requestedPaymentAmount;
         if (amount.compareTo(outstanding) > 0)
             throw new AuthException(422, "El monto excede el saldo pendiente de la cuenta.");
         BigDecimal remaining = outstanding.subtract(amount);
@@ -438,7 +440,11 @@ class PaymentService {
     }
 
     private BigDecimal money(BigDecimal value, String label) {
-        try { return value.setScale(2, java.math.RoundingMode.UNNECESSARY); }
+        try {
+            BigDecimal normalized = value.setScale(2, java.math.RoundingMode.UNNECESSARY);
+            if (normalized.precision() > 14) throw new AuthException(422, "El " + label + " supera el monto permitido.");
+            return normalized;
+        }
         catch (ArithmeticException invalidScale) { throw new AuthException(422, "El " + label + " admite hasta dos decimales."); }
     }
 

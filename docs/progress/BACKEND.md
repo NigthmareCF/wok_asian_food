@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Rechazo de importes de pago fuera de precisión GTQ
+
+- Capturar pagos ahora normaliza/rechaza montos de principal y propina con más de dos decimales antes de reclamar idempotencia o escribir datos; también rechaza magnitudes fuera de NUMERIC(14,2). Así no se reporta un importe distinto del persistido por redondeo implícito de PostgreSQL.
+- El helper monetario compartido también protege los reembolsos contra desbordamiento numérico, además de ya rechazar precisión fraccionaria excesiva.
+- `PaymentIntegrationTest.rejectsPaymentAndTipAmountsThatPostgresWouldRoundOrCannotRepresent` cubre principal Q1.005, propina Q0.001 y monto demasiado grande, comprobando 422 y ausencia de pagos persistidos. Focal: 13/13; suite completa: 269/269, cero fallos/errores/omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V49.
+
 ## 2026-10-07 — Holds temporales de carga para pedidos remotos
 
 - V48 persiste holds por solicitud y distribución de preparación por estación con expiración configurable (12 minutos por defecto). El consumo del quote y el hold ocurren en la misma transacción; la cancelación/rechazo libera, aceptación convierte antes de crear tickets, y el worker expira holds vencidos sin aceptar automáticamente la solicitud.

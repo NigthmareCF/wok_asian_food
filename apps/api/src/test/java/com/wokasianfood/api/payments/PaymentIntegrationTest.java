@@ -16,6 +16,26 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
+    void rejectsPaymentAndTipAmountsThatPostgresWouldRoundOrCannotRepresent() {
+        UUID actor = createUserWithRole("cajero-precision-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, null, "Validación de montos exactos");
+        closedOrder(accountId, actor, "20.00");
+
+        var overScaleAmount = post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                "{\"method\":\"CASH\",\"amount\":1.005}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        var overScaleTip = post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                "{\"method\":\"CASH\",\"tipAmount\":0.001}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        var oversized = post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                "{\"method\":\"CASH\",\"amount\":1000000000000.00}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+
+        assertThat(overScaleAmount.statusCode()).isEqualTo(422);
+        assertThat(overScaleTip.statusCode()).isEqualTo(422);
+        assertThat(oversized.statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = ?", accountId)).isZero();
+    }
+
+    @Test
     void capturesCashPaymentLinksCashMovementAndRejectsDoubleCharge() {
         UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
