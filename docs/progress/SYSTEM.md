@@ -1,5 +1,13 @@
 # Progreso del sistema
 
+## 2026-10-08 — Verificación backend/app y actualización remota
+
+- Fetch confirmó backend `9b47e21`, app `787171a` y documentación `98c3bf1`, alineadas con sus ramas remotas.
+- Backend pasó contra PostgreSQL 18/Testcontainers: 67 suites/282 pruebas, cero fallos, errores u omisiones; Flyway aplicó V1–V51 desde cero. App Cliente: 24 archivos/98 pruebas, lint y TypeScript aprobados.
+- La rama financiera avanzó a `6df0ed4`; sus únicos cambios nuevos son versiones Next/eslint 16.3.8, lockfile y un test de horario pickup. Su API permanece en el estado auditado de `599f19a`: 45 suites/252 pruebas, 0 fallos/errores y una prueba opcional de frontera web omitida por no configurar `wok.web.test.dir`.
+- El typecheck/build Web de esa candidata no se considera validado: la copia aislada tenía dependencias compartidas incompletas (`@vitejs/plugin-react` no estaba disponible). No se integró ninguna parte de esa rama.
+- Para llevar los intentos persistentes de pago presencial al backend actual se requiere adaptar el protocolo a pagos de repartidor/reembolsos y crear migraciones nuevas V52+; la rama candidata reutiliza V26/V27 que ya tienen otro significado local.
+
 ## 2026-10-08 — Reintentos seguros de evidencia de transferencia
 
 - `PaymentEvidenceService` incluye `reviewReason` en respuesta e historial del Cliente; Pedidos muestra el motivo. Reintentar el mismo archivo rechazado devuelve 409 y guía a subir evidencia nueva/contactar al restaurante. Una segunda imagen distinta tampoco se acepta si ya hay una evidencia pendiente para esa solicitud; reintentos del mismo contenido pendiente siguen idempotentes.
