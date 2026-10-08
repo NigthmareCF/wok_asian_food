@@ -610,6 +610,25 @@ test("suggested days roll across months and the guest stepper stays inside API l
   assert.equal(stepGuests("invalid", 1), "3");
 });
 
+test("redesign preserves virtualized lists, dark Web branding and one native sheet", () => {
+  const menu = read("app/(tabs)/menu.tsx");
+  const sheet = read("src/components/product-sheet.tsx");
+  assert.match(menu, /<FlatList/);
+  assert.match(menu, /<ProductSheet/);
+  assert.match(menu, /Boolean\(cart.attempt\)/);
+  assert.match(sheet, /onRequestClose=\{onClose\}/);
+  assert.match(sheet, /animationType="none"/);
+  assert.match(sheet, /accessibilityViewIsModal/);
+  assert.match(sheet, /setAccessibilityFocus/);
+  assert.match(sheet, /comentario es general/);
+  assert.match(read("src/components/ui.tsx"), /return themes.dark/);
+  assert.match(read("tailwind.config.ts"), /":root": darkTokens/);
+  assert.doesNotMatch(
+    read("src/components/gradient-panel.tsx"),
+    /experimental_backgroundImage|expo-linear-gradient/,
+  );
+});
+
 test("five tab destinations retain a text-labeled accessible cart badge", () => {
   const tabs = read("app/(tabs)/_layout.tsx");
   assert.deepEqual(

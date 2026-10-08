@@ -65,6 +65,60 @@ test("navigation colors and NativeWind use the same light/dark source", () => {
   assert.ok(dependencies["expo-system-ui"]);
 });
 
+test("shared control sizes and component variants compile for native", async () => {
+  const source = readFileSync(
+    path.resolve(mobileRoot, "src/components/ui.tsx"),
+    "utf8",
+  );
+  const home = readFileSync(
+    path.resolve(mobileRoot, "app/(tabs)/index.tsx"),
+    "utf8",
+  );
+  const result = await postcss([
+    tailwind({
+      ...config,
+      content: [{ raw: `${source}\n${home}`, extension: "tsx" }],
+    }),
+  ]).process("@tailwind base; @tailwind utilities;", { from: undefined });
+  const compiled = cssToReactNativeRuntime(result.css);
+  const rules = new Map(Object.entries(compiled.rules));
+  const declarations = (name) =>
+    rules.get(name).n.flatMap((rule) => rule.d ?? []);
+  assert.ok(
+    declarations("min-h-12").some((entry) => entry[0]?.minHeight === 48),
+  );
+  assert.ok(
+    declarations("min-w-11").some((entry) => entry[0]?.minWidth === 44),
+  );
+  for (const variant of [
+    "bg-primary",
+    "text-primary-foreground",
+    "border-border",
+    "bg-surface",
+    "bg-surface-elevated",
+    "bg-destructive/10",
+    "bg-success/10",
+    "bg-info/10",
+    "text-foreground",
+    "text-muted-foreground",
+    "rounded-lg",
+    "rounded-md",
+  ]) {
+    assert.ok(rules.has(variant), `Missing native class: ${variant}`);
+  }
+  assert.match(
+    source,
+    /accessibilityState=\{\{\s*disabled: disabled \|\| busy,\s*busy,?\s*\}\}/,
+  );
+  assert.match(
+    source,
+    /accessibilityLabel=\{props.accessibilityLabel \?\? label\}/,
+  );
+  assert.match(home, /<FlatList/);
+  assert.doesNotMatch(`${source}\n${home}`, /#[a-f0-9]{3,8}\b|\[[\d.]+px\]/i);
+  assert.doesNotMatch(home, /Solicitar delivery|ONLINE_PAYMENTS|DELIVERY/);
+});
+
 test("semantic themes preserve Web dark tokens under both browser preferences", async () => {
   const theme = resolveConfig(config).theme;
   const classes = Object.entries(theme.colors).flatMap(([name, value]) =>

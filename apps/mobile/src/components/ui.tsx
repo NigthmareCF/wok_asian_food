@@ -15,41 +15,6 @@ import { getThemeColors } from "@/theme/colors";
 import { darkTokens } from "@/theme/tokens";
 import { Brand } from "./brand";
 
-// Compatibility exports for screens that still use the original StyleSheet UI.
-export const palette = {
-  ink: "#24221f",
-  muted: "#746e67",
-  paper: "#fffaf2",
-  card: "#ffffff",
-  red: "#a72d21",
-  gold: "#d78c23",
-  line: "#eadfce",
-  green: "#246b4b",
-};
-export const ui = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 12 },
-  section: { gap: 12 },
-  body: { color: palette.muted, fontSize: 15, lineHeight: 22 },
-  pill: {
-    alignSelf: "flex-start",
-    color: palette.green,
-    backgroundColor: "#e6f1e9",
-    overflow: "hidden",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    fontWeight: "700",
-  },
-  link: {
-    color: palette.red,
-    fontWeight: "700",
-    fontSize: 15,
-    minHeight: 44,
-    minWidth: 44,
-  },
-  spacer: { height: 8 },
-});
-
 const themes = { light: createTheme("light"), dark: createTheme("dark") };
 const focusColor = `rgb(${darkTokens["--focus"].replaceAll(" ", ", ")})`;
 
