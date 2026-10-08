@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-07 — Mostrar validaciones seguras de la API en la app
+
+- `apiRequest` ahora lee el campo `message` únicamente en respuestas JSON 4xx distintas de autenticación/autorización, limpia controles y limita el texto a 300 caracteres. Esto permite mostrar correcciones concretas del backend (por ejemplo, opciones obligatorias) en lugar del mensaje genérico de horario. Respuestas 401/403 mantienen mensajes neutros y errores 5xx no exponen detalles del servidor.
+- Cuatro pruebas cubren mensaje de validación, fallback para texto no JSON, neutralidad de autenticación y ocultamiento de mensajes inesperados 500.
+- Vitest: 67/67; ESLint y TypeScript completados sin errores. No requiere dependencias ni cambios de endpoints.
+
 ## 2026-10-08 — Reintento seguro de cancelaciones después de cerrar la app
 
 - Las claves de idempotencia y el motivo de una solicitud de cancelación de pedido aceptado ahora se guardan mediante el almacenamiento seguro existente, con vencimiento de 30 días. Si el dispositivo cierra la app o se pierde la respuesta, el reintento con el mismo motivo reutiliza la clave y el backend devuelve la misma solicitud; cambiar el motivo genera una nueva clave.

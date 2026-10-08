@@ -6,6 +6,17 @@ export class ApiError extends Error {
   }
 }
 
+async function trustedClientErrorMessage(response: Response): Promise<string | null> {
+  if (response.status < 400 || response.status >= 500 || response.status === 401 || response.status === 403 ||
+      !response.headers.get("content-type")?.toLowerCase().includes("application/json")) return null;
+  return response.clone().json().then((payload: unknown) => {
+    if (typeof payload !== "object" || payload === null || !("message" in payload) ||
+        typeof payload.message !== "string") return null;
+    const message = payload.message.replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+    return message.length > 0 && message.length <= 300 ? message : null;
+  }).catch(() => null);
+}
+
 export async function apiRequest<T>(path: string, options: RequestInit = {}, accessToken?: string): Promise<T> {
   if (!baseUrl) throw new ApiError("Configura EXPO_PUBLIC_API_BASE_URL para conectar con WOK.");
   let response: Response;
@@ -29,7 +40,8 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, acc
       422: "El restaurante no puede aceptar esta solicitud en ese horario.",
       503: "Este servicio está temporalmente indisponible.",
     };
-    throw new ApiError(messages[response.status] ?? `No se pudo completar la solicitud (${response.status}).`, response.status);
+    const fallback = messages[response.status] ?? `No se pudo completar la solicitud (${response.status}).`;
+    throw new ApiError(await trustedClientErrorMessage(response) ?? fallback, response.status);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
