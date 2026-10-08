@@ -198,6 +198,77 @@ function dateHelpers() {
   return exports;
 }
 
+test("date selector announces real values as text rather than fictitious sliders", () => {
+  const { ReservationDateTime } = presentationModule(
+    "src/components/reservation-date-time.tsx",
+    {
+      "./ui": {
+        Button: "Button",
+        useUiTheme: () => ({ colors: theme.getThemeColors("dark") }),
+      },
+      "@/lib/slot-time": require("node:fs").existsSync(
+        path.join(root, "src/lib/slot-time.ts"),
+      )
+        ? jiti(path.join(root, "src/lib/slot-time.ts"))
+        : {},
+    },
+  );
+  const controls = elements(
+    ReservationDateTime({
+      value: "2026-10-09T18:01",
+      onChange() {},
+      disabled: false,
+    }),
+  );
+  assert.equal(
+    controls.some(
+      (item) =>
+        item.props.accessibilityRole === "adjustable" ||
+        item.props.role === "slider",
+    ),
+    false,
+  );
+  assert.ok(
+    controls.some((item) => item.props.accessibilityLabel === "Hora: 18"),
+  );
+  assert.ok(
+    controls.some((item) => item.props.accessibilityLabel === "Minuto: 01"),
+  );
+});
+
+test("reservation day changes retain the selected time without inventing availability", () => {
+  const { selectReservationDay, selectReservationTime } = dateHelpers();
+  assert.equal(
+    selectReservationDay("2026-10-06T19:30", "2026-10-09"),
+    "2026-10-09T19:30",
+  );
+  assert.equal(selectReservationDay("", "2026-10-09"), "2026-10-09T");
+  assert.equal(
+    selectReservationTime(
+      "2026-10-09T",
+      "12:30",
+      new Date("2026-10-06T12:00:00Z"),
+    ),
+    "2026-10-09T12:30",
+  );
+  assert.equal(
+    selectReservationTime("", "20:00", new Date("2026-10-06T12:00:00Z")),
+    "2026-10-06T20:00",
+  );
+});
+
+test("suggested days roll across months and the guest stepper stays inside API limits", () => {
+  const { reservationDays, stepGuests } = dateHelpers();
+  const days = reservationDays(new Date("2026-12-31T05:45:00Z"));
+  assert.equal(days.length, 7);
+  assert.equal(days[0].value, "2026-12-30");
+  assert.equal(days[2].value, "2027-01-01");
+  assert.equal(stepGuests("1", -1), "1");
+  assert.equal(stepGuests("50", 1), "50");
+  assert.equal(stepGuests("2", 1), "3");
+  assert.equal(stepGuests("invalid", 1), "3");
+});
+
 test("five tab destinations retain a text-labeled accessible cart badge", () => {
   const tabs = read("app/(tabs)/_layout.tsx");
   assert.deepEqual(
@@ -274,4 +345,97 @@ test("small accent text has sufficient contrast over every actual gradient band"
     );
     assert.ok(contrast(colors.mutedForeground, band) >= 4.5);
   }
+});
+
+test("later weeks and arbitrary hour/minute controls preserve local requestedAt", () => {
+  const {
+    reservationDays,
+    reservationWeekFor,
+    moveReservationWeek,
+    stepReservationTime,
+    reservationTimeParts,
+  } = dateHelpers();
+  const now = new Date("2026-12-30T16:00:00Z");
+  const later = reservationDays(now, 2);
+  assert.equal(later[0].value, "2027-01-13");
+  assert.equal(moveReservationWeek(0, -1), 0);
+  assert.equal(moveReservationWeek(2, -1), 1);
+  assert.equal(
+    stepReservationTime("2027-01-13T23:59", "hour", 1, now),
+    "2027-01-13T23:59",
+  );
+  assert.equal(
+    stepReservationTime("2027-01-13T00:00", "minute", -1, now),
+    "2027-01-13T00:00",
+  );
+  assert.equal(
+    stepReservationTime("2027-01-13T19:30", "hour", -1, now),
+    "2027-01-13T18:30",
+  );
+  assert.equal(
+    stepReservationTime("2027-01-13T19:30", "minute", 1, now),
+    "2027-01-13T19:31",
+  );
+  assert.equal(
+    stepReservationTime("2027-01-13T", "minute", 1, now),
+    "2027-01-13T00:01",
+  );
+  assert.equal(reservationTimeParts("2027-01-13T19:31").minute, 31);
+  assert.equal(reservationWeekFor("2027-01-13T19:31", now), 2);
+  assert.equal(reservationWeekFor("2026-12-01T19:31", now), 0);
+  assert.equal(
+    reservationDays(new Date("2028-02-27T12:00:00Z"), 0)[2].value,
+    "2028-02-29",
+  );
+  assert.equal(
+    reservationDays(new Date("2028-02-27T12:00:00Z"), 1)[0].value,
+    "2028-03-05",
+  );
+});
+
+test("actual selected day and navigation badge use accessible on-coral foregrounds", () => {
+  const colors = theme.getThemeColors("dark");
+  const { ReservationDateTime } = presentationModule(
+    "src/components/reservation-date-time.tsx",
+    {
+      "./ui": { Button: "Button", useUiTheme: () => ({ colors }) },
+    },
+  );
+  const selectedDay = dateHelpers().reservationDays(new Date())[0].value;
+  const controls = elements(
+    ReservationDateTime({
+      value: `${selectedDay}T19:30`,
+      onChange() {},
+      disabled: false,
+    }),
+  );
+  assert.equal(
+    controls.some(
+      (element) => element.type === "Field" || element.type === "TextInput",
+    ),
+    false,
+  );
+  const selected = controls.find(
+    (element) =>
+      element.type === "Pressable" && element.props.accessibilityState.selected,
+  );
+  for (const pressed of [false, true]) {
+    const fill =
+      selected.props.style({ pressed }).backgroundColor ?? colors.primary;
+    assert.equal(selected.props.style({ pressed }).opacity, 1);
+    for (const text of elements(selected.props.children).filter(
+      (element) => element.type === "Text",
+    )) {
+      assert.ok(contrast(text.props.style.color, fill) >= 4.5);
+    }
+  }
+  const { default: TabLayout } = presentationModule("app/(tabs)/_layout.tsx", {
+    "expo-router": { Tabs: Object.assign(() => {}, { Screen: "Tabs.Screen" }) },
+    "@/components/ui": { useUiTheme: () => ({ colors }) },
+    "@/hooks/use-cart": { useCart: () => ({ items: {} }) },
+  });
+  const badge = TabLayout().props.screenOptions({
+    route: { name: "menu" },
+  }).tabBarBadgeStyle;
+  assert.ok(contrast(badge.color, badge.backgroundColor) >= 4.5);
 });
