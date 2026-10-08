@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 /** Email is sent after the registration transaction commits; SMTP failure leaves work for retry. */
 @Component
 public class EmailOutboxWorker {
+    private static final int MAX_ATTEMPTS = 5;
     private final JdbcTemplate jdbc;
     private final ObjectProvider<EmailProvider> providers;
     private final AuthSecrets secrets;
@@ -27,6 +28,11 @@ public class EmailOutboxWorker {
 
     @Scheduled(fixedDelayString = "${wok.email.poll-ms:5000}")
     public void sendNext() {
+        jdbc.update("""
+            UPDATE wok.email_outbox
+            SET status = 'DEAD', last_error = 'Delivery lease expired after maximum attempts'
+            WHERE status = 'SENDING' AND next_attempt_at <= now() AND attempt_count >= ?
+            """, MAX_ATTEMPTS);
         EmailProvider provider = providers.getIfAvailable();
         if (provider == null) return;
         List<QueuedEmail> claimed = jdbc.query("""
@@ -34,12 +40,12 @@ public class EmailOutboxWorker {
                 next_attempt_at = now() + interval '5 minutes'
             WHERE id = (
               SELECT id FROM wok.email_outbox WHERE status IN ('PENDING', 'FAILED', 'SENDING')
-                AND next_attempt_at <= now() AND attempt_count < 5
+                AND next_attempt_at <= now() AND attempt_count < ?
               ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED
             ) RETURNING id, recipient, template_code, payload->>'nonce' AS nonce,
                          payload->>'ciphertext' AS ciphertext
             """, (rs, row) -> new QueuedEmail(rs.getObject("id", UUID.class), rs.getString("recipient"),
-                rs.getString("template_code"), rs.getString("nonce"), rs.getString("ciphertext")));
+                rs.getString("template_code"), rs.getString("nonce"), rs.getString("ciphertext")), MAX_ATTEMPTS);
         if (claimed.isEmpty()) return;
         QueuedEmail message = claimed.getFirst();
         try {

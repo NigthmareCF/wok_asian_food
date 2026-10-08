@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Recuperación de lease agotado del correo
+
+- Si el proceso cae durante el quinto intento de envío, el outbox ya no deja el registro en `SENDING` indefinidamente: el worker marca `DEAD` los leases vencidos que agotaron sus intentos, incluso si el proveedor de correo no está disponible.
+- `EmailOutboxWorkerIntegrationTest` crea un envío simulado con lease vencido y cinco intentos, ejecuta el worker y comprueba el estado terminal y la causa registrada. No cambia el esquema ni realiza envíos externos.
+- Suite backend: 68 suites / 291 pruebas, cero fallos/errores/omitidas; PostgreSQL 18 con Testcontainers y Flyway V1–V51.
+
 ## 2026-10-08 — Limpieza de archivo de comprobante al revertir la transacción
 
 - El almacenamiento privado de comprobantes ahora registra una compensación ligada al ciclo de vida de la transacción Spring. Si PostgreSQL revierte, el archivo UUID se elimina; si confirma, se conserva.

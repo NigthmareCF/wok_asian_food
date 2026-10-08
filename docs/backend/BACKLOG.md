@@ -5,7 +5,7 @@
 | ID      | Estado | Entrega y criterio observable                                                                   | Requisito / dependencias                  |
 | ------- | ------ | ----------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | CORE-01 | NOW    | Spring, Flyway, Postgres, Nginx y health arrancan desde entorno limpio; OpenAPI/Swagger habilitados en dev y deshabilitados en Compose prod | TD-01–03; DB y Docker |
-| IAM-01  | NOW    | register CLIENT, challenge, verify, login, JWT y refresh rotativo/reuse probados                | RN-025/026; CORE-01                       |
+| IAM-01  | NOW    | register CLIENT, challenge, verify, login, JWT y refresh rotativo/reuse probados; el worker de correo recupera leases `SENDING` vencidos al llegar al quinto intento y los marca `DEAD` para evitar mensajes atascados | RN-025/026; CORE-01; `EmailOutboxWorkerIntegrationTest` |
 | IAM-02  | NOW    | Admin de usuarios/roles está parcial; los cambios ya propagan `X-Request-Id` a auditoría; automatizar permisos/ownership A/B y refresh reuse | IAM-01; roles básicos implementados       |
 | IAM-03  | BLOCKED| Core Google OIDC por `sub`, nonce one-use, login WEB/MOBILE y linking autenticado/auditado implementado; falta configurar audiencia/cliente OAuth real y probar los clientes nativos | IDs OAuth, SHA-1 Android y build físico; bloqueo externo confirmado |
 | OPS-01  | NOW    | service capability individual, override auditado y salud externa separada; calendario semanal por servicio con excepciones diarias auditadas, consulta pública y locks durante la aceptación | CORE-01                                   |
