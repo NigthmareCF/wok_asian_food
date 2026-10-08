@@ -12,8 +12,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
@@ -152,6 +155,47 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 """
                 {"action":"REJECT","reason":"no corresponde"}
                 """).statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    void concurrentOperationalAcceptanceCreatesOneOrderAndOneAcceptanceEvent() throws Exception {
+        UUID menuItemId = seedMenuItem("Wok Aceptación Concurrente", "25.00", "WOK_ACCEPT_RACE", 120);
+        UUID requestId = UUID.fromString(submit(tokenForRole("CLIENT"), menuItemId, 2,
+                Instant.now().plusSeconds(900).toString()).path("requestId").asText());
+        String path = "/api/v1/operational/order-requests/" + requestId + "/decision";
+        String firstOperator = tokenForRole("OPERATIONAL");
+        String secondOperator = tokenForRole("OPERATIONAL");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, firstOperator, "{\"action\":\"ACCEPT\"}");
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, secondOperator, "{\"action\":\"ACCEPT\"}");
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            JsonNode firstResult = body(first.get(15, TimeUnit.SECONDS));
+            JsonNode secondResult = body(second.get(15, TimeUnit.SECONDS));
+
+            assertThat(firstResult.path("status").asText()).isEqualTo("ACCEPTED");
+            assertThat(secondResult.path("status").asText()).isEqualTo("ACCEPTED");
+            assertThat(firstResult.path("orderId").asText()).isEqualTo(secondResult.path("orderId").asText());
+            assertThat(List.of(firstResult.path("idempotentReplay").asBoolean(),
+                    secondResult.path("idempotentReplay").asBoolean())).containsExactlyInAnyOrder(false, true);
+            assertThat(count("SELECT count(*) FROM wok.orders WHERE id = ?",
+                    UUID.fromString(firstResult.path("orderId").asText()))).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.order_request_events WHERE order_request_id = ? AND event_type = 'ACCEPTED'",
+                    requestId)).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?", requestId)).isEqualTo(1);
+        }
     }
 
     @Test

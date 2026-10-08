@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Aceptación Operativo concurrente de una solicitud
+
+- Dos usuarios Operativo aceptan simultáneamente la misma solicitud pickup. Ambos reciben `ACCEPTED` y el mismo `orderId`; exactamente una respuesta es la primera ejecución y la otra replay. PostgreSQL conserva una orden y un evento `ACCEPTED`.
+- `OrderRequestDecisionIntegrationTest`: 20/20; suite completa: 69 suites / 306 pruebas, 0 fallos/errores/omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V51.
+- Junto con las pruebas de cobro/reembolso concurrentes, cubre las mutaciones financieras y operativas compartidas más sensibles. La disponibilidad de capacidad física basada en mesas/turnos aún requiere insumos/modelo operativo completos.
+
 ## 2026-10-08 — Cobros y devoluciones parciales concurrentes
 
 - Se probaron dos requests concurrentes con claves idempotentes distintas contra la misma cuenta: cobrar simultáneamente todo el saldo permite un único pago; solicitar simultáneamente devoluciones que juntas superarían el pago deja registrado sólo un reembolso válido. La comprobación incluye saldo, estado financiero y cantidades agregadas en PostgreSQL.
