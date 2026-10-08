@@ -2,7 +2,7 @@
 
 ## 2026-10-08 — Motivo de rechazo de comprobante visible al Cliente
 
-- `PaymentEvidenceService` incluye `reviewReason` en respuesta y consulta de historial del Cliente. La app Pedidos muestra el motivo si el personal rechaza el archivo, para que sepa qué corregir antes de enviarlo de nuevo.
+- `PaymentEvidenceService` incluye `reviewReason` en respuesta y consulta de historial del Cliente. La app Pedidos muestra el motivo si el personal rechaza el archivo, para que sepa qué corregir. Si se intenta reenviar el mismo archivo ya rechazado con una clave nueva, API responde 409 en lugar de presentarlo como un envío nuevo; el Cliente debe adjuntar otra evidencia o contactar al restaurante.
 - La prueba PostgreSQL/Testcontainers verifica el motivo tanto en respuesta de rechazo como en lectura posterior del historial. Suite backend: 67 suites, 282 pruebas, 0 fallos/errores/omitidas. App: 24 archivos/98 pruebas, lint y typecheck aprobados.
 - Cambios preparados para las ramas backend/app/documentación; no hay migración nueva. Requiere integrar primero API V51 y app correspondiente.
 

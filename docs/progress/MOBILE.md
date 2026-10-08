@@ -2,7 +2,7 @@
 
 ## 2026-10-08 — Explicar el rechazo de comprobantes
 
-- El estado del comprobante ahora incluye el motivo seguro enviado por el personal; Pedidos lo presenta junto al estado `REJECTED` para guiar una nueva entrega.
+- El estado del comprobante ahora incluye el motivo enviado por el personal; Pedidos lo presenta junto a `REJECTED`. La API no acepta el mismo archivo rechazado como reenvío nuevo y devuelve un error explicativo para que se adjunte evidencia diferente o se contacte al restaurante.
 - Verificación: 24 archivos/98 pruebas Vitest, ESLint y TypeScript aprobados. Depende del campo `reviewReason` de la API V51.
 
 ## 2026-10-07 — Comprobante de transferencia de pickup
