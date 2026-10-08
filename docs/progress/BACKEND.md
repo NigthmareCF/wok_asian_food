@@ -647,3 +647,9 @@
 - La preparación de una factura detallada concatena los nombres de las opciones seleccionadas al concepto de su línea (por ejemplo, `Onigiri (Atún chipotle)`), usando `order_item_modifiers` y los snapshots históricos; no consulta nombres vivos del catálogo.
 - `OperationalFlowIntegrationTest` verifica que la cuenta exponga el snapshot de grupo, opción y delta de precio. `InvoiceIntegrationTest` comprueba el concepto facturable con la opción y el precio capturados. Pruebas focales y suite completa ejecutadas con PostgreSQL 18/Testcontainers y las 51 migraciones Flyway desde esquema vacío. La suite completa pasó 67 suites / 284 pruebas, sin fallos, errores u omitidas.
 - El primer fetch falló por DNS; al reintentar con acceso de red ampliado, el fetch confirmó que backend no tenía commits remotos nuevos. Los cambios se guardaron en `27bff6c` y se publicaron en `feature/backend-capacity-order-lifecycle` (`9b47e21..27bff6c`). No hubo merge a `development`.
+
+## 2026-10-08 — Los recibos financieros no combinan monedas
+
+- El recibo idempotente de pago y la respuesta de reembolso calculan su balance con `AccountFinancialTotalsService`. Si la cuenta tiene más de una moneda, el campo escalar `balance` se omite en JSON en vez de sumar importes incompatibles. El reembolso también determina si reabre la cuenta revisando si alguna moneda conserva saldo pendiente; el evento de auditoría deja `remainingBalance` nulo en multimoneda.
+- `PaymentIntegrationTest` agrega un recorrido PostgreSQL real: cobra una cuenta GTQ, incorpora luego una orden USD, repite el cobro idempotente y registra un reembolso. El recibo no inventa un balance único y el detalle conserva los saldos separados GTQ/USD.
+- Verificación focal: `PaymentIntegrationTest` 15/15 y suite completa 67 suites / 285 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V51 desde esquema vacío. `git diff --check` limpio.

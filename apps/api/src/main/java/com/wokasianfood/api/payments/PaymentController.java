@@ -1,5 +1,6 @@
 package com.wokasianfood.api.payments;
 
+import com.wokasianfood.api.accounts.AccountFinancialTotalsService;
 import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
@@ -9,6 +10,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.sql.Types;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -17,6 +19,7 @@ import java.util.Locale;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -85,10 +88,12 @@ public class PaymentController {
 class PaymentService {
     private final JdbcTemplate jdbc;
     private final IdempotencyStore idempotency;
+    private final AccountFinancialTotalsService financialTotals;
 
-    PaymentService(JdbcTemplate jdbc, IdempotencyStore idempotency) {
+    PaymentService(JdbcTemplate jdbc, IdempotencyStore idempotency, AccountFinancialTotalsService financialTotals) {
         this.jdbc = jdbc;
         this.idempotency = idempotency;
+        this.financialTotals = financialTotals;
     }
 
     @Transactional
@@ -285,10 +290,11 @@ class PaymentService {
         String nextPaymentStatus = refundedPrincipal.compareTo(payment.amount()) == 0
                 && refundedTip.compareTo(payment.tipAmount()) == 0 ? "REFUNDED" : "PARTIALLY_REFUNDED";
         jdbc.update("UPDATE wok.payments SET status = ? WHERE id = ?", nextPaymentStatus, paymentId);
-        Billing billing = billing(accountId);
-        BigDecimal previouslyPaid = previouslyPaid(accountId);
-        BigDecimal remaining = billing.total().subtract(previouslyPaid);
-        if (remaining.signum() > 0 && "PAID".equals(account.status())) {
+        List<AccountFinancialTotalsService.CurrencyTotal> currencyTotals = financialTotals.totals(accountId);
+        BigDecimal remaining = currencyTotals.size() > 1 ? null
+                : currencyTotals.isEmpty() ? BigDecimal.ZERO : currencyTotals.getFirst().balance();
+        boolean hasOutstandingBalance = currencyTotals.stream().anyMatch(total -> total.balance().signum() > 0);
+        if (hasOutstandingBalance && "PAID".equals(account.status())) {
             jdbc.update("""
                 UPDATE wok.order_accounts SET status = 'OPEN', updated_at = now(), updated_by = ?,
                     row_version = row_version + 1 WHERE id = ? AND status = 'PAID'
@@ -301,7 +307,8 @@ class PaymentService {
                     jsonb_build_object('paymentId', ?, 'amount', ?, 'tipAmount', ?, 'method', ?,
                                        'status', 'RECORDED_MANUALLY', 'remainingBalance', ?),
                     ?, 'SUCCESS', ?)
-            """, actor, refundId, paymentId, amount, tip, request.method().name(), remaining, reason, requestId);
+            """, actor, refundId, paymentId, amount, tip, request.method().name(),
+                new SqlParameterValue(Types.NUMERIC, remaining), reason, requestId);
         idempotency.complete(actor.toString(), "PAYMENT_REFUND_RECORDED", idempotencyKey, refundId);
         return refundReceipt(refundId, false);
     }
@@ -358,14 +365,6 @@ class PaymentService {
         List<PaymentReceipt> rows = jdbc.query("""
             SELECT p.id, p.account_id, p.amount, p.tip_amount, p.method, p.status, p.reference, p.cash_session_id,
                    c.code AS currency_code, a.status AS account_status, m.id AS cash_movement_id,
-                   (SELECT COALESCE(SUM(o.total), 0) FROM wok.orders o
-                     WHERE o.account_id = p.account_id AND o.status <> 'CANCELLED')
-                   - (SELECT COALESCE(SUM(pay.amount - COALESCE(refunds.amount, 0)), 0)
-                      FROM wok.payments pay LEFT JOIN LATERAL (
-                        SELECT SUM(refund_amount) AS amount FROM wok.payment_refunds
-                        WHERE payment_id = pay.id AND status = 'RECORDED_MANUALLY'
-                      ) refunds ON true
-                      WHERE pay.account_id = p.account_id AND pay.status <> 'VOIDED') AS balance,
                    COALESCE((SELECT SUM(refund_amount) FROM wok.payment_refunds
                              WHERE payment_id = p.id AND status = 'RECORDED_MANUALLY'), 0) AS refunded_amount,
                    COALESCE((SELECT SUM(tip_refund_amount) FROM wok.payment_refunds
@@ -378,12 +377,15 @@ class PaymentService {
             """, (rs, row) -> new PaymentReceipt(rs.getObject("id", UUID.class),
                 rs.getObject("account_id", UUID.class), rs.getString("account_status"),
                 rs.getBigDecimal("amount"), rs.getBigDecimal("tip_amount"), rs.getString("currency_code"),
-                rs.getString("method"), rs.getString("status"), rs.getString("reference"), rs.getBigDecimal("balance"),
+                rs.getString("method"), rs.getString("status"), rs.getString("reference"), null,
                 rs.getObject("cash_session_id", UUID.class), rs.getObject("cash_movement_id", UUID.class),
                 rs.getBigDecimal("refunded_amount"), rs.getBigDecimal("refunded_tip_amount"), replay),
             paymentId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos el pago.");
-        return rows.getFirst();
+        PaymentReceipt row = rows.getFirst();
+        return new PaymentReceipt(row.paymentId(), row.accountId(), row.accountStatus(), row.amount(), row.tipAmount(),
+                row.currency(), row.method(), row.status(), row.reference(), accountBalance(row.accountId()),
+                row.cashSessionId(), row.cashMovementId(), row.refundedAmount(), row.refundedTipAmount(), replay);
     }
 
     private String fingerprint(String... parts) {
@@ -417,15 +419,7 @@ class PaymentService {
         List<RefundReceipt> rows = jdbc.query("""
             SELECT r.id, r.payment_id, r.refund_amount, r.tip_refund_amount, r.refund_method, r.status,
                    r.reference, r.cash_session_id, p.account_id, a.status AS account_status,
-                   (SELECT id FROM wok.cash_movements WHERE refund_id = r.id) AS cash_movement_id,
-                   (SELECT COALESCE(SUM(o.total), 0) FROM wok.orders o
-                    WHERE o.account_id = p.account_id AND o.status <> 'CANCELLED')
-                   - (SELECT COALESCE(SUM(pay.amount - COALESCE(refunds.amount, 0)), 0)
-                      FROM wok.payments pay LEFT JOIN LATERAL (
-                        SELECT SUM(refund_amount) AS amount FROM wok.payment_refunds
-                        WHERE payment_id = pay.id AND status = 'RECORDED_MANUALLY'
-                      ) refunds ON true
-                      WHERE pay.account_id = p.account_id AND pay.status <> 'VOIDED') AS balance
+                   (SELECT id FROM wok.cash_movements WHERE refund_id = r.id) AS cash_movement_id
             FROM wok.payment_refunds r JOIN wok.payments p ON p.id = r.payment_id
             JOIN wok.order_accounts a ON a.id = p.account_id
             WHERE r.id = ?
@@ -433,10 +427,19 @@ class PaymentService {
                 rs.getObject("payment_id", UUID.class), rs.getObject("account_id", UUID.class),
                 rs.getString("account_status"), rs.getBigDecimal("refund_amount"),
                 rs.getBigDecimal("tip_refund_amount"), rs.getString("refund_method"), rs.getString("status"),
-                rs.getString("reference"), rs.getBigDecimal("balance"), rs.getObject("cash_session_id", UUID.class),
+                rs.getString("reference"), null, rs.getObject("cash_session_id", UUID.class),
                 rs.getObject("cash_movement_id", UUID.class), replay), refundId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos el reembolso registrado.");
-        return rows.getFirst();
+        RefundReceipt row = rows.getFirst();
+        return new RefundReceipt(row.refundId(), row.paymentId(), row.accountId(), row.accountStatus(), row.amount(),
+                row.tipAmount(), row.method(), row.status(), row.reference(), accountBalance(row.accountId()),
+                row.cashSessionId(), row.cashMovementId(), replay);
+    }
+
+    private BigDecimal accountBalance(UUID accountId) {
+        List<AccountFinancialTotalsService.CurrencyTotal> totals = financialTotals.totals(accountId);
+        if (totals.size() > 1) return null;
+        return totals.isEmpty() ? BigDecimal.ZERO : totals.getFirst().balance();
     }
 
     private BigDecimal money(BigDecimal value, String label) {

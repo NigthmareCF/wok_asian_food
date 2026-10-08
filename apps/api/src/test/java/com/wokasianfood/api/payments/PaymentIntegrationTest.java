@@ -318,6 +318,44 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void paymentAndRefundReceiptsDoNotReportACombinedBalanceAfterAccountBecomesMultiCurrency() {
+        UUID actor = createUserWithRole("cajero-recibo-multimoneda-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, null, "Cuenta con monedas posteriores");
+        closedOrder(accountId, actor, "25.00");
+
+        String captureKey = UUID.randomUUID().toString();
+        String captureBody = """
+                {"method":"CARD_EXTERNAL","reference":"CAP-MULTI"}
+                """;
+        JsonNode captured = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                captureBody, Map.of("Idempotency-Key", captureKey)));
+        UUID paymentId = UUID.fromString(captured.path("paymentId").asText());
+        assertThat(captured.path("balance").decimalValue()).isEqualByComparingTo("0.00");
+
+        jdbc.update("INSERT INTO wok.currencies (code, name) VALUES ('USD', 'Dólar') ON CONFLICT (code) DO NOTHING");
+        insertOrder(accountId, actor, "10.00", "USD", "SERVED");
+        JsonNode captureReplay = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                captureBody, Map.of("Idempotency-Key", captureKey)));
+        assertThat(captureReplay.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(captureReplay.path("balance").isMissingNode()).isTrue();
+
+        JsonNode refund = body(post("/api/v1/operational/accounts/" + accountId + "/payments/" + paymentId
+                + "/refunds", token, """
+                {"amount":5.00,"method":"CARD_EXTERNAL","reference":"REF-MULTI","reason":"Ajuste de prueba"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(refund.path("balance").isMissingNode()).isTrue();
+
+        JsonNode account = body(get("/api/v1/operational/accounts/" + accountId, token));
+        assertThat(account.path("balance").isMissingNode()).isTrue();
+        assertThat(account.path("currencyTotals")).hasSize(2);
+        assertThat(account.path("currencyTotals").get(0).path("balance").decimalValue())
+                .isEqualByComparingTo("5.00");
+        assertThat(account.path("currencyTotals").get(1).path("balance").decimalValue())
+                .isEqualByComparingTo("10.00");
+    }
+
+    @Test
     void capturesPartialAndMixedPaymentsUntilBalanceIsSettled() {
         UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
