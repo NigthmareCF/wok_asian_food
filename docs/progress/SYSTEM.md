@@ -5,6 +5,7 @@
 - Fetch confirmó backend `9b47e21`, app `787171a` y documentación `98c3bf1`, alineadas con sus ramas remotas.
 - Backend pasó contra PostgreSQL 18/Testcontainers: 67 suites/282 pruebas, cero fallos, errores u omisiones; Flyway aplicó V1–V51 desde cero. App Cliente: 24 archivos/98 pruebas, lint y TypeScript aprobados.
 - La rama financiera avanzó a `6df0ed4`; sus únicos cambios nuevos son versiones Next/eslint 16.3.8, lockfile y un test de horario pickup. Su API permanece en el estado auditado de `599f19a`: 45 suites/252 pruebas, 0 fallos/errores y una prueba opcional de frontera web omitida por no configurar `wok.web.test.dir`.
+- La candidata comparte 21 archivos backend con la rama activa (12 de producción, 9 de test); V26/V27 tienen además colisión semántica aunque los nombres de archivo difieran.
 - El typecheck/build Web de esa candidata no se considera validado: la copia aislada tenía dependencias compartidas incompletas (`@vitejs/plugin-react` no estaba disponible). No se integró ninguna parte de esa rama.
 - Para llevar los intentos persistentes de pago presencial al backend actual se requiere adaptar el protocolo a pagos de repartidor/reembolsos y crear migraciones nuevas V52+; la rama candidata reutiliza V26/V27 que ya tienen otro significado local.
 
