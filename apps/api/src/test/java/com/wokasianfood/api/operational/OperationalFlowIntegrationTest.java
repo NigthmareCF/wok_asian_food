@@ -85,6 +85,12 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
                 .isEqualTo("Atún chipotle");
         assertThat(details.path("items").get(0).path("modifiers").get(0).path("priceDelta").decimalValue())
                 .isEqualByComparingTo("5.00");
+        JsonNode accountDetails = body(get("/api/v1/operational/accounts/" + accountId, token));
+        JsonNode accountModifier = accountDetails.path("orders").get(0).path("items").get(0)
+                .path("modifiers").get(0);
+        assertThat(accountModifier.path("group").asText()).startsWith("Relleno ");
+        assertThat(accountModifier.path("name").asText()).isEqualTo("Atún chipotle");
+        assertThat(accountModifier.path("priceDelta").decimalValue()).isEqualByComparingTo("5.00");
 
         JsonNode queue = body(get("/api/v1/operational/kitchen/tickets?stationId=" + stationId(stationCode), token));
         assertThat(queue).hasSize(1);

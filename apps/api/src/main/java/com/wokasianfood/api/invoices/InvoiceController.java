@@ -319,13 +319,20 @@ class InvoiceService {
                 rs.getInt("currency_count"), rs.getObject("currency_id", UUID.class), List.of()), accountId);
         Billing summary = summaries.getFirst();
         List<Line> lines = jdbc.query("""
-            SELECT oi.id, oi.name_snapshot, oi.quantity, oi.unit_price
+            SELECT oi.id, oi.name_snapshot, oi.quantity, oi.unit_price,
+                   COALESCE((
+                       SELECT string_agg(selected.modifier_name_snapshot, ', '
+                               ORDER BY selected.group_name_snapshot, selected.modifier_name_snapshot,
+                                        selected.modifier_id)
+                       FROM wok.order_item_modifiers selected
+                       WHERE selected.order_item_id = oi.id
+                   ), '') AS modifier_snapshot
             FROM wok.order_items oi
             JOIN wok.orders o ON o.id = oi.order_id
             WHERE o.account_id = ? AND o.status <> 'CANCELLED' AND oi.status = 'ACTIVE'
             ORDER BY o.opened_at, o.id, oi.created_at, oi.id
             """, (rs, row) -> new Line(rs.getObject("id", UUID.class), rs.getString("name_snapshot"),
-                rs.getInt("quantity"), rs.getBigDecimal("unit_price")), accountId);
+                rs.getInt("quantity"), rs.getBigDecimal("unit_price"), rs.getString("modifier_snapshot")), accountId);
         return new Billing(summary.total(), summary.lineCount(), summary.currencyCount(), summary.currencyId(), lines);
     }
 
@@ -372,7 +379,11 @@ class InvoiceService {
 
     private record RequestedBilling(String customerName, String customerTaxId) {}
 
-    private record Line(UUID orderItemId, String description, int quantity, BigDecimal unitPrice) {}
+    private record Line(UUID orderItemId, String name, int quantity, BigDecimal unitPrice, String modifiers) {
+        private String description() {
+            return modifiers == null || modifiers.isBlank() ? name : name + " (" + modifiers + ")";
+        }
+    }
 
     public record InvoiceSummary(UUID invoiceId, String status, String currency, BigDecimal subtotal,
                                  BigDecimal taxTotal, BigDecimal total, String customerName,

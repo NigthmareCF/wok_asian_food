@@ -91,7 +91,25 @@ class AccountService {
                 .computeIfAbsent(rs.getObject("order_id", UUID.class), ignored -> new ArrayList<>())
                 .add(new AccountItem(rs.getObject("id", UUID.class), rs.getString("name_snapshot"),
                         rs.getInt("quantity"), rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"),
-                        rs.getString("status"))), accountId);
+                        rs.getString("status"), List.of())), accountId);
+        Map<UUID, List<AccountModifier>> modifiersByItem = new LinkedHashMap<>();
+        jdbc.query("""
+            SELECT selected.order_item_id, selected.group_name_snapshot, selected.modifier_name_snapshot,
+                   selected.price_delta
+            FROM wok.order_item_modifiers selected
+            JOIN wok.order_items item ON item.id = selected.order_item_id
+            JOIN wok.orders o ON o.id = item.order_id
+            WHERE o.account_id = ?
+            ORDER BY item.created_at, item.id, selected.group_name_snapshot,
+                     selected.modifier_name_snapshot, selected.modifier_id
+            """, (rs, row) -> new AccountModifierRow(rs.getObject("order_item_id", UUID.class),
+                new AccountModifier(rs.getString("group_name_snapshot"), rs.getString("modifier_name_snapshot"),
+                        rs.getBigDecimal("price_delta"))), accountId)
+                .forEach(row -> modifiersByItem.computeIfAbsent(row.orderItemId(), ignored -> new ArrayList<>())
+                        .add(row.modifier()));
+        itemsByOrder.replaceAll((orderId, items) -> items.stream().map(item -> new AccountItem(item.id(),
+                item.name(), item.quantity(), item.unitPrice(), item.lineTotal(), item.status(),
+                modifiersByItem.getOrDefault(item.id(), List.of()))).toList());
 
         List<AccountOrder> orders = jdbc.query("""
             SELECT o.id, o.code, o.status, o.channel, o.total, o.subtotal, o.discount, o.row_version,
@@ -146,7 +164,9 @@ class AccountService {
                                Instant openedAt, Instant closedAt, int itemCount, BigDecimal subtotal,
                                BigDecimal discount, String currency, int rowVersion, List<AccountItem> items) {}
     public record AccountItem(UUID id, String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
-                              String status) {}
+                              String status, List<AccountModifier> modifiers) {}
+    public record AccountModifier(String group, String name, BigDecimal priceDelta) {}
+    private record AccountModifierRow(UUID orderItemId, AccountModifier modifier) {}
     public record AccountPayment(UUID id, BigDecimal amount, BigDecimal tipAmount, String method, String status,
                                  String reference, Instant capturedAt, BigDecimal refundedAmount,
                                  BigDecimal refundedTipAmount, String currency) {}

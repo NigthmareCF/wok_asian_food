@@ -56,6 +56,37 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void detailedInvoiceDescriptionPreservesSelectedModifierSnapshot() {
+        UUID actor = createUserWithRole("factura-modificador-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta factura con opciones");
+        MenuItemSeed menu = seedMenuItem("Onigiri", "45.00");
+        UUID orderId = closedOrderWithItem(accountId, actor, menu, "Onigiri", 1, "45.00", "45.00");
+        String groupName = "Relleno " + UUID.randomUUID();
+        UUID groupId = jdbc.queryForObject("""
+                INSERT INTO wok.modifier_groups (name, min_selection, max_selection, required)
+                VALUES (?, 1, 1, true) RETURNING id
+                """, UUID.class, groupName);
+        UUID modifierId = jdbc.queryForObject("""
+                INSERT INTO wok.modifiers (group_id, name, price_delta) VALUES (?, 'Atún chipotle', 5.00)
+                RETURNING id
+                """, UUID.class, groupId);
+        jdbc.update("""
+                INSERT INTO wok.order_item_modifiers
+                    (order_item_id, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta)
+                SELECT id, ?, 'Relleno', 'Atún chipotle', 5.00
+                FROM wok.order_items WHERE order_id = ?
+                """, modifierId, orderId);
+
+        UUID invoiceId = draft(token, accountId);
+        JsonNode invoice = body(get("/api/v1/operational/invoices/" + invoiceId, token));
+        assertThat(invoice.path("items")).hasSize(1);
+        assertThat(invoice.path("items").get(0).path("description").asText())
+                .isEqualTo("Onigiri (Atún chipotle)");
+        assertThat(invoice.path("items").get(0).path("unitPrice").decimalValue()).isEqualByComparingTo("45.00");
+    }
+
+    @Test
     void editsOnlyDraftsWithOptimisticVersionAndKeepsFiscalPoolWithinAccountTotal() {
         UUID actor = createUserWithRole("factura-editar-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
