@@ -484,3 +484,8 @@
 - Pickup y delivery ahora usan una clave idempotente independiente para cotizar; conservan sin cambios la clave que se usará para crear la solicitud. La app persiste la clave y estado pendiente antes del request, reusa la misma clave tras un resultado de red incierto y rota la clave al recibir definitivamente una cotización vencida.
 - Ante una respuesta vencida, se intenta una sola cotización nueva con la clave rotada. El segundo intento también queda persistido antes de llamar la API; después de respuesta definitiva se guarda `quoteRequestPending=false`, incluso si la respuesta continúa vencida.
 - Verificación: Vitest 97/97, TypeScript `--noEmit`, ESLint, export Expo Android/Web (17 rutas) y `git diff --check`. Los exports son bundles; no son APK instalable ni prueba en dispositivo.
+
+## 2026-10-08 — Revalidación de la rama móvil
+
+- Sin cambios de código móvil en este slice. Volví a ejecutar `npm run typecheck --workspace mobile`, `npm run lint --workspace mobile` y `npm test --workspace mobile` sobre `feature/mobile-shell`; los tres comandos pasan y Vitest reporta 98 pruebas en 24 archivos.
+- Esta verificación no cubre APK, Android/iOS físicos ni E2E contra la API; no se declara instalación ni conectividad móvil comprobada.
