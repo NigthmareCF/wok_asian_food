@@ -1,5 +1,6 @@
 import { Link } from "expo-router";
 import * as Crypto from "expo-crypto";
+import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
@@ -386,8 +387,107 @@ function OrderHistory() {
           <Notice>Esta solicitud todavía no es un pedido aceptado y no se ha cobrado.</Notice>
           <Button title="Cancelar solicitud" secondary busy={cancelling === item.requestId} disabled={Boolean(cancelling)} onPress={() => void cancel(item.requestId)} />
         </> : null}
+        {item.paymentPreference === "TRANSFER_AT_PICKUP"
+          && (item.status === "PENDING_REVIEW" || item.status === "ACCEPTED")
+          ? <TransferEvidencePanel requestId={item.requestId} request={request} /> : null}
       </Card>)}
       <Button title="Actualizar solicitudes" secondary busy={loading || deliveryLoading} onPress={() => void Promise.all([refresh(), refreshDelivery(), refreshTracking(), refreshChangeRequests()])} />
     </>}
   </Page></ScrollView>;
+}
+
+type EvidenceReceipt = {
+  id: string;
+  orderRequestId: string;
+  status: "NEEDS_REVIEW" | "VERIFIED" | "REJECTED";
+  contentType: string;
+  byteSize: number;
+  createdAt: string;
+  version: number;
+};
+
+function TransferEvidencePanel({ requestId, request }: {
+  requestId: string;
+  request: <T>(path: string, options?: RequestInit) => Promise<T>;
+}) {
+  const [evidence, setEvidence] = useState<EvidenceReceipt[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState<{ asset: ImagePicker.ImagePickerAsset; key: string } | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      setEvidence(await request<EvidenceReceipt[]>(`/api/v1/client/order-requests/${requestId}/payment-evidence`));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No pudimos consultar el comprobante.");
+    } finally { setLoading(false); }
+  }, [request, requestId]);
+
+  useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
+
+  async function chooseImage() {
+    setError(""); setMessage("");
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"], allowsEditing: false, quality: 0.85,
+        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      if (asset.fileSize != null && asset.fileSize > 8 * 1024 * 1024) {
+        setError("La imagen supera el límite de 8 MB."); return;
+      }
+      if (asset.mimeType && !["image/jpeg", "image/png"].includes(asset.mimeType.toLowerCase())) {
+        setError("Elige una imagen JPG o PNG."); return;
+      }
+      setSelected({ asset, key: Crypto.randomUUID() });
+    } catch {
+      setError("No pudimos abrir tus imágenes. Revisa los permisos e inténtalo de nuevo.");
+    }
+  }
+
+  async function upload() {
+    if (!selected) return;
+    const mimeType = selected.asset.mimeType?.toLowerCase();
+    if (mimeType !== "image/jpeg" && mimeType !== "image/png") {
+      setError("El archivo no indica un formato JPG o PNG compatible."); return;
+    }
+    setUploading(true); setError(""); setMessage("");
+    try {
+      const form = new FormData();
+      const filename = mimeType === "image/png" ? "comprobante.png" : "comprobante.jpg";
+      const payload = selected.asset.file ?? { uri: selected.asset.uri, name: filename, type: mimeType };
+      form.append("file", payload as Blob);
+      await request<EvidenceReceipt>(`/api/v1/client/order-requests/${requestId}/payment-evidence`, {
+        method: "POST", headers: { "Idempotency-Key": selected.key }, body: form,
+      });
+      setSelected(null);
+      setMessage("Comprobante enviado. El equipo debe confirmar el pago; adjuntarlo no lo acredita automáticamente.");
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No pudimos enviar el comprobante. Puedes reintentar.");
+    } finally { setUploading(false); }
+  }
+
+  const current = evidence[0];
+  const status = current?.status === "VERIFIED" ? "Pago revisado y registrado por el restaurante"
+    : current?.status === "REJECTED" ? "Comprobante rechazado; contacta al restaurante para coordinar otro medio"
+      : current?.status === "NEEDS_REVIEW" ? "Comprobante recibido, pendiente de revisión"
+        : "No has enviado un comprobante";
+
+  return <View style={ui.section}>
+    <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>Transferencia</Text>
+    {loading ? <View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Consultando revisión…</Text></View>
+      : <Notice tone={current?.status === "VERIFIED" ? "success" : current?.status === "REJECTED" ? "error" : "info"}>{status}</Notice>}
+    {message ? <Notice tone="success">{message}</Notice> : null}
+    {error ? <Notice tone="error">{error}</Notice> : null}
+    {!current || current.status === "REJECTED" ? <>
+      <Button title={selected ? `Imagen: ${selected.asset.fileName ?? "comprobante seleccionado"}` : "Elegir comprobante JPG o PNG"}
+        secondary onPress={() => void chooseImage()} disabled={uploading} />
+      {selected ? <Button title="Enviar para revisión" onPress={() => void upload()} busy={uploading} disabled={uploading} /> : null}
+    </> : null}
+  </View>;
 }

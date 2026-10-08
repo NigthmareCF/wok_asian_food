@@ -56,4 +56,23 @@ describe("apiRequest error messages", () => {
     await expect(request).rejects.toThrow("La sesión no es válida. Inicia sesión nuevamente.");
     await expect(request).rejects.toMatchObject({ status: 401 });
   });
+
+  it("lets the browser set the multipart boundary when uploading evidence", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "evidence-1" }), {
+      status: 201, headers: { "Content-Type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const form = new FormData();
+    form.append("file", new Blob(["image-bytes"], { type: "image/png" }), "receipt.png");
+
+    await expect(apiRequest("/api/v1/client/order-requests/order-1/payment-evidence", {
+      method: "POST", headers: { "Idempotency-Key": "attempt-1" }, body: form,
+    }, "access-token")).resolves.toEqual({ id: "evidence-1" });
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const headers = request.headers as Record<string, string>;
+    expect(headers["Content-Type"]).toBeUndefined();
+    expect(headers.Authorization).toBe("Bearer access-token");
+    expect(headers["Idempotency-Key"]).toBe("attempt-1");
+  });
 });
