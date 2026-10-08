@@ -53,15 +53,23 @@ class RealMenuSeedIntegrationTest extends PostgresIntegrationTest {
                 SELECT count(*) FROM wok.item_recipe_components rc
                 JOIN wok.menu_items product ON product.item_id=rc.parent_item_id
                 WHERE product.slug IN ('matcha-latte','matcha-kiwi','matcha-maracuya','blue-matcha','carbonatada')
-                """, Integer.class)).isEqualTo(15);
+                """, Integer.class)).isEqualTo(19);
         assertThat(recipeQuantity("matcha-latte", "ING_MATCHA_GREEN")).isEqualByComparingTo("1");
         assertThat(recipeQuantity("matcha-latte", "ING_WATER")).isEqualByComparingTo("59.14706");
         assertThat(recipeQuantity("matcha-latte", "ING_MILK")).isEqualByComparingTo("147.86765");
+        assertThat(recipeQuantity("matcha-latte", "ING_SIMPLE_SYRUP")).isEqualByComparingTo("59.14706");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM wok.item_recipe_components rc
+                JOIN wok.menu_items product ON product.item_id=rc.parent_item_id
+                JOIN wok.items component ON component.id=rc.component_item_id
+                WHERE product.slug IN ('matcha-latte','matcha-kiwi','matcha-maracuya','blue-matcha')
+                  AND component.sku='ING_SIMPLE_SYRUP' AND rc.quantity=59.14706
+                """, Integer.class)).isEqualTo(4);
         assertThat(recipeQuantity("matcha-kiwi", "ING_KIWI_PULP")).isEqualByComparingTo("29.57353");
         assertThat(recipeQuantity("matcha-maracuya", "ING_PASSIONFRUIT_PULP")).isEqualByComparingTo("29.57353");
         assertThat(recipeQuantity("blue-matcha", "ING_MATCHA_BLUE")).isEqualByComparingTo("1");
         assertThat(recipeQuantity("carbonatada", "ING_MINERAL_WATER_CAN")).isEqualByComparingTo("1");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.items i JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT' AND i.track_inventory", Integer.class)).isEqualTo(7);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.items i JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT' AND i.track_inventory", Integer.class)).isEqualTo(8);
         assertThat(jdbc.queryForObject("SELECT factor_to_base FROM wok.units WHERE code='FL_OZ'", BigDecimal.class))
                 .isEqualByComparingTo("29.573530");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.inventory_balances b JOIN wok.items i ON i.id=b.item_id JOIN wok.item_types t ON t.id=i.item_type_id WHERE t.code='PRELIMINARY_INGREDIENT'", Integer.class)).isZero();
