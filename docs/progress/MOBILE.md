@@ -526,3 +526,9 @@
 - Build local `assembleRelease` para `arm64-v8a` completado. APK: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` (43 MiB), SHA-256 `d51cb17cd9a3f6edc60eb1338f0d6fc649ae7adb550cd27fbf1901ad7ab1e95a`. Package `com.anonymous.wokasianfood`, versión `1.0.0`, firmado y verificado con APK Signature Scheme v2. Bundle JS está incluido; no requiere Metro.
 - El APK usa la clave debug local y sólo sirve para revisión interna; no es firmable para distribución productiva/tiendas. Fue generado apuntando a la IP privada configurada para la API; esa API no estaba respondiendo durante esta verificación. No se instaló en un teléfono: no había dispositivo ADB y el entorno restringió el arranque del daemon ADB.
 - Verificación: `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile`, `npm run test --workspace mobile` (107/107), `expo prebuild`, `assembleRelease`, verificación de firma y manifiesto. Sigue pendiente probar instalación, navegación y conexión en teléfono físico con el backend LAN levantado.
+
+## 2026-10-08 — Regresión automatizada de cleartext para LAN
+
+- Se añadieron casos Vitest para permitir HTTP únicamente a loopback, IPv4 privada RFC1918 e IPv6 ULA, y mantenerlo deshabilitado para HTTPS, hosts públicos y rangos no privados. ESLint ahora también analiza `app.config.js` y su prueba.
+- Este control evita que una configuración futura de URL pública habilite accidentalmente tráfico HTTP. La propiedad se comprueba contra la configuración Expo que usa el plugin de build, además del manifiesto del APK ya inspeccionado.
+- Verificación actual tras la cobertura: `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile` y Vitest 118/118 (27 archivos) pasan. El APK ya generado no cambió porque el ajuste sólo añade pruebas/configuración de tooling.

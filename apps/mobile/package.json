@@ -40,8 +40,8 @@
     "android": "expo start --android --go",
     "ios": "expo start --ios --go",
     "web": "expo start --web",
-    "lint": "eslint src app",
-    "test": "vitest run src/lib/*.test.ts",
+    "lint": "eslint src app app.config.js app.config.test.js",
+    "test": "vitest run src/lib/*.test.ts app.config.test.js",
     "typecheck": "tsc --noEmit"
   },
   "private": true
