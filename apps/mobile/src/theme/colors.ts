@@ -1,9 +1,11 @@
-import { darkTokens, lightTokens } from "./tokens";
+import { darkTokens, lightTokens, mobileContrastTokens } from "./tokens";
 
 export function getThemeColors(scheme: "light" | "dark") {
   const tokens = scheme === "dark" ? darkTokens : lightTokens;
   const color = (token: keyof typeof lightTokens) =>
     `rgb(${tokens[token].replaceAll(" ", ", ")})`;
+  const semanticColor = (value: string) =>
+    `rgb(${value.replaceAll(" ", ", ")})`;
   return {
     background: color("--background"),
     navigation: color("--navigation"),
@@ -12,7 +14,12 @@ export function getThemeColors(scheme: "light" | "dark") {
     foreground: color("--foreground"),
     mutedForeground: color("--muted-foreground"),
     primary: color("--primary"),
+    primaryHover: color("--primary-hover"),
     primaryForeground: color("--primary-foreground"),
+    actionForeground: semanticColor(
+      mobileContrastTokens[scheme].actionForeground,
+    ),
+    accentText: semanticColor(mobileContrastTokens[scheme].accentText),
     border: color("--border"),
     success: color("--success"),
     successForeground: color("--success-foreground"),

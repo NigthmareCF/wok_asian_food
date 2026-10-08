@@ -1,4 +1,4 @@
-// Web defines only dark colors. Light complements the existing warm mobile palette.
+// Alternative light palette retained; the branded mobile experience defaults to dark.
 export const lightTokens = {
   "--background": "255 250 242",
   "--navigation": "244 238 229",
@@ -44,4 +44,16 @@ export const darkTokens: Record<keyof typeof lightTokens, string> = {
   "--destructive": "210 65 65",
   "--destructive-foreground": "255 158 158",
   "--focus": "141 194 255",
+};
+
+// Mobile interaction semantics complement, rather than alter, the exact Web palette.
+export const mobileContrastTokens = {
+  light: {
+    actionForeground: lightTokens["--primary-foreground"],
+    accentText: lightTokens["--primary"],
+  },
+  dark: {
+    actionForeground: darkTokens["--background"],
+    accentText: darkTokens["--primary-hover"],
+  },
 };
