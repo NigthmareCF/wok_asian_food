@@ -3,7 +3,7 @@
 ## 2026-10-08 — Serializar solicitudes de recuperación de contraseña
 
 - `requestReset` bloquea la fila de la cuenta activa (`FOR UPDATE`) antes de consultar el límite horario y crear un challenge. Solicitudes simultáneas para la misma cuenta ya no pueden observar el mismo contador anterior y emitir en paralelo por encima del límite interno.
-- Prueba `VerificationResendTest`: 6/6 aprobadas, incluida verificación del bloqueo antes del conteo. La primera ejecución bajo sandbox no pudo adjuntar el agente inline de Mockito y produjo fallos ambientales; repetida con permisos de ejecución pasó. Sin cambio de esquema/endpoint.
+- Pruebas `VerificationResendTest` 6/6 y `SecurityCompositionIntegrationTest` 5/5; el recorrido HTTP completo registra/verifica usuario, solicita reset con respuesta neutral para cuenta existente e inexistente, consume correo de prueba, revoca sesión y valida la contraseña nueva. Suite completa: 69 suites / 297 pruebas, cero fallos/errores/omitidas; PostgreSQL 18 / Flyway V1–V51. Sin cambio de esquema/endpoint.
 
 ## 2026-10-08 — Expiración de holds usa el reloj de PostgreSQL
 

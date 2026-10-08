@@ -120,4 +120,56 @@ class SecurityCompositionIntegrationTest extends PostgresIntegrationTest {
                 Integer.class, sessionId)).isEqualTo(1);
         assertThat(get("/api/v1/client/sessions", accessToken).statusCode()).isEqualTo(401);
     }
+
+    @Test
+    void passwordResetUsesNeutralResponseAndRevokesExistingSessions() throws Exception {
+        String email = "password-reset-it-" + UUID.randomUUID() + "@example.invalid";
+        String oldPassword = "WokOldPassword-2026";
+        String newPassword = "WokNewPassword-2026";
+        assertThat(post("/api/v1/auth/register", null, """
+                {"email":"%s","displayName":"Reset Integration Client","password":"%s"}
+                """.formatted(email, oldPassword)).statusCode()).isEqualTo(202);
+        emailOutbox.sendNext();
+        String verificationCode = codeFor(email);
+        assertThat(post("/api/v1/auth/verify", null, """
+                {"email":"%s","code":"%s"}
+                """.formatted(email, verificationCode)).statusCode()).isEqualTo(200);
+
+        JsonNode login = json.readTree(post("/api/v1/auth/login", null, """
+                {"email":"%s","password":"%s","clientType":"MOBILE"}
+                """.formatted(email, oldPassword)).body());
+        String oldAccessToken = login.path("accessToken").asText();
+        String resetRequest = """
+                {"email":"%s"}
+                """.formatted(email);
+        var knownAccountResponse = post("/api/v1/auth/reset/request", null, resetRequest);
+        var unknownAccountResponse = post("/api/v1/auth/reset/request", null,
+                """
+                {"email":"unknown-%s@example.invalid"}
+                """.formatted(UUID.randomUUID()));
+        assertThat(knownAccountResponse.statusCode()).isEqualTo(202);
+        assertThat(unknownAccountResponse.statusCode()).isEqualTo(202);
+        assertThat(unknownAccountResponse.body()).isEqualTo(knownAccountResponse.body());
+
+        emailOutbox.sendNext();
+        String resetCode = codeFor(email);
+        assertThat(post("/api/v1/auth/reset/complete", null, """
+                {"email":"%s","code":"%s","newPassword":"%s"}
+                """.formatted(email, resetCode, newPassword)).statusCode()).isEqualTo(200);
+        assertThat(get("/api/v1/client/sessions", oldAccessToken).statusCode()).isEqualTo(401);
+        assertThat(post("/api/v1/auth/login", null, """
+                {"email":"%s","password":"%s"}
+                """.formatted(email, oldPassword)).statusCode()).isEqualTo(401);
+        assertThat(post("/api/v1/auth/login", null, """
+                {"email":"%s","password":"%s"}
+                """.formatted(email, newPassword)).statusCode()).isEqualTo(200);
+    }
+
+    private String codeFor(String email) {
+        var sent = emailProvider.sent().stream().filter(message -> message.recipient().equals(email)).reduce((first, next) -> next);
+        assertThat(sent).isPresent();
+        Matcher code = Pattern.compile("Tu código WOK es ([0-9]{6})\\.").matcher(sent.orElseThrow().body());
+        assertThat(code.find()).isTrue();
+        return code.group(1);
+    }
 }
