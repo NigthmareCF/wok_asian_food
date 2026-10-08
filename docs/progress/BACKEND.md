@@ -728,3 +728,8 @@
 
 - Se agregó una prueba PostgreSQL/Testcontainers que crea una reserva pendiente y evaluación de un cliente, y confirma que su historial sólo es visible para ese usuario. Un segundo cliente recibe historial vacío y `404` al intentar cancelar la reserva; el estado y el historial de auditoría permanecen intactos. El dueño puede cancelarla y genera exactamente un evento.
 - `ReservationOwnershipIntegrationTest`: 1/1 pasó. Suite completa: 70 suites / 307 pruebas, cero fallos, errores u omitidas. Las 51 migraciones Flyway se aplicaron desde esquema vacío en PostgreSQL 18. Esta prueba cierra una verificación de ownership que hasta ahora sólo tenía cobertura unitaria de la consulta/cancelación; no hubo cambio de lógica de producción ni de esquema.
+
+## 2026-10-08 — Aislamiento HTTP de direcciones guardadas
+
+- `CustomerAddressOwnershipIntegrationTest` crea una dirección con Cliente A y demuestra que Cliente B no la ve en su listado, no puede editarla ni borrarla (404); al final confirma que el dueño y los datos originales permanecen intactos.
+- Prueba focal 1/1 y suite completa: 71 suites / 308 pruebas, cero fallos, errores u omitidas. PostgreSQL 18/Testcontainers aplicó las 51 migraciones Flyway desde esquema vacío. No hubo cambio en lógica productiva ni en schema; se amplió evidencia adversarial de ownership a PII/direcciones.
