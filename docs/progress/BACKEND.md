@@ -597,3 +597,8 @@
 
 - El resumen `CashBreakdown` ahora atribuye propinas de courier a la sesión de caja donde se liquidaron (`courier_cash_collections.settled_cash_session_id`). Antes el movimiento se contaba como `otherIncome`, porque el pago original nunca pertenece a una caja al quedar en custodia del repartidor.
 - La prueba `PaymentIntegrationTest.courierCashIsReceivableUntilIdempotentlySettledIntoRegister` verifica que Q5 se muestra como propina, Q0 como otro ingreso y el efectivo esperado conserva Q135. Prueba focal PostgreSQL 18/Testcontainers + Flyway V1–V49.
+
+## 2026-10-07 — Respuesta HTTP correcta para rutas inexistentes
+
+- `ApiErrorHandler` ahora traduce `NoResourceFoundException` a HTTP 404 con el mensaje neutral `No encontramos el recurso solicitado.`. Antes el handler genérico devolvía 500 y registraba una ruta inválida como fallo interno.
+- `ApiErrorHandlerTest` verifica el status y mensaje sin exponer detalles del framework. Esto no corrige una ruta faltante del servidor desplegado: la comprobación de `/api/v1/public/service-hours` encontró que el contenedor activo se construyó desde `integration-review` y no reconoce ese controller; la ruta de la rama backend requiere `serviceType`, `from` y `to`.

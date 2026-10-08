@@ -3,12 +3,15 @@ package com.wokasianfood.api.identity;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -46,6 +49,12 @@ public class ApiErrorHandler {
         String message = error.getReason();
         if (message == null || message.isBlank()) message = "No se pudo procesar la solicitud.";
         return ResponseEntity.status(error.getStatusCode()).body(Map.of("message", message));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<Map<String, String>> resourceNotFound(NoResourceFoundException error) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", "No encontramos el recurso solicitado."));
     }
 
     @ExceptionHandler(Exception.class)

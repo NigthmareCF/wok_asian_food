@@ -3,9 +3,11 @@ package com.wokasianfood.api.identity;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 class ApiErrorHandlerTest {
     private final ApiErrorHandler handler = new ApiErrorHandler();
@@ -24,6 +26,15 @@ class ApiErrorHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(response.getBody()).containsEntry("message", "Acceso denegado.");
+    }
+
+    @Test
+    void returnsNotFoundForUnknownRoutesInsteadOfInternalServerError() {
+        var error = new NoResourceFoundException(HttpMethod.GET, "/", "api/v1/missing");
+        var response = handler.resourceNotFound(error);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).containsEntry("message", "No encontramos el recurso solicitado.");
     }
 
     @Test
