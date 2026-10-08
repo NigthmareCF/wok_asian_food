@@ -236,6 +236,80 @@ test("date selector announces real values as text rather than fictitious sliders
   );
 });
 
+test("actual reservation retry preserves its stored instant, serialized body and key", async () => {
+  const pending = {
+    body: JSON.stringify({
+      guests: 3,
+      requestedAt: "2026-01-01T00:00:00.000Z",
+      preorder: false,
+      notes: null,
+    }),
+    key: "stored-reservation-key",
+  };
+  const requests = [];
+  const { default: ReservationsScreen } = presentationModule(
+    "app/(tabs)/reservations.tsx",
+    {
+      react: {
+        useState: (value) => [
+          typeof value === "function" ? value() : value,
+          () => {},
+        ],
+        useRef: () => ({ current: pending }),
+        useEffect() {},
+        useCallback: (fn) => fn,
+      },
+      "react-native": {
+        Platform: { OS: "web" },
+        ScrollView: "ScrollView",
+        Text: "Text",
+        View: "View",
+      },
+      "@/components/reservation-date-time": {
+        ReservationDateTime: "ReservationDateTime",
+        stepGuests: dateHelpers().stepGuests,
+      },
+      "@/components/ui": {
+        ...Object.fromEntries(
+          [
+            "Button",
+            "Card",
+            "Field",
+            "Heading",
+            "Notice",
+            "Page",
+            "StatusChip",
+          ].map((name) => [name, name]),
+        ),
+        useUiTheme: () => ({ colors: theme.getThemeColors("dark"), ui: {} }),
+      },
+      "@/providers/session-provider": {
+        useSession: () => ({
+          session: { email: "client@example.test" },
+          request: async (path, options) => {
+            requests.push({ path, options });
+            return { submitted: true, message: "Solicitud recibida" };
+          },
+        }),
+      },
+    },
+  );
+  const tree = elements(ReservationsScreen());
+  assert.equal(
+    tree.some((item) => item.props.accessibilityRole === "adjustable"),
+    false,
+  );
+  assert.ok(
+    tree.some((item) => item.props.accessibilityLabel === "2 personas"),
+  );
+  await tree
+    .find((item) => item.props.title === "Enviar solicitud de reserva")
+    .props.onPress();
+  const sent = requests.find((item) => item.options?.method === "POST");
+  assert.equal(sent.options.body, pending.body);
+  assert.equal(sent.options.headers["Idempotency-Key"], pending.key);
+});
+
 test("reservation day changes retain the selected time without inventing availability", () => {
   const { selectReservationDay, selectReservationTime } = dateHelpers();
   assert.equal(
