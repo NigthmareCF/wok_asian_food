@@ -17,3 +17,15 @@ Pruebas de aceptación: register/verify/código malo/expiry/resend, login, refre
 - Evidencia HTTP en PostgreSQL efímero: registro 202, verify 200, login 200. Los escenarios de refresh reuse, ownership y privilege escalation continúan pendientes de pruebas automatizadas.
 - `AdminUserController` agrega listado paginado/búsqueda de cuentas y concesión/revocación de roles `OPERATIONAL`/`ADMIN`. El cambio requiere versión esperada y motivo, actualiza la versión del usuario y escribe auditoría; el último ADMIN activo no puede revocarse. `CLIENT` se excluye del flujo de staff y queda reservado al registro público.
 - Validación HTTP temporal: anonimato 401; búsqueda Admin 200; concesión/revocación con control de versión; versión obsoleta 409; no permitir retirar al último Admin 409; intento de asignar CLIENT por esta ruta 400. Sigue pendiente automatizar estos escenarios dentro de CI.
+
+## IP del cliente y proxies confiables — A3.1
+
+El backend usa `ClientIpResolver` antes del limitador de autenticación. `server.forward-headers-strategy=none` conserva el peer TCP en `remoteAddr`; no habilitar reinterpretación automática de `Forwarded`/XFF en Spring o Tomcat, pues eliminaría la frontera de confianza usada por el resolvedor.
+
+`wok.http.trusted-proxies` se configura mediante `WOK_HTTP_TRUSTED_PROXIES`, una lista separada por comas de IP literales o CIDR IPv4/IPv6. Su valor predeterminado es vacío: ninguna IP, loopback, red privada ni `app_net` es confiable implícitamente. Ejemplo exclusivamente ilustrativo: `192.0.2.10/32,2001:db8::10/128`; no representa direcciones autorizadas de despliegue. Usar únicamente peers verificados, con el alcance mínimo necesario. Una entrada malformada impide iniciar la aplicación.
+
+Solo se examina `X-Forwarded-For` cuando el `remoteAddr` inmediato pertenece a esa lista. Se validan todos sus saltos y se recorre la cadena de derecha a izquierda, retirando únicamente proxies confiables hasta el primer salto no confiable (o el extremo izquierdo si todos son confiables). Las cabeceras XFF repetidas se combinan en orden. El proxy autorizado debe sobrescribir XFF con el cliente observado o agregar el peer real al final; nunca reenviar sin control una cabecera suministrada por el cliente.
+
+Sin peer confiable, XFF se ignora. XFF ausente o inválido usa `remoteAddr`; un peer inválido resulta en `UNKNOWN` para contadores y SQL `NULL` en eventos. Se aceptan solo literales estrictos, sin DNS, hostnames, puertos, zonas IPv6 ni CIDR dentro de la cabecera. `Forwarded` y `X-Real-IP` no intervienen. La comparación CIDR mantiene las familias separadas: una dirección IPv4 mapeada en IPv6 requiere una entrada IPv6 explícita; no hereda confianza de una entrada IPv4.
+
+**Pendiente de Fernando:** revisar la topología y los peers inmediatos reales, aprobar la lista mínima y configurar/revisar Compose y BFF, incluida la construcción de XFF y la inaccesibilidad de rutas que permitan suplantar al proxy. A3.1 no modifica Nginx, Compose ni BFF y no autoriza confiar en toda `app_net`. Hasta esa revisión se conserva la lista vacía; detrás de un intermediario, los límites se aplicarán a su IP.

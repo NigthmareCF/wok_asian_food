@@ -68,7 +68,7 @@ class AuthHardeningTest {
     }
 
     @Test
-    void normalizesForwardedChainAndNormalizesIdentifierCase() {
+    void rejectsUnresolvedForwardedChainAndNormalizesIdentifierCase() {
         when(jdbc.queryForObject(contains("auth_rate_limit_events"), eq(Integer.class), anyString(), anyString(),
                 anyString(), any(Long.class))).thenReturn(0);
 
@@ -76,7 +76,7 @@ class AuthHardeningTest {
                 "203.0.113.7, 70.41.3.18");
 
         verify(jdbc).update(contains("INSERT INTO wok.auth_rate_limit_events"), eq("RESET_REQUEST"), eq("IP"),
-                eq("203.0.113.7"));
+                eq("UNKNOWN"));
         verify(jdbc).update(contains("INSERT INTO wok.auth_rate_limit_events"), eq("RESET_REQUEST"),
                 eq("IDENTIFIER"), eq("cliente@wok.demo"));
     }
@@ -85,7 +85,8 @@ class AuthHardeningTest {
     void appliesIpRateLimitBeforeAttemptingLogin() {
         AuthService service = org.mockito.Mockito.mock(AuthService.class);
         AuthRateLimiter limiter = org.mockito.Mockito.mock(AuthRateLimiter.class);
-        AuthController controller = new AuthController(service, org.mockito.Mockito.mock(CurrentUserService.class), limiter);
+        AuthController controller = new AuthController(service, org.mockito.Mockito.mock(CurrentUserService.class), limiter,
+                new ClientIpResolver(""));
         Login request = new Login("cliente@wok.demo", "ContraseñaSegura!2026", "WEB");
         HttpServletRequest http = org.mockito.Mockito.mock(HttpServletRequest.class);
         when(http.getRemoteAddr()).thenReturn("203.0.113.5");

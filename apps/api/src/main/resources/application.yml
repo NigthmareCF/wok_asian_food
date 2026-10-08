@@ -1,4 +1,5 @@
 server:
+  forward-headers-strategy: none
   port: ${SERVER_PORT:8080}
 spring:
   application:
@@ -32,6 +33,8 @@ springdoc:
   api-docs:
     path: /api/v1/openapi
 wok:
+  http:
+    trusted-proxies: ${WOK_HTTP_TRUSTED_PROXIES:}
   cors:
     # Solo origenes de desarrollo local; en produccion se sobrescribe con dominios reales.
     allowed-origins: ${WOK_CORS_ALLOWED_ORIGINS:http://localhost:3000}

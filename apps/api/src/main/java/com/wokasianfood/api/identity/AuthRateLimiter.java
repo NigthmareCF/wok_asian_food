@@ -39,7 +39,8 @@ public class AuthRateLimiter {
 
     public void check(Action action, String identifier, String clientIp) {
         Policy policy = policies.get(action);
-        String ip = ipSubject(clientIp);
+        String address = ClientIpAddress.normalize(clientIp);
+        String ip = address == null ? "UNKNOWN" : address;
         String normalizedIdentifier = identifier == null ? "" : identifier.trim().toLowerCase(java.util.Locale.ROOT);
         if (policy.ipMax() > 0) record(action, "IP", ip);
         if (policy.identifierMax() > 0) record(action, "IDENTIFIER", normalizedIdentifier);
@@ -50,7 +51,7 @@ public class AuthRateLimiter {
                 INSERT INTO wok.security_events (event_type, severity, ip_address, details)
                 VALUES ('AUTH_RATE_LIMITED', 'WARNING', ?::inet,
                         jsonb_build_object('action', ?, 'scope', 'AUTH'))
-                """, safeIp(clientIp), action.name());
+                """, address, action.name());
             throw new AuthException(429, "Demasiados intentos. Intenta más tarde.");
         }
     }
@@ -70,18 +71,6 @@ public class AuthRateLimiter {
             WHERE action = ? AND scope = ? AND subject = ? AND created_at > now() - make_interval(secs => ?)
             """, Integer.class, action.name(), scope, subject, window.toSeconds());
         return count != null && count > max;
-    }
-
-    private String ipSubject(String clientIp) {
-        return safeIp(clientIp);
-    }
-
-    private String safeIp(String clientIp) {
-        if (clientIp == null || clientIp.isBlank()) return "0.0.0.0";
-        String candidate = clientIp.trim();
-        if (candidate.contains(",")) candidate = candidate.split(",")[0].trim();
-        if (candidate.startsWith("::ffff:")) candidate = candidate.substring("::ffff:".length());
-        return candidate;
     }
 
     private record Policy(int ipMax, Duration ipWindow, int identifierMax, Duration identifierWindow) {}

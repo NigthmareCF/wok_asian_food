@@ -15,8 +15,11 @@ public class AuthController {
     private final AuthService auth;
     private final CurrentUserService currentUser;
     private final AuthRateLimiter rateLimiter;
-    public AuthController(AuthService auth, CurrentUserService currentUser, AuthRateLimiter rateLimiter) {
+    private final ClientIpResolver clientIps;
+    public AuthController(AuthService auth, CurrentUserService currentUser, AuthRateLimiter rateLimiter,
+                          ClientIpResolver clientIps) {
         this.auth = auth; this.currentUser = currentUser; this.rateLimiter = rateLimiter;
+        this.clientIps = clientIps;
     }
 
     @PostMapping("/register")
@@ -77,8 +80,6 @@ public class AuthController {
     }
 
     private String clientIp(HttpServletRequest http) {
-        String forwarded = http.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
-        return http.getRemoteAddr();
+        return clientIps.resolve(http);
     }
 }

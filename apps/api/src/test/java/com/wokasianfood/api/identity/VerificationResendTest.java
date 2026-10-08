@@ -51,7 +51,7 @@ class VerificationResendTest {
     void endpointAlwaysUsesNeutralAcceptedResponse() {
         AuthService service = mock(AuthService.class);
         AuthRateLimiter limiter = mock(AuthRateLimiter.class);
-        AuthController controller = new AuthController(service, mock(CurrentUserService.class), limiter);
+        AuthController controller = new AuthController(service, mock(CurrentUserService.class), limiter, new ClientIpResolver(""));
 
         var response = controller.resendVerification(new ResetRequest("person@example.test"), request());
 
