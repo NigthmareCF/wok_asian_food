@@ -72,6 +72,7 @@ function OrderHistory() {
   const [trackingError, setTrackingError] = useState("");
   const [creatingPaymentIntentFor, setCreatingPaymentIntentFor] = useState<string | null>(null);
   const [paymentIntents, setPaymentIntents] = useState<Record<string, PaymentIntentReceipt>>({});
+  const [paymentIntentUnavailable, setPaymentIntentUnavailable] = useState<Record<string, boolean>>({});
   const [changeRequests, setChangeRequests] = useState<OrderChangeRequestReceipt[]>([]);
   const changeRequestsRef = useRef<OrderChangeRequestReceipt[]>([]);
   const cancellationAttempts = useRef<OrderChangeAttempt[]>([]);
@@ -117,15 +118,16 @@ function OrderHistory() {
   useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
 
   const refreshDelivery = useCallback(async () => {
-    if (!session || session.offline) { setDeliveryRequests([]); setPaymentIntents({}); setDeliveryError(""); return; }
+    if (!session || session.offline) { setDeliveryRequests([]); setPaymentIntents({}); setPaymentIntentUnavailable({}); setDeliveryError(""); return; }
     setDeliveryLoading(true); setDeliveryError("");
     try {
       const deliveries = await request<DeliveryRequestReceipt[]>("/api/v1/client/delivery-requests");
       setDeliveryRequests(deliveries);
-      const currentIntents = await recoverCurrentPaymentIntents(deliveries, (requestId) =>
+      const recovered = await recoverCurrentPaymentIntents(deliveries, (requestId) =>
         request<PaymentIntentReceipt | null>(`/api/v1/client/delivery-requests/${requestId}/payment-intents/current`),
       );
-      setPaymentIntents(currentIntents);
+      setPaymentIntents(recovered.current);
+      setPaymentIntentUnavailable(Object.fromEntries(recovered.unavailableRequestIds.map((requestId) => [requestId, true])));
     }
     catch (cause) { setDeliveryError(cause instanceof Error ? cause.message : "No pudimos cargar tus solicitudes delivery."); }
     finally { setDeliveryLoading(false); }
@@ -338,6 +340,7 @@ function OrderHistory() {
             && ["AWAITING_KITCHEN", "READY_FOR_DISPATCH"].includes(item.dispatchStatus ?? "")
             ? cancellationControls(item.requestId) : null}
           {item.invoiceRequested ? <Text style={ui.body}>Factura solicitada para {item.invoiceName} · NIT {item.invoiceTaxId}; todavía no emitida.</Text> : null}
+          {paymentIntentUnavailable[item.requestId] ? <Notice tone="error">No pudimos consultar el estado de pago de esta solicitud. Puedes reintentar la actualización sin afectar las demás.</Notice> : null}
           {paymentIntents[item.requestId] ? <Notice>Pago {paymentStatusLabels[paymentIntents[item.requestId].status]} · {formatMoney(paymentIntents[item.requestId].amount, paymentIntents[item.requestId].currency)}. {paymentIntents[item.requestId].message}</Notice> : null}
           {item.status === "ACCEPTED" && item.paymentPreference === "ONLINE_PAYMENT_REQUESTED"
             && item.orderStatus !== "CLOSED" && item.orderStatus !== "CANCELLED" ? <>

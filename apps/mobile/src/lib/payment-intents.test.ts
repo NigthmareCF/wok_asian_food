@@ -11,7 +11,7 @@ describe("recoverCurrentPaymentIntents", () => {
     ], readCurrent);
 
     expect(readCurrent).toHaveBeenCalledExactlyOnceWith("accepted-online");
-    expect(result).toEqual({ "accepted-online": { intentId: "intent-accepted-online", status: "PENDING" } });
+    expect(result).toEqual({ current: { "accepted-online": { intentId: "intent-accepted-online", status: "PENDING" } }, unavailableRequestIds: [] });
   });
 
   it("does not return requests without a persisted intent", async () => {
@@ -21,6 +21,22 @@ describe("recoverCurrentPaymentIntents", () => {
     ], readCurrent);
 
     expect(readCurrent).toHaveBeenCalledExactlyOnceWith("without-intent");
-    expect(result).toEqual({});
+    expect(result).toEqual({ current: {}, unavailableRequestIds: [] });
+  });
+
+  it("keeps successful payment states when one delivery lookup is temporarily unavailable", async () => {
+    const readCurrent = vi.fn(async (requestId: string) => {
+      if (requestId === "temporarily-unavailable") throw new Error("temporary network failure");
+      return { intentId: `intent-${requestId}`, status: "PENDING" };
+    });
+    const result = await recoverCurrentPaymentIntents([
+      { requestId: "available", status: "ACCEPTED", paymentPreference: "ONLINE_PAYMENT_REQUESTED" },
+      { requestId: "temporarily-unavailable", status: "ACCEPTED", paymentPreference: "ONLINE_PAYMENT_REQUESTED" },
+    ], readCurrent);
+
+    expect(result).toEqual({
+      current: { available: { intentId: "intent-available", status: "PENDING" } },
+      unavailableRequestIds: ["temporarily-unavailable"],
+    });
   });
 });
