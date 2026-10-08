@@ -124,7 +124,7 @@ class InvoiceService {
 
         BigDecimal allocated = jdbc.queryForObject("""
             SELECT COALESCE(SUM(total), 0) FROM wok.invoices
-            WHERE account_id = ? AND status IN ('DRAFT', 'QUEUED', 'ISSUED')
+            WHERE account_id = ? AND status IN ('DRAFT', 'QUEUED', 'ISSUED', 'UNKNOWN')
             """, BigDecimal.class, accountId);
         BigDecimal available = billing.total().subtract(allocated == null ? BigDecimal.ZERO : allocated);
         BigDecimal total = requestedTotal == null ? available : requestedTotal;
@@ -206,7 +206,7 @@ class InvoiceService {
             throw new AuthException(422, "No se pueden facturar cuentas con varias monedas.");
         BigDecimal allocatedElsewhere = jdbc.queryForObject("""
             SELECT COALESCE(SUM(total), 0) FROM wok.invoices
-            WHERE account_id = ? AND id <> ? AND status IN ('DRAFT', 'QUEUED', 'ISSUED')
+            WHERE account_id = ? AND id <> ? AND status IN ('DRAFT', 'QUEUED', 'ISSUED', 'UNKNOWN')
             """, BigDecimal.class, accountId, invoiceId);
         BigDecimal available = billing.total().subtract(allocatedElsewhere == null
                 ? BigDecimal.ZERO : allocatedElsewhere);

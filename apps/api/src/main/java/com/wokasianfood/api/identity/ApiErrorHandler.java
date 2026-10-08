@@ -50,7 +50,7 @@ public class ApiErrorHandler {
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, String>> unexpected(Exception error) {
-        LOG.error("Unexpected API failure ({})", error.getClass().getSimpleName(), error);
+        LOG.error("Unexpected API failure ({})", error.getClass().getSimpleName());
         return ResponseEntity.internalServerError().body(Map.of("message", "Ocurrió un error interno."));
     }
 }

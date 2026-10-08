@@ -15,7 +15,13 @@ public interface FiscalProvider {
 
     record Certification(String authorizationNumber, UUID dteUuid, String providerRef) {}
 
+    /** Definitive rejection: the provider guarantees that no fiscal document was issued. */
     class FiscalException extends RuntimeException {
         public FiscalException(String message) { super(message); }
+    }
+
+    /** The provider guarantees this request was not accepted and it is safe to retry. */
+    class RetryableException extends RuntimeException {
+        public RetryableException(String message) { super(message); }
     }
 }

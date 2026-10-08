@@ -566,3 +566,10 @@
 - `PATCH /api/v1/operational/invoices/{invoiceId}` permite corregir receptor y monto sólo mientras la factura siga `DRAFT`. Requiere `expectedVersion` y `Idempotency-Key`, vuelve a validar el monto contra el pool libre de la atención bajo lock, recalcula subtotal/impuesto y reconstruye las líneas con el snapshot de consumo cuando corresponde.
 - Las facturas `QUEUED`/`ISSUED` no se editan en esta ruta. Cambios registran before/after y `X-Request-Id`; la versión se expone en el DTO para que el cliente pueda detectar ediciones concurrentes.
 - `InvoiceIntegrationTest` cubre edición, replay idempotente, límite fiscal, conflicto de versión, bloqueo posterior a emisión y auditoría en PostgreSQL 18/Testcontainers. Suite backend: 266 pruebas, 0 fallos/errores/omitidas; Flyway V1–V48.
+
+## 2026-10-07 — Conciliación de resultado FEL incierto
+
+- Flyway V49 permite estado `UNKNOWN`. Un timeout, pérdida de conexión u otra excepción no clasificada del proveedor ya no provoca reintento automático: se detiene/publica ese evento, conserva la asignación del monto al pool fiscal y audita `INVOICE_OUTCOME_UNKNOWN`. Reintentos sólo se realizan para `RetryableException`, que el adapter debe reservar para casos que garantiza que no fueron aceptados; rechazos definitivos van a `FAILED`.
+- `POST /api/v1/operational/invoices/{id}/reconcile` exige `invoices:manage`, `Idempotency-Key`, razón y referencia de consulta. Registra la confirmación humana obtenida en el portal/proveedor: `CONFIRMED_CERTIFIED` guarda los datos del DTE como emitido; `CONFIRMED_NOT_CERTIFIED` conserva evidencia/referencia auditada y crea un nuevo outbox para reintentar. No simula consulta automática del certificador.
+- `InvoiceUnknownOutcomeIntegrationTest` prueba timeout → UNKNOWN sin retry, los dos desenlaces manuales, reencolado tras confirmación negativa e idempotencia/rastro de auditoría. Suite completa: 268 pruebas, 0 fallos/errores/omitidas; PostgreSQL 18 aplica Flyway V1–V49.
+- Los fallos inesperados siguen registrándose sólo por clase de excepción; no se emite mensaje ni stacktrace potencialmente sensible a logs.

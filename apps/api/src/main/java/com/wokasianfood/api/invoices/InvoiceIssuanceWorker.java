@@ -53,8 +53,14 @@ public class InvoiceIssuanceWorker {
                     invoice.id(), invoice.accountName(), invoice.total(), invoice.taxTotal(),
                     invoice.customerName(), invoice.customerTaxId(), invoice.lines()));
             transactions.executeWithoutResult(status -> complete(event, invoice, certification));
-        } catch (RuntimeException error) {
+        } catch (FiscalProvider.RetryableException error) {
             transactions.executeWithoutResult(status -> recordFailure(event, error));
+        } catch (FiscalProvider.FiscalException error) {
+            transactions.executeWithoutResult(status -> recordDefinitiveFailure(event, invoice, error));
+        } catch (RuntimeException error) {
+            // A timeout/connection loss can happen after the provider certified the DTE.
+            // Stop automatic retries and require reconciliation to avoid duplicate fiscal documents.
+            transactions.executeWithoutResult(status -> recordUnknown(event, invoice, error));
         }
         return true;
     }
@@ -120,6 +126,43 @@ public class InvoiceIssuanceWorker {
                 WHERE id = ? AND status = 'QUEUED'
                 """, "No se pudo emitir: " + error.getClass().getSimpleName(), event.invoiceId());
         }
+    }
+
+    private void recordDefinitiveFailure(QueuedEvent event, Invoice invoice, FiscalProvider.FiscalException error) {
+        jdbc.update("""
+            UPDATE wok.invoices
+            SET status = 'FAILED', error = ?, updated_at = now(), row_version = row_version + 1
+            WHERE id = ? AND status = 'QUEUED'
+            """, "Certificación rechazada: " + error.getClass().getSimpleName(), event.invoiceId());
+        jdbc.update("""
+            UPDATE wok.outbox_events SET last_error = ?, published_at = now(),
+                claimed_until = NULL, claimed_by = NULL
+            WHERE id = ?
+            """, error.getClass().getSimpleName(), event.eventId());
+        jdbc.update("""
+            INSERT INTO wok.audit_logs (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            VALUES (?, 'INVOICE_CERTIFICATION_REJECTED', 'INVOICE', ?,
+                    jsonb_build_object('status', 'FAILED', 'errorType', ?), 'SUCCESS', ?)
+            """, invoice.createdBy(), event.invoiceId(), error.getClass().getSimpleName(), invoice.requestId());
+    }
+
+    private void recordUnknown(QueuedEvent event, Invoice invoice, RuntimeException error) {
+        jdbc.update("""
+            UPDATE wok.invoices
+            SET status = 'UNKNOWN', error = ?, updated_at = now(), row_version = row_version + 1
+            WHERE id = ? AND status = 'QUEUED'
+            """, "Resultado fiscal incierto: " + error.getClass().getSimpleName(), event.invoiceId());
+        jdbc.update("""
+            UPDATE wok.outbox_events SET last_error = ?, published_at = now(),
+                claimed_until = NULL, claimed_by = NULL
+            WHERE id = ?
+            """, error.getClass().getSimpleName(), event.eventId());
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            VALUES (?, 'INVOICE_OUTCOME_UNKNOWN', 'INVOICE', ?,
+                    jsonb_build_object('status', 'UNKNOWN', 'errorType', ?), 'SUCCESS', ?)
+            """, invoice.createdBy(), event.invoiceId(), error.getClass().getSimpleName(), invoice.requestId());
     }
 
     private void publish(UUID eventId) {
