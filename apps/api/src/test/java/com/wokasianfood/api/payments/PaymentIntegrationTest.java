@@ -344,6 +344,7 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                 + "/refunds", token, """
                 {"amount":5.00,"method":"CARD_EXTERNAL","reference":"REF-MULTI","reason":"Ajuste de prueba"}
                 """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(refund.path("currency").asText()).isEqualTo("GTQ");
         assertThat(refund.path("balance").isMissingNode()).isTrue();
 
         JsonNode account = body(get("/api/v1/operational/accounts/" + accountId, token));

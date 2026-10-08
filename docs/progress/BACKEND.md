@@ -651,5 +651,6 @@
 ## 2026-10-08 — Los recibos financieros no combinan monedas
 
 - El recibo idempotente de pago y la respuesta de reembolso calculan su balance con `AccountFinancialTotalsService`. Si la cuenta tiene más de una moneda, el campo escalar `balance` se omite en JSON en vez de sumar importes incompatibles. El reembolso también determina si reabre la cuenta revisando si alguna moneda conserva saldo pendiente; el evento de auditoría deja `remainingBalance` nulo en multimoneda.
+- `RefundReceipt` expone ahora el código de moneda del pago original para que el importe devuelto siga siendo interpretable aunque la cuenta tenga varias monedas.
 - `PaymentIntegrationTest` agrega un recorrido PostgreSQL real: cobra una cuenta GTQ, incorpora luego una orden USD, repite el cobro idempotente y registra un reembolso. El recibo no inventa un balance único y el detalle conserva los saldos separados GTQ/USD.
 - Verificación focal: `PaymentIntegrationTest` 15/15 y suite completa 67 suites / 285 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V51 desde esquema vacío. `git diff --check` limpio.

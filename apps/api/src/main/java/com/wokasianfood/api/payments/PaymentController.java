@@ -419,20 +419,24 @@ class PaymentService {
         List<RefundReceipt> rows = jdbc.query("""
             SELECT r.id, r.payment_id, r.refund_amount, r.tip_refund_amount, r.refund_method, r.status,
                    r.reference, r.cash_session_id, p.account_id, a.status AS account_status,
+                   c.code AS currency_code,
                    (SELECT id FROM wok.cash_movements WHERE refund_id = r.id) AS cash_movement_id
             FROM wok.payment_refunds r JOIN wok.payments p ON p.id = r.payment_id
+            JOIN wok.currencies c ON c.id = p.currency_id
             JOIN wok.order_accounts a ON a.id = p.account_id
             WHERE r.id = ?
             """, (rs, row) -> new RefundReceipt(rs.getObject("id", UUID.class),
                 rs.getObject("payment_id", UUID.class), rs.getObject("account_id", UUID.class),
                 rs.getString("account_status"), rs.getBigDecimal("refund_amount"),
                 rs.getBigDecimal("tip_refund_amount"), rs.getString("refund_method"), rs.getString("status"),
-                rs.getString("reference"), null, rs.getObject("cash_session_id", UUID.class),
+                rs.getString("reference"), rs.getString("currency_code"), null,
+                rs.getObject("cash_session_id", UUID.class),
                 rs.getObject("cash_movement_id", UUID.class), replay), refundId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos el reembolso registrado.");
         RefundReceipt row = rows.getFirst();
         return new RefundReceipt(row.refundId(), row.paymentId(), row.accountId(), row.accountStatus(), row.amount(),
-                row.tipAmount(), row.method(), row.status(), row.reference(), accountBalance(row.accountId()),
+                row.tipAmount(), row.method(), row.status(), row.reference(), row.currency(),
+                accountBalance(row.accountId()),
                 row.cashSessionId(), row.cashMovementId(), replay);
     }
 
@@ -467,6 +471,6 @@ class PaymentService {
                                  BigDecimal refundedAmount, BigDecimal refundedTipAmount, boolean idempotentReplay) {}
     public record RefundReceipt(UUID refundId, UUID paymentId, UUID accountId, String accountStatus,
                                 BigDecimal amount, BigDecimal tipAmount, String method, String status,
-                                String reference, BigDecimal balance, UUID cashSessionId,
+                                String reference, String currency, BigDecimal balance, UUID cashSessionId,
                                 UUID cashMovementId, boolean idempotentReplay) {}
 }
