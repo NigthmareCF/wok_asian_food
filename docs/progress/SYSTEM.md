@@ -1,9 +1,15 @@
 # Progreso del sistema
 
+## 2026-10-08 — Motivo de rechazo de comprobante visible al Cliente
+
+- `PaymentEvidenceService` incluye `reviewReason` en respuesta y consulta de historial del Cliente. La app Pedidos muestra el motivo si el personal rechaza el archivo, para que sepa qué corregir antes de enviarlo de nuevo.
+- La prueba PostgreSQL/Testcontainers verifica el motivo tanto en respuesta de rechazo como en lectura posterior del historial. Suite backend: 67 suites, 282 pruebas, 0 fallos/errores/omitidas. App: 24 archivos/98 pruebas, lint y typecheck aprobados.
+- Cambios preparados para las ramas backend/app/documentación; no hay migración nueva. Requiere integrar primero API V51 y app correspondiente.
+
 ## 2026-10-07 — Evidencia de transferencia Cliente y revisión Operativa
 
 - Backend branch `feature/backend-capacity-order-lifecycle`: `V51__customer_transfer_payment_evidence.sql` agrega evidencia privada y eventos auditables; hashes globales evitan reutilizar la misma imagen. Upload sólo acepta comprobantes pickup con `TRANSFER_AT_PICKUP`, ownership del cliente, JPG/PNG por firma, hasta 8 MB e idempotencia.
-- API Cliente: `POST/GET /api/v1/client/order-requests/{requestId}/payment-evidence` y descarga autenticada de contenido. API Operativo con `payments:manage`: cola, contenido y decisión `VERIFY/REJECT` con versión esperada y motivo para rechazo.
+- API Cliente: `POST/GET /api/v1/client/order-requests/{requestId}/payment-evidence` y descarga autenticada de contenido. API Operativo con `payments:manage`: cola, contenido y decisión `VERIFY/REJECT` con versión esperada y motivo para rechazo; el motivo se devuelve al cliente después del rechazo.
 - Subir imagen nunca crea un pago. `VERIFY` exige solicitud pickup aceptada, una cuenta asociada y monto confirmado por personal; registra transferencia mediante `PaymentService` dentro de la transacción. Proveedor/OCR no confirma el pago.
 - Storage fuera del web root, volumen persistente en Compose, permisos POSIX privados, validación de decodificación, tamaño multipart limitado y `nosniff`/no-store en lectura. Suite backend completa con Docker/PostgreSQL 18: 67 suites, 282 pruebas, 0 fallos, errores u omitidas; V1–V51 aplicadas durante la ejecución.
 - Mismo V51 en `feature/database-migrations`; `bash database/validate.sh` pasó 51 migraciones, 15 checks SQL y seed idempotente (31 productos) en PostgreSQL 18.
