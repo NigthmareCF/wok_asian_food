@@ -519,3 +519,10 @@
 
 - Sin cambios de código móvil en este slice. Volví a ejecutar `npm run typecheck --workspace mobile`, `npm run lint --workspace mobile` y `npm test --workspace mobile` sobre `feature/mobile-shell`; los tres comandos pasan y Vitest reporta 98 pruebas en 24 archivos.
 - Esta verificación no cubre APK, Android/iOS físicos ni E2E contra la API; no se declara instalación ni conectividad móvil comprobada.
+
+## 2026-10-08 — APK Android local autónomo para revisión
+
+- `app.config.js` usa `expo-build-properties` para permitir tráfico cleartext sólo cuando `EXPO_PUBLIC_API_BASE_URL` apunta a loopback, IPv4 privada RFC1918 o IPv6 ULA. Una URL HTTPS o un host público mantiene `usesCleartextTraffic=false`; `expo prebuild` genera la configuración nativa desde Expo, sin editar los archivos Android generados.
+- Build local `assembleRelease` para `arm64-v8a` completado. APK: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` (43 MiB), SHA-256 `d51cb17cd9a3f6edc60eb1338f0d6fc649ae7adb550cd27fbf1901ad7ab1e95a`. Package `com.anonymous.wokasianfood`, versión `1.0.0`, firmado y verificado con APK Signature Scheme v2. Bundle JS está incluido; no requiere Metro.
+- El APK usa la clave debug local y sólo sirve para revisión interna; no es firmable para distribución productiva/tiendas. Fue generado apuntando a la IP privada configurada para la API; esa API no estaba respondiendo durante esta verificación. No se instaló en un teléfono: no había dispositivo ADB y el entorno restringió el arranque del daemon ADB.
+- Verificación: `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile`, `npm run test --workspace mobile` (107/107), `expo prebuild`, `assembleRelease`, verificación de firma y manifiesto. Sigue pendiente probar instalación, navegación y conexión en teléfono físico con el backend LAN levantado.

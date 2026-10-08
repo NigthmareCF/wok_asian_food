@@ -24,14 +24,28 @@ El backend emite un nonce criptográfico de un solo uso; la app lo pasa al SDK d
 
 ## APK Android para revisión
 
-`eas.json` define los perfiles `development` (development client) y `preview` (APK instalable, distribución interna). Para generar un APK desde EAS Build no hace falta instalar Android SDK en la laptop, pero sí iniciar sesión en una cuenta Expo y vincular el proyecto EAS. Configura `EXPO_PUBLIC_API_BASE_URL` en el entorno `preview` de EAS con una URL que alcance el backend desde el teléfono; una dirección `localhost` sólo apunta al propio teléfono y no sirve para una API en la laptop. La URL es pública y puede quedar en el bundle, no coloques secretos allí.
+`eas.json` define los perfiles `development` (development client) y `preview` (APK instalable, distribución interna). EAS Build no requiere Android SDK local, pero sí una cuenta Expo y un proyecto EAS vinculado. También se puede producir un APK local de preview sin Metro si Android SDK, Java y las dependencias nativas están instalados. Desde esta carpeta:
+
+```bash
+npx expo prebuild --platform android --no-install
+cd android
+EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-DEL-BACKEND>:<PUERTO> \
+  ./gradlew --no-daemon --max-workers=4 \
+  -PreactNativeArchitectures=arm64-v8a assembleRelease
+```
+
+El APK queda en `android/app/build/outputs/apk/release/app-release.apk`. Gradle puede requerir más memoria en la primera compilación; si aparece `Java heap space`, reintenta con `-Dorg.gradle.jvmargs='-Xmx5g -XX:MaxMetaspaceSize=1g'`. Este perfil local es ARM64 y se firma con la clave de debug del proyecto para revisión interna: no es un artefacto de tienda ni de producción. Debe generarse de nuevo tras cambiar configuración o código.
+
+Para API por HTTP, `app.config.js` habilita cleartext sólo si `EXPO_PUBLIC_API_BASE_URL` es una dirección privada IPv4 RFC1918, loopback o IPv6 ULA. HTTPS y hosts públicos no reciben esa excepción. Usa una IP alcanzable desde el teléfono; `localhost` apunta al propio teléfono. La misma URL queda visible en el bundle y nunca debe contener secretos. La API debe exponer HTTPS fuera de una LAN de desarrollo controlada.
+
+Para EAS Build, inicia sesión y configura `EXPO_PUBLIC_API_BASE_URL` en el entorno `preview` con una URL alcanzable desde el teléfono:
 
 ```bash
 npx eas-cli@latest login
 npx eas-cli@latest build --platform android --profile preview
 ```
 
-EAS entrega una URL instalable para el APK terminado. El QR de Metro/Expo Go sólo abre un bundle de desarrollo; no descarga ni instala el APK. Google Sign-In nativo requiere un development build y los identificadores OAuth públicos/documentados arriba. En esta laptop no están configurados `ANDROID_HOME`, `adb`, `sdkmanager` ni un proyecto EAS vinculado, por lo que aquí sólo se pudo exportar el bundle Android, no firmar un APK.
+EAS entrega una URL instalable para el APK terminado. El QR de Metro/Expo Go sólo abre un bundle de desarrollo; no descarga ni instala el APK. Google Sign-In nativo requiere un development build y los identificadores OAuth públicos/documentados arriba. Un build local ARM64 tampoco ha sido verificado en un dispositivo hasta completar la instalación y prueba de red.
 
 La URL y los flags `EXPO_PUBLIC_*` son visibles en el paquete de la app y nunca deben contener secretos. La API debe exponer HTTPS fuera de una LAN de desarrollo controlada.
 
