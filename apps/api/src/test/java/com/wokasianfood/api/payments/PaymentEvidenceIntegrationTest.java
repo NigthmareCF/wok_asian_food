@@ -69,6 +69,9 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
                 tokenForRole("OPERATIONAL"), "{\"action\":\"REJECT\",\"expectedVersion\":1,\"reason\":\"Referencia no coincide\"}");
         assertThat(rejected.statusCode()).isEqualTo(200);
         assertThat(body(rejected).path("status").asText()).isEqualTo("REJECTED");
+        assertThat(body(rejected).path("reviewReason").asText()).isEqualTo("Referencia no coincide");
+        HttpResponse<String> clientStatus = get("/api/v1/client/order-requests/" + requestId + "/payment-evidence", client);
+        assertThat(body(clientStatus).get(0).path("reviewReason").asText()).isEqualTo("Referencia no coincide");
     }
 
     @Test

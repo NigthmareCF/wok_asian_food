@@ -131,7 +131,7 @@ class PaymentEvidenceService {
         String checksum = sha256(contents);
 
         List<Receipt> replay = jdbc.query("""
-            SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version
+            SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version, review_reason
             FROM wok.payment_evidence WHERE customer_user_id = ? AND idempotency_key = ?
             """, PaymentEvidenceService::receiptRow, customerId, idempotencyKey);
         if (!replay.isEmpty()) {
@@ -146,7 +146,7 @@ class PaymentEvidenceService {
         if (!List.of("PENDING_REVIEW", "ACCEPTED").contains(request.status()))
             throw new AuthException(409, "Este pedido ya no admite comprobantes.");
         List<Receipt> sameEvidence = jdbc.query("""
-            SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version
+            SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version, review_reason
             FROM wok.payment_evidence WHERE order_request_id = ? AND customer_user_id = ? AND content_sha256 = ?
             """, PaymentEvidenceService::receiptRow, requestId, customerId, checksum);
         if (!sameEvidence.isEmpty()) return sameEvidence.getFirst();
@@ -167,14 +167,14 @@ class PaymentEvidenceService {
             storage.delete(evidenceId);
             throw new AuthException(409, "Este comprobante ya fue enviado o la solicitud cambió.");
         }
-        return new Receipt(evidenceId, requestId, "NEEDS_REVIEW", type, (long) contents.length, Instant.now(), 1);
+        return new Receipt(evidenceId, requestId, "NEEDS_REVIEW", type, (long) contents.length, Instant.now(), 1, null);
     }
 
     @Transactional(readOnly = true)
     List<Receipt> clientList(UUID customerId, UUID requestId) {
         request(customerId, requestId, false);
         return jdbc.query("""
-            SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version
+            SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version, review_reason
             FROM wok.payment_evidence WHERE customer_user_id = ? AND order_request_id = ? ORDER BY created_at DESC, id DESC
             """, PaymentEvidenceService::receiptRow, customerId, requestId);
     }
@@ -282,7 +282,7 @@ class PaymentEvidenceService {
 
     private Receipt findReceipt(UUID id) {
         return jdbc.query("""
-            SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version
+            SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version, review_reason
             FROM wok.payment_evidence WHERE id = ?
             """, PaymentEvidenceService::receiptRow, id).stream().findFirst()
                 .orElseThrow(() -> new AuthException(404, "No encontramos ese comprobante."));
@@ -305,7 +305,7 @@ class PaymentEvidenceService {
     private static Receipt receiptRow(java.sql.ResultSet rs, int row) throws java.sql.SQLException {
         return new Receipt(rs.getObject("id", UUID.class), rs.getObject("order_request_id", UUID.class),
                 rs.getString("status"), rs.getString("content_type"), rs.getLong("byte_size"),
-                rs.getTimestamp("created_at").toInstant(), rs.getInt("row_version"));
+                rs.getTimestamp("created_at").toInstant(), rs.getInt("row_version"), rs.getString("review_reason"));
     }
 
     private static String detectType(byte[] data) {
@@ -348,7 +348,7 @@ class PaymentEvidenceService {
     private static String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
 
     record Receipt(UUID id, UUID orderRequestId, String status, String contentType, long byteSize,
-                   Instant createdAt, int version) {}
+                   Instant createdAt, int version, String reviewReason) {}
     record QueueReceipt(UUID id, UUID orderRequestId, String status, String contentType, long byteSize,
                         Instant createdAt, int version, String customerName, BigDecimal amount, String currency) {}
     record FileReceipt(String contentType, byte[] contents) {}
