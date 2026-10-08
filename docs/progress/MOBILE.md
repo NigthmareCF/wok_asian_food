@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Reintento seguro de cancelaciones después de cerrar la app
+
+- Las claves de idempotencia y el motivo de una solicitud de cancelación de pedido aceptado ahora se guardan mediante el almacenamiento seguro existente, con vencimiento de 30 días. Si el dispositivo cierra la app o se pierde la respuesta, el reintento con el mismo motivo reutiliza la clave y el backend devuelve la misma solicitud; cambiar el motivo genera una nueva clave.
+- Los intentos se aíslan por cuenta y pedido, se limpian al recuperar una respuesta confirmada y el envío queda deshabilitado si el estado seguro del dispositivo aún no pudo restaurarse. Un intento conservado tras un fallo de limpieza es inocuo porque el backend ya respondió idempotentemente.
+- Verificación: 62 pruebas Vitest, ESLint, TypeScript y exports Expo Android/Web aprobados. Las exportaciones verifican el empaquetado y las rutas, no un APK instalable ni pruebas en un teléfono físico.
+
 ## 2026-10-07 — Backend incorpora medidas preliminares de bebidas
 
 - Backend añadió al seed componentes medidos para matcha y carbonatada; volúmenes están normalizados en ML y la pulpa por sabor permanece no operativa hasta revisión de receta. La app sigue consumiendo el menú y sus opciones desde la misma API, sin copiar BOM ni precios localmente.

@@ -1,12 +1,16 @@
 import { Link } from "expo-router";
 import * as Crypto from "expo-crypto";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { Button, Card, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { DeliveryRequestReceipt, OrderChangeRequestReceipt, PaymentIntentReceipt, PickupOrderTracking, PickupRequestDetails, PickupRequestState } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 import { recoverCurrentPaymentIntents } from "@/lib/payment-intents";
 import { useFocusedPolling } from "@/lib/use-focused-polling";
+import { OrderChangeAttempt, parseOrderChangeAttempts, removeOrderChangeAttempt, resolveOrderChangeAttempt } from "@/lib/order-change-attempts";
+import { deleteSecurePayload, readSecurePayload, saveSecurePayload } from "@/lib/reservation-attempt-storage";
+
+const orderChangeAttemptsKey = "wok.client.order-change-attempts.v1";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
   PENDING_REVIEW: "Pendiente de revisión", ACCEPTED: "Aceptada por el restaurante",
@@ -70,10 +74,37 @@ function OrderHistory() {
   const [paymentIntents, setPaymentIntents] = useState<Record<string, PaymentIntentReceipt>>({});
   const [changeRequests, setChangeRequests] = useState<OrderChangeRequestReceipt[]>([]);
   const changeRequestsRef = useRef<OrderChangeRequestReceipt[]>([]);
-  const cancellationAttempts = useRef<Record<string, { reason: string; key: string }>>({});
+  const cancellationAttempts = useRef<OrderChangeAttempt[]>([]);
+  const [cancellationAttemptsReady, setCancellationAttemptsReady] = useState(false);
+  const [cancellationStorageError, setCancellationStorageError] = useState("");
   const [changeReason, setChangeReason] = useState("");
   const [selectedChangeRequest, setSelectedChangeRequest] = useState<string | null>(null);
   const [submittingChange, setSubmittingChange] = useState<string | null>(null);
+
+  const restoreCancellationAttempts = useCallback(async () => {
+    if (!session?.email || Platform.OS === "web") {
+      cancellationAttempts.current = [];
+      setCancellationAttemptsReady(true);
+      setCancellationStorageError("");
+      return;
+    }
+    setCancellationAttemptsReady(false);
+    setCancellationStorageError("");
+    try {
+      const raw = await readSecurePayload(orderChangeAttemptsKey);
+      const parsed = raw ? parseOrderChangeAttempts(raw) : [];
+      cancellationAttempts.current = parsed;
+      if (raw && JSON.stringify(parsed) !== raw) {
+        if (parsed.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(parsed));
+        else await deleteSecurePayload(orderChangeAttemptsKey);
+      }
+      setCancellationAttemptsReady(true);
+    } catch {
+      setCancellationStorageError("No pudimos recuperar de forma segura el estado de tus solicitudes. Reintenta antes de enviar otra cancelación.");
+    }
+  }, [session?.email]);
+
+  useEffect(() => { void Promise.resolve().then(restoreCancellationAttempts); }, [restoreCancellationAttempts]);
 
   const refresh = useCallback(async () => {
     if (!session) { setRequests([]); setError(""); return; }
@@ -180,14 +211,21 @@ function OrderHistory() {
   }
 
   async function submitCancellation(orderRequestId: string) {
+    if (!cancellationAttemptsReady) {
+      setError("Estamos recuperando el estado de la solicitud. Espera un momento e inténtalo de nuevo.");
+      return;
+    }
     const reason = changeReason.trim();
     if (reason.length < 3) { setError("Describe brevemente por qué solicitas cancelar el pedido."); return; }
     setSubmittingChange(orderRequestId); setError(""); setNotice("");
-    const previousAttempt = cancellationAttempts.current[orderRequestId];
-    const attempt = previousAttempt?.reason === reason
-      ? previousAttempt : { reason, key: Crypto.randomUUID() };
-    cancellationAttempts.current[orderRequestId] = attempt;
+    const nextAttempts = resolveOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "", orderRequestId,
+      reason, () => Crypto.randomUUID());
+    const attempt = nextAttempts.find((item) => item.orderRequestId === orderRequestId &&
+      item.ownerEmail.trim().toLowerCase() === (session?.email ?? "").trim().toLowerCase());
+    if (!attempt) { setSubmittingChange(null); setError("No pudimos preparar una solicitud segura. Inténtalo de nuevo."); return; }
     try {
+      if (Platform.OS !== "web") await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(nextAttempts));
+      cancellationAttempts.current = nextAttempts;
       const receipt = await request<OrderChangeRequestReceipt>(
         `/api/v1/client/order-requests/${orderRequestId}/change-requests`,
         { method: "POST", headers: { "Idempotency-Key": attempt.key }, body: JSON.stringify({ reason: attempt.reason }) },
@@ -195,14 +233,14 @@ function OrderHistory() {
       const next = [receipt, ...changeRequestsRef.current.filter((item) => item.orderRequestId !== orderRequestId)];
       changeRequestsRef.current = next;
       setChangeRequests(next);
-      delete cancellationAttempts.current[orderRequestId];
+      await clearCancellationAttempt(orderRequestId);
       setSelectedChangeRequest(null); setChangeReason("");
       setNotice("Enviamos tu solicitud al equipo. El pedido sigue activo hasta que el equipo la revise.");
     } catch (cause) {
       await refreshChangeRequests();
       const recovered = changeRequestsRef.current.find((item) => item.orderRequestId === orderRequestId);
       if (recovered) {
-        delete cancellationAttempts.current[orderRequestId];
+        await clearCancellationAttempt(orderRequestId);
         setSelectedChangeRequest(null); setChangeReason("");
         setNotice(recovered.status === "PENDING_REVIEW"
           ? "La solicitud quedó registrada y espera revisión. El pedido sigue activo mientras tanto."
@@ -214,13 +252,25 @@ function OrderHistory() {
     finally { setSubmittingChange(null); }
   }
 
+  async function clearCancellationAttempt(orderRequestId: string) {
+    const next = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "", orderRequestId);
+    cancellationAttempts.current = next;
+    if (Platform.OS === "web") return;
+    try {
+      if (next.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(next));
+      else await deleteSecurePayload(orderChangeAttemptsKey);
+    } catch {
+      // Keeping a completed idempotency key is safe; the next retry will replay the same server result.
+    }
+  }
+
   function cancellationControls(orderRequestId: string) {
     const change = changeRequestFor(orderRequestId);
     if (change?.status === "PENDING_REVIEW") return <Notice>Solicitud de cancelación pendiente de revisión. El pedido continúa activo.</Notice>;
     if (change?.status === "APPROVED") return <Notice>El equipo aprobó la cancelación del pedido.</Notice>;
     if (change?.status === "REJECTED") return <View style={ui.section}>
       <Notice tone="error">El equipo no aceptó la cancelación.{change.decisionReason ? ` Motivo: ${change.decisionReason}` : ""}</Notice>
-      <Button title="Solicitar nuevamente" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline)}
+      <Button title="Solicitar nuevamente" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline) || !cancellationAttemptsReady}
         onPress={() => { setError(""); setSelectedChangeRequest(orderRequestId); }} />
     </View>;
     if (selectedChangeRequest === orderRequestId) return <View style={ui.section}>
@@ -228,11 +278,11 @@ function OrderHistory() {
       <TextInput accessibilityLabel="Motivo de cancelación" placeholder="Motivo (mínimo 3 caracteres)" value={changeReason}
         onChangeText={setChangeReason} multiline maxLength={500}
         style={{ minHeight: 72, borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 12, color: palette.ink, textAlignVertical: "top" }} />
-      <Button title="Enviar solicitud" busy={submittingChange === orderRequestId} disabled={Boolean(submittingChange)}
+      <Button title="Enviar solicitud" busy={submittingChange === orderRequestId} disabled={Boolean(submittingChange) || !cancellationAttemptsReady}
         onPress={() => void submitCancellation(orderRequestId)} />
       <Button title="Volver" secondary onPress={() => { setSelectedChangeRequest(null); setChangeReason(""); }} />
     </View>;
-    return <Button title="Solicitar cancelación" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline)}
+    return <Button title="Solicitar cancelación" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline) || !cancellationAttemptsReady}
       onPress={() => { setError(""); setSelectedChangeRequest(orderRequestId); }} />;
   }
 
@@ -243,6 +293,8 @@ function OrderHistory() {
       {session.offline ? <Notice>Sin conexión. El historial requiere consultar el servidor y no se modifica sin confirmación.</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
       {notice ? <Notice tone="success">{notice}</Notice> : null}
+      {cancellationStorageError ? <View style={ui.section}><Notice tone="error">{cancellationStorageError}</Notice>
+        <Button title="Reintentar recuperación segura" secondary onPress={() => void restoreCancellationAttempts()} /></View> : null}
       <View style={ui.section}>
         <Heading eyebrow="Pickup">Pedidos aceptados</Heading>
         {trackingError ? <Notice tone="error">{trackingError}</Notice> : null}
