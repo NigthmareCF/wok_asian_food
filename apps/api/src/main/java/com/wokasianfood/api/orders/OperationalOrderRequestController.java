@@ -291,43 +291,13 @@ class OrderRequestDecisionService {
     }
 
     private void applyAcceptedModifiers(UUID actor, UUID requestId, UUID orderRequestId, UUID orderId) {
-        List<AcceptedLine> lines = jdbc.query("""
-            SELECT request_item.id AS request_item_id, order_item.id AS order_item_id,
-                   request_item.unit_price, request_item.quantity
-            FROM wok.order_request_items request_item
-            JOIN wok.order_items order_item ON order_item.order_id = ?
-                AND order_item.menu_item_id = request_item.menu_item_id
-            WHERE request_item.order_request_id = ?
-            ORDER BY order_item.id
-            """, (rs, row) -> new AcceptedLine(rs.getObject("request_item_id", UUID.class),
-                rs.getObject("order_item_id", UUID.class), rs.getBigDecimal("unit_price"), rs.getInt("quantity")),
-                orderId, orderRequestId);
         Integer expected = jdbc.queryForObject("""
             SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?
             """, Integer.class, orderRequestId);
-        if (expected == null || lines.size() != expected)
+        Integer created = jdbc.queryForObject("SELECT count(*) FROM wok.order_items WHERE order_id = ?",
+                Integer.class, orderId);
+        if (expected == null || created == null || created.intValue() != expected.intValue())
             throw new AuthException(409, "No se pudieron vincular todas las opciones del pedido.");
-
-        for (AcceptedLine line : lines) {
-            List<String> names = jdbc.query("""
-                SELECT group_name_snapshot || ': ' || modifier_name_snapshot
-                FROM wok.order_request_item_modifiers WHERE order_request_item_id = ?
-                ORDER BY group_name_snapshot, modifier_name_snapshot, modifier_id
-                """, (rs, row) -> rs.getString(1), line.requestItemId());
-            String notes = names.isEmpty() ? null : "Opciones: " + String.join(", ", names);
-            jdbc.update("""
-                UPDATE wok.order_items SET unit_price = ?, notes = CASE WHEN CAST(? AS text) IS NULL THEN notes
-                    WHEN notes IS NULL OR btrim(notes) = '' THEN ? ELSE notes || E'\\n' || ? END,
-                    updated_at = now(), row_version = row_version + 1
-                WHERE id = ?
-                """, line.unitPrice(), notes, notes, notes, line.orderItemId());
-            jdbc.update("""
-                INSERT INTO wok.order_item_modifiers
-                    (order_item_id, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta)
-                SELECT ?, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta
-                FROM wok.order_request_item_modifiers WHERE order_request_item_id = ?
-                """, line.orderItemId(), line.requestItemId());
-        }
         inventory.reserveModifierImpacts(actor, requestId, orderId, orderRequestId);
         jdbc.update("""
             UPDATE wok.orders order_row
@@ -341,10 +311,23 @@ class OrderRequestDecisionService {
 
     private List<OperationalOrderController.OrderLineRequest> requestedLines(UUID orderRequestId) {
         return jdbc.query("""
-            SELECT menu_item_id, quantity FROM wok.order_request_items
-            WHERE order_request_id = ? ORDER BY menu_item_id
-            """, (rs, row) -> new OperationalOrderController.OrderLineRequest(
-                rs.getObject("menu_item_id", UUID.class), rs.getInt("quantity"), "TAKEAWAY", null), orderRequestId);
+            SELECT request_item.menu_item_id, request_item.quantity,
+                   COALESCE(array_agg(selected.modifier_id) FILTER (WHERE selected.modifier_id IS NOT NULL),
+                       ARRAY[]::uuid[]) AS modifier_ids
+            FROM wok.order_request_items request_item
+            LEFT JOIN wok.order_request_item_modifiers selected
+                ON selected.order_request_item_id = request_item.id
+            WHERE request_item.order_request_id = ?
+            GROUP BY request_item.menu_item_id, request_item.quantity
+            ORDER BY request_item.menu_item_id
+            """, (rs, row) -> {
+                Object[] values = (Object[]) rs.getArray("modifier_ids").getArray();
+                List<UUID> modifierIds = java.util.Arrays.stream(values)
+                        .map(value -> value instanceof UUID id ? id : UUID.fromString(value.toString())).toList();
+                return new OperationalOrderController.OrderLineRequest(
+                        rs.getObject("menu_item_id", UUID.class), rs.getInt("quantity"), "TAKEAWAY", null,
+                        modifierIds);
+            }, orderRequestId);
     }
 
     private void audit(UUID actor, UUID correlationId, UUID entityId, String action, String status, String reason) {
@@ -357,7 +340,6 @@ class OrderRequestDecisionService {
 
     private record Locked(UUID id, String status, String fulfillmentType, Instant requestedFor,
                           UUID currencyId, UUID orderId, BigDecimal subtotal) {}
-    private record AcceptedLine(UUID requestItemId, UUID orderItemId, BigDecimal unitPrice, int quantity) {}
     private record Revalidated(UUID menuItemId, int quantity, BigDecimal requestedPrice, BigDecimal currentPrice,
                                UUID currencyId, UUID stationId, long preparationSeconds) {}
 

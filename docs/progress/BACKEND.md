@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-07 — Modificadores en pedidos operativos y detalle útil para KDS
+
+- Los pedidos de salón y los productos agregados a una cuenta aceptan `modifierIds`; backend valida compatibilidad y selecciones obligatorias contra catálogo vigente, calcula el precio unitario, persiste snapshots en `order_item_modifiers` y devuelve opciones estructuradas en los detalles del pedido. Las opciones también forman parte del fingerprint idempotente.
+- El KDS entrega líneas concretas de la comanda con cantidad, servicio, notas y modificadores; las acciones de ticket devuelven la misma carga. El flujo pickup/delivery reutiliza las opciones ya guardadas en la solicitud, evitando duplicar snapshots al aceptar.
+- Modificadores con impactos de inventario se agregan a la reserva del pedido sobre las líneas recién insertadas; opciones remotas continúan aplicando su snapshot tras la aceptación. No se añadió migración porque V35 ya persiste snapshots de modificadores.
+- `OperationalFlowIntegrationTest`, `OrderRequestDecisionIntegrationTest` y `OrderServiceTest`: 41/41 aprobadas con PostgreSQL 18/Testcontainers y Flyway V1–V49. Suite backend completa: 270/270, cero fallos/errores/omitidas.
+
 ## 2026-10-08 — Jarabe simple registrado como componente preliminar de matcha
 
 - El seed de desarrollo añade `ING_SIMPLE_SYRUP` en ML y 2 oz líquidas por cada bebida matcha y carbonatada. La unidad se convierte a 59.14706 ml; las pulpas de carbonatada se mantienen asociadas al sabor sin activar consumo.

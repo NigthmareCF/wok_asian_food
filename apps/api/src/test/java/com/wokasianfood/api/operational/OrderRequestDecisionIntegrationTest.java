@@ -419,7 +419,7 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         var orderItem = jdbc.queryForMap("SELECT unit_price, line_total, notes FROM wok.order_items WHERE order_id = ?", orderId);
         assertThat((BigDecimal) orderItem.get("unit_price")).isEqualByComparingTo("30.00");
         assertThat((BigDecimal) orderItem.get("line_total")).isEqualByComparingTo("60.00");
-        assertThat((String) orderItem.get("notes")).contains("Proteína: Tofu");
+        assertThat((String) orderItem.get("notes")).isNull();
         assertThat(jdbc.queryForObject("SELECT subtotal FROM wok.orders WHERE id = ?", BigDecimal.class, orderId))
                 .isEqualByComparingTo("60.00");
         assertThat(count("SELECT count(*) FROM wok.order_item_modifiers WHERE order_item_id = (SELECT id FROM wok.order_items WHERE order_id = ?)",

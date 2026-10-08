@@ -109,7 +109,8 @@ class KitchenService {
                 rs.getTimestamp("estimated_ready_at") == null ? null : rs.getTimestamp("estimated_ready_at").toInstant(),
                 rs.getString("channel"), rs.getString("dining_table_name"), rs.getString("account_name"),
                 rs.getInt("item_count"), rs.getInt("total_quantity"),
-                rs.getTimestamp("oldest_created_at") == null ? null : rs.getTimestamp("oldest_created_at").toInstant());
+                rs.getTimestamp("oldest_created_at") == null ? null : rs.getTimestamp("oldest_created_at").toInstant(),
+                List.of());
 
     List<TicketView> queue(UUID stationId, String status) {
         return jdbc.query(TICKET_SELECT + """
@@ -119,7 +120,7 @@ class KitchenService {
                  OR t.status = ?
               )
             ORDER BY t.created_at, t.sequence_no
-            """, TICKET_MAPPER, stationId, stationId, status, status);
+            """, TICKET_MAPPER, stationId, stationId, status, status).stream().map(this::withItems).toList();
     }
 
     List<StationLoad> load() {
@@ -259,13 +260,67 @@ class KitchenService {
 
     private TicketView view(UUID ticketId) {
         return jdbc.query(TICKET_SELECT + " WHERE t.id = ?", TICKET_MAPPER, ticketId).stream().findFirst()
-                .orElseThrow(() -> new AuthException(404, "No encontramos la comanda."));
+                .map(this::withItems).orElseThrow(() -> new AuthException(404, "No encontramos la comanda."));
     }
+
+    private TicketView withItems(TicketView ticket) {
+        List<TicketLineRow> rows = jdbc.query("""
+            SELECT ti.id AS ticket_item_id, i.id AS order_item_id, i.name_snapshot, ti.quantity, ti.action,
+                   i.fulfillment, i.notes
+            FROM wok.kitchen_ticket_items ti
+            JOIN wok.order_items i ON i.id = ti.order_item_id
+            WHERE ti.ticket_id = ? AND ti.action <> 'CANCELLED'
+            ORDER BY ti.created_at, ti.id
+            """, (rs, row) -> new TicketLineRow(rs.getObject("ticket_item_id", UUID.class),
+                rs.getObject("order_item_id", UUID.class), rs.getString("name_snapshot"), rs.getInt("quantity"),
+                rs.getString("action"), rs.getString("fulfillment"), rs.getString("notes")), ticket.id());
+        Map<UUID, List<TicketModifier>> modifiersByItem = new java.util.HashMap<>();
+        jdbc.query("""
+            SELECT selected.order_item_id, selected.group_name_snapshot, selected.modifier_name_snapshot,
+                   selected.price_delta
+            FROM wok.order_item_modifiers selected
+            WHERE selected.order_item_id IN (
+                SELECT order_item_id FROM wok.kitchen_ticket_items
+                WHERE ticket_id = ? AND action <> 'CANCELLED'
+            )
+            ORDER BY selected.order_item_id, selected.group_name_snapshot,
+                     selected.modifier_name_snapshot, selected.modifier_id
+            """, (rs, row) -> new TicketModifierRow(rs.getObject("order_item_id", UUID.class), new TicketModifier(
+                    rs.getString("group_name_snapshot"), rs.getString("modifier_name_snapshot"),
+                    rs.getBigDecimal("price_delta"))), ticket.id()).forEach(modifier ->
+                modifiersByItem.computeIfAbsent(modifier.orderItemId(), ignored -> new java.util.ArrayList<>())
+                        .add(modifier.modifier()));
+        List<TicketLineItem> items = rows.stream().map(item -> new TicketLineItem(item.ticketItemId(),
+                item.orderItemId(), item.name(), item.quantity(), item.action(), item.fulfillment(), item.notes(),
+                modifiersByItem.getOrDefault(item.orderItemId(), List.of()))).toList();
+        return ticket.withItems(items);
+    }
+
+    private record TicketLineRow(UUID ticketItemId, UUID orderItemId, String name, int quantity, String action,
+                                 String fulfillment, String notes) {}
+    private record TicketModifierRow(UUID orderItemId, TicketModifier modifier) {}
 
     public record TicketView(UUID id, UUID orderId, String orderCode, int sequence, String status, int rowVersion,
                              UUID stationId, String stationCode, UUID claimedBy, Instant claimedAt, Instant readyAt,
                              Instant estimatedReadyAt, String channel, String diningTableName, String accountName,
-                             int itemCount, int totalQuantity, Instant oldestItemAt) {}
+                             int itemCount, int totalQuantity, Instant oldestItemAt, List<TicketLineItem> items) {
+        public TicketView(UUID id, UUID orderId, String orderCode, int sequence, String status, int rowVersion,
+                          UUID stationId, String stationCode, UUID claimedBy, Instant claimedAt, Instant readyAt,
+                          Instant estimatedReadyAt, String channel, String diningTableName, String accountName,
+                          int itemCount, int totalQuantity, Instant oldestItemAt) {
+            this(id, orderId, orderCode, sequence, status, rowVersion, stationId, stationCode, claimedBy, claimedAt,
+                    readyAt, estimatedReadyAt, channel, diningTableName, accountName, itemCount, totalQuantity,
+                    oldestItemAt, List.of());
+        }
+        TicketView withItems(List<TicketLineItem> items) {
+            return new TicketView(id, orderId, orderCode, sequence, status, rowVersion, stationId, stationCode,
+                    claimedBy, claimedAt, readyAt, estimatedReadyAt, channel, diningTableName, accountName,
+                    itemCount, totalQuantity, oldestItemAt, items);
+        }
+    }
+    public record TicketLineItem(UUID ticketItemId, UUID orderItemId, String name, int quantity, String action,
+                                 String fulfillment, String notes, List<TicketModifier> modifiers) {}
+    public record TicketModifier(String group, String name, java.math.BigDecimal priceDelta) {}
     public record StationLoad(UUID stationId, String stationCode, int queued, int preparing, int ready,
                               Instant oldestQueuedAt) {}
 }

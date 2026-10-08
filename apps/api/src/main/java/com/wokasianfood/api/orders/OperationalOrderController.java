@@ -1,6 +1,8 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.catalog.ModifierSelectionService;
+import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
 import com.wokasianfood.api.platform.RequestLimits;
 import com.wokasianfood.api.inventory.InventoryReservationService;
 import com.wokasianfood.api.platform.IdempotencyStore;
@@ -18,6 +20,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -26,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -102,7 +106,17 @@ public class OperationalOrderController {
 
     public record OrderLineRequest(@NotNull UUID menuItemId, @Positive int quantity,
                                    @Size(min = 2, max = 20) String fulfillment,
-                                   @Size(max = 300) String notes) {}
+                                   @Size(max = 300) String notes,
+                                   @Size(max = 30) List<@NotNull UUID> modifierIds) {
+        public OrderLineRequest(UUID menuItemId, int quantity, String fulfillment, String notes) {
+            this(menuItemId, quantity, fulfillment, notes, List.of());
+        }
+
+        public OrderLineRequest {
+            modifierIds = modifierIds == null ? List.of()
+                    : Collections.unmodifiableList(new ArrayList<>(modifierIds));
+        }
+    }
 
     public record StatusRequest(@NotNull OrderService.OrderStatus status, @Positive int expectedVersion,
                                 @Size(max = 300) String reason) {}
@@ -133,15 +147,23 @@ class OrderService {
     private final JdbcTemplate jdbc;
     private final IdempotencyStore idempotency;
     private final InventoryReservationService reservations;
+    private final ModifierSelectionService modifiers;
     private final KitchenQueueEstimator kitchenQueue;
     private final ServiceHoursPolicy serviceHours;
 
-    OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency, InventoryReservationService reservations) {
+    @Autowired
+    OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency, InventoryReservationService reservations,
+                 ModifierSelectionService modifiers) {
         this.jdbc = jdbc;
         this.idempotency = idempotency;
         this.reservations = reservations;
+        this.modifiers = modifiers;
         this.kitchenQueue = new KitchenQueueEstimator(jdbc);
         this.serviceHours = new ServiceHoursPolicy(jdbc);
+    }
+
+    OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency, InventoryReservationService reservations) {
+        this(jdbc, idempotency, reservations, new ModifierSelectionService(jdbc));
     }
 
     public enum OrderStatus { SENT, PREPARING, READY, SERVED, CLOSED, CANCELLED }
@@ -190,7 +212,7 @@ class OrderService {
             """, summaryMapper(), orderId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos el pedido.");
         OrderSummary summary = found.getFirst();
-        List<OrderLine> items = jdbc.query("""
+        List<OrderLine> itemRows = jdbc.query("""
             SELECT i.id, i.name_snapshot, i.quantity, i.unit_price, i.line_total, i.fulfillment, i.notes,
                    i.preparation_area_id, pa.code AS preparation_area_code
             FROM wok.order_items i
@@ -199,7 +221,23 @@ class OrderService {
             """, (rs, row) -> new OrderLine(rs.getObject("id", UUID.class), rs.getString("name_snapshot"),
                 rs.getInt("quantity"), rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"),
                 rs.getString("fulfillment"), rs.getString("notes"), rs.getObject("preparation_area_id", UUID.class),
-                rs.getString("preparation_area_code")), orderId);
+                rs.getString("preparation_area_code"), List.of()), orderId);
+        Map<UUID, List<OrderModifier>> modifiersByItem = new LinkedHashMap<>();
+        jdbc.query("""
+            SELECT selected.order_item_id, selected.group_name_snapshot, selected.modifier_name_snapshot,
+                   selected.price_delta
+            FROM wok.order_item_modifiers selected
+            JOIN wok.order_items item ON item.id = selected.order_item_id
+            WHERE item.order_id = ?
+            ORDER BY item.id, selected.group_name_snapshot, selected.modifier_name_snapshot, selected.modifier_id
+            """, (rs, row) -> new OrderModifierRow(rs.getObject("order_item_id", UUID.class),
+                new OrderModifier(rs.getString("group_name_snapshot"), rs.getString("modifier_name_snapshot"),
+                        rs.getBigDecimal("price_delta"))), orderId)
+                .forEach(row -> modifiersByItem.computeIfAbsent(row.orderItemId(), ignored -> new ArrayList<>())
+                        .add(row.modifier()));
+        List<OrderLine> items = itemRows.stream().map(item -> new OrderLine(item.id(), item.name(), item.quantity(),
+                item.unitPrice(), item.lineTotal(), item.fulfillment(), item.notes(), item.preparationAreaId(),
+                item.stationCode(), modifiersByItem.getOrDefault(item.id(), List.of()))).toList();
         List<KitchenTicket> tickets = jdbc.query("""
             SELECT t.id, t.sequence_no, t.status, t.claimed_by, t.ready_at, t.estimated_ready_at, t.row_version,
                    t.station_id, pa.code AS station_code
@@ -260,6 +298,7 @@ class OrderService {
         }
 
         reserveStock(actor, requestId, orderId, newLines);
+        reserveModifierStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
         enqueueTickets(actor, requestId, orderId, newLines, null, null);
         jdbc.update("""
@@ -303,6 +342,7 @@ class OrderService {
             newLines.add(insertLine(orderId, products.get(index), lines.get(index)));
         }
         reserveStock(actor, requestId, orderId, newLines);
+        reserveModifierStock(actor, requestId, orderId, newLines);
         recalcTotals(orderId, actor);
         enqueueTickets(actor, requestId, orderId, newLines, null, null);
         jdbc.update("""
@@ -335,7 +375,7 @@ class OrderService {
                                        Instant requestedFor) {
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines.stream()
                 .map(line -> new OperationalOrderController.OrderLineRequest(
-                        line.menuItemId(), line.quantity(), "TAKEAWAY", line.notes()))
+                        line.menuItemId(), line.quantity(), "TAKEAWAY", line.notes(), line.modifierIds()))
                 .toList();
         List<Product> products = loadProducts(lines);
         if (products.size() != lines.size())
@@ -470,6 +510,11 @@ class OrderService {
                 .toList());
     }
 
+    private void reserveModifierStock(UUID actor, UUID requestId, UUID orderId, List<NewLine> newLines) {
+        reservations.reserveOperationalModifierImpacts(actor, requestId, orderId,
+                newLines.stream().map(NewLine::orderItemId).toList());
+    }
+
     private OrderSummary summary(UUID orderId) {
         List<OrderSummary> found = jdbc.query("""
             SELECT o.id, o.code, o.status, o.channel, o.subtotal, o.discount, o.total, o.guest_count, o.opened_at,
@@ -489,15 +534,23 @@ class OrderService {
 
     private NewLine insertLine(UUID orderId, Product product,
                                 OperationalOrderController.OrderLineRequest line) {
+        List<SelectedModifier> selected = modifiers.validate(product.id(), line.modifierIds());
+        BigDecimal unitPrice = selected.stream().map(SelectedModifier::priceDelta)
+                .reduce(product.price(), BigDecimal::add);
         UUID orderItemId = jdbc.queryForObject("""
             INSERT INTO wok.order_items
                 (order_id, menu_item_id, name_snapshot, quantity, unit_price, preparation_area_id,
                  fulfillment, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
-            """, UUID.class, orderId, product.id(), product.name(), line.quantity(), product.price(),
+            """, UUID.class, orderId, product.id(), product.name(), line.quantity(), unitPrice,
                 product.preparationAreaId(), line.fulfillment() == null ? "DINE_IN"
                     : line.fulfillment().trim().toUpperCase(),
                 line.notes() == null || line.notes().isBlank() ? null : line.notes().trim());
+        for (SelectedModifier modifier : selected) jdbc.update("""
+            INSERT INTO wok.order_item_modifiers
+                (order_item_id, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta)
+            VALUES (?, ?, ?, ?, ?)
+            """, orderItemId, modifier.id(), modifier.groupName(), modifier.name(), modifier.priceDelta());
         return new NewLine(orderItemId, product, line.quantity());
     }
 
@@ -630,7 +683,7 @@ class OrderService {
             List<OperationalOrderController.OrderLineRequest> items) {
         if (items == null || items.isEmpty() || items.size() > RequestLimits.MAX_DISTINCT_MENU_LINES)
             throw new AuthException(400, "Revisa los productos enviados.");
-        if (items.stream().anyMatch(item -> item.menuItemId() == null || item.fulfillment() == null)
+        if (items.stream().anyMatch(item -> item == null || item.menuItemId() == null || item.fulfillment() == null)
                 || items.stream().anyMatch(item -> "BARRIL".equalsIgnoreCase(item.fulfillment().trim())))
             throw new AuthException(400, "Revisa el tipo de servicio de cada producto.");
         if (new HashSet<>(items.stream().map(OperationalOrderController.OrderLineRequest::menuItemId).toList())
@@ -657,7 +710,9 @@ class OrderService {
                 + lines.stream()
                         .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
                                 + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()) + ":"
-                                + (line.notes() == null ? "" : line.notes()))
+                                + (line.notes() == null ? "" : line.notes()) + ":"
+                                + line.modifierIds().stream().map(UUID::toString).sorted()
+                                        .reduce((a, b) -> a + "," + b).orElse(""))
                         .reduce((a, b) -> a + "\n" + b).orElse("");
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -671,7 +726,9 @@ class OrderService {
         String canonical = orderId + "\n" + lines.stream()
                 .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
                         + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()) + ":"
-                        + (line.notes() == null ? "" : line.notes()))
+                        + (line.notes() == null ? "" : line.notes()) + ":"
+                        + line.modifierIds().stream().map(UUID::toString).sorted()
+                                .reduce((a, b) -> a + "," + b).orElse(""))
                 .reduce((a, b) -> a + "\n" + b).orElse("");
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -712,13 +769,22 @@ class OrderService {
     record Account(UUID id, UUID diningTableId, String status) {}
     record NewLine(UUID orderItemId, Product product, int quantity) {}
     record OrderRow(UUID id, UUID accountId, OrderStatus status, UUID currencyId) {}
+    private record OrderModifierRow(UUID orderItemId, OrderModifier modifier) {}
 
     public record OrderSummary(UUID id, String code, String status, String channel, BigDecimal subtotal,
                                BigDecimal discount, BigDecimal total, int guestCount, Instant openedAt, Instant closedAt,
                                int rowVersion, UUID currencyId, String currency, UUID diningTableId,
                                String diningTableName, UUID accountId, String accountName, int itemCount) {}
     public record OrderLine(UUID id, String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
-                            String fulfillment, String notes, UUID preparationAreaId, String stationCode) {}
+                            String fulfillment, String notes, UUID preparationAreaId, String stationCode,
+                            List<OrderModifier> modifiers) {
+        public OrderLine(UUID id, String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
+                         String fulfillment, String notes, UUID preparationAreaId, String stationCode) {
+            this(id, name, quantity, unitPrice, lineTotal, fulfillment, notes, preparationAreaId, stationCode,
+                    List.of());
+        }
+    }
+    public record OrderModifier(String group, String name, BigDecimal priceDelta) {}
     public record KitchenTicket(UUID id, int sequence, String status, UUID claimedBy, Instant readyAt,
                                 Instant estimatedReadyAt, int rowVersion, UUID stationId, String stationCode) {}
     public record OrderDetails(OrderSummary order, List<OrderLine> items, List<KitchenTicket> tickets) {}

@@ -41,6 +41,75 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void operationalOrderValidatesPricesSnapshotsModifiersAndReturnsKitchenLineItems() {
+        String token = tokenForRole("OPERATIONAL");
+        String stationCode = "WOK_MODIFIER_FLOW";
+        UUID tableId = createDiningTable("Mesa Modificadores");
+        UUID menuItemId = seedMenuItem("Onigiri de prueba", "40.00", stationCode, 120);
+        UUID groupId = jdbc.queryForObject("""
+                INSERT INTO wok.modifier_groups (name, min_selection, max_selection, required)
+                VALUES (?, 1, 1, true) RETURNING id
+                """, UUID.class, "Relleno " + UUID.randomUUID());
+        UUID cheaperOption = insertModifier(groupId, "Surimi", "0.00");
+        UUID tunaOption = insertModifier(groupId, "Atún chipotle", "5.00");
+        jdbc.update("INSERT INTO wok.menu_item_modifier_groups (menu_item_id, group_id) VALUES (?, ?)",
+                menuItemId, groupId);
+        UUID accountId = UUID.fromString(body(post("/api/v1/operational/tables/" + tableId + "/open", token, null))
+                .path("accountId").asText());
+
+        int orderCount = count("SELECT count(*) FROM wok.orders");
+        var missingRequired = post("/api/v1/operational/orders", token, """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":1,"items":[
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                """.formatted(accountId, menuItemId), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(missingRequired.statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(orderCount);
+
+        String idempotencyKey = UUID.randomUUID().toString();
+        String payload = """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":1,"items":[
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN","modifierIds":["%s"]}]}
+                """.formatted(accountId, menuItemId, tunaOption);
+        var opened = post("/api/v1/operational/orders", token, payload,
+                Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(opened.statusCode()).isEqualTo(201);
+        JsonNode receipt = body(opened);
+        assertThat(receipt.path("subtotal").decimalValue()).isEqualByComparingTo("45.00");
+        UUID orderId = UUID.fromString(receipt.path("orderId").asText());
+
+        JsonNode details = body(get("/api/v1/operational/orders/" + orderId, token));
+        assertThat(details.path("items").get(0).path("unitPrice").decimalValue()).isEqualByComparingTo("45.00");
+        assertThat(details.path("items").get(0).path("modifiers").get(0).path("group").asText())
+                .startsWith("Relleno ");
+        assertThat(details.path("items").get(0).path("modifiers").get(0).path("name").asText())
+                .isEqualTo("Atún chipotle");
+        assertThat(details.path("items").get(0).path("modifiers").get(0).path("priceDelta").decimalValue())
+                .isEqualByComparingTo("5.00");
+
+        JsonNode queue = body(get("/api/v1/operational/kitchen/tickets?stationId=" + stationId(stationCode), token));
+        assertThat(queue).hasSize(1);
+        assertThat(queue.get(0).path("items")).hasSize(1);
+        assertThat(queue.get(0).path("items").get(0).path("name").asText()).isEqualTo("Onigiri de prueba");
+        assertThat(queue.get(0).path("items").get(0).path("modifiers").get(0).path("name").asText())
+                .isEqualTo("Atún chipotle");
+
+        var replay = post("/api/v1/operational/orders", token, payload,
+                Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(body(replay).path("idempotentReplay").asBoolean()).isTrue();
+        var changedOption = post("/api/v1/operational/orders", token,
+                payload.replace(tunaOption.toString(), cheaperOption.toString()),
+                Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(changedOption.statusCode()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.orders WHERE id = ?", orderId)).isEqualTo(1);
+    }
+
+    private UUID insertModifier(UUID groupId, String name, String priceDelta) {
+        return jdbc.queryForObject("""
+                INSERT INTO wok.modifiers (group_id, name, price_delta) VALUES (?, ?, ?) RETURNING id
+                """, UUID.class, groupId, name, new BigDecimal(priceDelta));
+    }
+
+    @Test
     void movesTableThroughOrderKitchenServiceAndClosingAgainstPostgres() {
         String token = tokenForRole("OPERATIONAL");
         String stationCode = "WOK_E2E";

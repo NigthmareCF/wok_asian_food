@@ -72,6 +72,30 @@ public class InventoryReservationService {
             ORDER BY impact.item_id
             """, (rs, row) -> new Adjustment(rs.getObject("item_id", UUID.class),
                 rs.getBigDecimal("quantity_delta")), orderRequestId);
+        applyModifierAdjustments(orderId, adjustments);
+    }
+
+    /** Applies modifier inventory deltas for newly inserted operational order lines only. */
+    @Transactional
+    public void reserveOperationalModifierImpacts(UUID actor, UUID requestId, UUID orderId, List<UUID> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) return;
+        String placeholders = String.join(",", Collections.nCopies(orderItemIds.size(), "?"));
+        List<Adjustment> adjustments = jdbc.query("""
+            SELECT impact.item_id, sum(impact.quantity_delta * item.quantity) AS quantity_delta
+            FROM wok.order_items item
+            JOIN wok.order_item_modifiers selected ON selected.order_item_id = item.id
+            JOIN wok.modifier_item_impacts impact ON impact.modifier_id = selected.modifier_id
+                AND impact.affects_availability = true
+            WHERE item.id IN (%s)
+            GROUP BY impact.item_id
+            HAVING sum(impact.quantity_delta * item.quantity) <> 0
+            ORDER BY impact.item_id
+            """.formatted(placeholders), (rs, row) -> new Adjustment(rs.getObject("item_id", UUID.class),
+                rs.getBigDecimal("quantity_delta")), orderItemIds.toArray());
+        applyModifierAdjustments(orderId, adjustments);
+    }
+
+    private void applyModifierAdjustments(UUID orderId, List<Adjustment> adjustments) {
         for (Adjustment adjustment : adjustments) {
             jdbc.update("""
                 INSERT INTO wok.inventory_balances (item_id) VALUES (?)

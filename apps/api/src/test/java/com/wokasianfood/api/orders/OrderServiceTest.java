@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.catalog.ModifierSelectionService;
 import com.wokasianfood.api.inventory.InventoryReservationService;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import java.math.BigDecimal;
@@ -23,10 +24,11 @@ class OrderServiceTest {
     @Mock JdbcTemplate jdbc;
     @Mock IdempotencyStore idempotency;
     @Mock InventoryReservationService reservations;
+    @Mock ModifierSelectionService modifiers;
     private UUID insertedOrderId;
 
     private OrderService service() {
-        return new OrderService(jdbc, idempotency, reservations);
+        return new OrderService(jdbc, idempotency, reservations, modifiers);
     }
 
     @Test
@@ -365,6 +367,8 @@ class OrderServiceTest {
                 any(UUID.class)))
                 .thenReturn(List.of(new OrderService.OrderLine(menuItemId, "Pad Thai", 2, new BigDecimal("10.25"),
                         new BigDecimal("20.50"), "DINE_IN", null, UUID.randomUUID(), "COCINA")));
+        when(jdbc.query(contains("SELECT selected.order_item_id"), any(RowMapper.class), any(UUID.class)))
+                .thenReturn(List.of());
         when(jdbc.query(contains("JOIN wok.preparation_areas pa ON pa.id = t.station_id"), any(RowMapper.class), any(UUID.class)))
                 .thenReturn(List.of());
     }
