@@ -49,13 +49,13 @@ public class OrderCapacityHoldService {
     @Transactional
     public void finish(UUID requestId, EndState endState) {
         List<Hold> activeHolds = jdbc.query("""
-                SELECT id, expires_at FROM wok.order_capacity_holds
+                SELECT id, expires_at > now() AS unexpired FROM wok.order_capacity_holds
                 WHERE order_request_id = ? AND status = 'ACTIVE' FOR UPDATE
-                """, (rs, row) -> new Hold(rs.getObject("id", UUID.class), rs.getTimestamp("expires_at").toInstant()), requestId);
+                """, (rs, row) -> new Hold(rs.getObject("id", UUID.class), rs.getBoolean("unexpired")), requestId);
         if (activeHolds.isEmpty()) return;
         Hold hold = activeHolds.getFirst();
         UUID holdId = hold.id();
-        if (!hold.expiresAt().isAfter(Instant.now())) {
+        if (!hold.unexpired()) {
             jdbc.update("UPDATE wok.order_capacity_holds SET status = 'EXPIRED', ended_at = now() WHERE id = ?", holdId);
             return;
         }
@@ -88,5 +88,5 @@ public class OrderCapacityHoldService {
     }
 
     public enum EndState { RELEASED, CONVERTED }
-    private record Hold(UUID id, Instant expiresAt) {}
+    private record Hold(UUID id, boolean unexpired) {}
 }

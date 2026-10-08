@@ -198,6 +198,23 @@ class ClientOrderQuoteIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void finishingAnExpiredHoldCannotConvertItIntoAcceptedQueueWork() throws Exception {
+        UUID itemId = seedMenuItem("Expired finish hold item", "22.00", "QUOTE_EXPIRED_FINISH_TEST", 30);
+        UUID requestId = submitQuotedPickup(tokenForRole("CLIENT"), itemId, Instant.now().plusSeconds(3600));
+        jdbc.update("UPDATE wok.order_capacity_holds SET expires_at = now() - interval '1 second' WHERE order_request_id = ?",
+                requestId);
+
+        capacityHolds.finish(requestId, OrderCapacityHoldService.EndState.CONVERTED);
+
+        assertThat(count("SELECT count(*) FROM wok.order_capacity_holds WHERE order_request_id = ? AND status = 'EXPIRED'",
+                requestId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.order_capacity_holds WHERE order_request_id = ? AND status = 'CONVERTED'",
+                requestId)).isZero();
+        assertThat(count("SELECT count(*) FROM wok.order_requests WHERE id = ? AND status = 'PENDING_REVIEW'", requestId))
+                .isEqualTo(1);
+    }
+
+    @Test
     void operationalAcceptanceRechecksCapacityAfterItsHoldExpires() throws Exception {
         UUID itemId = seedMenuItem("Expired hold recheck item", "22.00", "QUOTE_RECHECK_TEST", 30);
         UUID stationId = jdbc.queryForObject("SELECT preparation_area_id FROM wok.menu_items WHERE id = ?", UUID.class, itemId);

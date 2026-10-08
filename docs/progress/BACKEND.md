@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Expiración de holds usa el reloj de PostgreSQL
+
+- `OrderCapacityHoldService.finish` ahora decide si un hold venció con `now()` de la misma base que gobierna `expires_at`, evitando que desfase entre el reloj de la JVM y PostgreSQL convierta un hold expirado en trabajo de cola aceptado.
+- Se agregó una prueba de integración que fuerza la expiración y confirma que `finish(..., CONVERTED)` lo deja `EXPIRED`, sin crear transición de aceptación. Suite dirigida: `ClientOrderQuoteIntegrationTest`, 8/8 sin fallos ni omitidas; PostgreSQL 18 con Flyway V1–V51 desde esquema vacío.
+
 ## 2026-10-08 — Reconciliación de archivos huérfanos de comprobantes
 
 - Un worker periódico revisa un lote máximo de 100 archivos de comprobante con más de 24 horas y consulta PostgreSQL por cada UUID. Sólo elimina un archivo cuando la consulta confirma que no existe fila asociada; una falla de filesystem o DB interrumpe la ejecución sin borrar el candidato.
