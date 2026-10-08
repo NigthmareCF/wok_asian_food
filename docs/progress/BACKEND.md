@@ -733,3 +733,9 @@
 
 - `CustomerAddressOwnershipIntegrationTest` crea una dirección con Cliente A y demuestra que Cliente B no la ve en su listado, no puede editarla ni borrarla (404); al final confirma que el dueño y los datos originales permanecen intactos.
 - Prueba focal 1/1 y suite completa: 71 suites / 308 pruebas, cero fallos, errores u omitidas. PostgreSQL 18/Testcontainers aplicó las 51 migraciones Flyway desde esquema vacío. No hubo cambio en lógica productiva ni en schema; se amplió evidencia adversarial de ownership a PII/direcciones.
+
+## 2026-10-08 — Cancelación Cliente por platillo con aprobación Operativa
+
+- Flyway V52 amplía `order_change_requests` con el platillo objetivo y su versión esperada; un índice único serializa solicitudes pendientes por pedido, sean de cancelación completa o individual. El constraint rechaza solicitudes de línea sin UUID/version válidos.
+- Cliente puede listar sólo sus líneas activas cuyo ticket sigue `QUEUED`, y solicitar cancelar una línea de pickup/delivery. El servidor persiste la idempotencia, ownership, motivo y snapshots del objetivo; la línea no cambia hasta que Operativo apruebe. La aprobación reutiliza la operación transaccional existente, que verifica dinero/facturas, versión, cuenta, cocina, libera sólo recursos de esa línea, recalcula totales y conserva auditoría/comanda.
+- `ClientOrderChangeRequestIntegrationTest` cubre la migración desde cero, compatibilidad de cancelación completa, ownership, replay, rechazo de una segunda solicitud pendiente, aprobación de línea conservando activa la otra línea, constraint de versión obligatoria y rechazo Operativo sin mutación. PostgreSQL 18/Testcontainers y Flyway V1–V52: prueba focal 6/6. Suite completa: 71 suites / 310 pruebas, cero fallos, errores u omitidas.

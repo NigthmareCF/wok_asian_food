@@ -1,6 +1,7 @@
 package com.wokasianfood.api.orders;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -84,6 +85,94 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
         assertThat(decisionReplay.path("version").asInt()).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_status_history WHERE order_id = ? AND to_status = 'CANCELLED'",
                 Integer.class, order.orderId())).isEqualTo(1);
+    }
+
+    @Test
+    void clientCanRequestOneQueuedLineCancellationAndOperatorApprovalKeepsOtherLineActive() {
+        AcceptedOrder order = acceptedPickup();
+        UUID secondMenuItem = seedMenuItem("Wok second cancellation line", "30.00");
+        HttpResponse<String> addLine = post("/api/v1/operational/orders/" + order.orderId() + "/items",
+                order.operatorToken(), "{\"items\":[{\"menuItemId\":\"" + secondMenuItem + "\",\"quantity\":1,\"fulfillment\":\"TAKEAWAY\"}]}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(addLine.statusCode()).as("add second line: %s", addLine.body()).isBetween(200, 299);
+
+        UUID targetItem = jdbc.queryForObject("""
+                SELECT id FROM wok.order_items WHERE order_id = ? ORDER BY created_at, id LIMIT 1
+                """, UUID.class, order.orderId());
+        UUID untouchedItem = jdbc.queryForObject("""
+                SELECT id FROM wok.order_items WHERE order_id = ? AND id <> ? ORDER BY created_at, id LIMIT 1
+                """, UUID.class, order.orderId(), targetItem);
+        String base = "/api/v1/client/order-requests/" + order.requestId() + "/change-requests";
+
+        JsonNode available = body(get(base + "/cancellable-items", order.clientToken()));
+        assertThat(available).hasSize(2);
+        assertThat(available.findValuesAsText("orderItemId")).contains(targetItem.toString(), untouchedItem.toString());
+        assertThat(get(base + "/cancellable-items", tokenForRole("CLIENT")).statusCode()).isEqualTo(404);
+
+        UUID idempotencyKey = UUID.randomUUID();
+        String linePath = base + "/items/" + targetItem + "/cancellations";
+        JsonNode submitted = body(post(linePath, order.clientToken(), "{\"reason\":\"No deseo este platillo\"}",
+                Map.of("Idempotency-Key", idempotencyKey.toString())));
+        UUID changeId = UUID.fromString(submitted.path("id").asText());
+        assertThat(submitted.path("requestType").asText()).isEqualTo("CANCEL_LINE");
+        assertThat(submitted.path("orderItemId").asText()).isEqualTo(targetItem.toString());
+        assertThat(submitted.path("expectedItemVersion").asInt()).isPositive();
+        assertThat(submitted.path("status").asText()).isEqualTo("PENDING_REVIEW");
+        assertThatThrownBy(() -> jdbc.update("UPDATE wok.order_change_requests SET expected_item_version = NULL WHERE id = ?", changeId))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_items WHERE id = ?", String.class, targetItem))
+                .isEqualTo("ACTIVE");
+
+        JsonNode replay = body(post(linePath, order.clientToken(), "{\"reason\":\"No deseo este platillo\"}",
+                Map.of("Idempotency-Key", idempotencyKey.toString())));
+        assertThat(replay.path("id").asText()).isEqualTo(changeId.toString());
+        HttpResponse<String> secondPending = post(base, order.clientToken(), "{\"reason\":\"Cancelar todo\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(secondPending.statusCode()).isEqualTo(409);
+
+        String decisionPath = "/api/v1/operational/order-change-requests/" + changeId;
+        JsonNode approved = body(patch(decisionPath, order.operatorToken(),
+                "{\"decision\":\"APPROVE\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(approved.path("status").asText()).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_items WHERE id = ?", String.class, targetItem))
+                .isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_items WHERE id = ?", String.class, untouchedItem))
+                .isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, order.orderId()))
+                .isEqualTo("SENT");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_item_change_events WHERE order_id = ? AND change_type = 'CANCEL_LINE'",
+                Integer.class, order.orderId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_change_request_events WHERE order_change_request_id = ?",
+                Integer.class, changeId)).isEqualTo(2);
+    }
+
+    @Test
+    void operatorCanRejectLineCancellationWithoutChangingTheOrderLine() {
+        AcceptedOrder order = acceptedPickup();
+        UUID secondMenuItem = seedMenuItem("Wok line to keep", "30.00");
+        HttpResponse<String> added = post("/api/v1/operational/orders/" + order.orderId() + "/items",
+                order.operatorToken(), "{\"items\":[{\"menuItemId\":\"" + secondMenuItem + "\",\"quantity\":1,\"fulfillment\":\"TAKEAWAY\"}]}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(added.statusCode()).as("add second line: %s", added.body()).isBetween(200, 299);
+        UUID targetItem = jdbc.queryForObject("SELECT id FROM wok.order_items WHERE order_id = ? ORDER BY created_at, id LIMIT 1",
+                UUID.class, order.orderId());
+        JsonNode submitted = body(post("/api/v1/client/order-requests/" + order.requestId() +
+                "/change-requests/items/" + targetItem + "/cancellations", order.clientToken(),
+                "{\"reason\":\"Lo voy a conservar\"}", Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID changeId = UUID.fromString(submitted.path("id").asText());
+
+        JsonNode rejected = body(patch("/api/v1/operational/order-change-requests/" + changeId, order.operatorToken(),
+                "{\"decision\":\"REJECT\",\"expectedVersion\":1,\"reason\":\"El producto ya está en preparación\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        assertThat(rejected.path("status").asText()).isEqualTo("REJECTED");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_items WHERE id = ?", String.class, targetItem))
+                .isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.orders WHERE id = ?", String.class, order.orderId()))
+                .isEqualTo("SENT");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_item_change_events WHERE order_item_id = ?",
+                Integer.class, targetItem)).isZero();
     }
 
     @Test
