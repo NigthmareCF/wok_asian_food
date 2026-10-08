@@ -1,5 +1,29 @@
 # Progreso del canal Operativo
 
+## 2026-10-04 — Solicitudes reales, permisos y continuidad Cliente
+
+- La navegación operativa y administrativa filtra con los permisos reales emitidos por la API; una sesión renovada muestra todos los módulos autorizados.
+- El menú autenticado se movió a `/client/menu` y conserva el shell del Cliente en carrito, reservas, pedidos y checkout.
+- El checkout para recoger propone una hora de Guatemala dentro de las próximas tres horas, respetando servicio, preparación y diez minutos de revisión operativa.
+- `/operation/online-requests` lista solicitudes persistidas y permite aceptarlas o rechazarlas; aceptar crea la orden y la comanda correspondiente.
+- Verificación manual completa: solicitud Cliente `7d0354a0-fc32-4910-861c-5aff74b275a8`, orden `ORD-20261004-0003` y comanda visible en Cocina.
+- Verificación automática: API 147 pruebas; Web 424 pruebas; lint, TypeScript y build de producción aprobados.
+
+## 2026-10-04 — Listado y detalle de pedidos persistidos
+
+- `/operation/orders` y `/operation/orders/[orderId]` dejan de consultar el proveedor local: cargan pedidos, líneas y comandas mediante BFF autenticado, con búsqueda y filtros locales sobre la respuesta validada.
+- El detalle permite transiciones reales `READY → SERVED → CLOSED` y anulación de pedidos activos mediante versión esperada y `X-Request-Id`. Los conflictos se muestran sin sobrescribir estado ajeno y la vista recarga desde servidor.
+- La entrada principal para crear pedidos apunta a Mesas. El constructor consume el menú real y crea órdenes con `Idempotency-Key`; desde el detalle también agrega únicamente líneas nuevas y las envía a Cocina sin duplicar las anteriores.
+- Pendiente: varias cuentas, uniones y modificación/eliminación de líneas ya enviadas requieren contratos backend adicionales. Se añadieron doce pruebas enfocadas para contratos, aislamiento de sesión, creación, ampliación, filtros, detalle, transición y rechazo de payload inválido.
+
+## 2026-10-04 — Cocina conectada a comandas persistidas
+
+- `/operation/kitchen` deja de usar el proveedor local de pedidos y consulta la cola autenticada de Cocina mediante BFF. La vista conserva el tablero responsivo, muestra productos, notas, modalidad y estación reales, y permite tomar, retomar o marcar lista una comanda.
+- La API amplía `TicketView` con los artículos ligados a cada ticket sin exponer precios ni datos innecesarios. Las transiciones conservan `X-Request-Id`, versión esperada, permisos `kitchen:manage`, historial y actualización de la orden cuando todas las estaciones terminan.
+- Se agregan validadores de contrato y BFF para listado, toma y cambio de estado. Los errores de sesión, permisos, conflicto y respuesta inválida se convierten en mensajes controlados sin filtrar detalles internos.
+- Verificación local: TypeScript, lint, build de producción y 398/398 pruebas web aprobadas. Maven compiló y ejecutó 144 pruebas sin fallos; 49 pruebas de integración PostgreSQL quedaron omitidas porque Testcontainers no tuvo acceso a Docker en este entorno y deberán ejecutarse en CI.
+- Se actualiza `docs/project/INTEGRATION_STATUS.md` para distinguir módulos persistidos, integración parcial y vistas demostrativas.
+
 ## 2026-10-03 — Mesas operativas conectadas
 
 - `/operation/tables` y `/operation/tables/[tableId]` consumen el listado real de Mesas y permiten crear, abrir y cerrar mesas. Cada mutación envía `X-Request-Id`, bloquea doble envío y recarga el listado; los conflictos `404` y `409` informan y recargan antes de continuar.
@@ -252,3 +276,66 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Después de responder, el hilo permanece visible con estado Abierta y la conversación sale de la cola. Se conserva el intento idempotente ante respuestas perdidas. Estado del servicio en el shell sigue simulado y su etiqueta lo aclara.
 - Prueba local entre Cliente Demo Checkout y Operativo Demo mediante HTTP y navegador: mensaje enviado, respuesta visible, cola sin pendientes. Cliente sin rol operativo recibe 403. Suite web 368 pruebas aprobadas, lint/TypeScript/build Docker correctos.
 - Delivery y reservas operativas conservan sus vistas previas; su integración y gestión posterior se deben abordar como siguiente sección. No se hicieron commits ni push.
+
+## 2026-10-06 — F02-UI: flujo financiero presencial
+
+- Cuentas, detalle y precuenta consultan datos reales por BFF; incluyen todas las cuentas cobrables de la mesa y precios congelados, con totales separados por moneda. Se conserva el permiso financiero del cajero sin conceder `orders:manage`.
+- Cobros parciales y completos mantienen idempotencia; un intento incierto bloquea otro cobro. Su recuperación manual valida operador, cuenta y permiso, conserva solicitud/clave y no reenvía al recargar. `sessionStorage` conserva solo usuario/cuenta, clave, fecha y método/importes/caja; tras logout los intentos permanecen inactivos para el operador original. Perder la pestaña o ese almacenamiento requiere conciliación; no hay recuperación entre dispositivos.
+- El efectivo requiere caja `OPEN` y moneda coincidente. Cobros y movimientos incrementan su versión; un conteo obsoleto conserva el importe introducido y exige revisión/reconteo explícito. Se conserva el bloqueo transaccional del servidor.
+- Cuenta `PAID` es compatible con el contrato de mesas y no significa mesa liberada. Cobrar no finaliza pedidos. Finalizar exige saldo cero; liberar exige todos los pedidos finalizados y todas las cuentas de la mesa sin deuda, con autorización final del servidor.
+- Verificación: API 190 pruebas; web 474 pruebas en 75 archivos; contrato/BFF de mesas 21 pruebas; tipos, lint y build correctos. Recorrido local real hasta `CLEANING`, varias cuentas, respuesta perdida con consulta por clave y caja cerrada Q440/Q440, diferencia cero. Pruebas concurrentes de F01 y pago/cierre de caja incluidas en la suite API.
+- Capturas Chrome local y axe en 390/768/1280/1440 sin desbordamiento horizontal; quedan problemas de contraste de componentes existentes. Playwright no instalado y smoke shell bloqueado por ausencia de jq. No se instalaron herramientas. Los permisos diferenciados por puesto se verificaron en pruebas, no con usuarios independientes de la semilla en el recorrido real.
+- Entorno exclusivo `wok-f02-ui-20261006`, web `http://127.0.0.1:3006/login`. Informe y artefactos en `C:/Users/avill/AppData/Local/Temp/wok-f02-ui-20261006/report.md`. Se conserva el trabajo anterior; sin commits, push, merges ni migraciones. Pendiente revisión, sin declarar el proyecto completo o seguro.
+
+## 2026-10-06 — F03: integridad financiera de caja y cierres
+
+- Alcance aprobado: H02 (conteo por turno), H04 (precisión de caja) y protección H01 (saldos por moneda). No corresponde al hallazgo de idempotencia de pedidos llamado F03 anteriormente.
+- Conteo vinculado a sessionId/versión/importe. Cambio de turno exige importe nuevo; cambio de versión del mismo turno conserva referencia y exige reconteo. El cierre captura el destino antes de validar sesión y lo revalida antes de enviar.
+- Caja API valida centavos exactos, mínimos y rango NUMERIC(14,2) antes de JDBC/claims. Auditoría y persistencia usan el mismo valor validado; fingerprints existentes conservados.
+- Agregado financiero pequeño compartido por cuenta y moneda. Detalle mantiene REPEATABLE_READ; finalización/liberación conservan bloqueos existentes y rechazan incompatibilidades/saldos anómalos. Recibo no compensa monedas; consulta incompatible devuelve 409 con el pago identificado, sin nueva captura ni pérdida de evidencia. Replay toma el mutex existente de cuenta; consulta GET mantiene lectura REPEATABLE_READ.
+- Maven offline verify en copia temporal y PostgreSQL18 nuevo de Testcontainers: 201 pruebas, cero fallos/errores/omitidas. Incluye regresión F01/F02, carreras, permisos, rollback y nuevos casos H01/H04.
+- Web en copia temporal: 76 archivos/480 pruebas PASS, TypeScript/ESLint/build Next webpack PASS; diff --check PASS. Incluye reproducción H02 y cambio de turno/versión durante espera asíncrona.
+- Primer verify tuvo un error de preparación por semilla ficticia ausente en la copia; se copió el archivo requerido y se repitió sin modificar pruebas. Primer build se lanzó por error desde raíz: Next detectó .env y abortó antes de compilación; no imprimió valores ni se observó .next en raíz. Build posterior correcto exclusivamente en copia temporal.
+- Artefactos e informe: C:/Users/avill/AppData/Local/Temp/wok-f03-finance-20261006-131456. Sin commits/push/merge/fetch/cambio de rama, migraciones, dependencias o cambios de autenticación/roles/navegación/estilos. Contenedores/volúmenes previos preservados; Testcontainers usó recursos nuevos propios.
+- Límites: sin navegador real/CI remoto ni nuevas pruebas de impresión/contraste. BFF conserva su mensaje genérico de 409; motivo específico disponible en API. H03/H05/H06 y reparación/conciliación durable siguen fuera de este encargo. Entrega detenida para revisión.
+
+
+## 2026-10-06 — F04-B Web/BFF: protocolo durable y bloqueo de acceso ADMIN
+
+- Implementación limitada a los archivos 9–31 aprobados. Preparación con importe explícito, revisión y captura separadas; retiro PREPARED, reemplazo REJECTED y resolución excepcional usan contratos durables. Montaje, foco, recarga y recuperación solamente consultan; sin POST legacy de respaldo.
+- sessionStorage v2 contiene únicamente versión, usuario, cuenta e intento seleccionado. Storage ausente/inaccesible/manipulado no autoriza capturar ni impide consultar servidor. La referencia v1 solo se consulta mediante puente de lectura; no se adopta su payload financiero ni se fabrica otra identidad.
+- DTO estricto: HTTP200 no equivale a CONFIRMED. PENDING/error/404/timeout/DTO inválido conservan incertidumbre. CONFIRMED conserva pago y distingue saldo disponible de conciliación requerida. Datos/actor/cuenta/versiones quedan capturados y revalidados durante esperas; permisos actuales se verifican por sesión y API. El backend aceptado verifica permisos en BD, no solo autoridades de token.
+- Resolución exige ambos permisos, responsable distinto del creador, motivo, evidencia, versión y NOT_RECEIVED. UNKNOWN/RECEIVED no ofrecen retiro. No se marca pagado, no se borran historia/claims ni se asocian pagos por similitud.
+- Copia física temporal sin .env*: Web 78 archivos/548 pruebas PASS; TypeScript, ESLint y build Next PASS. API offline con PostgreSQL18 nuevo Testcontainers: 274 pruebas PASS, incluidas reproducciones externas del revisor intactas, migraciones y regresiones F01–F04-A/backend B. Harness adicional de navegador 1 PASS; no sustituye las aserciones independientes de resultados financieros.
+- Chrome nuevo aislado contra backend nuevo: preparación con respuesta perdida recuperada por GET; captura con respuesta perdida y storage borrado recupera evidencia sin otro cobro; parcial GTQ30 y GTQ70 preparado explícitamente, saldo cero, pedido CLOSED, cuenta CLOSED y mesa CLEANING. Efectivo sin turno produce REJECTED y reemplazo TRANSFER preparado sin captura automática. Dos pestañas capturan el mismo sucesor: un pago GTQ20. Otro operador queda bloqueado. Resolución BFF ADMIN con respuesta perdida: cero pagos en esa cuenta, marcador conservado y una auditoría; revocación real de permiso devuelve403 con la sesión existente.
+- Capturas revisadas 390/768/1280/1440, sin desbordamiento horizontal; Tab/Shift-Tab/Escape y retorno de foco en diálogo de captura. Los fallos intermedios del guion (modificador CDP, foco programático, recarga antes de POST, formulario sin importe, selector de limpieza) se conservan en artefactos; no se debilitaron expectativas de producto. La primera suite Web paralela tuvo timeouts; repetición completa con dos workers pasó sin alterar pruebas/timeouts.
+- Bloqueo confirmado en navegador: usuario solo ADMIN redirigido de /operation/payments a /admin por requireContext/canAccessContext existentes. La propuesta aprobada suponía acceso ADMIN al canal operativo. No se cambió autenticación/layout/navegación fuera de alcance. Resolución UI del ADMIN real pendiente; BFF real y componentes aislados sí comprobados. Se requiere aprobar acceso acotado en contexto administrativo antes de completar ese recorrido.
+- Expectativas Web anteriores incompatibles sustituidas según plan aprobado: storage v1 obligatorio/autoridad, key cliente, recuperación404 que reenviaba POST legacy y captura en un único paso. Cobertura endpoint legacy y expectativas API conservadas; no compatibilidad total ni identidad inequívoca global. Ambigüedad legacy residual y H05 fuera de alcance.
+- Artefactos: C:/Users/avill/AppData/Local/Temp/wok-f04-b-web-20261006-190327. Sin cambios backend/migraciones/Mobile/autenticación/navegación/estilos globales ni instalaciones/commits/push/merge/fetch/cambio de rama. No activado para uso general; H03/H06 pendientes de revisión independiente. Entrega detenida por ampliación de alcance necesaria para ADMIN.
+
+
+## 2026-10-06 — F04-B ampliación autorizada: revisión ADMIN acotada
+
+- B01 de la entrega anterior atendido con únicamente dos páginas nuevas: /admin/payment-attempts y /admin/payment-attempts/[accountId]. Layout ADMIN y sesión existentes; sin cambios de autenticación, roles, layouts o navegación global y sin habilitar ADMIN para /operation.
+- Ambas páginas comprueban en servidor rol/contexto y payments:manage + payments:resolve, y consultan el API con permisos actuales antes de renderizar. El detalle exige UUID de cuenta y reviewAttempt único, rechaza parámetros adicionales y comprueba correspondencia exacta de cuenta/intento y DTO autorizado. La lista ofrece enlaces locales al detalle ADMIN.
+- El detalle recibe destino de revisión fijado por servidor, se remonta al cambiar de cuenta/intento y permanece exclusivo de consulta/resolución incluso ante errores. No ofrece preparación, captura, reemplazo ni retiro normal; el hook también rechaza esas acciones en modo administrativo. Revalidación de destino durante esperas y permisos frescos conservada. Se espera sesión lista antes de consultar para conservar referencias legacy.
+- Prohibición de auto-resolución y NOT_RECEIVED con motivo/evidencia mantenidas. UNKNOWN/RECEIVED no ofrecen retiro. Error nativo de red convertido a incertidumbre explícita en español; consulta posterior no fabrica otra identidad.
+- Copia física nueva sin .env*: Web78 archivos/569 pruebas PASS; tipos, ESLint y build PASS. API offline con PostgreSQL18 nuevo:274 pruebas PASS, reproducciones externas intactas y regresiones F01–F04-A/backend B, incluido rollback/claims/auditoría/fencing/migraciones. Harness adicional de navegador1 PASS.
+- Navegador ADMIN real: entrada desde enlaces de lista, revisión PENDING ajeno, evidencia obligatoria, UNKNOWN/RECEIVED sin retiro, teclado Tab/Shift-Tab/Escape y retorno de foco, revocación de permiso con sesión existente, resolución con respuesta perdida y recuperación por GET sin repetir, auto-resolución POST403 y UI sin acción, URLs manipuladas denegadas. Capturas390/768/1280/1440 sin desbordamiento horizontal e inspeccionadas. ADMIN sigue redirigido fuera de /operation.
+- Next16.3.6 transmite notFound con HTTP200 en respuestas streaming: se comprobó denegación en servidor, marcador404 y ausencia de proveedor/controles, además de BFF403 por permiso revocado. La expectativa inicial de status404 del guion propio se corrigió conforme a documentación instalada; no se relajó autorización ni expectativa financiera.
+- Versión final en navegador: GTQ40 parcial y GTQ60 de saldo explícito congelado; respuestas perdidas de captura/preparación recuperadas sin otro POST; texto incierto en español, storage borrado, cuenta/pedido CLOSED y mesa CLEANING. Captura tardía del PENDING retirado:409. Snapshot: dos pagos40+60, cero pagos en cuentas de resolución ajena/auto-resolución, una auditoría de resolución, marker no nulo conservado y auto-resolución permanece PENDING/v2.
+- Artefactos de ampliación: C:/Users/avill/AppData/Local/Temp/wok-f04-b-admin-20261006-201238. Informe y delta propio más delta Web/BFF acumulado desde la copia inicial anterior. Trabajo previo y entornos existentes preservados; sin instalaciones/commits/push/merge/fetch/cambio de rama/backend/migraciones.
+- Se detiene para revisión independiente. No activación general ni cierre de H03/H06; H05 y ambigüedad legacy residual permanecen fuera. Emulación responsive no sustituye dispositivo físico/lector de pantalla ni auditoría global de estilos.
+
+## 2026-10-07 — Recorridos Web integrados de PLAN_TRABAJO
+
+- Creación/ampliación conserva cuerpo y clave por usuario/cuenta/pedido antes de enviar, recupera el intento tras recarga y permite un nuevo envío solo después de confirmación explícita. Lecturas automáticas de cocina/detalle/solicitudes/reservas; recuperación tras errores/conflictos y bloqueo de doble envío.
+- Pagos/caja y enlaces desde cuentas se conservaron con su protocolo y límites anteriores. Regresión global: 766 pruebas Web y 244 API aprobadas; bases de prueba nuevas aisladas, sin ventas reales.
+- Informe y guion mesa → pedido → cocina → servido → pago → cierre: [WEB_INTEGRATED_DELIVERY.md](WEB_INTEGRATED_DELIVERY.md). Validación en navegador del último delta pendiente; hallazgos financieros previos no se consideran cerrados por estas pruebas.
+
+## 2026-10-07 — Corrección F2–F6 de revisión independiente
+
+- Creación/ampliación vinculadas al propietario inicial y al principal verificado por BFF con el mismo token reenviado. Desmontaje/cambio de generación aborta y descarta respuestas; cuerpo/clave/propietario inciertos persisten antes del transporte. Formularios antiguos sin propietario/header quedan bloqueados explícitamente.
+- Bandeja usa cargas privadas cancelables por filtro/generación también en refrescos automáticos. Lecturas compartidas y sus BFF protegen identidad; compatibilidad financiera de solo lectura preservada.
+- Solicitudes verificada con Chrome aislado a 390/768/820/1280/1440: sin overflow de documento, Actualizar y detalle visibles, sin ocultar datos. Integración real de pedidos y replay en PostgreSQL nuevo; regresión Web 786 aprobadas, lint/tipos/build aprobados.
+- Informe, archivos, compatibilidad y límites: [WEB_INTEGRATED_F1_F6.md](WEB_INTEGRATED_F1_F6.md). Sin cambios al protocolo financiero ni publicación; detenido para revisión independiente.
