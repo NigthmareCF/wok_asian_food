@@ -94,6 +94,84 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void rejectsCashCaptureWhenRegisterCurrencyDoesNotMatchAccountCurrency() {
+        UUID actor = createUserWithRole("cajero-moneda-captura-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        String code = openRegister("MONEDA");
+        UUID sessionId = openCash(token, code, "0.00");
+        UUID accountId = createAccount(actor, null, "Cuenta USD efectivo");
+        ensureUsdCurrency();
+        insertOrder(accountId, actor, "10.00", "USD", "CLOSED");
+
+        var response = post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CASH","registerCode":"%s"}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+
+        assertThat(response.statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = ?", accountId)).isZero();
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id = ? AND movement_type = 'SALE'",
+                sessionId)).isZero();
+    }
+
+    @Test
+    void rejectsCashRefundWhenRegisterCurrencyDoesNotMatchPaymentCurrency() {
+        UUID actor = createUserWithRole("cajero-moneda-reembolso-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        String code = openRegister("MONEDA");
+        UUID sessionId = openCash(token, code, "0.00");
+        UUID accountId = createAccount(actor, null, "Cuenta USD devolución");
+        ensureUsdCurrency();
+        insertOrder(accountId, actor, "10.00", "USD", "CLOSED");
+        JsonNode captured = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CARD_EXTERNAL","reference":"CAP-USD"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID paymentId = UUID.fromString(captured.path("paymentId").asText());
+
+        var response = post("/api/v1/operational/accounts/" + accountId + "/payments/" + paymentId + "/refunds",
+                token, """
+                {"amount":5.00,"method":"CASH","registerCode":"%s","reason":"Prueba de moneda"}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+
+        assertThat(response.statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.payment_refunds WHERE payment_id = ?", paymentId)).isZero();
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id = ? AND movement_type = 'REFUND'",
+                sessionId)).isZero();
+    }
+
+    @Test
+    void rejectsCourierCashSettlementWhenRegisterCurrencyDoesNotMatchPaymentCurrency() {
+        UUID actor = createUserWithRole("cajero-moneda-repartidor-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        UUID courier = createUserWithRole("repartidor-moneda-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        String code = openRegister("MONEDA");
+        UUID sessionId = openCash(token, code, "0.00");
+        UUID accountId = createAccount(actor, null, "Delivery USD contra entrega");
+        ensureUsdCurrency();
+        UUID orderId = closedDeliveryOrder(accountId, actor, "10.00", "USD");
+        jdbc.update("""
+            INSERT INTO wok.delivery_dispatches (order_id, status, assigned_to_user_id, assigned_at, dispatched_at)
+            VALUES (?, 'OUT_FOR_DELIVERY', ?, now(), now())
+            """, orderId, courier);
+        JsonNode captured = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CASH","collectionSource":"COURIER","courierUserId":"%s"}
+                """.formatted(courier), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID paymentId = UUID.fromString(captured.path("paymentId").asText());
+        UUID collectionId = jdbc.queryForObject("""
+                SELECT id FROM wok.courier_cash_collections WHERE payment_id = ?
+                """, UUID.class, paymentId);
+
+        var response = post("/api/v1/operational/courier-cash/" + collectionId + "/settle", token,
+                "{\"cashSessionId\":\"" + sessionId + "\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+
+        assertThat(response.statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.courier_cash_collections WHERE id = ? AND status = 'PENDING_SETTLEMENT'",
+                collectionId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id = ? AND movement_type = 'SALE'",
+                sessionId)).isZero();
+    }
+
+    @Test
     void capturesExternalPaymentWithoutCashMovement() {
         UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
@@ -580,15 +658,23 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
     }
 
     private UUID closedDeliveryOrder(UUID accountId, UUID actor, String total) {
+        return closedDeliveryOrder(accountId, actor, total, "GTQ");
+    }
+
+    private UUID closedDeliveryOrder(UUID accountId, UUID actor, String total, String currency) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO wok.orders
-                    (id, code, account_id, dining_table_id, channel, status, subtotal, discount, total,
-                     currency_id, guest_count, opened_by, closed_at)
-                SELECT ?, ?, ?, NULL, 'DELIVERY', 'CLOSED', ?::numeric, 0, ?::numeric, id, 1, ?, now()
-                FROM wok.currencies WHERE code = 'GTQ'
-                """, id, uniqueCode("ORD-DELIVERY-PAY"), accountId, total, total, actor);
+            INSERT INTO wok.orders
+                (id, code, account_id, dining_table_id, channel, status, subtotal, discount, total,
+                 currency_id, guest_count, opened_by, closed_at)
+            SELECT ?, ?, ?, NULL, 'DELIVERY', 'CLOSED', ?::numeric, 0, ?::numeric, id, 1, ?, now()
+            FROM wok.currencies WHERE code = ?
+            """, id, uniqueCode("ORD-DELIVERY-PAY"), accountId, total, total, actor, currency);
         return id;
+    }
+
+    private void ensureUsdCurrency() {
+        jdbc.update("INSERT INTO wok.currencies (code, name) VALUES ('USD', 'Dólar') ON CONFLICT (code) DO NOTHING");
     }
 
     private String openRegister(String prefix) {

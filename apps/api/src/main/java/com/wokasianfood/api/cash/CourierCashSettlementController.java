@@ -89,23 +89,32 @@ class CourierCashSettlementService {
         if (claim.replay()) return receipt(claim.resourceId(), true);
 
         List<CollectionRow> collections = jdbc.query("""
-            SELECT c.id, c.status, p.id AS payment_id, p.amount, p.tip_amount, p.status AS payment_status
+            SELECT c.id, c.status, p.id AS payment_id, p.amount, p.tip_amount, p.currency_id,
+                   p.status AS payment_status
             FROM wok.courier_cash_collections c
             JOIN wok.payments p ON p.id = c.payment_id
             WHERE c.id = ? FOR UPDATE OF c, p
             """, (rs, row) -> new CollectionRow(rs.getObject("id", UUID.class), rs.getString("status"),
                 rs.getObject("payment_id", UUID.class), rs.getBigDecimal("amount"),
-                rs.getBigDecimal("tip_amount"), rs.getString("payment_status")), collectionId);
+                rs.getBigDecimal("tip_amount"), rs.getObject("currency_id", UUID.class),
+                rs.getString("payment_status")), collectionId);
         if (collections.isEmpty()) throw new AuthException(404, "No encontramos el efectivo pendiente del repartidor.");
         CollectionRow collection = collections.getFirst();
         if (!"PENDING_SETTLEMENT".equals(collection.status()) || !"CAPTURED".equals(collection.paymentStatus()))
             throw new AuthException(409, "Este cobro ya fue liquidado o no está disponible.");
 
-        List<String> sessions = jdbc.query("""
-            SELECT status FROM wok.cash_sessions WHERE id = ? FOR UPDATE
-            """, (rs, row) -> rs.getString("status"), cashSessionId);
+        List<CashSessionRow> sessions = jdbc.query("""
+            SELECT s.status, r.currency_id
+            FROM wok.cash_sessions s
+            JOIN wok.cash_registers r ON r.id = s.cash_register_id
+            WHERE s.id = ? FOR UPDATE OF s
+            """, (rs, row) -> new CashSessionRow(rs.getString("status"),
+                rs.getObject("currency_id", UUID.class)), cashSessionId);
         if (sessions.isEmpty()) throw new AuthException(404, "No encontramos la caja indicada.");
-        if (!"OPEN".equals(sessions.getFirst())) throw new AuthException(409, "La caja ya está cerrada.");
+        CashSessionRow session = sessions.getFirst();
+        if (!"OPEN".equals(session.status())) throw new AuthException(409, "La caja ya está cerrada.");
+        if (!collection.currencyId().equals(session.currencyId()))
+            throw new AuthException(422, "La moneda del cobro no coincide con la moneda de la caja.");
 
         UUID saleMovementId = jdbc.queryForObject("""
             INSERT INTO wok.cash_movements
@@ -153,6 +162,7 @@ class CourierCashSettlementService {
             String courierName, BigDecimal amount, BigDecimal tip, String currency, java.time.Instant recordedAt) {}
     record Settlement(UUID collectionId, UUID paymentId, UUID cashSessionId, UUID cashMovementId,
             BigDecimal amount, BigDecimal tip, boolean idempotentReplay) {}
+    private record CashSessionRow(String status, UUID currencyId) {}
     private record CollectionRow(UUID id, String status, UUID paymentId, BigDecimal amount,
-            BigDecimal tip, String paymentStatus) {}
+            BigDecimal tip, UUID currencyId, String paymentStatus) {}
 }

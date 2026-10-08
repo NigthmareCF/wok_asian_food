@@ -152,6 +152,7 @@ class PaymentService {
             cashSessionId = currentCashSession(registerCode);
             if (cashSessionId == null)
                 throw new AuthException(409, "No hay una caja abierta para registrar el cobro en efectivo.");
+            requireCashSessionCurrency(cashSessionId, billing.currencyId());
         }
 
         UUID paymentId = UUID.randomUUID();
@@ -239,11 +240,12 @@ class PaymentService {
 
         Account account = lockAccount(accountId);
         List<RefundablePayment> locked = jdbc.query("""
-            SELECT id, account_id, cash_session_id, amount, tip_amount, method, status
+            SELECT id, account_id, cash_session_id, amount, tip_amount, currency_id, method, status
             FROM wok.payments WHERE id = ? AND account_id = ? FOR UPDATE
             """, (rs, row) -> new RefundablePayment(rs.getObject("id", UUID.class),
                 rs.getObject("account_id", UUID.class), rs.getObject("cash_session_id", UUID.class),
-                rs.getBigDecimal("amount"), rs.getBigDecimal("tip_amount"), rs.getString("method"),
+                rs.getBigDecimal("amount"), rs.getBigDecimal("tip_amount"),
+                rs.getObject("currency_id", UUID.class), rs.getString("method"),
                 rs.getString("status")), paymentId, accountId);
         if (locked.isEmpty()) throw new AuthException(404, "No encontramos el pago.");
         RefundablePayment payment = locked.getFirst();
@@ -265,6 +267,7 @@ class PaymentService {
             cashSessionId = currentRefundCashSession(register);
             if (cashSessionId == null)
                 throw new AuthException(409, "Abre la caja antes de registrar una devolución en efectivo.");
+            requireCashSessionCurrency(cashSessionId, payment.currencyId());
         }
         UUID refundId = UUID.randomUUID();
         BigDecimal refundTotal = amount.add(tip);
@@ -408,6 +411,16 @@ class PaymentService {
         return ids.isEmpty() ? null : ids.getFirst();
     }
 
+    private void requireCashSessionCurrency(UUID cashSessionId, UUID currencyId) {
+        UUID registerCurrencyId = jdbc.queryForObject("""
+            SELECT r.currency_id FROM wok.cash_sessions s
+            JOIN wok.cash_registers r ON r.id = s.cash_register_id
+            WHERE s.id = ?
+            """, UUID.class, cashSessionId);
+        if (!currencyId.equals(registerCurrencyId))
+            throw new AuthException(422, "La moneda del pago no coincide con la moneda de la caja.");
+    }
+
     private BigDecimal[] refundTotals(UUID paymentId) {
         return jdbc.queryForObject("""
             SELECT COALESCE(SUM(refund_amount), 0), COALESCE(SUM(tip_refund_amount), 0)
@@ -460,7 +473,7 @@ class PaymentService {
     private record Account(UUID id, String name, String status) {}
 
     private record RefundablePayment(UUID id, UUID accountId, UUID cashSessionId, BigDecimal amount,
-                                     BigDecimal tipAmount, String method, String status) {}
+                                     BigDecimal tipAmount, UUID currencyId, String method, String status) {}
 
     private record Billing(BigDecimal total, int orderCount, int openCount, int currencyCount,
                            UUID currencyId) {}

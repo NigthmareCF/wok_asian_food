@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Protección de movimientos de caja multimoneda
+
+- Los cobros en efectivo, reembolsos en efectivo y liquidaciones de efectivo de repartidor ahora comparan la moneda del pago con la moneda de la caja antes de escribir movimientos. Una diferencia responde 422 y la transacción no deja una venta, devolución ni liquidación parcial.
+- La liquidación de courier obtiene moneda de la colección financiera y bloquea la sesión al verificar que siga abierta. Los tres caminos tienen pruebas de integración PostgreSQL que verifican rechazo y ausencia de movimientos financieros indebidos.
+- `PaymentIntegrationTest`: 18/18. Suite backend completa: 67 suites / 288 pruebas, 0 fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V51 desde esquemas vacíos. `git diff --check` limpio.
+- Continúa pendiente completar conciliación financiera integral; el gateway bancario y FEL reales permanecen bloqueados por selección/configuración externa.
+
 ## 2026-10-08 — Listado de cuentas y saldos financieros por moneda
 
 - `GET /api/v1/operational/accounts?tableId=...` lista cuentas abiertas, en cobro o pagadas asociadas a una mesa; `GET /{accountId}` mantiene su contrato e incluye snapshots de líneas, estado, cantidad, precio y totales por moneda.
