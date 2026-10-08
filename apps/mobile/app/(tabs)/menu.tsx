@@ -17,6 +17,7 @@ import { serviceSlotStatus } from "@/lib/service-hours";
 import { useServiceHours } from "@/lib/use-service-hours";
 import { isValidPositiveApiInteger } from "@/lib/quantity-limits";
 import { canAddDistinctMenuLine, MAX_DISTINCT_MENU_LINES } from "@/lib/request-limits";
+import { isDefinitiveOrderAttemptRejection } from "@/lib/order-attempt-outcome";
 
 type PickupAttempt = { email: string; key: string; body: PickupRequestBody; phase?: "QUOTE" | "ORDER"; quoteId?: string };
 const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
@@ -334,7 +335,7 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
       setSelectedModifiers({});
       setCustomerNote("");
     } catch (cause) {
-      if (orderAttempt && (cause instanceof ApiError) && ((cause.status != null && cause.status >= 400 && cause.status < 500) || cause.status === 503)) {
+      if (orderAttempt && cause instanceof ApiError && isDefinitiveOrderAttemptRejection(cause.status)) {
         setAttempt(null);
         setQuoteDraft(null);
         setQuote(null);

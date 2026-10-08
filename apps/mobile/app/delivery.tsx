@@ -18,6 +18,7 @@ import { serviceSlotStatus } from "@/lib/service-hours";
 import { useServiceHours } from "@/lib/use-service-hours";
 import { isValidPositiveApiInteger, MAX_API_INTEGER } from "@/lib/quantity-limits";
 import { canAddDistinctMenuLine, MAX_DISTINCT_MENU_LINES } from "@/lib/request-limits";
+import { isDefinitiveOrderAttemptRejection } from "@/lib/order-attempt-outcome";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody; phase?: "QUOTE" | "ORDER"; quoteId?: string };
 const legacyStorageKeys = { cart: "wok.delivery.cart.v1", modifiers: "wok.delivery.modifiers.v1", pending: "wok.delivery.pending.v1" };
@@ -343,7 +344,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       await Promise.all([SecureStore.deleteItemAsync(cartStorageKeys.cart), SecureStore.deleteItemAsync(cartStorageKeys.modifiers)]);
       setHistory((current) => [result, ...current.filter((item) => item.requestId !== result.requestId)]); setHistoryOwner(session.email); setHistoryLoaded(true); setNotice("El restaurante recibió tu solicitud y debe revisar cobertura y disponibilidad.");
     } catch (cause) {
-      if (orderAttempt && cause instanceof ApiError && ((cause.status != null && cause.status >= 400 && cause.status < 500) || cause.status === 503)) {
+      if (orderAttempt && cause instanceof ApiError && isDefinitiveOrderAttemptRejection(cause.status)) {
         setPending(null); setQuoteDraft(null); setQuote(null); void SecureStore.deleteItemAsync(cartStorageKeys.pending);
       } else if (orderAttempt) setPending(orderAttempt);
       setError(cause instanceof ApiError ? cause.message : "No se confirmó el resultado. Reintenta la misma solicitud.");

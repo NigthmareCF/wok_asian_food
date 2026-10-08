@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Conservar pedidos con respuesta HTTP incierta
+
+- Pickup y delivery ahora borran un intento persistido sólo ante un rechazo 4xx determinista. Timeout (408/425), rate limit (429) y errores 5xx, incluido 503, conservan el mismo cuerpo y `Idempotency-Key` para que un reintento recupere el resultado existente en vez de crear otra solicitud.
+- Se añadió una función común de clasificación y pruebas para rechazos definitivos e inciertos; los errores de red sin código HTTP también siguen conservando el intento como antes.
+- Verificación: Vitest 87/87, ESLint, TypeScript y exportaciones Expo Android/Web pasan. Web genera 17 rutas estáticas. Los exports comprueban empaquetado, no producen APK ni sustituyen pruebas en dispositivo ni E2E contra el backend integrado.
+
 ## 2026-10-07 — Verificación actual de la app Cliente y límite del build local
 
 - En `feature/mobile-shell` (HEAD `dfee2b4`), se volvieron a ejecutar 73 pruebas Vitest, ESLint y TypeScript sin errores. Export Expo Android y Web también completó; Web genera 17 rutas, incluidas facturas, mensajes, reservas y perfil fiscal.
