@@ -24,7 +24,12 @@ public class InventoryReservationService {
 
     @Transactional
     public void reserve(UUID actor, UUID requestId, UUID orderId, List<Line> lines) {
-        Map<UUID, BigDecimal> required = requirements(lines);
+        Map<UUID, Map<UUID, BigDecimal>> byOrderItem = requirementsByOrderItem(lines);
+        Map<UUID, BigDecimal> required = new LinkedHashMap<>();
+        byOrderItem.values().forEach(resources -> resources.forEach(
+                (itemId, quantity) -> required.merge(itemId, quantity, BigDecimal::add)));
+        byOrderItem.forEach((orderItemId, resources) -> resources.forEach(
+                (itemId, quantity) -> recordResourceDelta(orderItemId, itemId, quantity)));
         if (required.isEmpty()) return;
         List<UUID> itemIds = new ArrayList<>(required.keySet());
         Collections.sort(itemIds);
@@ -57,42 +62,82 @@ public class InventoryReservationService {
         }
     }
 
-    /** Applies selected catalog option inventory deltas on top of recipe reservations. */
-    @Transactional
-    public void reserveModifierImpacts(UUID actor, UUID requestId, UUID orderId, UUID orderRequestId) {
-        List<Adjustment> adjustments = jdbc.query("""
-            SELECT impact.item_id, sum(impact.quantity_delta * request_item.quantity) AS quantity_delta
-            FROM wok.order_request_items request_item
-            JOIN wok.order_request_item_modifiers selected ON selected.order_request_item_id = request_item.id
-            JOIN wok.modifier_item_impacts impact ON impact.modifier_id = selected.modifier_id
-                AND impact.affects_availability = true
-            WHERE request_item.order_request_id = ?
-            GROUP BY impact.item_id
-            HAVING sum(impact.quantity_delta * request_item.quantity) <> 0
-            ORDER BY impact.item_id
-            """, (rs, row) -> new Adjustment(rs.getObject("item_id", UUID.class),
-                rs.getBigDecimal("quantity_delta")), orderRequestId);
-        applyModifierAdjustments(orderId, adjustments);
-    }
-
     /** Applies modifier inventory deltas for newly inserted operational order lines only. */
     @Transactional
     public void reserveOperationalModifierImpacts(UUID actor, UUID requestId, UUID orderId, List<UUID> orderItemIds) {
         if (orderItemIds == null || orderItemIds.isEmpty()) return;
         String placeholders = String.join(",", Collections.nCopies(orderItemIds.size(), "?"));
-        List<Adjustment> adjustments = jdbc.query("""
-            SELECT impact.item_id, sum(impact.quantity_delta * item.quantity) AS quantity_delta
+        List<LineAdjustment> lineAdjustments = jdbc.query("""
+            SELECT item.id AS order_item_id, impact.item_id,
+                   sum(impact.quantity_delta * item.quantity) AS quantity_delta
             FROM wok.order_items item
             JOIN wok.order_item_modifiers selected ON selected.order_item_id = item.id
             JOIN wok.modifier_item_impacts impact ON impact.modifier_id = selected.modifier_id
                 AND impact.affects_availability = true
             WHERE item.id IN (%s)
-            GROUP BY impact.item_id
+            GROUP BY item.id, impact.item_id
             HAVING sum(impact.quantity_delta * item.quantity) <> 0
-            ORDER BY impact.item_id
-            """.formatted(placeholders), (rs, row) -> new Adjustment(rs.getObject("item_id", UUID.class),
+            ORDER BY item.id, impact.item_id
+            """.formatted(placeholders), (rs, row) -> new LineAdjustment(
+                rs.getObject("order_item_id", UUID.class), rs.getObject("item_id", UUID.class),
                 rs.getBigDecimal("quantity_delta")), orderItemIds.toArray());
-        applyModifierAdjustments(orderId, adjustments);
+        Map<UUID, BigDecimal> aggregate = new LinkedHashMap<>();
+        lineAdjustments.forEach(line -> aggregate.merge(line.itemId(), line.quantityDelta(), BigDecimal::add));
+        applyModifierAdjustments(orderId, aggregate.entrySet().stream()
+                .map(entry -> new Adjustment(entry.getKey(), entry.getValue())).toList());
+        lineAdjustments.forEach(line -> recordResourceDelta(line.orderItemId(), line.itemId(), line.quantityDelta()));
+    }
+
+    @Transactional
+    public void completeResourceSnapshots(List<UUID> orderItemIds) {
+        if (orderItemIds == null || orderItemIds.isEmpty()) return;
+        String placeholders = String.join(",", Collections.nCopies(orderItemIds.size(), "?"));
+        jdbc.update("UPDATE wok.order_items SET resource_snapshot_complete = true WHERE id IN (%s)"
+                .formatted(placeholders), orderItemIds.toArray());
+    }
+
+    @Transactional
+    public List<ResourceDelta> releaseOrderItem(UUID orderId, UUID orderItemId) {
+        List<ResourceDelta> deltas = jdbc.query("""
+            SELECT item_id, quantity_delta FROM wok.order_item_resource_reservations
+            WHERE order_item_id = ? ORDER BY item_id
+            """, (rs, row) -> new ResourceDelta(rs.getObject("item_id", UUID.class),
+                rs.getBigDecimal("quantity_delta")), orderItemId);
+        for (ResourceDelta delta : deltas) lockBalance(delta.itemId());
+        for (ResourceDelta delta : deltas) {
+            if (delta.quantityDelta().signum() == 0) continue;
+            List<BigDecimal> reservedRows = jdbc.query("""
+                SELECT quantity FROM wok.inventory_reservations
+                WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE' FOR UPDATE
+                """, (rs, row) -> rs.getBigDecimal(1), orderId, delta.itemId());
+            BigDecimal current = reservedRows.isEmpty() ? BigDecimal.ZERO : reservedRows.getFirst();
+            BigDecimal next = current.subtract(delta.quantityDelta());
+            if (next.signum() < 0)
+                throw new AuthException(409, "La reserva de inventario ya no coincide con el detalle del pedido.");
+            if (next.compareTo(current) > 0) {
+                BigDecimal onHand = lockBalance(delta.itemId());
+                BigDecimal reservedAcrossOrders = jdbc.queryForObject("""
+                    SELECT COALESCE(sum(quantity), 0) FROM wok.inventory_reservations
+                    WHERE item_id = ? AND status = 'ACTIVE'
+                    """, BigDecimal.class, delta.itemId());
+                if (onHand.subtract(reservedAcrossOrders == null ? BigDecimal.ZERO : reservedAcrossOrders)
+                        .compareTo(next.subtract(current)) < 0)
+                    throw new AuthException(409, "No hay stock disponible para ajustar la reserva de este pedido.");
+            }
+            if (reservedRows.isEmpty() && next.signum() > 0) {
+                jdbc.update("""
+                    INSERT INTO wok.inventory_reservations(order_id, item_id, quantity, status)
+                    VALUES (?, ?, ?, 'ACTIVE')
+                    """, orderId, delta.itemId(), next);
+            } else if (!reservedRows.isEmpty()) {
+                jdbc.update("""
+                    UPDATE wok.inventory_reservations SET quantity = ?,
+                        status = CASE WHEN ? = 0 THEN 'RELEASED' ELSE 'ACTIVE' END, updated_at = now()
+                    WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE'
+                    """, next, next, orderId, delta.itemId());
+            }
+        }
+        return deltas;
     }
 
     private void applyModifierAdjustments(UUID orderId, List<Adjustment> adjustments) {
@@ -144,7 +189,46 @@ public class InventoryReservationService {
             UPDATE wok.inventory_reservations
             SET status = 'RELEASED', updated_at = now()
             WHERE order_id = ? AND status = 'ACTIVE'
+        """, orderId);
+    }
+
+    /** Material reserved before kitchen start is released; material reserved after start is accounted as waste. */
+    @Transactional
+    public void consumeAsWaste(UUID actor, UUID requestId, UUID orderId) {
+        List<Reservation> reservations = jdbc.query("""
+            SELECT item_id, quantity FROM wok.inventory_reservations
+            WHERE order_id = ? AND status = 'ACTIVE' ORDER BY item_id
+            """, (rs, row) -> new Reservation(rs.getObject("item_id", UUID.class), rs.getBigDecimal("quantity")),
+            orderId);
+        for (Reservation reservation : reservations) lockBalance(reservation.itemId());
+        for (Reservation reservation : reservations) {
+            int inserted = jdbc.update("""
+                INSERT INTO wok.inventory_movements
+                    (item_id, movement_type, quantity_delta, reason, order_id, responsible_user_id, request_id)
+                VALUES (?, 'WASTE', ?, 'Merma por cancelación después del inicio de cocina', ?, ?, ?)
+                ON CONFLICT (order_id, item_id, request_id)
+                    WHERE movement_type = 'WASTE' AND order_id IS NOT NULL AND request_id IS NOT NULL
+                DO NOTHING
+                """, reservation.itemId(), reservation.quantity().negate(), orderId, actor, requestId);
+            if (inserted == 0) continue;
+            int changed = jdbc.update("""
+                UPDATE wok.inventory_balances
+                SET quantity_on_hand = quantity_on_hand - ?, updated_at = now(), row_version = row_version + 1
+                WHERE item_id = ? AND quantity_on_hand >= ?
+                """, reservation.quantity(), reservation.itemId(), reservation.quantity());
+            if (changed != 1) throw new AuthException(409, "El inventario quedó inconsistente al registrar la merma.");
+        }
+        jdbc.update("""
+            UPDATE wok.inventory_reservations
+            SET status = 'CONSUMED', updated_at = now()
+            WHERE order_id = ? AND status = 'ACTIVE'
             """, orderId);
+        if (!reservations.isEmpty()) jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, reason, result, request_id)
+            VALUES (?, 'INVENTORY_WASTED', 'ORDER', ?, jsonb_build_object('items', ?),
+                    'CANCELLED_AFTER_KITCHEN_START', 'SUCCESS', ?)
+            """, actor, orderId, reservations.size(), requestId);
     }
 
     @Transactional
@@ -185,9 +269,10 @@ public class InventoryReservationService {
             """, actor, orderId, reservations.size(), requestId);
     }
 
-    private Map<UUID, BigDecimal> requirements(List<Line> lines) {
-        Map<UUID, BigDecimal> required = new LinkedHashMap<>();
+    private Map<UUID, Map<UUID, BigDecimal>> requirementsByOrderItem(List<Line> lines) {
+        Map<UUID, Map<UUID, BigDecimal>> byOrderItem = new LinkedHashMap<>();
         for (Line line : lines) {
+            if (line.orderItemId() == null) throw new AuthException(422, "Falta vincular el recurso con su línea de pedido.");
             List<UUID> menuItems = jdbc.query("""
                 SELECT id FROM wok.menu_items WHERE id = ? FOR SHARE
                 """, (rs, row) -> rs.getObject("id", UUID.class), line.menuItemId());
@@ -201,10 +286,20 @@ public class InventoryReservationService {
                     rs.getBigDecimal("quantity")), line.menuItemId());
             for (Component component : components) {
                 BigDecimal needed = component.quantity().multiply(BigDecimal.valueOf(line.quantity()));
-                required.merge(component.itemId(), needed, BigDecimal::add);
+                byOrderItem.computeIfAbsent(line.orderItemId(), ignored -> new LinkedHashMap<>())
+                        .merge(component.itemId(), needed, BigDecimal::add);
             }
         }
-        return required;
+        return byOrderItem;
+    }
+
+    private void recordResourceDelta(UUID orderItemId, UUID itemId, BigDecimal delta) {
+        jdbc.update("""
+            INSERT INTO wok.order_item_resource_reservations(order_item_id, item_id, quantity_delta)
+            VALUES (?, ?, ?)
+            ON CONFLICT (order_item_id, item_id) DO UPDATE
+            SET quantity_delta = order_item_resource_reservations.quantity_delta + EXCLUDED.quantity_delta
+            """, orderItemId, itemId, delta);
     }
 
     private BigDecimal lockBalance(UUID itemId) {
@@ -221,8 +316,10 @@ public class InventoryReservationService {
         return names.isEmpty() ? itemId.toString() : names.getFirst();
     }
 
-    public record Line(UUID menuItemId, int quantity) {}
+    public record Line(UUID orderItemId, UUID menuItemId, int quantity) {}
+    public record ResourceDelta(UUID itemId, BigDecimal quantityDelta) {}
     private record Adjustment(UUID itemId, BigDecimal quantityDelta) {}
+    private record LineAdjustment(UUID orderItemId, UUID itemId, BigDecimal quantityDelta) {}
     private record Component(UUID itemId, BigDecimal quantity) {}
     private record Reservation(UUID itemId, BigDecimal quantity) {}
 }

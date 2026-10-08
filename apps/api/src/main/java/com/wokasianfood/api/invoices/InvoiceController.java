@@ -314,7 +314,7 @@ class InvoiceService {
                    (array_agg(DISTINCT o.currency_id))[1] AS currency_id
             FROM wok.order_items oi
             JOIN wok.orders o ON o.id = oi.order_id
-            WHERE o.account_id = ? AND o.status <> 'CANCELLED'
+            WHERE o.account_id = ? AND o.status <> 'CANCELLED' AND oi.status = 'ACTIVE'
             """, (rs, row) -> new Billing(rs.getBigDecimal("total"), rs.getInt("line_count"),
                 rs.getInt("currency_count"), rs.getObject("currency_id", UUID.class), List.of()), accountId);
         Billing summary = summaries.getFirst();
@@ -322,7 +322,7 @@ class InvoiceService {
             SELECT oi.id, oi.name_snapshot, oi.quantity, oi.unit_price
             FROM wok.order_items oi
             JOIN wok.orders o ON o.id = oi.order_id
-            WHERE o.account_id = ? AND o.status <> 'CANCELLED'
+            WHERE o.account_id = ? AND o.status <> 'CANCELLED' AND oi.status = 'ACTIVE'
             ORDER BY o.opened_at, o.id, oi.created_at, oi.id
             """, (rs, row) -> new Line(rs.getObject("id", UUID.class), rs.getString("name_snapshot"),
                 rs.getInt("quantity"), rs.getBigDecimal("unit_price")), accountId);

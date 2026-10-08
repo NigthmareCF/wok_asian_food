@@ -298,13 +298,17 @@ class OrderRequestDecisionService {
                 Integer.class, orderId);
         if (expected == null || created == null || created.intValue() != expected.intValue())
             throw new AuthException(409, "No se pudieron vincular todas las opciones del pedido.");
-        inventory.reserveModifierImpacts(actor, requestId, orderId, orderRequestId);
+        List<UUID> orderItemIds = jdbc.query("""
+            SELECT id FROM wok.order_items WHERE order_id = ? ORDER BY created_at, id
+            """, (rs, row) -> rs.getObject(1, UUID.class), orderId);
+        inventory.reserveOperationalModifierImpacts(actor, requestId, orderId, orderItemIds);
+        inventory.completeResourceSnapshots(orderItemIds);
         jdbc.update("""
             UPDATE wok.orders order_row
             SET subtotal = totals.subtotal, total = totals.subtotal - order_row.discount,
                 updated_at = now(), updated_by = ?, row_version = row_version + 1
             FROM (SELECT COALESCE(sum(line_total), 0) AS subtotal
-                  FROM wok.order_items WHERE order_id = ?) totals
+                  FROM wok.order_items WHERE order_id = ? AND status = 'ACTIVE') totals
             WHERE order_row.id = ?
             """, actor, orderId, orderId);
     }

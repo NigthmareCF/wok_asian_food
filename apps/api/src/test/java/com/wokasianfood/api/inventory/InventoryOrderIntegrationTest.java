@@ -160,11 +160,105 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
         assertThat(onHand(token, componentId)).isEqualByComparingTo("2");
     }
 
+    @Test
+    void cancellingQueuedLinePreservesHistoryReleasesOnlyItsResourcesAndReplaysIdempotently() {
+        UUID actor = createUserWithRole("line-cancel-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID componentId = createItem("CANCEL_COMPONENT", "Componente cancelación", "0");
+        jdbc.update("INSERT INTO wok.inventory_balances (item_id, quantity_on_hand) VALUES (?, 20)", componentId);
+        UUID parentItemId = createItem("CANCEL_PLATE", "Plato cancelación", "0");
+        UUID menuItemId = createMenuItem(parentItemId, "25.00", token);
+        UUID siblingParentId = createItem("CANCEL_SIBLING", "Plato hermano cancelación", "0");
+        UUID siblingMenuItemId = createMenuItem(siblingParentId, "25.00", token);
+        jdbc.update("""
+                UPDATE wok.menu_items sibling SET preparation_area_id = primary_item.preparation_area_id
+                FROM wok.menu_items primary_item WHERE sibling.id = ? AND primary_item.id = ?
+                """, siblingMenuItemId, menuItemId);
+        body(send("PUT", "/api/v1/operational/inventory/items/" + parentItemId + "/recipe", token, """
+                {"components":[{"componentItemId":"%s","quantity":2}],"recipeStatus":"ACTIVE"}
+                """.formatted(componentId), Map.of()));
+        body(send("PUT", "/api/v1/operational/inventory/items/" + siblingParentId + "/recipe", token, """
+                {"components":[{"componentItemId":"%s","quantity":2}],"recipeStatus":"ACTIVE"}
+                """.formatted(componentId), Map.of()));
+        UUID account = createAccount(actor, "Cuenta ajuste por línea");
+        JsonNode opened = body(post("/api/v1/operational/orders", token, """
+                {"accountId":"%s","channel":"PICKUP","guestCount":2,"items":[
+                  {"menuItemId":"%s","quantity":2,"fulfillment":"TAKEAWAY"},
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"TAKEAWAY"}]}
+                """.formatted(account, menuItemId, siblingMenuItemId),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID orderId = UUID.fromString(opened.path("orderId").asText());
+        JsonNode details = body(get("/api/v1/operational/orders/" + orderId, token));
+        JsonNode cancelledLine = null;
+        JsonNode siblingLine = null;
+        for (JsonNode line : details.path("items")) {
+            if (line.path("quantity").asInt() == 2) cancelledLine = line;
+            else siblingLine = line;
+        }
+        assertThat(cancelledLine).isNotNull();
+        assertThat(siblingLine).isNotNull();
+        UUID orderItemId = UUID.fromString(cancelledLine.path("id").asText());
+        UUID siblingOrderItemId = UUID.fromString(siblingLine.path("id").asText());
+        int orderVersion = details.path("order").path("rowVersion").asInt();
+        int itemVersion = cancelledLine.path("version").asInt();
+        UUID idempotencyKey = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+
+        String path = "/api/v1/operational/orders/" + orderId + "/items/" + orderItemId + "/cancellations";
+        var response = send("POST", path, token, """
+                {"expectedOrderVersion":%d,"expectedItemVersion":%d,"reason":"Cliente solicitó retirar un plato"}
+                """.formatted(orderVersion, itemVersion), Map.of(
+                        "Idempotency-Key", idempotencyKey.toString(), "X-Request-Id", requestId.toString()));
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+        JsonNode adjusted = body(response);
+        assertThat(adjusted.path("order").path("subtotal").decimalValue()).isEqualByComparingTo("25.00");
+        assertThat(orderLine(adjusted, orderItemId).path("status").asText()).isEqualTo("CANCELLED");
+        assertThat(orderLine(adjusted, siblingOrderItemId).path("status").asText()).isEqualTo("ACTIVE");
+        assertThat(reserved(componentId)).isEqualByComparingTo("2");
+        assertThat(count("SELECT count(*) FROM wok.order_item_change_events WHERE order_id = ?", orderId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.kitchen_ticket_items WHERE order_item_id = ? AND action = 'CANCELLED'", orderItemId)).isEqualTo(1);
+
+        var replay = send("POST", path, token, """
+                {"expectedOrderVersion":%d,"expectedItemVersion":%d,"reason":"Cliente solicitó retirar un plato"}
+                """.formatted(orderVersion, itemVersion), Map.of(
+                        "Idempotency-Key", idempotencyKey.toString(), "X-Request-Id", UUID.randomUUID().toString()));
+        assertThat(replay.statusCode()).isEqualTo(200);
+        assertThat(count("SELECT count(*) FROM wok.order_item_change_events WHERE order_id = ?", orderId)).isEqualTo(1);
+    }
+
+    @Test
+    void cancellingAfterKitchenStartsRecordsReservedMaterialsAsWaste() {
+        UUID actor = createUserWithRole("line-waste-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID componentId = createItem("WASTE_COMPONENT", "Componente preparado", "0");
+        jdbc.update("INSERT INTO wok.inventory_balances (item_id, quantity_on_hand) VALUES (?, 10)", componentId);
+        UUID parentItemId = createItem("WASTE_PLATE", "Plato iniciado", "0");
+        UUID menuItemId = createMenuItem(parentItemId, "25.00", token);
+        body(send("PUT", "/api/v1/operational/inventory/items/" + parentItemId + "/recipe", token, """
+                {"components":[{"componentItemId":"%s","quantity":2}],"recipeStatus":"ACTIVE"}
+                """.formatted(componentId), Map.of()));
+        UUID account = createAccount(actor, "Cuenta merma cocina");
+        UUID orderId = openOrder(token, account, menuItemId, 2);
+        JsonNode opened = body(get("/api/v1/operational/orders/" + orderId, token));
+        int version = transition(token, orderId, "PREPARING", opened.path("order").path("rowVersion").asInt());
+        transition(token, orderId, "CANCELLED", version);
+        assertThat(reserved(componentId)).isZero();
+        assertThat(reservationStatus(orderId, componentId)).isEqualTo("CONSUMED");
+        assertThat(onHand(token, componentId)).isEqualByComparingTo("6");
+        assertThat(count("SELECT count(*) FROM wok.inventory_movements WHERE order_id = ? AND movement_type = 'WASTE'", orderId)).isEqualTo(1);
+    }
+
     private int transition(String token, UUID orderId, String status, int expectedVersion) {
         JsonNode body = body(patch("/api/v1/operational/orders/" + orderId + "/status", token, """
                 {"status":"%s","expectedVersion":%d}
                 """.formatted(status, expectedVersion)));
         return body.path("rowVersion").asInt();
+    }
+
+    private JsonNode orderLine(JsonNode orderDetails, UUID orderItemId) {
+        for (JsonNode line : orderDetails.path("items"))
+            if (orderItemId.toString().equals(line.path("id").asText())) return line;
+        throw new AssertionError("Order line missing from response: " + orderItemId);
     }
 
     private UUID openOrder(String token, UUID accountId, UUID menuItemId, int quantity) {

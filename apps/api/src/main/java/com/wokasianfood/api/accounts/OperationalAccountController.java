@@ -49,7 +49,7 @@ class AccountService {
 
         List<AccountOrder> orders = jdbc.query("""
             SELECT o.id, o.code, o.status, o.channel, o.total, o.opened_at, o.closed_at,
-                   (SELECT count(*) FROM wok.order_items i WHERE i.order_id = o.id) AS item_count
+                   (SELECT count(*) FROM wok.order_items i WHERE i.order_id = o.id AND i.status = 'ACTIVE') AS item_count
             FROM wok.orders o
             WHERE o.account_id = ?
             ORDER BY o.opened_at, o.id
