@@ -2,9 +2,9 @@
 
 ## 2026-10-08 — Protección concurrente del último administrador
 
-- Se agregó un escenario PostgreSQL/Testcontainers donde los dos únicos administradores activos intentan suspenderse entre sí al mismo tiempo. Exactamente una suspensión puede confirmarse; la otra queda rechazada por sesión revocada o por la regla de último administrador. La base termina con un administrador activo y una sola acción de suspensión auditada.
-- `RoleAuthorizationIntegrationTest`: 13/13, sin omitidos; Flyway V1–V51 desde PostgreSQL 18 vacío. Suite completa backend: 69 suites / 302 pruebas, 0 fallos, 0 errores, 0 omitidas.
-- Esto verifica específicamente carreras concurrentes de suspensión. Las carreras de edición/revocación de roles y ownership entre clientes siguen pendientes en IAM-02/QA-01.
+- Se agregaron escenarios PostgreSQL/Testcontainers donde los dos únicos administradores activos intentan (a) suspenderse mutuamente y (b) revocar simultáneamente el rol ADMIN del otro. Cada carrera permite como máximo una mutación, deja un ADMIN activo y escribe exactamente una acción de auditoría.
+- `RoleAuthorizationIntegrationTest`: 14/14, sin omitidos; Flyway V1–V51 desde PostgreSQL 18 vacío. Suite completa backend: 69 suites / 303 pruebas, 0 fallos, 0 errores, 0 omitidas.
+- IAM sigue requiriendo ampliar permisos/ownership A/B y revisar otros cambios concurrentes administrativos; estas pruebas sólo cubren la protección de la autoridad ADMIN.
 
 ## 2026-10-07 — Evidencia persistente de refresh-token reuse
 

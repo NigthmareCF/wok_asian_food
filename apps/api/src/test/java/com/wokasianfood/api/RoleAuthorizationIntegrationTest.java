@@ -211,6 +211,55 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void concurrentRoleRevocationsCannotRemoveTheLastActiveAdministrator() throws Exception {
+        UUID firstAdmin = createUserWithRole("admin-role-race-first-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        UUID secondAdmin = createUserWithRole("admin-role-race-second-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        String firstToken = tokenFor(firstAdmin);
+        String secondToken = tokenFor(secondAdmin);
+
+        List<UUID> unrelatedAdminRoles = jdbc.query("""
+            SELECT ur.id FROM wok.user_roles ur JOIN wok.roles r ON r.id=ur.role_id
+            WHERE r.code='ADMIN' AND ur.revoked_at IS NULL
+              AND ur.user_id NOT IN (?, ?)
+            """, (rs, row) -> rs.getObject(1, UUID.class), firstAdmin, secondAdmin);
+        unrelatedAdminRoles.forEach(roleId -> jdbc.update("UPDATE wok.user_roles SET revoked_at=now() WHERE id=?", roleId));
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return send("PUT", ADMIN_USERS + "/" + secondAdmin + "/roles/ADMIN", firstToken,
+                        "{\"action\":\"REVOKE\",\"reason\":\"Prueba concurrente\",\"expectedVersion\":1}", Map.of());
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return send("PUT", ADMIN_USERS + "/" + firstAdmin + "/roles/ADMIN", secondToken,
+                        "{\"action\":\"REVOKE\",\"reason\":\"Prueba concurrente\",\"expectedVersion\":1}", Map.of());
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            List<Integer> responses = List.of(first.get(15, TimeUnit.SECONDS).statusCode(),
+                    second.get(15, TimeUnit.SECONDS).statusCode());
+
+            assertThat(responses).contains(200).allMatch(status -> status == 200 || status == 403 || status == 409);
+            assertThat(responses.stream().filter(status -> status == 200)).hasSize(1);
+            assertThat(jdbc.queryForObject("""
+                SELECT count(DISTINCT ur.user_id) FROM wok.user_roles ur
+                JOIN wok.roles r ON r.id=ur.role_id JOIN wok.users u ON u.id=ur.user_id
+                WHERE r.code='ADMIN' AND ur.revoked_at IS NULL AND u.status='ACTIVE'
+                """, Integer.class)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE action='USER_ROLE_REVOKE' AND entity_id IN (?, ?)",
+                    Integer.class, firstAdmin, secondAdmin)).isEqualTo(1);
+        } finally {
+            unrelatedAdminRoles.forEach(roleId -> jdbc.update("UPDATE wok.user_roles SET revoked_at=NULL WHERE id=?", roleId));
+        }
+    }
+
+    @Test
     void administratorCanInspectAndRevokeOnlySessionsOwnedByTheSelectedAccount() {
         UUID adminId = createUserWithRole("admin-session-" + UUID.randomUUID() + "@wok.test", "ADMIN");
         String adminToken = tokenFor(adminId);
