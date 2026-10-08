@@ -14,10 +14,12 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -25,8 +27,19 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasAuthority('orders:manage')")
 public class OperationalOrderRequestController {
     private final OrderRequestDecisionService decisions;
+    private final OperationalOrderRequestQuery requests;
 
-    public OperationalOrderRequestController(OrderRequestDecisionService decisions) { this.decisions = decisions; }
+    public OperationalOrderRequestController(OrderRequestDecisionService decisions,
+            OperationalOrderRequestQuery requests) {
+        this.decisions = decisions;
+        this.requests = requests;
+    }
+
+    @GetMapping
+    public List<OperationalOrderRequestQuery.OrderRequestSummary> list(
+            @RequestParam(required = false) String status) {
+        return requests.list(status);
+    }
 
     @PostMapping("/{requestId}/decision")
     public OrderRequestDecisionService.DecisionResult decide(@AuthenticationPrincipal Jwt jwt,
@@ -46,10 +59,12 @@ public class OperationalOrderRequestController {
 class OrderRequestDecisionService {
     private final JdbcTemplate jdbc;
     private final OrderService orders;
+    private final PickupSchedulePolicy schedule;
 
-    OrderRequestDecisionService(JdbcTemplate jdbc, OrderService orders) {
+    OrderRequestDecisionService(JdbcTemplate jdbc, OrderService orders, PickupSchedulePolicy schedule) {
         this.jdbc = jdbc;
         this.orders = orders;
+        this.schedule = schedule;
     }
 
     @Transactional
@@ -129,8 +144,7 @@ class OrderRequestDecisionService {
         long prepSeconds = items.stream()
                 .mapToLong(item -> (long) item.preparationSeconds() * item.quantity())
                 .sum();
-        if (prepSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(prepSeconds)))
-            throw new AuthException(422, "El horario solicitado ya no alcanza para preparar la solicitud.");
+        schedule.validate(request.requestedFor(), prepSeconds);
     }
 
     private List<OperationalOrderController.OrderLineRequest> requestedLines(UUID orderRequestId) {
@@ -154,4 +168,59 @@ class OrderRequestDecisionService {
     private record Revalidated(UUID menuItemId, int quantity, int preparationSeconds, UUID currencyId) {}
 
     public record DecisionResult(UUID requestId, String status, UUID orderId, boolean idempotentReplay) {}
+}
+
+@Service
+class OperationalOrderRequestQuery {
+    private static final List<String> STATUSES = List.of(
+            "PENDING_REVIEW", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED");
+    private final JdbcTemplate jdbc;
+
+    OperationalOrderRequestQuery(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    List<OrderRequestSummary> list(String requestedStatus) {
+        String status = requestedStatus == null || requestedStatus.isBlank()
+                ? null : requestedStatus.trim().toUpperCase(java.util.Locale.ROOT);
+        if (status != null && !STATUSES.contains(status)) {
+            throw new AuthException(400, "El estado solicitado no es válido.");
+        }
+        String sql = """
+            SELECT r.id, r.status, r.fulfillment_type, r.requested_for, r.customer_note,
+                   r.subtotal, c.code AS currency, r.created_at, r.order_id,
+                   o.status AS order_status, u.display_name, u.email
+            FROM wok.order_requests r
+            JOIN wok.currencies c ON c.id = r.currency_id
+            JOIN wok.users u ON u.id = r.customer_user_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
+            WHERE (CAST(? AS text) IS NULL OR r.status = ?)
+            ORDER BY CASE WHEN r.status = 'PENDING_REVIEW' THEN 0 ELSE 1 END,
+                     r.created_at DESC, r.id DESC
+            LIMIT 100
+            """;
+        return jdbc.query(sql, (rs, row) -> {
+            UUID requestId = rs.getObject("id", UUID.class);
+            List<OrderRequestItem> items = jdbc.query("""
+                SELECT name_snapshot, quantity, unit_price, line_total
+                FROM wok.order_request_items
+                WHERE order_request_id = ? ORDER BY created_at, id
+                """, (itemRs, itemRow) -> new OrderRequestItem(
+                    itemRs.getString("name_snapshot"), itemRs.getInt("quantity"),
+                    itemRs.getBigDecimal("unit_price"), itemRs.getBigDecimal("line_total")), requestId);
+            return new OrderRequestSummary(requestId, rs.getString("status"),
+                    rs.getString("fulfillment_type"), rs.getTimestamp("requested_for").toInstant(),
+                    rs.getTimestamp("created_at").toInstant(), rs.getString("display_name"),
+                    rs.getString("email"), rs.getString("customer_note"), rs.getBigDecimal("subtotal"),
+                    rs.getString("currency"), rs.getObject("order_id", UUID.class),
+                    rs.getString("order_status"), items);
+        }, status, status);
+    }
+
+    public record OrderRequestSummary(UUID requestId, String status, String fulfillmentType,
+            Instant requestedFor, Instant submittedAt, String customerName, String customerEmail,
+            String customerNote, java.math.BigDecimal subtotal, String currency,
+            UUID orderId, String orderStatus, List<OrderRequestItem> items) {}
+    public record OrderRequestItem(String name, int quantity, java.math.BigDecimal unitPrice,
+            java.math.BigDecimal lineTotal) {}
 }

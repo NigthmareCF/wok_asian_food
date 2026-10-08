@@ -38,7 +38,7 @@ class TableServiceTest {
         when(jdbc.query(contains("account.id AS account_id"), any(RowMapper.class), eq(tableId)))
                 .thenReturn(List.of(view(tableId, "OCCUPIED", 2)));
 
-        var result = new TableService(jdbc).open(actor, requestId, tableId);
+        var result = new TableService(jdbc, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc)).open(actor, requestId, tableId);
 
         assertEquals("OCCUPIED", result.status());
         assertEquals(2, result.rowVersion());
@@ -57,7 +57,7 @@ class TableServiceTest {
         when(jdbc.query(contains("NULL::UUID AS account_id"), any(RowMapper.class), eq(tableId)))
                 .thenReturn(List.of(view(tableId, "OCCUPIED", 4)));
 
-        AuthException error = assertThrows(AuthException.class, () -> new TableService(jdbc).open(actor, UUID.randomUUID(), tableId));
+        AuthException error = assertThrows(AuthException.class, () -> new TableService(jdbc, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc)).open(actor, UUID.randomUUID(), tableId));
 
         assertEquals(409, error.status());
         verify(jdbc, never()).update(contains("SET current_status = ?"), any(Object[].class));
@@ -68,7 +68,7 @@ class TableServiceTest {
         UUID tableId = UUID.randomUUID();
         when(jdbc.query(contains("NULL::UUID AS account_id"), any(RowMapper.class), eq(tableId))).thenReturn(List.of());
 
-        AuthException error = assertThrows(AuthException.class, () -> new TableService(jdbc).close(UUID.randomUUID(), UUID.randomUUID(), tableId));
+        AuthException error = assertThrows(AuthException.class, () -> new TableService(jdbc, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc)).close(UUID.randomUUID(), UUID.randomUUID(), tableId));
 
         assertEquals(404, error.status());
     }
@@ -81,7 +81,7 @@ class TableServiceTest {
                 .thenReturn(List.of(view(tableId, "OCCUPIED", 3)));
         when(jdbc.queryForObject(contains("FROM wok.orders"), eq(Integer.class), eq(tableId))).thenReturn(2);
 
-        AuthException error = assertThrows(AuthException.class, () -> new TableService(jdbc).close(actor, UUID.randomUUID(), tableId));
+        AuthException error = assertThrows(AuthException.class, () -> new TableService(jdbc, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc)).close(actor, UUID.randomUUID(), tableId));
 
         assertEquals(409, error.status());
         verify(jdbc, never()).update(contains("UPDATE wok.order_accounts"), any(Object[].class));
@@ -97,6 +97,8 @@ class TableServiceTest {
         when(jdbc.queryForObject(contains("FROM wok.orders"), eq(Integer.class), eq(tableId))).thenReturn(0);
         when(jdbc.query(contains("SELECT id FROM wok.order_accounts"), any(RowMapper.class), eq(tableId)))
                 .thenReturn(List.of(accountId));
+        when(jdbc.query(contains("GROUP BY c.code"), any(RowMapper.class), eq(accountId), eq(accountId)))
+                .thenReturn(List.of());
         when(jdbc.update(contains("UPDATE wok.order_accounts"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("SET current_status = ?"), eq("CLEANING"), eq(actor), eq(tableId), eq("OCCUPIED")))
                 .thenReturn(1);
@@ -105,7 +107,7 @@ class TableServiceTest {
         when(jdbc.query(contains("account.id AS account_id"), any(RowMapper.class), eq(tableId)))
                 .thenReturn(List.of(view(tableId, "CLEANING", 6)));
 
-        var result = new TableService(jdbc).close(actor, UUID.randomUUID(), tableId);
+        var result = new TableService(jdbc, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc)).close(actor, UUID.randomUUID(), tableId);
 
         assertEquals("CLEANING", result.status());
         verify(jdbc).update(contains("UPDATE wok.order_accounts"), eq(actor), eq(accountId));
@@ -124,7 +126,7 @@ class TableServiceTest {
         when(jdbc.update(contains("SET current_status = ?"), eq("OCCUPIED"), eq(actor), eq(tableId), eq("FREE")))
                 .thenReturn(0);
 
-        AuthException error = assertThrows(AuthException.class, () -> new TableService(jdbc).open(actor, UUID.randomUUID(), tableId));
+        AuthException error = assertThrows(AuthException.class, () -> new TableService(jdbc, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc)).open(actor, UUID.randomUUID(), tableId));
 
         assertEquals(409, error.status());
     }
@@ -136,7 +138,7 @@ class TableServiceTest {
                 .thenReturn(List.of());
 
         AuthException error = assertThrows(AuthException.class,
-                () -> new TableService(jdbc).create(actor, UUID.randomUUID(), "Mesa 01", 4, "PRINCIPAL"));
+                () -> new TableService(jdbc, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc)).create(actor, UUID.randomUUID(), "Mesa 01", 4, "PRINCIPAL"));
 
         assertEquals(409, error.status());
         verify(jdbc, never()).update(contains("audit_logs"), any(Object[].class));
@@ -147,7 +149,7 @@ class TableServiceTest {
         when(jdbc.query(contains(SELECT_TABLE), any(RowMapper.class), any(Object[].class)))
                 .thenReturn(List.of(view(UUID.randomUUID(), "FREE", 1)));
 
-        var rows = new TableService(jdbc).list("FREE", "TERRAZA", true);
+        var rows = new TableService(jdbc, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc)).list("FREE", "TERRAZA", true);
 
         assertEquals(1, rows.size());
         verify(jdbc).query(contains(SELECT_TABLE), any(RowMapper.class),
