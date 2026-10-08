@@ -56,6 +56,56 @@ class InvoiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void editsOnlyDraftsWithOptimisticVersionAndKeepsFiscalPoolWithinAccountTotal() {
+        UUID actor = createUserWithRole("factura-editar-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta factura editable");
+        MenuItemSeed menu = seedMenuItem("Roll editable", "100.00");
+        closedOrderWithItem(accountId, actor, menu, "Roll editable", 1, "100.00", "100.00");
+        String basePath = "/api/v1/operational/accounts/" + accountId + "/invoices";
+        JsonNode draft = body(post(basePath, token, "{\"customerName\":\"Nombre previo\",\"total\":\"60.00\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        JsonNode otherDraft = body(post(basePath, token, "{\"total\":\"40.00\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID invoiceId = UUID.fromString(draft.path("invoiceId").asText());
+        String editPath = "/api/v1/operational/invoices/" + invoiceId;
+        String body = "{\"customerName\":\"Cliente actualizado\",\"customerTaxId\":\"11223344\","
+                + "\"total\":\"50.00\",\"expectedVersion\":1}";
+        String editKey = UUID.randomUUID().toString();
+        UUID requestId = UUID.randomUUID();
+
+        var overAllocation = patch(editPath, token,
+                "{\"customerName\":\"Nombre\",\"total\":\"70.00\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(overAllocation.statusCode()).isEqualTo(422);
+
+        Map<String, String> editHeaders = Map.of("Idempotency-Key", editKey,
+                "X-Request-Id", requestId.toString());
+        JsonNode updated = body(patch(editPath, token, body, editHeaders));
+        assertThat(updated.path("total").decimalValue()).isEqualByComparingTo("50.00");
+        assertThat(updated.path("customerName").asText()).isEqualTo("Cliente actualizado");
+        assertThat(updated.path("customerTaxId").asText()).isEqualTo("11223344");
+        assertThat(updated.path("rowVersion").asInt()).isEqualTo(2);
+        JsonNode replay = body(patch(editPath, token, body, editHeaders));
+        assertThat(replay.path("rowVersion").asInt()).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE action = 'INVOICE_DRAFT_UPDATED' "
+                + "AND entity_id = ? AND request_id = ?", invoiceId, requestId)).isEqualTo(1);
+
+        var stale = patch(editPath, token, body,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(stale.statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForObject("SELECT SUM(total) FROM wok.invoices WHERE account_id = ?",
+                BigDecimal.class, accountId)).isEqualByComparingTo("90.00");
+
+        body(post(issuePath(UUID.fromString(otherDraft.path("invoiceId").asText())), token, null,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        var immutable = patch("/api/v1/operational/invoices/" + otherDraft.path("invoiceId").asText(), token,
+                "{\"total\":\"40.00\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(immutable.statusCode()).isEqualTo(409);
+    }
+
+    @Test
     void preloadsFiscalDataRequestedByAcceptedPickupIntoInvoiceDraft() {
         UUID actor = createUserWithRole("factura-prefill-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);

@@ -4,6 +4,8 @@ import com.wokasianfood.api.identity.AuthException;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -56,6 +59,16 @@ public class InvoiceController {
                 requestId == null ? UUID.randomUUID() : requestId, accountId, idempotencyKey, request);
     }
 
+    @PatchMapping("/invoices/{invoiceId}")
+    public InvoiceService.InvoiceDetails updateDraft(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID invoiceId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody UpdateDraftRequest request) {
+        return invoices.updateDraft(UUID.fromString(jwt.getSubject()),
+                requestId == null ? UUID.randomUUID() : requestId, invoiceId, idempotencyKey, request);
+    }
+
     @GetMapping("/invoices/{invoiceId}")
     public InvoiceService.InvoiceDetails details(@PathVariable UUID invoiceId) {
         return invoices.details(invoiceId);
@@ -64,6 +77,11 @@ public class InvoiceController {
     public record CreateDraftRequest(@Size(max = 160) String customerName,
                                      @Size(max = 32) String customerTaxId,
                                      @DecimalMin(value = "0.01") BigDecimal total) {}
+
+    public record UpdateDraftRequest(@Size(max = 160) String customerName,
+                                     @Size(max = 32) String customerTaxId,
+                                     @NotNull @DecimalMin(value = "0.01") BigDecimal total,
+                                     @NotNull @Positive Integer expectedVersion) {}
 }
 
 @Service
@@ -150,11 +168,95 @@ class InvoiceService {
         return details(invoiceId);
     }
 
+    @Transactional
+    public InvoiceDetails updateDraft(UUID actor, UUID requestId, UUID invoiceId, UUID idempotencyKey,
+                                      InvoiceController.UpdateDraftRequest request) {
+        BigDecimal total = money(request.total());
+        String customerName = blankToNull(request.customerName());
+        String customerTaxId = blankToNull(request.customerTaxId());
+        String hash = fingerprint(invoiceId.toString(), customerName == null ? "" : customerName,
+                customerTaxId == null ? "" : customerTaxId, total.toPlainString(),
+                request.expectedVersion().toString());
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "INVOICE_DRAFT_UPDATED",
+                idempotencyKey, hash);
+        if (claim.replay()) return details(claim.resourceId());
+
+        List<UUID> invoiceAccounts = jdbc.query("SELECT account_id FROM wok.invoices WHERE id = ?",
+                (rs, row) -> rs.getObject("account_id", UUID.class), invoiceId);
+        if (invoiceAccounts.isEmpty()) throw new AuthException(404, "No encontramos la factura.");
+        UUID accountId = invoiceAccounts.getFirst();
+        requireAccount(accountId, true);
+        List<InvoiceRow> lockedInvoices = jdbc.query("""
+            SELECT status, row_version, total, customer_name, customer_tax_id
+            FROM wok.invoices WHERE id = ? AND account_id = ? FOR UPDATE
+            """, (rs, row) -> new InvoiceRow(rs.getString("status"), rs.getInt("row_version"),
+                rs.getBigDecimal("total"), rs.getString("customer_name"), rs.getString("customer_tax_id")),
+                invoiceId, accountId);
+        if (lockedInvoices.isEmpty()) throw new AuthException(404, "No encontramos la factura.");
+        InvoiceRow invoice = lockedInvoices.getFirst();
+        if (!"DRAFT".equals(invoice.status()))
+            throw new AuthException(409, "Sólo se pueden editar facturas en borrador.");
+        if (invoice.rowVersion() != request.expectedVersion())
+            throw new AuthException(409, "La factura cambió desde que la consultaste. Actualiza e inténtalo de nuevo.");
+
+        Billing billing = billing(accountId);
+        if (billing.lineCount() == 0)
+            throw new AuthException(422, "La cuenta no tiene consumos facturables.");
+        if (billing.currencyCount() != 1)
+            throw new AuthException(422, "No se pueden facturar cuentas con varias monedas.");
+        BigDecimal allocatedElsewhere = jdbc.queryForObject("""
+            SELECT COALESCE(SUM(total), 0) FROM wok.invoices
+            WHERE account_id = ? AND id <> ? AND status IN ('DRAFT', 'QUEUED', 'ISSUED')
+            """, BigDecimal.class, accountId, invoiceId);
+        BigDecimal available = billing.total().subtract(allocatedElsewhere == null
+                ? BigDecimal.ZERO : allocatedElsewhere);
+        if (total.compareTo(available) > 0 || total.compareTo(billing.total()) > 0)
+            throw new AuthException(422, "El monto excede el saldo fiscal disponible de la atención.");
+
+        BigDecimal subtotal = total.divide(BigDecimal.ONE.add(taxRate), 2, RoundingMode.HALF_UP);
+        BigDecimal taxTotal = total.subtract(subtotal);
+        int changed = jdbc.update("""
+            UPDATE wok.invoices SET customer_name = ?, customer_tax_id = ?, subtotal = ?, tax_total = ?, total = ?,
+                request_id = ?, updated_at = now(), updated_by = ?, row_version = row_version + 1
+            WHERE id = ? AND status = 'DRAFT' AND row_version = ?
+            """, customerName, customerTaxId, subtotal, taxTotal, total, requestId, actor, invoiceId,
+                request.expectedVersion());
+        if (changed != 1) throw new AuthException(409, "La factura cambió. Actualiza e inténtalo de nuevo.");
+
+        jdbc.update("DELETE FROM wok.invoice_items WHERE invoice_id = ?", invoiceId);
+        if (total.compareTo(billing.total()) == 0 && allocatedElsewhere.signum() == 0) {
+            for (Line line : billing.lines()) {
+                jdbc.update("""
+                    INSERT INTO wok.invoice_items (invoice_id, order_item_id, description, quantity, unit_price)
+                    VALUES (?, ?, ?, ?, ?)
+                    """, invoiceId, line.orderItemId(), line.description(), line.quantity(), line.unitPrice());
+            }
+        } else {
+            jdbc.update("""
+                INSERT INTO wok.invoice_items (invoice_id, description, quantity, unit_price)
+                VALUES (?, 'Consumo asignado de la atención', 1, ?)
+                """, invoiceId, total);
+        }
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, before_data, after_data, result, request_id)
+            VALUES (?, 'INVOICE_DRAFT_UPDATED', 'INVOICE', ?,
+                    jsonb_build_object('rowVersion', ?, 'total', ?, 'customerName', CAST(? AS text),
+                        'customerTaxId', CAST(? AS text)),
+                    jsonb_build_object('rowVersion', ?, 'total', ?, 'customerName', CAST(? AS text),
+                        'customerTaxId', CAST(? AS text)),
+                    'SUCCESS', ?)
+            """, actor, invoiceId, invoice.rowVersion(), invoice.total(), invoice.customerName(),
+                invoice.customerTaxId(), invoice.rowVersion() + 1, total, customerName, customerTaxId, requestId);
+        idempotency.complete(actor.toString(), "INVOICE_DRAFT_UPDATED", idempotencyKey, invoiceId);
+        return details(invoiceId);
+    }
+
     InvoiceDetails details(UUID invoiceId) {
         List<InvoiceDetails> rows = jdbc.query("""
             SELECT i.id, i.account_id, a.name AS account_name, i.status, c.code AS currency,
                    i.tax_rate, i.subtotal, i.tax_total, i.total, i.customer_name, i.customer_tax_id,
-                   i.authorization_number, i.dte_uuid, i.provider_ref, i.error, i.issued_at
+                   i.authorization_number, i.dte_uuid, i.provider_ref, i.error, i.issued_at, i.row_version
             FROM wok.invoices i
             JOIN wok.order_accounts a ON a.id = i.account_id
             JOIN wok.currencies c ON c.id = i.currency_id
@@ -166,6 +268,7 @@ class InvoiceService {
                 rs.getString("authorization_number"), rs.getObject("dte_uuid", UUID.class),
                 rs.getString("provider_ref"), rs.getString("error"),
                 rs.getTimestamp("issued_at") == null ? null : rs.getTimestamp("issued_at").toInstant(),
+                rs.getInt("row_version"),
                 List.of()), invoiceId);
         if (rows.isEmpty()) throw new AuthException(404, "No encontramos la factura.");
         InvoiceDetails invoice = rows.getFirst();
@@ -178,7 +281,7 @@ class InvoiceService {
         return new InvoiceDetails(invoice.invoiceId(), invoice.accountId(), invoice.accountName(), invoice.status(),
                 invoice.currency(), invoice.taxRate(), invoice.subtotal(), invoice.taxTotal(), invoice.total(),
                 invoice.customerName(), invoice.customerTaxId(), invoice.authorizationNumber(), invoice.dteUuid(),
-                invoice.providerRef(), invoice.error(), invoice.issuedAt(), items);
+                invoice.providerRef(), invoice.error(), invoice.issuedAt(), invoice.rowVersion(), items);
     }
 
     List<InvoiceSummary> listByAccount(UUID accountId) {
@@ -264,6 +367,9 @@ class InvoiceService {
 
     private record Billing(BigDecimal total, int lineCount, int currencyCount, UUID currencyId, List<Line> lines) {}
 
+    private record InvoiceRow(String status, int rowVersion, BigDecimal total,
+                              String customerName, String customerTaxId) {}
+
     private record RequestedBilling(String customerName, String customerTaxId) {}
 
     private record Line(UUID orderItemId, String description, int quantity, BigDecimal unitPrice) {}
@@ -278,5 +384,6 @@ class InvoiceService {
     public record InvoiceDetails(UUID invoiceId, UUID accountId, String accountName, String status, String currency,
                                  BigDecimal taxRate, BigDecimal subtotal, BigDecimal taxTotal, BigDecimal total,
                                  String customerName, String customerTaxId, String authorizationNumber, UUID dteUuid,
-                                 String providerRef, String error, Instant issuedAt, List<InvoiceLine> items) {}
+                                 String providerRef, String error, Instant issuedAt, int rowVersion,
+                                 List<InvoiceLine> items) {}
 }

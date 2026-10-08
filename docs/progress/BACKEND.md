@@ -560,3 +560,9 @@
 
 - El movimiento de venta y la auditoría conservan el `X-Request-Id` de liquidación. La propina usa un UUID determinista derivado (`<request-id>:courier-tip`) para respetar la restricción DB de unicidad por movimiento y mantener una relación reproducible con la solicitud.
 - `PaymentIntegrationTest` verifica ambos identificadores correlacionados y que la repetición idempotente no duplica movimientos.
+
+## 2026-10-07 — Edición controlada de borradores FEL
+
+- `PATCH /api/v1/operational/invoices/{invoiceId}` permite corregir receptor y monto sólo mientras la factura siga `DRAFT`. Requiere `expectedVersion` y `Idempotency-Key`, vuelve a validar el monto contra el pool libre de la atención bajo lock, recalcula subtotal/impuesto y reconstruye las líneas con el snapshot de consumo cuando corresponde.
+- Las facturas `QUEUED`/`ISSUED` no se editan en esta ruta. Cambios registran before/after y `X-Request-Id`; la versión se expone en el DTO para que el cliente pueda detectar ediciones concurrentes.
+- `InvoiceIntegrationTest` cubre edición, replay idempotente, límite fiscal, conflicto de versión, bloqueo posterior a emisión y auditoría en PostgreSQL 18/Testcontainers. Suite backend: 266 pruebas, 0 fallos/errores/omitidas; Flyway V1–V48.
