@@ -1,0 +1,21 @@
+server:
+  port: ${WOK_MOBILE_BFF_PORT:8082}
+  forward-headers-strategy: none
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: wok-mobile-bff
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+wok:
+  bff:
+    core-base-url: ${WOK_CORE_API_BASE_URL:http://localhost:8080}
+    allowed-origins: ${WOK_MOBILE_BFF_ALLOWED_ORIGINS:http://localhost:8081}

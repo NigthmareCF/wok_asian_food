@@ -19,6 +19,8 @@ final class ClientRoutes {
         add("PUT", "/api/v1/client/profile", false, false);
         add("DELETE", "/api/v1/client/(sessions|order-requests|reservations)/" + ID, false, false);
         add("GET", "/api/v1/client/order-requests/" + ID, false, false);
+        add("GET", "/api/v1/client/order-requests/" + ID + "/tracking", false, false);
+        add("GET", "/api/v1/client/reservations/policy", false, false);
         add("POST", "/api/v1/client/(order-requests|reservations)", false, true);
         add("POST", "/api/v1/client/conversations", false, false);
         add("GET", "/api/v1/client/conversations/" + ID + "/messages", false, false);
