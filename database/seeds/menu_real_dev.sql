@@ -116,9 +116,9 @@ ON CONFLICT (slug) WHERE slug IS NOT NULL DO UPDATE SET
   visibility=EXCLUDED.visibility, status=EXCLUDED.status, display_order=EXCLUDED.display_order,
   age_restricted=EXCLUDED.age_restricted, recipe_status='PENDING_DATA', updated_at=now();
 
--- Confirmed beverage measures only. Base-unit quantities use the unit named on
--- each item. Sweetener is deliberately excluded until coordination confirms
--- whether the stated 2 oz is a mass measure or prepared-syrup volume.
+-- Preliminary measured beverage components. Base-unit quantities use the unit
+-- named on each item. Sweetener is represented as prepared simple syrup by
+-- volume; raw sugar/water production remains separate until its yield is measured.
 CREATE TEMP TABLE seed_preliminary_ingredients (
   sku TEXT PRIMARY KEY, name TEXT NOT NULL, unit_code TEXT NOT NULL
 ) ON COMMIT DROP;
@@ -127,6 +127,7 @@ INSERT INTO seed_preliminary_ingredients VALUES
  ('ING_MATCHA_BLUE','Matcha azul','G'),
  ('ING_WATER','Agua','ML'),
  ('ING_MILK','Leche','ML'),
+ ('ING_SIMPLE_SYRUP','Jarabe simple','ML'),
  ('ING_KIWI_PULP','Pulpa de kiwi','ML'),
  ('ING_PASSIONFRUIT_PULP','Pulpa de maracuyá','ML'),
  ('ING_MINERAL_WATER_CAN','Lata de agua mineral','UNIT');
@@ -147,10 +148,10 @@ CREATE TEMP TABLE seed_preliminary_recipe_components (
   PRIMARY KEY(product_slug,component_sku)
 ) ON COMMIT DROP;
 INSERT INTO seed_preliminary_recipe_components VALUES
- ('matcha-latte','ING_MATCHA_GREEN',1),('matcha-latte','ING_WATER',59.14706),('matcha-latte','ING_MILK',147.86765),
- ('matcha-kiwi','ING_MATCHA_GREEN',1),('matcha-kiwi','ING_WATER',59.14706),('matcha-kiwi','ING_MILK',147.86765),('matcha-kiwi','ING_KIWI_PULP',29.57353),
- ('matcha-maracuya','ING_MATCHA_GREEN',1),('matcha-maracuya','ING_WATER',59.14706),('matcha-maracuya','ING_MILK',147.86765),('matcha-maracuya','ING_PASSIONFRUIT_PULP',29.57353),
- ('blue-matcha','ING_MATCHA_BLUE',1),('blue-matcha','ING_WATER',59.14706),('blue-matcha','ING_MILK',147.86765),
+ ('matcha-latte','ING_MATCHA_GREEN',1),('matcha-latte','ING_WATER',59.14706),('matcha-latte','ING_MILK',147.86765),('matcha-latte','ING_SIMPLE_SYRUP',59.14706),
+ ('matcha-kiwi','ING_MATCHA_GREEN',1),('matcha-kiwi','ING_WATER',59.14706),('matcha-kiwi','ING_MILK',147.86765),('matcha-kiwi','ING_SIMPLE_SYRUP',59.14706),('matcha-kiwi','ING_KIWI_PULP',29.57353),
+ ('matcha-maracuya','ING_MATCHA_GREEN',1),('matcha-maracuya','ING_WATER',59.14706),('matcha-maracuya','ING_MILK',147.86765),('matcha-maracuya','ING_SIMPLE_SYRUP',59.14706),('matcha-maracuya','ING_PASSIONFRUIT_PULP',29.57353),
+ ('blue-matcha','ING_MATCHA_BLUE',1),('blue-matcha','ING_WATER',59.14706),('blue-matcha','ING_MILK',147.86765),('blue-matcha','ING_SIMPLE_SYRUP',59.14706),
  ('carbonatada','ING_MINERAL_WATER_CAN',1);
 INSERT INTO item_recipe_components(parent_item_id,component_item_id,quantity)
 SELECT product.item_id,component.id,recipe.quantity
