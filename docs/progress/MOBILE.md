@@ -1,5 +1,32 @@
 # Progreso de planificación móvil
 
+## 2026-10-06 — Inicio visual centrado en platillos
+
+- Inicio ahora sigue el orden aprobado: logo oficial, hero fotográfico de 280 px, carrusel «Los más antojables», enlace discreto al menú, tres accesos compactos y servicios publicados al final. Se conservaron sesión, consultas, refresco y rutas existentes.
+- El hero elige la primera imagen HTTPS válida del catálogo publicado; si no hay imagen o falla, usa un gradiente cálido y el logo oficial. Nombre y precio vienen de la API; el caso sin catálogo no inventa platillos ni precios. «Pedir ahora» conserva el botón compartido y ocupa solamente el ancho de su contenido.
+- Texto inferior sobre fondo opaco oscuro con contraste mínimo de 4.5:1, verificado con los colores reales. Gradiente neutro previo sin cambios; variantes cálida y scrim son opcionales y usan Views estáticas.
+- Carrusel con seis platillos en el orden publicado, sin etiquetas comerciales inventadas. Detalle y «+» son acciones separadas; agregar respeta restauración, intento pendiente, consulta/error del menú y máximo de 50 unidades mediante la lógica de carrito existente. Web usa snapping CSS mediante pagingEnabled; nativo conserva snapToInterval y desaceleración rápida.
+- Base observada: lint, TypeScript y 34/34 pruebas aprobados. RED observado: 0/7 pruebas nuevas antes de implementar; GREEN 7/7, más una prueba de rutas. Después de normalizar solamente los seis archivos autorizados: `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile` y `npm run test --workspace mobile` aprobados, 42/42 pruebas; `git diff --check` del alcance aprobado sin errores.
+- Pendiente HOME-03: verificación independiente y revisión visual a 390 px/escritorio por coordinación. API/BFF detenido sin autorización para reiniciar; datos reales, imágenes remotas, carrito, dispositivos y lector de pantalla no están verificados. HTML 200 confirma compilación y nuevo orden/textos; no equivale a prueba de navegador montado o API real.
+- Tamaño observado: aproximadamente 1,044 líneas agregadas/eliminadas respecto de la base de esta revisión de Inicio, antes de esta nota final. La suite ejecutable suma 432 líneas legibles normalizadas; no se redujeron pruebas ni se comprimió código para cumplir la estimación orientativa de 450–650.
+- Sin commits, cambios de rama, dependencias, `.env`, backend ni modificaciones de sesión/workflows.
+
+### Corrección acotada y revisión visual de coordinación
+
+- La revisión independiente de requisitos confirmó el alcance funcional y detectó contraste de 3.5813:1 al presionar los enlaces de menú/contacto con opacidad 0.7. Se mantuvo opacidad 1 y se agregó un fondo oscuro elevado como feedback, sin cambiar controles compartidos. Una regresión ejecuta los callbacks reales y calcula contraste en ambos estados: RED 8/9 y GREEN 9/9 pruebas de Inicio.
+- Después de normalizar solamente Inicio y su prueba: `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile` y `npm run test --workspace mobile` aprobados, 43/43 pruebas.
+- Coordinación inspeccionó antes de esta corrección 390×844 y 1280×900: ancho del documento 390/1280, sin desbordamiento horizontal; fallback cálido con marca, un CTA de 119.85×49.6 px, título del carrusel, error recuperable, enlace discreto, tres accesos y estado al final. El CTA genérico abrió el menú existente sin enviar pedido. Evidencia visual montada; coordinación actualizará la comprobación tras el ajuste.
+  Bundles Web/servidor compilaron y el HTML actualizado respondió 200. No se tocaron listeners antiguos ni backend. HOME-03 sigue parcial por refresco visual del ajuste, consentimiento/inventario de revisión nativa, datos/cart reales, gestos nativos, dispositivos y lector de pantalla.
+
+### Corrección del área táctil realmente renderizada
+
+- Coordinación encontró el enlace real al menú con alto 20px, min-height 0px y sin padding, aunque el callback declaraba 44px. La prueba anterior del callback aislado no validaba su paso por NativeWind.
+- Causa verificada al ejecutar el adaptador Web instalado: className reemplaza un style de tipo función por un objeto CSS; RN Web no invoca ese objeto como callback. Se retiró className solamente de los nueve Pressables nuevos de Inicio y se trasladó el estilo completo al callback intacto: mínimos 44px, alineación, padding/radio, opacidad habilitada 1, fondo al presionar y borde de foco. Hero, controles compartidos, rutas y bloqueos de carrito sin cambios.
+- Regresión del adaptador real: RED 10/11 y GREEN 11/11 pruebas de Inicio. Después de normalizar solamente Inicio/prueba: lint y TypeScript aprobados; `npm run test --workspace mobile` 45/45. La prueba demuestra transporte de estilos, no la medida de un navegador montado.
+  Coordinación comprobará los hitboxes, estados presionado/foco y ausencia de overflow en el DOM actualizado; cards/+ con datos reales, dispositivos y revisión nativa siguen pendientes. Sin commits, backend, listeners antiguos ni dependencias nuevas.
+  Es evidencia del estilo emitido, no de medidas montadas ni del flujo real de cards/+.
+- Validación montada posterior de coordinación: enlace al menú con alto real 44px/min-height 44px/opacidad 1; acceso Menú 106.4×65.2px a 390px. Tab desde el enlace enfocó Menú con borde real rgb(240, 108, 71). Sin overflow horizontal a 1280px; la inspección previa a 390px tampoco mostró overflow. Se observaron fallback/CTA/orden y se actualizó la captura móvil. Evidencia montada separada de las 11 pruebas del adaptador/JSX; no confirma imágenes/catalogue/cards/+ reales con BFF detenido ni dispositivos. La validación independiente de contraste 9/9 correspondía al lote previo al ajuste de interop.
+
 ## 2026-10-02 — Auditoria de dependencias Expo
 
 - El CI conserva el bloqueo de alertas altas y criticas mediante una politica verificable, en lugar de degradar Expo con `npm audit fix --force`.
@@ -24,9 +51,9 @@
 
 - Se agregó pantalla Delivery enlazada desde Inicio. Consulta el menú vigente, guarda líneas de carrito local, pide dirección completa, referencia opcional, teléfono obligatorio, horario y preferencia de pago. `ONLINE_PAYMENT_REQUESTED` está identificado como una preferencia; la app no cobra ni afirma que haya pago.
 - Historial Cliente desde `GET /api/v1/client/delivery-requests` muestra estados y subtotal, y permite cancelar sólo mientras la solicitud sigue pendiente mediante el endpoint compartido de order requests. Dirección/contacto no se repiten en la lista.
-- El envío debe ser explícito y autenticado; antes de llamar al backend persiste el payload/UUID criptográfico en SecureStore. Si el resultado se pierde, ofrece reintento manual del mismo payload. La solicitud sigue pendiente de revisión humana y no reserva stock ni crea una orden.
+  Si el resultado se pierde, ofrece reintento manual del mismo payload. La solicitud sigue pendiente de revisión humana y no reserva stock ni crea una orden.
 - Requiere `feature/backend-api` delivery request y V11 en `feature/database-migrations`; no se ha integrado con zonas, tarifas, ETA de ruta, transporte ni pago real.
-- Verificación: Expo SDK 57 lint, typecheck y export Android/web pasaron; las rutas `/messages` y `/delivery` aparecen en las rutas estáticas. Se añadió `expo-crypto ~57.0.3` para UUIDv4 criptográficamente seguro. La exportación no es una prueba del flujo con API/PostgreSQL ni una prueba física.
+- Verificación: Expo SDK 57 lint, typecheck y export Android/web pasaron; las rutas `/messages` y `/delivery` aparecen en las rutas estáticas. La exportación no es una prueba del flujo con API/PostgreSQL ni una prueba física.
 
 ## 2026-09-30 — Mensajería Cliente conectada
 
@@ -130,7 +157,6 @@
 
 ## Plan original al repartir a rama móvil especializada
 
-- El plan móvil Cliente está en `feature/mobile-shell`, worktree `/tmp/wok-worktrees/mobile`, con base `3bbd0ed` (`origin/development`).
 - En ese momento el contenido era planificación; luego se implementó el slice inicial descrito arriba.
 - La implementación depende del contrato API y de los slices de identidad/backend; la app no confirma reservas, pedidos ni pagos sin respuesta del servidor.
 - El fast-forward fue local. No se hizo commit ni push y la rama remota no se actualizó.
@@ -146,10 +172,104 @@
 - Pendiente: confirmar corte académico, fecha de congelamiento, dispositivos y formato de distribución; inventariar backend real y asignar personas a puestos.
 - Git: documentación local; sin commit, push, cambio de rama, merge ni publicación.
 
-## 2026-10-06 — Reparación de integración móvil y validación de contacto
+## 2026-10-05 — Rediseño móvil aprobado (en curso)
 
-- La rama remota `fix/mobile-corrections` contenía marcadores de conflicto literales en cinco archivos (`account.tsx`, `menu.tsx`, `_layout.tsx`, `package.json` y `ui.tsx`). Se reparó la base en el worktree de esa rama y se restauró la configuración NativeWind que requerían sus pantallas (Babel, Metro, Tailwind, CSS global, tipos y lockfile). Se mantuvieron exports de estilo compatibles con vistas existentes.
-- El perfil, libreta de direcciones y entrega formatean teléfonos GT como grupos de cuatro dígitos y validan ocho dígitos locales, opcionalmente precedidos por `+502`. Se añadieron casos de prueba de normalización/formato.
-- Se eliminó el límite arbitrario de 20 líneas de carrito; los límites de payload de API se elevan a 100 líneas técnicas y capacidad/inventario continúan evaluándose de forma agregada por backend, no SKU por SKU. La app no reserva stock ni confirma una orden al crear una solicitud.
-- Verificación: suites móvil y NativeWind, ESLint y TypeScript pasaron. `expo export` completó para Android y web; el export web generó 17 rutas estáticas. Los bundles no son APK instalable ni equivalen a pruebas en dispositivo.
-- El README móvil se actualizó para describir correctamente el alcance disponible y los límites de pagos, Google OIDC y verificación de edad. Los cambios están locales en `fix/mobile-corrections`; falta commit/push después de sincronizar con el remoto.
+- UI-01: marca oscura coherente con Web, logo oficial sin modificar, gradiente estático con Views nativas, controles compartidos accesibles y estados reutilizables.
+- Base: typecheck y 23/23 pruebas pasaron. RED observado al exigir tema oscuro; GREEN 23/23 después. Typecheck posterior pasó; lint bloqueado por EPERM del sandbox al recorrer el directorio de usuario (resolución ESLint), no por una regla desactivada.
+- Sin commits, nuevas dependencias ni cambios en proveedores/backend. QA visual pendiente.
+
+- UI-02: Inicio con CTA dominante, selección del catálogo real, accesos rápidos y servicios publicados; no se inventan horarios/apertura. Typecheck y 23/23 pruebas pasaron. Lint completo pasó con lectura elevada de directorios ancestros; no se cambió configuración ni se desactivaron reglas. QA visual pendiente.
+
+- UI-03: búsqueda/categorías fijas, lista virtualizada con precios e imágenes, agregado rápido bloqueado ante intentos pendientes, resumen fijo y selector nativo de cantidad/comentario general. Ruta de detalle conservada. URL local BFF documentada sin leer .env real.
+- RED de 2 regresiones de configuración observado, luego GREEN 25/25; typecheck y lint con lectura elevada pasaron. Payload y claves idempotentes del carrito intactos. QA de foco/teclado pendiente.
+
+- UI-04: selector de días y horas sugeridas (no disponibilidad), fecha/hora libre y contador de 1–50 personas. Validación de 3 horas, body requestedAt, cancelación y revisión humana conservados; sin corte frontend de 21:30.
+- RED 26/28 antes del módulo de helpers; GREEN 28/28 verificó preservación de hora, cambio de mes y límites de personas. Typecheck y lint elevado pasaron.
+
+- UI-05: vacíos accionables e iconos en Solicitudes, estados con texto/color; Mi cuenta con marca, campos con iconos, mostrar/ocultar contraseña, errores junto al campo y enlaces secundarios. Cinco modos de autenticación y handlers/versiones/revocación sin cambios. Lint elevado, typecheck y 28/28 pruebas pasaron; QA de autenticación pendiente.
+
+- UI-06: cinco destinos conservados, indicador coral y badge accesible de cantidad; lint elevado/typecheck/29 pruebas pasaron. Normalización limitada a archivos autorizados; no se formatearon archivos protegidos.
+- Export Web pasó. Android falló inicialmente por ejecución Hermes denegada por sandbox y luego pasó con permiso elevado local; son bundles, no APK ni prueba de dispositivo. Salidas temporales, sin instalación ni publicación.
+  El proceso viejo en ::1:8081 quedó intacto y muestra UI anterior. CORS existente del BFF sólo admite localhost:8081 y rechaza127.0.0.1:8081; la revisión nueva puede verificar errores amigables, no afirmar catálogo/flujo API exitoso. No se cambió backend/proxy.
+- Pendiente: verificación independiente, QA390px/escritorio, foco/teclado y dispositivos; QA-01 sigue abierto. Sin commits ni secretos.
+
+## 2026-10-05 — Corrección acotada de aceptación del rediseño
+
+- UI-01/06: se conservaron todos los tokens Web y se agregó semántica móvil con texto oscuro sobre coral; botones, chips y badge cumplen contraste normal. La presión usa coral hover sin desvanecer texto. Contrastes calculados: 5.259:1 normal, 6.184:1 presionado y 4.714:1 mínimo del acento pequeño sobre cada banda del gradiente.
+- Logo oficial discreto reutilizado por Page en Menú, Reservas, Solicitudes, cuenta autenticada/carga, carrito y detalle, sin duplicar Inicio/login. UI-03: pie de pedido sólo con cantidad mayor a cero; rutas y payloads intactos.
+- UI-04: eliminada entrada técnica ISO; semanas futuras paginadas y controles de hora 00–23/minuto 00–59 con resumen legible. Sugerencias no garantizan disponibilidad; requestedAt local, validación de 3 horas y handlers originales conservados.
+- RED 29/33 observado para pie vacío, contraste y semanas futuras; GREEN 34/34 tras corrección. Lint elevado, typecheck y diff-check pasaron después de normalización acotada. Exports Web y Android/Hermes corregidos pasaron sin instalar/publicar; no verifican dispositivos.
+  HTML de reservas verificado con nuevos selectores y sin placeholder ISO. Listener IPv6 ajeno y CORS/backend intactos; flujo API exitoso, QA final de navegador y dispositivos pendientes. QA-01 permanece abierto; sin commits.
+
+## 2026-10-05 — Implementación completa; QA parcial documentado
+
+- La verificación independiente cerró los hallazgos de la corrección sin nuevos bloqueos del cambio: `npm run lint --workspace mobile` con lectura elevada de ancestros, `npm run typecheck --workspace mobile`, `npm run test --workspace mobile` (34/34) y diff-check pasaron. El coordinador repitió el comando exacto de typecheck: pasó.
+- Comparación SHA-256 del coordinador: 11/11 archivos preexistentes protegidos intactos y logo oficial idéntico al original. Rama sin cambios: `feature/mobile-design-tokens`.
+- Navegador del preview corregido en 390×844 y 1280×900: ancho del documento igual al viewport, sin desbordamiento horizontal. Se observaron logo oficial, hero, CTA, tabs activos y marca en las demás pestañas; texto primario renderizado `rgb(18, 18, 20)`.
+- Menú: error amigable y Reintentar visibles, pie de carrito vacío ausente. Reservas: semana futura del 12–18 de octubre de 2026 accesible; lunes 12 + sugerencia 18:00 + incremento de hora/minuto mostró 19:01; personas 2→3; sin textbox ISO. Solicitudes: estado sin sesión con acceso accionable al login.
+- Mostrar/ocultar contraseña y errores inline al enviar login vacío se observaron antes de la corrección; handlers conservados. No se enviaron logins, reservas ni pedidos, ni se crearon datos de prueba backend.
+
+- QA-01 sigue parcial y sin marcar: catálogo, selector de producto y carrito exitosos bloqueados por CORS existente (admite localhost:8081, rechaza Origin 127.0.0.1:8081); foco/teclado del selector, lector de pantalla y Android/iOS reales no verificados. Exports no sustituyen esas pruebas.
+
+## 2026-10-06 — Prueba controlada de catálogo y carrito
+
+- Cuenta Cliente y catálogo de prueba autorizados permitieron comprobar sesión, lectura privada y quick-add; se preservaron registros preexistentes. No se publica información de la cuenta ni identificadores de datos locales.
+
+No se almacenaron contraseñas ni tokens.
+Dependencias existentes reutilizadas; sin imagen ni receta. Las 10 comparaciones de registros previos de identidad/catálogo/dependencias permanecieron idénticas.
+Health 200/UP; menú exacto, CORS de ambos orígenes 8083, login, me autenticado y lectura de solicitudes: 200. Preview 8083 conservado. Sin reinstalar, reconstruir, modificar fuentes/configuración ni detener otros servicios.
+
+- El coordinador observó login real, perfil Cliente/email de prueba, platillo a Q35 y quick-add de una unidad. El carrito muestra el platillo exacto, cantidad 1, subtotal Q35 y botón de solicitud pickup; se dejó la sesión iniciada en `http://127.0.0.1:8083/cart`. DATA-03 completo. No se envió la solicitud.
+- Envío/aceptación operativa, accesibilidad, dispositivos físicos y cobertura de inventario por receta no verificados. No se enviaron pedidos ni reservas, no se ejecutó limpieza y no hubo commits/staging. Frescura del binario respecto de fuentes actuales no comprobada.
+
+## 2026-10-07 — Fechas y accesibilidad corregidas (FIX-01)
+
+- Selector tipado reutilizado en Pasar a recoger y Reservas, con hora de Guatemala UTC−6 y resumen legible. Hora/minuto se anuncian como texto real, no sliders; contador de personas intacto.
+- Consulta de política real integrada y validada con respuestas inyectadas: anticipación y ventana, sin promesas de disponibilidad ni días cerrados inventados. La prueba de política en el servidor en ejecución sigue bloqueada (ver FIX-03). Preparación del pedido, margen conservador y reintento con body/key exactos conservados.
+- RED 9/14, GREEN 15/15; lint, typecheck y 51/51 pruebas pasaron tras normalización acotada. Fallo inicial de lint por Date.now en render corregido y comandos completos repetidos.
+- Sin env/backend/dependencias/commits ni envíos reales. Navegador, dispositivo y revisión independiente pendientes (FIX-03).
+
+## 2026-10-07 — Mensajería real corregida (FIX-02)
+
+SecureStore nativo y memoria Web por cuenta/conversación; aviso explícito de pérdida al salir o recargar, sin localStorage.
+
+- Historial exitoso separado de recuperación local; error no se presenta como vacío. Envío bloqueado durante carga/error/estado inseguro, recuperación validada de formatos anteriores, protección de respuestas tardías y dobles pulsaciones.
+- Mensaje confirmado sigue confirmado aunque falle limpieza o actualización; reintento de limpieza no repite POST. Body/key exactos preservados y ningún reenvío automático.
+- RED de pantalla real transpilada e incompatibilidad SecureStore Web observado (0/10); GREEN 16/16 de mensajería y 32/32 combinado. Lint, typecheck y 68/68 pruebas completas pasaron tras normalización; diff-check pasó. Fechas/presentación 16/16 también con TZ Asia/Tokyo.
+- Pruebas con solicitudes inyectadas, sin envíos reales, login, cambios backend/env/dependencias, commits ni procesos ajenos. GET invitados de mensajes/reservas/carrito devolvieron200; SSR de reservas muestra Guatemala y sin entrada ISO, no sustituye QA montado/autenticado. FIX-03 sigue pendiente de navegador/dispositivos/verificación independiente; no hay aprobación nativa inventada.
+
+## 2026-10-07 — QA montado e independiente (FIX-03 parcial)
+
+- Coordinador: login de cuenta de prueba, Inicio → Contacto → Mensajes; historial real y actualización manual correctos, sin error anterior mezclado con vacío. Enviar deshabilitado con borrador vacío.
+- Reservas: 8 de octubre, 18:00 → 18:01; árbol de accesibilidad anuncia Hora 18 / Minuto 01, cero sliders. Los cuatro botones ± miden 44.9125×49.6px; sin desbordamiento horizontal en 390px.
+- Carrito original restaurado: Gyozas, cantidad 1, subtotal Q68. Pasar a recoger usa selector compartido; Sugerir primera hora mostró 7 de octubre, 06:58 Guatemala. Cero entradas técnicas de fecha y sin desbordamiento en 390 / 1280px.
+- Verificación independiente: lint/typecheck y 68/68 pruebas completas, más 16/16 de fechas/presentación con America/Los_Angeles; sin bloqueos de implementación.
+- Política en ejecución bloqueada: API 405 / BFF 404 para GET, confirmado independientemente; no es incompatibilidad de DTO. JAR BFF antiguo del 5 de octubre carece de ruta, aunque las clases compiladas desde fuentes la contienen. Aviso frontend y bloqueo de envío esperados; reconstruir/reiniciar API/BFF requiere aprobación local explícita para no desplegar cambios backend preexistentes sin permiso.
+  Expo 56551 conservado; este escritor solo actualizó documentación, sin acciones de runtime.
+- No se enviaron mensajes, pedidos ni reservas ni se creó conversación. FIX-03 sigue parcial por política real, revisión nativa y Android/iOS; resultados reales de envío no probados. Fuentes congeladas sin modificaciones.
+
+## 2026-10-07 — Controles compactos del menú (MENU-01)
+
+- Título y separaciones reducidos; eliminado el texto redundante superior. Buscar platillos conserva etiqueta accesible y placeholder, sin etiqueta visual; densidad compacta opcional sin cambiar los campos de otros formularios.
+- Categorías en una fila horizontal con objetivo mínimo de 44px, marca visible de selección y foco de teclado con token existente. Estilos de interacción sin className para conservarlos con el adaptador Web instalado. Tarjetas, imágenes, datos, filtros y protecciones de agregado intactos.
+- RED ejecutable 12/14 por etiqueta y texto superior aún visibles; GREEN 14/14. Lint, typecheck y 70/70 pruebas completas pasaron tras normalización acotada de fuentes. Typecheck inicial detectó propiedades de color inexistentes y se corrigieron antes de repetir los comandos.
+- MENU-02 parcial: pruebas de componentes transpilados/adaptador no acreditan medidas montadas. Pendientes QA del coordinador en 390px/escritorio, primer platillo visible, búsqueda/categorías/foco, desbordamiento, hashes protegidos y dispositivos/revisión nativa.
+- Sin cambios de tarjetas/servidor/env/dependencias, envíos ni commits. La solicitud actual no autoriza reconstruir API/BFF; se mantiene el bloqueo de política real documentado en FIX-03.
+  Expo instalado/offline, CI1, sin dotenv, BFF explícito y resolución IPv4.
+
+## 2026-10-07 — Política real de reservas verificada
+
+- La política exportada por Core y reenviada por BFF valida anticipación mínima de3 horas y ventana14:00–21:15. Invitados y roles no Cliente quedan rechazados; la UI consume el esquema real y mantiene la decisión final del servidor.
+- Se corrigió la deriva de los artefactos publicados localmente sin reescribir la implementación correcta. Nueve regresiones verifican DTO/consistencia, autorización, reenvío privado, errores, ruta exacta y CORS. No se inventó un RED de código: el defecto era la diferencia entre fuentes y binarios anteriores.
+  Intentos restringidos por sockets/Docker no se presentan como prueba final; un primer Core omitió8 pruebas. El empaquetado BFF original falló al renombrar un JAR abierto y se preservó el artefacto anterior antes de producir uno separado.
+- Prueba Web montada con perfil Cliente:3h/14:00–21:15 reales; fecha8 de octubre18:00→18:01, advertencia de ventana a13:00, advertencia de anticipación el mismo día a13:01 y retención de fecha/política tras refrescar solicitudes. Preorden informativa restaurada a No.
+- Controles44×50/45×50 en390×844 y ausencia de overflow en1280×900. La rama exitosa no mostró Actualizar política; su recuperación no fue verificada independientemente. No hubo envíos de reservas, pedidos, mensajes, cancelaciones ni perfil en esta comprobación.
+- Sigue pendiente la comparación directa del payload Core autenticado, Android/iOS instalados, WAN y resultados de envíos reales. La prueba Web no sustituye dispositivos ni acredita aprobación nativa.
+- Próximas decisiones: carrito de invitado al iniciar sesión y durabilidad Web; no asumir transferencia, descarte ni persistencia.
+
+## 2026-10-06 — Correcciones de integración y contacto conservadas
+
+- Se conserva la reparación previa de conflictos de integración y configuración NativeWind de Babel, Metro, Tailwind, CSS global, tipos y lockfile; controles compartidos compatibles con pantallas históricas.
+- Perfil, direcciones y pantalla histórica de entrega conservan normalización Guatemala: ocho dígitos agrupados y prefijo +502 opcional. Delivery/direcciones siguen fuera de esta entrega y sus rutas no se habilitan en el BFF.
+- Corrección documental: Core actual acepta hasta20 platillos distintos por solicitud, no100. Se conserva el guard de20 líneas del carrito por autorización explícita, sin ampliar límites API. Precio, capacidad, inventario y aceptación siguen siendo decisiones del servidor.
+  Se reutilizaron dependencias instaladas; no se modificó el lockfile ni se instalaron paquetes. Los exports históricos Android/Web no son APK ni prueba física.
