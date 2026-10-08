@@ -13,8 +13,8 @@ cleanup() {
 trap cleanup EXIT
 
 mapfile -t migrations < <(find "$database_dir/migrations" -maxdepth 1 -type f -name 'V*.sql' -print | sort -V)
-if (( ${#migrations[@]} != 50 )); then
-  printf 'Expected 50 Flyway migrations (V1–V50), found %s.\n' "${#migrations[@]}" >&2
+if (( ${#migrations[@]} != 51 )); then
+  printf 'Expected 51 Flyway migrations (V1–V51), found %s.\n' "${#migrations[@]}" >&2
   exit 1
 fi
 for index in "${!migrations[@]}"; do
@@ -69,5 +69,5 @@ if [[ "$menu_count" != 31 ]]; then
   exit 1
 fi
 
-printf 'PASS: %s migrations (V1–V50), %s SQL checks, and idempotent 31-product development seed on PostgreSQL 18.\n' \
+printf 'PASS: %s migrations (V1–V51), %s SQL checks, and idempotent 31-product development seed on PostgreSQL 18.\n' \
   "${#migrations[@]}" "${#checks[@]}"

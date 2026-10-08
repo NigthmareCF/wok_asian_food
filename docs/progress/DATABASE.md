@@ -1,5 +1,12 @@
 # Database progress
 
+## 2026-10-07 — Transfer evidence schema (V51)
+
+- V51 adds evidence metadata/events, client idempotency, global SHA-256 duplicate-image protection, JPEG/PNG type checks, 8 MiB cap, review state/version and a unique link to a confirmed payment.
+- Image bytes remain in private persistent backend storage rather than PostgreSQL or the public asset tree. API authorization and ownership are enforced by the backend.
+- `database/tests/V51_payment_evidence.sql` checks the schema/index and rejects duplicate hashes, unsupported image types and oversize evidence.
+- `bash database/validate.sh`: 51 migrations, 15 SQL checks and idempotent 31-product seed passed against PostgreSQL 18.
+
 ## 2026-10-07 — Audited order-line cancellation schema (V50)
 
 - V50 adds status, actor/time and resource-snapshot readiness to order lines; captures the per-line inventory contribution at reservation time so cancellation does not recalculate from mutable recipes/modifiers; and stores a reasoned before/after change event with financial/resource/kitchen snapshots.
