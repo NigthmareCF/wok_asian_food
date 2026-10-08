@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.util.Map;
 import java.util.UUID;
+import java.net.http.HttpResponse;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class OperationalConversationCloseIntegrationTest extends PostgresIntegrationTest {
@@ -80,6 +83,64 @@ class OperationalConversationCloseIntegrationTest extends PostgresIntegrationTes
                 conversationId)).isEqualTo("OPEN");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE action = 'APP_CONVERSATION_CLOSED' "
                 + "AND entity_id = ?", Integer.class, conversationId)).isZero();
+    }
+
+    @Test
+    void customerMessageAndOperationalCloseSerializeWithoutLosingEitherTransition() throws Exception {
+        UUID customerId = createUserWithRole("conversation-race-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID staffId = createUserWithRole("conversation-race-staff-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        jdbc.update("INSERT INTO wok.customer_profiles(user_id, full_name) VALUES (?, 'Cliente concurrente')", customerId);
+        String customerToken = tokenFor(customerId);
+        String staffToken = tokenFor(staffId);
+        JsonNode opened = body(post("/api/v1/client/conversations", customerToken, null));
+        UUID conversationId = UUID.fromString(opened.path("conversationId").asText());
+        String closePath = "/api/v1/operational/conversations/" + conversationId + "/close";
+        String messagePath = "/api/v1/client/conversations/" + conversationId + "/messages";
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var close = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("race start timed out");
+                return patch(closePath, staffToken, "{\"expectedVersion\":1,\"reason\":\"Cierre concurrente\"}",
+                        Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            });
+            var message = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("race start timed out");
+                return post(messagePath, customerToken, "{\"body\":\"Mensaje concurrente\"}",
+                        Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            HttpResponse<String> closeResult = close.get(10, TimeUnit.SECONDS);
+            HttpResponse<String> messageResult = message.get(10, TimeUnit.SECONDS);
+
+            assertThat(closeResult.statusCode()).isIn(200, 409);
+            assertThat(messageResult.statusCode()).isIn(200, 409);
+            assertThat(closeResult.statusCode() == 200).isNotEqualTo(messageResult.statusCode() == 200);
+            String status = jdbc.queryForObject("SELECT status FROM wok.conversations WHERE id = ?", String.class,
+                    conversationId);
+            int version = jdbc.queryForObject("SELECT row_version FROM wok.conversations WHERE id = ?", Integer.class,
+                    conversationId);
+            int messageCount = jdbc.queryForObject("SELECT count(*) FROM wok.messages WHERE conversation_id = ?",
+                    Integer.class, conversationId);
+            int closeAuditCount = jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs "
+                    + "WHERE action = 'APP_CONVERSATION_CLOSED' AND entity_id = ?", Integer.class, conversationId);
+
+            if ("CLOSED".equals(status)) {
+                assertThat(closeResult.statusCode()).isEqualTo(200);
+                assertThat(version).isEqualTo(2);
+                assertThat(messageCount).isZero();
+                assertThat(closeAuditCount).isEqualTo(1);
+            } else {
+                assertThat(status).isEqualTo("WAITING");
+                assertThat(messageResult.statusCode()).isEqualTo(200);
+                assertThat(version).isEqualTo(2);
+                assertThat(messageCount).isEqualTo(1);
+                assertThat(closeAuditCount).isZero();
+            }
+        }
     }
 
     private JsonNode body(java.net.http.HttpResponse<String> response) {

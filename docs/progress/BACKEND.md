@@ -4,7 +4,7 @@
 
 - `PATCH /api/v1/operational/conversations/{conversationId}/close` cierra hilos APP mediante versión esperada, motivo, clave idempotente y auditoría del actor. La cola y el historial exponen `version` para que Operativo envíe la precondición correcta.
 - Un replay devuelve el mismo cierre; una versión obsoleta o una clave reutilizada con otro payload responde 409; Cliente recibe 403 en el comando operativo. El esquema V10 ya soporta `CLOSED`, `closed_at` y `row_version`, así que no requiere migración.
-- Al cerrar un hilo, el endpoint existente de apertura permite al Cliente crear una nueva conversación; el historial conserva el hilo cerrado. `OperationalConversationCloseIntegrationTest`, regresión de historial y prueba unitaria: 5/5, PostgreSQL 18/Testcontainers y Flyway V1–V50.
+- Al cerrar un hilo, el endpoint existente de apertura permite al Cliente crear una nueva conversación; el historial conserva el hilo cerrado. `OperationalConversationCloseIntegrationTest` tiene 3/3 pruebas de integración: acceso/ownership, idempotencia, versión obsoleta y carrera simultánea entre mensaje y cierre; PostgreSQL 18/Testcontainers y Flyway V1–V50. La suite total ejecutada antes de añadir la prueba de carrera pasó 275/275 sin omitidas.
 
 ## 2026-10-08 — Suite backend completa tras cancelación parcial y pool FEL
 
