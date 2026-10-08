@@ -12,7 +12,7 @@ Restore the compatible mobile SDK graph and remove the high/critical audit regre
 
 ## Work unit
 
-- [ ] T1: Restore SDK-compatible mobile declarations, regenerate the root lock, clean-install and verify the resulting graph; commit the coherent fix locally.
+- [x] T1: Restore SDK-compatible mobile declarations, regenerate the root lock, clean-install and verify the resulting graph; commit the coherent fix locally.
   - Route: delegated direct; two non-trivial dependency files and preparation for writing trigger a bounded writer.
   - Test-first: use the actual production audit as RED, dependency alignment as GREEN, then existing regression checks. No artificial application test is needed for dependency-only remediation.
   - Acceptance: no unexcepted high/critical findings; Expo compatibility check passes; web and mobile checks pass, or failures are explicitly recorded without claiming completion.
@@ -39,7 +39,7 @@ Restore the compatible mobile SDK graph and remove the high/critical audit regre
 - Regenerated graph: Expo 57.0.27, Router 57.0.25, React Native 0.86.3, NativeWind 4.2.7, Tailwind 3.4.19, Reanimated 4.5.1, mobile Worklets 0.10.1, and mobile React/React DOM 19.2.3. Web Next remains 16.4.0; existing root Undici 7.29.1, Node Fetch 2.7.0, and Semver 7.8.5 are preserved.
 - Observed fresh audit RED: exit 1, 61 production findings (39 high, 1 critical), with 14 unexcepted blockers. GREEN and repeated final audit: exit 0, 36 production findings (15 moderate, 21 high, 0 critical), with no unexcepted blockers. The only direct high advisories are the existing documented `node-forge` and `braces` exceptions; no exceptions were added.
 - Required clean installation failed: `npm ci` returned EPERM / exit -4048 while unlinking `node_modules/.react-native-css-interop-whUmiTYU/node_modules/lightningcss-win32-x64-msvc/lightningcss.win32-x64-msvc.node`. The file is not read-only. Read-only process-module inspection found no confirmed owner. No processes were terminated or locked binaries deleted.
-- Status: implementation and independent clean-snapshot checks verified; original installation remains incomplete. Commit: pending. Native assessment: high/unassessable before commit due untracked tracking inventory; committed-candidate assessment pending.
+- Status: implementation and independent clean-snapshot checks verified; original installation remains incomplete. Commit: `9eb0f2b10e3b2d844e5b9033911eccba2b8d3ec1`. Committed candidate risk: medium; review due because generated lock changes reached the slice budget; user granted review. Native outcome: approved and exactly acknowledged.
 - Mirror: Engram topic `odd/pr36-dependency-alignment/tasks`.
 
 ### Observed verification
@@ -69,7 +69,7 @@ Runtime boundary: clean-install-dependent checks are unavailable, not accepted a
 
 ## Next step
 
-Record independent proof, perform the parent audit spot check, commit the coherent local fix, and follow native committed-candidate review routing. No push. Original worktree installation recovery and device smoke testing remain separate.
+Local fix and review are complete. Publishing remains unauthorized. Original worktree installation recovery and device smoke testing remain separate.
 
 ## Independent clean-install proof
 
@@ -86,3 +86,16 @@ Verified identical candidate bytes in `C:/Users/Tomy/Desktop/ProyAsian/pr36-veri
 - Next build regenerated snapshot-only `apps/web/next-env.d.ts`; original candidate source stayed unchanged.
 - Original `node_modules` is incomplete after EPERM; no process termination or locked binary deletion was authorized or performed.
 - Parent audit spot check in the original checkout: exit 0; no unexcepted high/critical findings.
+
+## Native review closure
+
+- Source work-unit commit: `9eb0f2b10e3b2d844e5b9033911eccba2b8d3ec1`; Conventional Commit, no AI attribution.
+- User chose review for this candidate. Native risk: medium; one consolidated reliability lens, no findings and no correction required.
+- Reviewer inspected the manifest and proof document. The generated lockfile was supplied as metadata without content hunks; independent identical-byte clean installation and checks are the functional lockfile proof, not reviewer re-execution.
+- Initial capture failed because the sandbox denied access to Codex local runtime state; bound STATUS reoffered the identical slot. Authorized escalated capture succeeded.
+- Native acknowledgement: `gentle-ai.review-acknowledged/v1`, action `acknowledged`, authority `burned`.
+- Lineage: `review-71d671dc8550faa8`.
+- Reviewed target: `sha256:d1d80becec21a432314d58f9ea1e2f8a84bd6bca844ab5d79f199955622ca1d5`.
+- Consumed revision: `sha256:8140037574e8ef194f4579e911a44719de624ccf0dc502b1e6865b428cd391c5`.
+- Source normalization and functional checks preceded review freeze. This subsequent passive tracking update does not change the reviewed dependency files.
+- No push, pull request mutation, process termination, locked-binary deletion, or device smoke test was performed.
