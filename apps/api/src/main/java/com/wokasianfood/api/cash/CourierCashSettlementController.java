@@ -90,14 +90,15 @@ class CourierCashSettlementService {
 
         List<CollectionRow> collections = jdbc.query("""
             SELECT c.id, c.status, p.id AS payment_id, p.amount, p.tip_amount, p.currency_id,
-                   p.status AS payment_status
+                   cur.code AS currency, p.status AS payment_status
             FROM wok.courier_cash_collections c
             JOIN wok.payments p ON p.id = c.payment_id
+            JOIN wok.currencies cur ON cur.id = p.currency_id
             WHERE c.id = ? FOR UPDATE OF c, p
             """, (rs, row) -> new CollectionRow(rs.getObject("id", UUID.class), rs.getString("status"),
                 rs.getObject("payment_id", UUID.class), rs.getBigDecimal("amount"),
                 rs.getBigDecimal("tip_amount"), rs.getObject("currency_id", UUID.class),
-                rs.getString("payment_status")), collectionId);
+                rs.getString("currency"), rs.getString("payment_status")), collectionId);
         if (collections.isEmpty()) throw new AuthException(404, "No encontramos el efectivo pendiente del repartidor.");
         CollectionRow collection = collections.getFirst();
         if (!"PENDING_SETTLEMENT".equals(collection.status()) || !"CAPTURED".equals(collection.paymentStatus()))
@@ -143,26 +144,27 @@ class CourierCashSettlementService {
             """, actor, collectionId, cashSessionId, collection.amount(), collection.tip(), requestId);
         idempotency.complete(actor.toString(), scope, idempotencyKey, collectionId);
         return new Settlement(collectionId, collection.paymentId(), cashSessionId, saleMovementId,
-                collection.amount(), collection.tip(), false);
+                collection.amount(), collection.tip(), collection.currency(), false);
     }
 
     private Settlement receipt(UUID collectionId, boolean replay) {
         return jdbc.query("""
-            SELECT c.id, c.payment_id, c.settled_cash_session_id, p.amount, p.tip_amount,
+            SELECT c.id, c.payment_id, c.settled_cash_session_id, p.amount, p.tip_amount, cur.code AS currency,
                    (SELECT id FROM wok.cash_movements WHERE payment_id = p.id) AS sale_movement_id
-            FROM wok.courier_cash_collections c JOIN wok.payments p ON p.id = c.payment_id WHERE c.id = ?
+            FROM wok.courier_cash_collections c JOIN wok.payments p ON p.id = c.payment_id
+            JOIN wok.currencies cur ON cur.id = p.currency_id WHERE c.id = ?
             """, (rs, row) -> new Settlement(rs.getObject("id", UUID.class),
                 rs.getObject("payment_id", UUID.class), rs.getObject("settled_cash_session_id", UUID.class),
                 rs.getObject("sale_movement_id", UUID.class), rs.getBigDecimal("amount"),
-                rs.getBigDecimal("tip_amount"), replay), collectionId).stream().findFirst()
+                rs.getBigDecimal("tip_amount"), rs.getString("currency"), replay), collectionId).stream().findFirst()
                 .orElseThrow(() -> new AuthException(404, "No encontramos la liquidación."));
     }
 
     record PendingCollection(UUID collectionId, UUID paymentId, UUID accountId, UUID courierUserId,
             String courierName, BigDecimal amount, BigDecimal tip, String currency, java.time.Instant recordedAt) {}
     record Settlement(UUID collectionId, UUID paymentId, UUID cashSessionId, UUID cashMovementId,
-            BigDecimal amount, BigDecimal tip, boolean idempotentReplay) {}
+            BigDecimal amount, BigDecimal tip, String currency, boolean idempotentReplay) {}
     private record CashSessionRow(String status, UUID currencyId) {}
     private record CollectionRow(UUID id, String status, UUID paymentId, BigDecimal amount,
-            BigDecimal tip, UUID currencyId, String paymentStatus) {}
+            BigDecimal tip, UUID currencyId, String currency, String paymentStatus) {}
 }

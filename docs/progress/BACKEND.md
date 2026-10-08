@@ -7,6 +7,11 @@
 - `PaymentIntegrationTest`: 18/18. Suite backend completa: 67 suites / 288 pruebas, 0 fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V51 desde esquemas vacíos. `git diff --check` limpio.
 - Continúa pendiente completar conciliación financiera integral; el gateway bancario y FEL reales permanecen bloqueados por selección/configuración externa.
 
+## 2026-10-08 — Moneda en recibos de liquidación courier
+
+- El recibo de `POST /api/v1/operational/courier-cash/{collectionId}/settle` ahora identifica el código de moneda tanto en la respuesta inicial como en replay idempotente. El listado pendiente ya incluía esta información.
+- `PaymentIntegrationTest` 18/18 pasa en PostgreSQL 18/Testcontainers, incluidos moneda del recibo en flujo normal y replay. Sin cambios de esquema; `git diff --check` limpio.
+
 ## 2026-10-08 — Listado de cuentas y saldos financieros por moneda
 
 - `GET /api/v1/operational/accounts?tableId=...` lista cuentas abiertas, en cobro o pagadas asociadas a una mesa; `GET /{accountId}` mantiene su contrato e incluye snapshots de líneas, estado, cantidad, precio y totales por moneda.

@@ -237,6 +237,7 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                         "X-Request-Id", settleRequestId.toString())));
         assertThat(settled.path("amount").decimalValue()).isEqualByComparingTo("50.00");
         assertThat(settled.path("tip").decimalValue()).isEqualByComparingTo("5.00");
+        assertThat(settled.path("currency").asText()).isEqualTo("GTQ");
         assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE payment_id = ? AND movement_type = 'SALE'", paymentId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT SUM(amount_delta) FROM wok.cash_movements WHERE cash_session_id = ?", BigDecimal.class, sessionId))
                 .isEqualByComparingTo("135.00");
@@ -259,6 +260,7 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
         JsonNode replay = body(post(settlePath, token,
                 "{\"cashSessionId\":\"" + sessionId + "\"}", Map.of("Idempotency-Key", settleKey)));
         assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(replay.path("currency").asText()).isEqualTo("GTQ");
         assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE payment_id = ?", paymentId)).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM wok.courier_cash_collections WHERE id = ? AND status = 'SETTLED'", collectionId)).isEqualTo(1);
     }
