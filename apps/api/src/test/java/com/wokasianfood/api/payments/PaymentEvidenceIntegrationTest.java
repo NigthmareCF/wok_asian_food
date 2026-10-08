@@ -72,6 +72,10 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
         assertThat(body(rejected).path("reviewReason").asText()).isEqualTo("Referencia no coincide");
         HttpResponse<String> clientStatus = get("/api/v1/client/order-requests/" + requestId + "/payment-evidence", client);
         assertThat(body(clientStatus).get(0).path("reviewReason").asText()).isEqualTo("Referencia no coincide");
+        HttpResponse<String> rejectedFileReplay = upload(requestId, UUID.randomUUID(), client, "image/png", PNG_1X1);
+        assertThat(rejectedFileReplay.statusCode()).isEqualTo(409);
+        assertThat(rejectedFileReplay.body()).contains("ya fue rechazado");
+        assertThat(count("SELECT count(*) FROM wok.payment_evidence WHERE order_request_id = ?", requestId)).isEqualTo(1);
     }
 
     @Test

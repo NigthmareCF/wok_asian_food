@@ -149,7 +149,12 @@ class PaymentEvidenceService {
             SELECT id, order_request_id, status, content_type, byte_size, created_at, row_version, review_reason
             FROM wok.payment_evidence WHERE order_request_id = ? AND customer_user_id = ? AND content_sha256 = ?
             """, PaymentEvidenceService::receiptRow, requestId, customerId, checksum);
-        if (!sameEvidence.isEmpty()) return sameEvidence.getFirst();
+        if (!sameEvidence.isEmpty()) {
+            Receipt previous = sameEvidence.getFirst();
+            if ("REJECTED".equals(previous.status()))
+                throw new AuthException(409, "Este comprobante ya fue rechazado. Adjunta una imagen nueva o contacta al restaurante.");
+            return previous;
+        }
 
         UUID evidenceId = UUID.randomUUID();
         storage.write(evidenceId, contents);
