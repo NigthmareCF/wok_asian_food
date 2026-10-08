@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Revalidación de Expo en rama móvil
+
+- Se confirmó por fetch que `feature/mobile-shell` continúa en `f06c86b`, sin cambios locales. ESLint, TypeScript y Vitest pasan (24 archivos / 98 pruebas).
+- `npx expo export --platform android` y `npx expo export --platform web` completan; Web emite las 17 rutas de Cliente. Son bundles estáticos, no un APK instalable ni prueba en dispositivo.
+- No se generó APK: este entorno no tiene Android SDK/ADB y el perfil EAS aún requiere proyecto/cuenta vinculados. No se declara prueba E2E app/API en dispositivo.
+
 ## 2026-10-08 — Conservar pedidos con respuesta HTTP incierta
 
 - Pickup y delivery ahora borran un intento persistido sólo ante un rechazo 4xx determinista. Timeout (408/425), rate limit (429) y errores 5xx, incluido 503, conservan el mismo cuerpo y `Idempotency-Key` para que un reintento recupere el resultado existente en vez de crear otra solicitud.
