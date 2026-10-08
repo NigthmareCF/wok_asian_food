@@ -542,6 +542,6 @@
 ## 2026-10-08 — APP-06: facturas emitidas y perfiles fiscales
 
 - Desde Cuenta se puede abrir el historial de facturas propias y consultar el detalle de cada documento con los endpoints de Cliente. La interfaz deja claro que la API no ofrece descargas PDF/XML; los documentos marcados como prueba se identifican como no válidos fiscalmente.
-- La libreta de datos fiscales permite crear, editar con `expectedVersion`, marcar como predeterminado y eliminar perfiles mediante endpoints autenticados del Cliente. El NIT se enmascara en la lista. Si la respuesta de alta se pierde, la app consulta la lista antes de permitir que se reintente una creación posiblemente ya guardada.
+- La libreta de datos fiscales permite crear, editar con `expectedVersion`, marcar como predeterminado y eliminar perfiles mediante endpoints autenticados del Cliente. El NIT se enmascara en la lista. Tras una respuesta de alta potencialmente incierta (red/5xx), la app consulta la lista y sólo identifica un perfil coincidente con ID nuevo respecto al estado cargado; errores 4xx deterministas no se convierten en falso éxito.
 - Los perfiles privados se reinician al cambiar de cuenta. No se agregaron credenciales ni dependencias.
 - Verificación: Vitest 120/120, ESLint, TypeScript `--noEmit` y exports Expo Android/Web; las rutas Web incluyen `/invoices` y `/tax-profiles`. Estos exports no son pruebas E2E ni instalación física. La API todavía no entrega archivos fiscales; pasarela real, 3DS y FEL siguen pendientes de proveedor/integración.

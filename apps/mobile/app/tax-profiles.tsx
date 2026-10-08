@@ -76,14 +76,17 @@ function TaxProfileBook() {
       });
       closeForm(); setNotice("Los datos para facturar se guardaron.");
     } catch (cause) {
-      if (!editing) {
+      const outcomeMayBeUncertain = !(cause instanceof ApiError) || cause.status === undefined || cause.status >= 500;
+      if (!editing && outcomeMayBeUncertain) {
         try {
           const current = await request<CustomerTaxProfile[]>("/api/v1/client/tax-profiles");
           setProfiles(current);
+          const existingIds = new Set(profiles.map((profile) => profile.profileId));
           const recovered = current.find((profile) => profile.label.trim().toLowerCase() === payload.label.toLowerCase()
-            && profile.customerName === payload.customerName && profile.customerTaxId === payload.customerTaxId);
+            && profile.customerName === payload.customerName && profile.customerTaxId === payload.customerTaxId
+            && !existingIds.has(profile.profileId));
           if (recovered) {
-            closeForm(); setNotice("El perfil quedó guardado. Actualizamos la lista para confirmar el resultado."); return;
+            closeForm(); setNotice("El perfil aparece en la lista después de una respuesta incierta. Verifica antes de volver a intentarlo."); return;
           }
         } catch { /* Keep the original error when the recovery read also fails. */ }
       }
