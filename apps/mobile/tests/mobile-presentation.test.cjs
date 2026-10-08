@@ -154,6 +154,174 @@ test("compact Field hides only the visual label and preserves defaults, touch si
   );
 });
 
+test("compact menu controls preserve filtering, selected markers, Web feedback and quick-add guards", () => {
+  const state = ["", null, null, null];
+  let cursor = 0;
+  const changes = [];
+  const cart = { items: {}, ready: true, attempt: null };
+  const menu = {
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    data: {
+      categories: [
+        {
+          id: "food",
+          name: "Platos",
+          items: [
+            {
+              id: "dish",
+              name: "Gyozas",
+              description: "Crujientes",
+              price: 68,
+              currency: "GTQ",
+            },
+          ],
+        },
+        {
+          id: "drinks",
+          name: "Bebidas",
+          items: [{ id: "tea", name: "Té", price: 15, currency: "GTQ" }],
+        },
+      ],
+    },
+  };
+  const { default: MenuScreen } = presentationModule("app/(tabs)/menu.tsx", {
+    react: {
+      useMemo: (fn) => fn(),
+      useState: () => {
+        const index = cursor++;
+        return [
+          state[index],
+          (value) => {
+            state[index] = value;
+          },
+        ];
+      },
+    },
+    "@/components/ui": {
+      ...Object.fromEntries(
+        [
+          "Page",
+          "Heading",
+          "Field",
+          "Button",
+          "Card",
+          "Notice",
+          "EmptyState",
+        ].map((name) => [name, name]),
+      ),
+      useUiTheme: () => ({ colors: theme.getThemeColors("dark") }),
+    },
+    "@/hooks/use-cart": {
+      useCart: () => ({
+        ...cart,
+        changeQuantity: (...args) => changes.push(args),
+      }),
+    },
+    "@/hooks/use-menu": { useMenu: () => menu },
+    "@/lib/catalog": {
+      cartTotals: () => [],
+      menuProducts: () => [],
+      formatPrice: (item) => `Q${item.price}`,
+    },
+    "@/components/product-image": { ProductImage: "ProductImage" },
+  });
+  const render = () => {
+    cursor = 0;
+    return elements(MenuScreen());
+  };
+  let controls = render();
+  assert.equal(
+    controls.some((item) => item.type === "Heading" && item.props.eyebrow),
+    false,
+  );
+  assert.ok(
+    controls.some(
+      (item) =>
+        item.type === "Text" &&
+        item.props.children === "Menú WOK" &&
+        item.props.accessibilityRole === "header",
+    ),
+  );
+  const field = controls.find((item) => item.type === "Field");
+  assert.equal(field.props.hideLabel, true);
+  assert.equal(field.props.density, "compact");
+  assert.equal(field.props.placeholder, "Buscar platillos");
+  let chips = controls.filter((item) => item.type === "Pressable");
+  for (const chip of chips) {
+    const interop = webInteropProps(chip.props);
+    assert.equal(typeof interop.style, "function");
+    for (const pressed of [false, true]) {
+      const style = interop.style({ pressed });
+      assert.equal(style.minHeight, 44);
+      assert.equal(style.paddingHorizontal, 10);
+      assert.equal(style.opacity, 1);
+    }
+  }
+  assert.ok(
+    elements(chips[0]).some(
+      (item) => item.type === "Text" && item.props.children === "✓",
+    ),
+  );
+  chips
+    .find((item) => item.props.accessibilityLabel === "Platos")
+    .props.onPress();
+  controls = render();
+  let list = controls.find((item) => item.type === "FlatList");
+  assert.deepEqual(
+    Array.from(
+      list.props.data.filter((item) => item.kind === "product"),
+      (item) => item.product.id,
+    ),
+    ["dish"],
+  );
+  field.props.onChangeText("crujientes");
+  controls = render();
+  list = controls.find((item) => item.type === "FlatList");
+  assert.equal(
+    list.props.data.filter((item) => item.kind === "product").length,
+    1,
+  );
+  const row = list.props.data.find((item) => item.kind === "product");
+  const add = () =>
+    elements(list.props.renderItem({ item: row })).find(
+      (item) => item.props.title === "+",
+    );
+  assert.equal(add().props.disabled, false);
+  add().props.onPress();
+  assert.deepEqual(changes, [["dish", 1]]);
+  for (const lock of [
+    { ready: false },
+    { attempt: {} },
+    { items: { dish: 50 } },
+  ]) {
+    const previous = { ...cart };
+    Object.assign(cart, lock);
+    controls = render();
+    list = controls.find((item) => item.type === "FlatList");
+    assert.equal(add().props.disabled, true);
+    Object.assign(cart, previous);
+  }
+  for (const property of ["isFetching", "isError"]) {
+    menu[property] = true;
+    controls = render();
+    list = controls.find((item) => item.type === "FlatList");
+    assert.equal(add().props.disabled, true);
+    menu[property] = false;
+  }
+  chips = controls.filter((item) => item.type === "Pressable");
+  const selected = chips.find((item) => item.props.accessibilityState.selected);
+  selected.props.onFocus();
+  const focusedChip = render().find(
+    (item) => item.props.accessibilityLabel === "Platos",
+  );
+  assert.equal(
+    focusedChip.props.style({ pressed: false }).borderColor,
+    `rgb(${tokens.darkTokens["--focus"].replaceAll(" ", ", ")})`,
+  );
+});
+
 test("actual pickup footer uses the typed selector and retries the exact stored request", async () => {
   const existing = {
     email: "client@example.test",
@@ -458,6 +626,50 @@ test("five tab destinations retain a text-labeled accessible cart badge", () => 
     read("app/_layout.tsx"),
     /CartProvider|QueryClientProvider/,
   );
+});
+
+test("actual menu footer is absent for zero items and present for a selection", () => {
+  for (const quantity of [0, 2]) {
+    const { default: MenuScreen } = presentationModule("app/(tabs)/menu.tsx", {
+      "@/components/ui": {
+        Page: "Page",
+        Heading: "Heading",
+        Field: "Field",
+        Button: "Button",
+        Card: "Card",
+        EmptyState: "EmptyState",
+        useUiTheme: () => ({ colors: theme.getThemeColors("dark") }),
+      },
+      "@/components/product-sheet": { ProductSheet: "ProductSheet" },
+      "@/hooks/use-cart": {
+        useCart: () => ({
+          items: quantity
+            ? { "bef0df01-a4cf-4ee9-a9ed-277ac338b7ee": quantity }
+            : {},
+          ready: true,
+          attempt: null,
+        }),
+      },
+      "@/hooks/use-menu": {
+        useMenu: () => ({
+          isPending: false,
+          isFetching: false,
+          isError: false,
+        }),
+      },
+      "@/lib/catalog": {
+        cartTotals: () => [],
+        menuProducts: () => [],
+        formatPrice: () => "Q0.00",
+      },
+    });
+    const footer = elements(MenuScreen()).filter(
+      (element) =>
+        element.type === "Button" &&
+        element.props.title?.startsWith("Ver pedido"),
+    );
+    assert.equal(footer.length, quantity > 0 ? 1 : 0);
+  }
 });
 
 test("actual primary controls preserve normal-text contrast in default and pressed states", () => {

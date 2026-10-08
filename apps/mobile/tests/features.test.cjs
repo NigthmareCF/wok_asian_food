@@ -426,3 +426,29 @@ test("in-flight refresh writes are cleared before another account is stored", as
     email: "new@example.test",
   });
 });
+
+test("catalog uses virtualized image lists and retains the existing provider tree", () => {
+  const read = (file) => readFileSync(path.resolve(mobileRoot, file), "utf8");
+  const menu = read("app/(tabs)/menu.tsx");
+  const cart = read("app/cart.tsx");
+  const layout = read("app/_layout.tsx");
+  assert.match(menu, /<FlatList/);
+  assert.match(cart, /<FlatList/);
+  assert.match(menu, /<ProductImage/);
+  assert.match(cart, /<ProductImage/);
+  assert.match(read("src/components/product-image.tsx"), /from "expo-image"/);
+  assert.doesNotMatch(`${menu}\n${cart}`, /#[a-f0-9]{3,8}\b|\[[\d.]+px\]/i);
+  assert.doesNotMatch(layout, /QueryClientProvider|CartProvider/);
+  assert.doesNotMatch(
+    read("src/hooks/use-cart.ts"),
+    /localStorage|sessionStorage|apiRequest/,
+  );
+  assert.match(
+    read("app/(tabs)/account.tsx"),
+    /if \(offline\) \{\s*setLoading\(false\);\s*return;\s*\}/,
+  );
+  assert.match(
+    read("src/providers/session-provider.tsx"),
+    /else if \(!current\.offline\) setSession/,
+  );
+});
