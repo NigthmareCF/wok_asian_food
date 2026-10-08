@@ -7,19 +7,57 @@ import {
 
 const table = {
   id: "11111111-1111-4111-8111-111111111111",
-  name: "Mesa 01",
+  name: "Mesa pagada",
   capacity: 4,
-  zone: "PRINCIPAL",
+  zone: "Principal",
   active: true,
-  status: "FREE",
-  rowVersion: 1,
-  updatedAt: "2026-10-03T10:00:00Z",
-  accountId: null,
-  accountName: null,
-  accountStatus: null,
+  status: "OCCUPIED",
+  rowVersion: 2,
+  updatedAt: "2026-10-06T00:00:00Z",
+  accountId: "22222222-2222-4222-8222-222222222222",
+  accountName: "Cuenta",
+  accountStatus: "PAID",
 };
 
+it.each(["OPEN", "IN_COBRO", "PAID"])(
+  "accepts account state %s without changing the table state",
+  (accountStatus) => {
+    const value = { ...table, accountStatus };
+    expect(isOperationalTable(value)).toBe(true);
+    expect(isOperationalTables([value])).toBe(true);
+    expect(value.status).toBe("OCCUPIED");
+  },
+);
+
+it.each(["UNKNOWN", "CLOSED", "paid", "", null])(
+  "rejects an invalid associated account state %s",
+  (accountStatus) => {
+    expect(isOperationalTable({ ...table, accountStatus })).toBe(false);
+    expect(isOperationalTables([table, { ...table, accountStatus }])).toBe(
+      false,
+    );
+  },
+);
+
+it("continues rejecting unknown physical table states", () => {
+  expect(isOperationalTable({ ...table, status: "PAID" })).toBe(false);
+});
+
 describe("live table contract", () => {
+  const table = {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "Mesa 01",
+    capacity: 4,
+    zone: "PRINCIPAL",
+    active: true,
+    status: "FREE",
+    rowVersion: 1,
+    updatedAt: "2026-10-03T10:00:00Z",
+    accountId: null,
+    accountName: null,
+    accountStatus: null,
+  };
+
   it("accepts only the real table response fields", () => {
     expect(isOperationalTable(table)).toBe(true);
     expect(isOperationalTables([table])).toBe(true);

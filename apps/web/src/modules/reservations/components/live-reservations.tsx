@@ -3,7 +3,13 @@ import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
-import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
+import { useClientPickupResource } from "@/modules/client-order-tracking/use-client-pickup-resource";
+import { useClientIdentity } from "@/modules/clients/use-client-identity";
+import { createClientOperation } from "@/modules/clients/client-identity-store";
+import {
+  nextReservationWindow,
+  reservationInputToInstant,
+} from "../reservation-window";
 import { useSubmission } from "@/modules/client-workflows/use-submission";
 import {
   parseReservation,
@@ -14,15 +20,21 @@ import {
 } from "../live-contract";
 import styles from "@/modules/checkout/components/checkout.module.css";
 export function LiveReservations({ userId }: { userId: string }) {
-  const history = usePickupResource("/bff/reservations", isReservationHistory);
+  const { identity, verified, refresh } = useClientIdentity(userId);
+  const history = useClientPickupResource(
+    "/bff/reservations",
+    isReservationHistory,
+    userId,
+  );
   const submission = useSubmission(
     `wok.reservation.attempt.v1:${userId}`,
     "/bff/reservations",
     parseReservation,
     isReservationResult,
+    userId,
   );
   const [guests, setGuests] = useState(2),
-    [date, setDate] = useState(""),
+    [date, setDate] = useState(() => nextReservationWindow().defaultValue),
     [notes, setNotes] = useState(""),
     [error, setError] = useState("");
   const [confirm, setConfirm] = useState<string | null>(null),
@@ -31,19 +43,17 @@ export function LiveReservations({ userId }: { userId: string }) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
-    const time = new Date(date);
-    if (
-      !submission.attempt &&
-      (!Number.isFinite(time.getTime()) ||
-        time.getTime() < Date.now() + 3 * 3600000)
-    ) {
-      setError("Elige un horario con al menos tres horas de anticipación.");
+    const time = reservationInputToInstant(date);
+    if (!submission.attempt && !time) {
+      setError(
+        "Elige un horario entre 14:00 y 21:15 de Guatemala, con al menos tres horas de anticipación.",
+      );
       return;
     }
     const result = await submission.send(
       submission.attempt?.payload ?? {
         guests,
-        requestedAt: time.toISOString(),
+        requestedAt: time!.toISOString(),
         preorder: false,
         notes,
       },
@@ -51,16 +61,20 @@ export function LiveReservations({ userId }: { userId: string }) {
     if (result) history.reload();
   }
   async function cancel(id: string) {
-    if (lock.current) return;
+    if (lock.current || !verified) return;
+    const operation = createClientOperation(identity);
     lock.current = true;
     setCancelling(true);
     setError("");
     try {
+      if (!(await operation.confirm())) return;
       const response = await fetch(`/bff/reservations/${id}`, {
         method: "DELETE",
-        signal: AbortSignal.timeout(15000),
+        headers: { "X-Wok-Expected-Principal": userId },
+        signal: operation.signal,
       });
       const body = await response.json();
+      if (!(await operation.confirm())) return;
       if (
         !response.ok ||
         !isReservationCancellation(body) ||
@@ -73,14 +87,27 @@ export function LiveReservations({ userId }: { userId: string }) {
         );
       setConfirm(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cancelar.");
+      if (operation.valid())
+        setError(e instanceof Error ? e.message : "No se pudo cancelar.");
     } finally {
+      operation.dispose();
       lock.current = false;
       setCancelling(false);
       history.reload();
     }
   }
   const receipt = submission.attempt?.receipt;
+  if (!verified)
+    return (
+      <div className={styles.checkout}>
+        <h1>Reservas</h1>
+        <p role="status">
+          Verifica tu sesión para consultar o enviar reservas.
+        </p>
+        <Button onClick={() => void refresh()}>Verificar sesión</Button>
+        <Link href="/login">Iniciar sesión</Link>
+      </div>
+    );
   return (
     <div className={styles.checkout}>
       <h1>Reservas</h1>
@@ -125,10 +152,11 @@ export function LiveReservations({ userId }: { userId: string }) {
                 id="reservation-time"
                 label="Fecha y hora de la reserva"
                 type="datetime-local"
+                min={nextReservationWindow().min}
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                help="Se usa la zona horaria de tu dispositivo."
+                help="Horario de Guatemala. Se propone hoy o el siguiente día con un horario válido."
               />
               <FormField
                 id="reservation-notes"
@@ -175,11 +203,17 @@ export function LiveReservations({ userId }: { userId: string }) {
             </h3>
             <p>
               {item.requestedAt
-                ? new Date(item.requestedAt).toLocaleString("es-GT")
+                ? new Date(item.requestedAt).toLocaleString("es-GT", {
+                    timeZone: "America/Guatemala",
+                  })
                 : "Horario no disponible"}{" "}
               · {item.guests ?? "—"} personas
             </p>
-            <p>{item.message}</p>
+            <p>
+              {!item.reservationStatus || item.reservationStatus === "REQUESTED"
+                ? item.message
+                : `Estado actual: ${reservationLabels[item.reservationStatus] ?? item.reservationStatus}.`}
+            </p>
             <small>Código: {item.requestId}</small>
             {item.reservationId &&
               item.reservationStatus === "REQUESTED" &&

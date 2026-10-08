@@ -1,3 +1,4 @@
+import { installPrivateSession } from "@/test/private-session-fixture";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -16,8 +17,10 @@ const pendingReservation = {
   email: "ana@example.com",
 };
 
+const transport = vi.fn<typeof fetch>();
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn());
+  transport.mockReset();
+  installPrivateSession(transport);
   vi.stubGlobal("crypto", { randomUUID: () => requestId });
 });
 
@@ -29,7 +32,7 @@ afterEach(() => {
 
 it("loads pending reservations and sends a versioned confirmation", async () => {
   const user = userEvent.setup();
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockResolvedValueOnce(
       Response.json({
@@ -57,7 +60,7 @@ it("loads pending reservations and sends a versioned confirmation", async () => 
       "Solicitud confirmada.",
     ),
   );
-  expect(fetch).toHaveBeenNthCalledWith(
+  expect(transport).toHaveBeenNthCalledWith(
     2,
     `/bff/operational/reservations/${reservationId}/decision`,
     expect.objectContaining({
@@ -79,7 +82,7 @@ it("loads pending reservations and sends a versioned confirmation", async () => 
 
 it("reloads the queue after a 409 without overwriting another decision", async () => {
   const user = userEvent.setup();
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockResolvedValueOnce(
       Response.json({ message: "El estado cambió." }, { status: 409 }),
@@ -101,12 +104,12 @@ it("reloads the queue after a 409 without overwriting another decision", async (
       screen.getByText("No hay solicitudes pendientes"),
     ).toBeInTheDocument(),
   );
-  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(transport).toHaveBeenCalledTimes(3);
 });
 
 it("shows an error state and allows reloading the pending queue", async () => {
   const user = userEvent.setup();
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(
       Response.json({ message: "Sin permiso." }, { status: 403 }),
     )

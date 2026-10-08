@@ -1,5 +1,5 @@
-import { KitchenBoardView } from "@/modules/kitchen";
+import { OperationalKitchenView } from "@/modules/kitchen";
 
 export default function KitchenPage() {
-  return <KitchenBoardView />;
+  return <OperationalKitchenView />;
 }

@@ -6,5 +6,6 @@ export const GET = (request: NextRequest) =>
   endpoint(request, {
     path: "operational/reservations/pending",
     method: "GET",
+    bindClientPrincipal: true,
     validate: isOperationalPendingReservations,
   });

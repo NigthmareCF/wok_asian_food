@@ -12,6 +12,7 @@ export async function DELETE(
   return endpoint(request, {
     path: `client/reservations/${reservationId}`,
     method: "DELETE",
+    bindClientPrincipal: true,
     validate: (v) =>
       isReservationCancellation(v) && v.reservationId === reservationId,
   });

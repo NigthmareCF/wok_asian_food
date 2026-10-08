@@ -10,6 +10,7 @@ import { ServiceStatusProvider } from "@/modules/service-status";
 import { ReservationSessionProvider } from "@/modules/reservations";
 import { MessagingSessionProvider } from "@/modules/messaging";
 import { requireContext } from "@/modules/auth/server/auth-session";
+import { FinancialAttemptProvider } from "@/modules/payments/financial-attempt-provider";
 
 export default async function OperationalLayout({
   children,
@@ -27,7 +28,13 @@ export default async function OperationalLayout({
                     <ServiceStatusProvider>
                       <ReservationSessionProvider>
                         <MessagingSessionProvider>
-                          {children}
+                          <FinancialAttemptProvider
+                            key={currentUser.userId}
+                            userId={currentUser.userId}
+                            permissions={currentUser.permissions}
+                          >
+                            {children}
+                          </FinancialAttemptProvider>
                         </MessagingSessionProvider>
                       </ReservationSessionProvider>
                     </ServiceStatusProvider>

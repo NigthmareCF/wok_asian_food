@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarDays, Check, UsersRound, X } from "lucide-react";
 import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
 import {
   isOperationalPendingReservations,
+  isOperationalReservationDecisionResult,
   type OperationalPendingReservation,
   type OperationalReservationDecision,
 } from "../live-contract";
@@ -20,6 +21,7 @@ function formatReservationDate(value: string) {
   return new Intl.DateTimeFormat("es-GT", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "America/Guatemala",
   }).format(new Date(value));
 }
 
@@ -27,11 +29,13 @@ export function OperationalReservationQueue() {
   const queue = usePickupResource(
     "/bff/operational/reservations/pending",
     isOperationalPendingReservations,
+    10_000,
   );
   const [draft, setDraft] = useState<DecisionDraft | null>(null);
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
+  const lock = useRef(false);
 
   function beginDecision(
     reservation: OperationalPendingReservation,
@@ -48,7 +52,8 @@ export function OperationalReservationQueue() {
   }
 
   async function submitDecision() {
-    if (!draft || sending) return;
+    if (!draft || lock.current) return;
+    lock.current = true;
     setSending(true);
     setError("");
     try {
@@ -56,6 +61,7 @@ export function OperationalReservationQueue() {
         `/bff/operational/reservations/${draft.reservationId}/decision`,
         {
           method: "PUT",
+          signal: AbortSignal.timeout(15000),
           headers: {
             "Content-Type": "application/json",
             "X-Request-Id": crypto.randomUUID(),
@@ -86,13 +92,20 @@ export function OperationalReservationQueue() {
         }
         throw new Error(message);
       }
+      if (
+        !isOperationalReservationDecisionResult(body) ||
+        body.reservationId !== draft.reservationId ||
+        body.decision !== draft.decision
+      )
+        throw new Error(
+          "No pudimos confirmar la decisión. Consulta la cola actual antes de reintentar.",
+        );
       setFeedback(
         draft.decision === "CONFIRM"
           ? "Solicitud confirmada."
           : "Solicitud rechazada.",
       );
       setDraft(null);
-      queue.reload();
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -100,6 +113,8 @@ export function OperationalReservationQueue() {
           : "No pudimos guardar la decisión.",
       );
     } finally {
+      lock.current = false;
+      queue.reload();
       setSending(false);
     }
   }
@@ -211,9 +226,7 @@ export function OperationalReservationQueue() {
                         onClick={() => void submitDecision()}
                         type="button"
                       >
-                        {sending
-                          ? "Guardando…"
-                          : decisionLabel(draft.decision)}
+                        {sending ? "Guardando…" : decisionLabel(draft.decision)}
                       </button>
                       <button
                         className="button button--secondary button--compact"

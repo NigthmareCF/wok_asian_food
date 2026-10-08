@@ -8,7 +8,7 @@ const statuses = [
   "CLEANING",
   "UNAVAILABLE",
 ] as const;
-const accountStatuses = ["OPEN", "IN_COBRO"] as const;
+const accountStatuses = ["OPEN", "IN_COBRO", "PAID"] as const;
 
 export type OperationalTableStatus = (typeof statuses)[number];
 

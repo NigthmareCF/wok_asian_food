@@ -1,3 +1,4 @@
+import { installPrivateSession } from "@/test/private-session-fixture";
 import {
   cleanup,
   render,
@@ -25,8 +26,10 @@ const freeTable = {
   accountStatus: null,
 };
 
+const transport = vi.fn<typeof fetch>();
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn());
+  transport.mockReset();
+  installPrivateSession(transport);
   vi.stubGlobal("crypto", { randomUUID: () => requestId });
 });
 
@@ -37,7 +40,7 @@ afterEach(() => {
 });
 
 it("loads real tables and filters them without fixture fields", async () => {
-  vi.mocked(fetch).mockResolvedValue(
+  transport.mockResolvedValue(
     Response.json([
       freeTable,
       {
@@ -59,7 +62,7 @@ it("loads real tables and filters them without fixture fields", async () => {
 
 it("creates a table with X-Request-Id and reloads the list", async () => {
   const user = userEvent.setup();
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([]))
     .mockResolvedValueOnce(Response.json(freeTable, { status: 201 }))
     .mockResolvedValueOnce(Response.json([freeTable]));
@@ -77,7 +80,7 @@ it("creates a table with X-Request-Id and reloads the list", async () => {
   await waitFor(() =>
     expect(screen.getByRole("status")).toHaveTextContent("Mesa creada."),
   );
-  expect(fetch).toHaveBeenNthCalledWith(
+  expect(transport).toHaveBeenNthCalledWith(
     2,
     "/bff/operational/tables",
     expect.objectContaining({
@@ -88,7 +91,7 @@ it("creates a table with X-Request-Id and reloads the list", async () => {
 
 it("reloads after a 409 without allowing another table action", async () => {
   const user = userEvent.setup();
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([freeTable]))
     .mockResolvedValueOnce(
       Response.json({ message: "El estado cambió." }, { status: 409 }),
@@ -106,5 +109,5 @@ it("reloads after a 409 without allowing another table action", async () => {
       screen.getByText("No hay mesas para estos filtros"),
     ).toBeInTheDocument(),
   );
-  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(transport).toHaveBeenCalledTimes(3);
 });

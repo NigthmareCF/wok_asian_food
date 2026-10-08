@@ -527,7 +527,7 @@ describe("UserManagementView", () => {
     expect(usersEntry).toMatchObject({
       icon: "people",
       label: "Usuarios",
-      requiredPermission: "users.read",
+      requiredPermission: "users:manage",
       route: "/admin/users",
     });
     expect(usersEntry).not.toHaveProperty("featureFlag", false);

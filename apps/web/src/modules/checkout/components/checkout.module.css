@@ -3,6 +3,8 @@
   gap: 0.9rem;
   margin: 0 auto;
   max-width: 34rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding-bottom: 1rem;
 }
 
