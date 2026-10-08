@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Evitar reenvío de comprobantes sin estado confirmado
+
+- La pantalla de pedidos espera una lectura correcta de la lista de comprobantes antes de permitir un nuevo envío. Si falla la consulta, muestra que el resultado es desconocido y ofrece reintentar la lectura en vez de habilitar otra carga a ciegas.
+- Tras una respuesta de envío incierta, vuelve a consultar al backend para recuperar el estado autoritativo. La app permite reemplazar un comprobante sólo después de su rechazo; uno pendiente o verificado bloquea otra carga.
+- La regla está cubierta por cuatro pruebas de política. Verificación: TypeScript, ESLint y Vitest (25 archivos / 102 pruebas) pasan; Expo export Android/Web pasa y Web genera 17 rutas. No equivale a APK ni prueba física.
+
 ## 2026-10-08 — Revalidación de Expo en rama móvil
 
 - Se confirmó por fetch que `feature/mobile-shell` continúa en `f06c86b`, sin cambios locales. ESLint, TypeScript y Vitest pasan (24 archivos / 98 pruebas).

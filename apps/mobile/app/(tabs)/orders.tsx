@@ -10,6 +10,7 @@ import { recoverCurrentPaymentIntents } from "@/lib/payment-intents";
 import { useFocusedPolling } from "@/lib/use-focused-polling";
 import { OrderChangeAttempt, parseOrderChangeAttempts, removeOrderChangeAttempt, resolveOrderChangeAttempt } from "@/lib/order-change-attempts";
 import { deleteSecurePayload, readSecurePayload, saveSecurePayload } from "@/lib/reservation-attempt-storage";
+import { canSubmitPaymentEvidence, PaymentEvidenceStatus } from "@/lib/payment-evidence-policy";
 
 const orderChangeAttemptsKey = "wok.client.order-change-attempts.v1";
 
@@ -399,7 +400,7 @@ function OrderHistory() {
 type EvidenceReceipt = {
   id: string;
   orderRequestId: string;
-  status: "NEEDS_REVIEW" | "VERIFIED" | "REJECTED";
+  status: PaymentEvidenceStatus;
   contentType: string;
   byteSize: number;
   createdAt: string;
@@ -413,17 +414,22 @@ function TransferEvidencePanel({ requestId, request }: {
 }) {
   const [evidence, setEvidence] = useState<EvidenceReceipt[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [lookupError, setLookupError] = useState("");
   const [selected, setSelected] = useState<{ asset: ImagePicker.ImagePickerAsset; key: string } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setLookupError("");
     try {
       setEvidence(await request<EvidenceReceipt[]>(`/api/v1/client/order-requests/${requestId}/payment-evidence`));
+      setLoaded(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No pudimos consultar el comprobante.");
+      setLoaded(false);
+      setLookupError(cause instanceof Error ? cause.message : "No pudimos consultar el comprobante.");
     } finally { setLoading(false); }
   }, [request, requestId]);
 
@@ -470,6 +476,7 @@ function TransferEvidencePanel({ requestId, request }: {
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No pudimos enviar el comprobante. Puedes reintentar.");
+      await refresh();
     } finally { setUploading(false); }
   }
 
@@ -479,18 +486,22 @@ function TransferEvidencePanel({ requestId, request }: {
       : current?.status === "NEEDS_REVIEW" ? "Comprobante recibido, pendiente de revisión"
         : "No has enviado un comprobante";
 
+  const canUpload = canSubmitPaymentEvidence(loaded, current?.status);
   return <View style={ui.section}>
     <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>Transferencia</Text>
     {loading ? <View style={ui.row}><ActivityIndicator color={palette.red} /><Text style={ui.body}>Consultando revisión…</Text></View>
-      : <Notice tone={current?.status === "VERIFIED" ? "success" : current?.status === "REJECTED" ? "error" : "info"}>{status}</Notice>}
+      : loaded ? <Notice tone={current?.status === "VERIFIED" ? "success" : current?.status === "REJECTED" ? "error" : "info"}>{status}</Notice>
+        : <Notice tone="error">No pudimos confirmar si ya enviaste un comprobante. Consulta el estado antes de intentar otro envío.</Notice>}
     {message ? <Notice tone="success">{message}</Notice> : null}
     {error ? <Notice tone="error">{error}</Notice> : null}
+    {lookupError ? <Notice tone="error">{lookupError}</Notice> : null}
     {current?.status === "REJECTED" && current.reviewReason
       ? <Notice tone="error">Motivo de rechazo: {current.reviewReason}</Notice> : null}
-    {!current || current.status === "REJECTED" ? <>
+    {!loaded ? <Button title="Consultar comprobantes" secondary busy={loading} onPress={() => void refresh()} /> : null}
+    {canUpload ? <>
       <Button title={selected ? `Imagen: ${selected.asset.fileName ?? "comprobante seleccionado"}` : "Elegir comprobante JPG o PNG"}
-        secondary onPress={() => void chooseImage()} disabled={uploading} />
-      {selected ? <Button title="Enviar para revisión" onPress={() => void upload()} busy={uploading} disabled={uploading} /> : null}
+        secondary onPress={() => void chooseImage()} disabled={uploading || loading} />
+      {selected ? <Button title="Enviar para revisión" onPress={() => void upload()} busy={uploading} disabled={uploading || loading} /> : null}
     </> : null}
   </View>;
 }
