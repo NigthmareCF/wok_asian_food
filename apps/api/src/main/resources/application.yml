@@ -14,6 +14,10 @@ spring:
     create-schemas: false
   jackson:
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 9MB
 management:
   health:
     mail:
@@ -60,3 +64,4 @@ wok:
   payments:
     # Online payment intent creation is asynchronous; this worker never confirms a capture.
     poll-ms: ${WOK_PAYMENT_POLL_MS:3000}
+    evidence-directory: ${WOK_PAYMENT_EVIDENCE_DIRECTORY:${java.io.tmpdir}/wok-payment-evidence}

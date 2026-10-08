@@ -49,6 +49,7 @@ services:
       WOK_AI_SERVICE_TOKEN: ${WOK_AI_SERVICE_TOKEN:-}
       WOK_EMAIL_MODE: ${WOK_EMAIL_MODE:-mock}
       WOK_EMAIL_HEALTH_ENABLED: ${WOK_EMAIL_HEALTH_ENABLED:-false}
+      WOK_PAYMENT_EVIDENCE_DIRECTORY: /var/lib/wok/payment-evidence
       SPRING_MAIL_HOST: ${WOK_SMTP_HOST:-}
       SPRING_MAIL_PORT: ${WOK_SMTP_PORT:-587}
       SPRING_MAIL_USERNAME: ${WOK_SMTP_USERNAME:-}
@@ -56,6 +57,7 @@ services:
     volumes:
       - ./database/migrations:/database/migrations:ro
       - ./database/seeds:/database/seeds:ro
+      - payment_evidence:/var/lib/wok/payment-evidence
     depends_on:
       db:
         condition: service_healthy
@@ -100,3 +102,4 @@ networks:
 
 volumes:
   postgres_data:
+  payment_evidence:
