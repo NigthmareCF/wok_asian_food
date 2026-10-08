@@ -3,6 +3,7 @@ package com.wokasianfood.api.reservations;
 import static org.junit.jupiter.api.Assertions.*;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 
@@ -29,5 +30,54 @@ class OperationalCapacityServiceTest {
         var assessment = service.assessTable(2, at(21, 15), at(17, 0), true);
         assertNotEquals(OperationalCapacityService.Decision.REJECT, assessment.decision());
         assertEquals(90, assessment.occupancy().minimumMinutes());
+    }
+
+    @Test void exportedPolicyDescribesConservativeRequestRulesWithoutAvailabilityPromises() {
+        Instant before = Instant.now();
+        var policy = service.policy();
+        Instant after = Instant.now();
+
+        assertEquals("America/Guatemala", policy.timeZone());
+        assertEquals(3, policy.minimumNoticeHours());
+        assertEquals(LocalTime.of(14, 0), policy.firstRequestTime());
+        assertEquals(LocalTime.of(21, 15), policy.lastRequestTime());
+        assertEquals(LocalTime.of(20, 30), policy.preorderRecommendedAfter());
+        assertFalse(policy.preorderItemsSupported());
+        assertFalse(policy.asOf().isBefore(before));
+        assertFalse(policy.asOf().isAfter(after));
+    }
+
+    @Test void exportedNoticeAndInclusiveWindowMatchAssessmentBoundaries() {
+        var policy = service.policy();
+        ZoneId zone = ZoneId.of(policy.timeZone());
+        Instant first = LocalDateTime.of(2026, 9, 26,
+                policy.firstRequestTime().getHour(), policy.firstRequestTime().getMinute()).atZone(zone).toInstant();
+        Instant noticeBoundary = first.minusSeconds(policy.minimumNoticeHours() * 3600L);
+
+        assertEquals(OperationalCapacityService.Decision.REJECT,
+                service.assessTable(2, first, noticeBoundary.plusSeconds(1), false).decision());
+        assertFalse(service.assessTable(2, first, noticeBoundary, false).reasonCodes().contains("MINIMUM_NOTICE_3_HOURS"));
+        assertFalse(service.assessTable(2, first, at(10, 0), false).reasonCodes().contains("OUTSIDE_TABLE_WINDOW"));
+        assertTrue(service.assessTable(2, first.minusSeconds(1), at(10, 0), false).reasonCodes().contains("OUTSIDE_TABLE_WINDOW"));
+
+        Instant last = LocalDateTime.of(2026, 9, 26,
+                policy.lastRequestTime().getHour(), policy.lastRequestTime().getMinute()).atZone(zone).toInstant();
+        assertFalse(service.assessTable(2, last, at(10, 0), true).reasonCodes().contains("OUTSIDE_TABLE_WINDOW"));
+        assertTrue(service.assessTable(2, last.plusSeconds(1), at(10, 0), true).reasonCodes().contains("OUTSIDE_TABLE_WINDOW"));
+    }
+
+    @Test void exportedPreorderThresholdMatchesAdviceWithoutConfirmingCapacity() {
+        var policy = service.policy();
+        Instant threshold = LocalDateTime.of(2026, 9, 26,
+                policy.preorderRecommendedAfter().getHour(), policy.preorderRecommendedAfter().getMinute())
+                .atZone(ZoneId.of(policy.timeZone())).toInstant();
+
+        assertFalse(service.assessTable(2, threshold, at(10, 0), false).reasonCodes().contains("PREORDER_RECOMMENDED"));
+        var late = service.assessTable(2, threshold.plusSeconds(1), at(10, 0), false);
+        assertTrue(late.reasonCodes().contains("PREORDER_RECOMMENDED"));
+        assertTrue(late.reasonCodes().contains("LIVE_CAPACITY_NOT_YET_CONNECTED"));
+        assertEquals(OperationalCapacityService.Decision.REQUIRES_HUMAN_APPROVAL, late.decision());
+        assertFalse(service.assessTable(2, threshold.plusSeconds(1), at(10, 0), true)
+                .reasonCodes().contains("PREORDER_RECOMMENDED"));
     }
 }
