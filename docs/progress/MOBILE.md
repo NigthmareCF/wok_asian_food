@@ -477,3 +477,10 @@
 - `useServiceHours` consulta primero la ruta vigente por rango (`?serviceType&from&to`). Si el servidor responde 404 o 500 por una ruta no reconocida, intenta la ruta integrada por tipo/fecha (`/service-hours/{tipo}/{fecha}`) y adapta su lista de ventanas al DTO que consume Cliente. La adaptación sólo ocurre si la ruta alternativa devuelve datos válidos; 401/403/422 y fallos de ambas rutas se conservan como error.
 - Esta compatibilidad cubre la divergencia observada entre `feature/backend-capacity-order-lifecycle` y el servidor integrado activo; no cambia la autoridad de horarios del backend ni confirma disponibilidad de pedidos.
 - Verificación: Vitest 73/73; ESLint, TypeScript y export Expo Android/Web pasan. Los exports no son APK instalable ni prueba física.
+
+## 2026-10-08 — Expiración e idempotencia de cotizaciones pickup/delivery
+
+- La app valida que una cotización siga activa y que `expiresAt` sea una fecha válida y futura antes de mostrarla como confirmable. Cotizaciones expiradas o malformadas ya no habilitan el envío.
+- Pickup y delivery ahora usan una clave idempotente independiente para cotizar; conservan sin cambios la clave que se usará para crear la solicitud. La app persiste la clave y estado pendiente antes del request, reusa la misma clave tras un resultado de red incierto y rota la clave al recibir definitivamente una cotización vencida.
+- Ante una respuesta vencida, se intenta una sola cotización nueva con la clave rotada. El segundo intento también queda persistido antes de llamar la API; después de respuesta definitiva se guarda `quoteRequestPending=false`, incluso si la respuesta continúa vencida.
+- Verificación: Vitest 97/97, TypeScript `--noEmit`, ESLint, export Expo Android/Web (17 rutas) y `git diff --check`. Los exports son bundles; no son APK instalable ni prueba en dispositivo.

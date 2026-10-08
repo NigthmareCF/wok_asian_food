@@ -18,8 +18,9 @@ import { useServiceHours } from "@/lib/use-service-hours";
 import { isValidPositiveApiInteger } from "@/lib/quantity-limits";
 import { canAddDistinctMenuLine, MAX_DISTINCT_MENU_LINES } from "@/lib/request-limits";
 import { isDefinitiveOrderAttemptRejection } from "@/lib/order-attempt-outcome";
+import { isOrderQuoteUsable, requestFreshOrderQuote } from "@/lib/order-quotes";
 
-type PickupAttempt = { email: string; key: string; body: PickupRequestBody; phase?: "QUOTE" | "ORDER"; quoteId?: string };
+type PickupAttempt = { email: string; key: string; body: PickupRequestBody; phase?: "QUOTE" | "ORDER"; quoteId?: string; quoteKey?: string; quoteRequestPending?: boolean };
 const legacyStorageKeys = { cart: "wok.pickup.cart.v1", modifiers: "wok.pickup.modifiers.v1", pending: "wok.pickup.pending.v1" };
 
 function formatPrice(item: PublicMenuItem) {
@@ -293,18 +294,32 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
     setSending(true);
     let orderAttempt: PickupAttempt | null = attempt;
     try {
-      if (!attempt && (!quote || !quote.usable)) {
-        const quotingAttempt = { ...draftAttempt, phase: "QUOTE" as const };
+      if (!attempt && !isOrderQuoteUsable(quote)) {
+        let quotingAttempt = { ...draftAttempt, phase: "QUOTE" as const };
+        const { quote: result, idempotencyKey } = await requestFreshOrderQuote(
+          (key) => request<OrderQuoteReceipt>("/api/v1/client/order-quotes", {
+            method: "POST",
+            headers: { "Idempotency-Key": key },
+            body: JSON.stringify({ fulfillmentType: "PICKUP", requestedFor: quotingAttempt.body.requestedFor,
+              items: quotingAttempt.body.items }),
+          }),
+          quotingAttempt.quoteKey,
+          quotingAttempt.quoteRequestPending ?? false,
+          quote,
+          createIdempotencyKey,
+          async (key, pending) => {
+            quotingAttempt = { ...draftAttempt, quoteKey: key, quoteRequestPending: pending, phase: "QUOTE" };
+            setQuoteDraft(quotingAttempt);
+            if (Platform.OS !== "web" && cartStorageKeys)
+              await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(quotingAttempt));
+          },
+        );
+        quotingAttempt = { ...draftAttempt, quoteKey: idempotencyKey, quoteRequestPending: false, phase: "QUOTE" };
         setQuoteDraft(quotingAttempt);
-        if (Platform.OS !== "web" && cartStorageKeys) await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(quotingAttempt));
-        const result = await request<OrderQuoteReceipt>("/api/v1/client/order-quotes", {
-          method: "POST",
-          headers: { "Idempotency-Key": quotingAttempt.key },
-          body: JSON.stringify({ fulfillmentType: "PICKUP", requestedFor: quotingAttempt.body.requestedFor,
-            items: quotingAttempt.body.items }),
-        });
+        if (Platform.OS !== "web" && cartStorageKeys)
+          await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(quotingAttempt));
         setQuote(result);
-        if (!result.usable) throw new ApiError("La cotización venció. Revísala nuevamente antes de enviar.", 409);
+        if (!isOrderQuoteUsable(result)) throw new ApiError("La cotización venció. Revísala nuevamente antes de enviar.", 409);
         return;
       }
       const activeAttempt = attempt ?? {
@@ -423,11 +438,11 @@ function PickupMenu({ session, request }: Pick<ReturnType<typeof useSession>, "s
         {attempt ? <Notice>Hay un envío cuyo resultado no se confirmó. Reintenta exactamente la misma solicitud; la app conserva su clave para evitar duplicados.</Notice> : null}
         {!cartSelectionsValid ? <Notice tone="error">Completa las opciones requeridas para cada platillo antes de enviar.</Notice> : null}
         {quote ? <View style={ui.section}>
-          <Notice tone="success">Cotización del servidor: {new Intl.NumberFormat("es-GT", { style: "currency", currency: quote.currency }).format(quote.subtotal)} · cola activa {Math.ceil(quote.queueDelaySeconds / 60)} min · preparación propia {Math.ceil(quote.preparationSeconds / 60)} min · ETA total estimado {Math.ceil(quote.totalEtaSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
+          {isOrderQuoteUsable(quote) ? <Notice tone="success">Cotización del servidor: {new Intl.NumberFormat("es-GT", { style: "currency", currency: quote.currency }).format(quote.subtotal)} · cola activa {Math.ceil(quote.queueDelaySeconds / 60)} min · preparación propia {Math.ceil(quote.preparationSeconds / 60)} min · ETA total estimado {Math.ceil(quote.totalEtaSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice> : <Notice tone="error">La cotización venció. Solicita una nueva antes de continuar.</Notice>}
           <Notice>La cotización no aparta inventario ni capacidad y no acepta el pedido. El equipo revisará la solicitud.</Notice>
           <Button title="Solicitar una nueva cotización" secondary disabled={sending} onPress={clearQuoteDraft} />
         </View> : null}
-        <Button title={attempt ? "Reintentar solicitud pendiente" : quote?.usable ? "Confirmar y enviar solicitud" : "Cotizar con el servidor"}
+        <Button title={attempt ? "Reintentar solicitud pendiente" : isOrderQuoteUsable(quote) ? "Confirmar y enviar solicitud" : "Cotizar con el servidor"}
           onPress={() => void submitPickup()} busy={sending} disabled={(pickupService === "paused" && !attempt) || !session || !cartRestored || !cartSelectionsValid || (session.offline && !process.env.EXPO_PUBLIC_API_BASE_URL)} />
       </Card>
     </View> : null}

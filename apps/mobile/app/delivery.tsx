@@ -19,8 +19,9 @@ import { useServiceHours } from "@/lib/use-service-hours";
 import { isValidPositiveApiInteger, MAX_API_INTEGER } from "@/lib/quantity-limits";
 import { canAddDistinctMenuLine, MAX_DISTINCT_MENU_LINES } from "@/lib/request-limits";
 import { isDefinitiveOrderAttemptRejection } from "@/lib/order-attempt-outcome";
+import { isOrderQuoteUsable, requestFreshOrderQuote } from "@/lib/order-quotes";
 
-type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody; phase?: "QUOTE" | "ORDER"; quoteId?: string };
+type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody; phase?: "QUOTE" | "ORDER"; quoteId?: string; quoteKey?: string; quoteRequestPending?: boolean };
 const legacyStorageKeys = { cart: "wok.delivery.cart.v1", modifiers: "wok.delivery.modifiers.v1", pending: "wok.delivery.pending.v1" };
 
 export default function DeliveryScreen() {
@@ -312,17 +313,29 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     setSending(true); setError(""); setNotice("");
     let orderAttempt: PendingAttempt | null = existingAttempt;
     try {
-      if (!existingAttempt && (!quote || !quote.usable)) {
-        const quotingAttempt = { ...draftAttempt, phase: "QUOTE" as const };
+      if (!existingAttempt && !isOrderQuoteUsable(quote)) {
+        let quotingAttempt = { ...draftAttempt, phase: "QUOTE" as const };
+        const { quote: result, idempotencyKey } = await requestFreshOrderQuote(
+          (key) => request<OrderQuoteReceipt>("/api/v1/client/order-quotes", {
+            method: "POST", headers: { "Idempotency-Key": key },
+            body: JSON.stringify({ fulfillmentType: "DELIVERY", requestedFor: quotingAttempt.body.requestedFor,
+              items: quotingAttempt.body.items }),
+          }),
+          quotingAttempt.quoteKey,
+          quotingAttempt.quoteRequestPending ?? false,
+          quote,
+          createIdempotencyKey,
+          async (key, quoteRequestPending) => {
+            quotingAttempt = { ...draftAttempt, quoteKey: key, quoteRequestPending, phase: "QUOTE" };
+            setQuoteDraft(quotingAttempt);
+            await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(quotingAttempt));
+          },
+        );
+        quotingAttempt = { ...draftAttempt, quoteKey: idempotencyKey, quoteRequestPending: false, phase: "QUOTE" };
         setQuoteDraft(quotingAttempt);
         await SecureStore.setItemAsync(cartStorageKeys.pending, JSON.stringify(quotingAttempt));
-        const result = await request<OrderQuoteReceipt>("/api/v1/client/order-quotes", {
-          method: "POST", headers: { "Idempotency-Key": quotingAttempt.key },
-          body: JSON.stringify({ fulfillmentType: "DELIVERY", requestedFor: quotingAttempt.body.requestedFor,
-            items: quotingAttempt.body.items }),
-        });
         setQuote(result);
-        if (!result.usable) throw new ApiError("La cotización venció. Solicita una nueva antes de enviar.", 409);
+        if (!isOrderQuoteUsable(result)) throw new ApiError("La cotización venció. Solicita una nueva antes de enviar.", 409);
         setNotice("Revisa el total y confirma para enviar la solicitud a revisión.");
         return;
       }
@@ -503,11 +516,11 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       <Field label="Comentarios para el restaurante (opcional)" value={customerNote} onChangeText={setCustomerNote} maxLength={500} multiline />
       {selected.length === 0 ? <Notice>Agrega al menos un producto.</Notice> : null}
       {quote ? <View style={ui.section}>
-        <Notice tone="success">Cotización del servidor: {formatMoney(quote.subtotal, quote.currency)} · cola activa {Math.ceil(quote.queueDelaySeconds / 60)} min · preparación propia {Math.ceil(quote.preparationSeconds / 60)} min · ETA total estimado {Math.ceil(quote.totalEtaSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice>
+        {isOrderQuoteUsable(quote) ? <Notice tone="success">Cotización del servidor: {formatMoney(quote.subtotal, quote.currency)} · cola activa {Math.ceil(quote.queueDelaySeconds / 60)} min · preparación propia {Math.ceil(quote.preparationSeconds / 60)} min · ETA total estimado {Math.ceil(quote.totalEtaSeconds / 60)} min. Vence {new Date(quote.expiresAt).toLocaleTimeString("es-GT", { hour: "2-digit", minute: "2-digit" })}.</Notice> : <Notice tone="error">La cotización venció. Solicita una nueva antes de continuar.</Notice>}
         <Notice>La cotización no aparta inventario ni capacidad y no acepta el pedido. El equipo revisará cobertura y disponibilidad.</Notice>
         <Button title="Solicitar una nueva cotización" secondary disabled={sending} onPress={clearQuoteDraft} />
       </View> : null}
-      <Button title={pending ? "Reintentar solicitud pendiente" : quote?.usable ? "Confirmar y enviar solicitud" : "Cotizar con el servidor"}
+      <Button title={pending ? "Reintentar solicitud pendiente" : isOrderQuoteUsable(quote) ? "Confirmar y enviar solicitud" : "Cotizar con el servidor"}
         busy={sending} disabled={(deliveryService === "paused" && !pending && !quoteDraft) || !session || !cartRestored || !selected.length || !selectionsValid || !address.trim() || !isValidGuatemalaPhone(contactPhone)} onPress={() => void submit()} />
     </Card> : null}
   </Page></ScrollView>;
