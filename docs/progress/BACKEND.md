@@ -739,3 +739,9 @@
 - Flyway V52 amplía `order_change_requests` con el platillo objetivo y su versión esperada; un índice único serializa solicitudes pendientes por pedido, sean de cancelación completa o individual. El constraint rechaza solicitudes de línea sin UUID/version válidos.
 - Cliente puede listar sólo sus líneas activas cuyo ticket sigue `QUEUED`, y solicitar cancelar una línea de pickup/delivery. El servidor persiste la idempotencia, ownership, motivo y snapshots del objetivo; la línea no cambia hasta que Operativo apruebe. La aprobación reutiliza la operación transaccional existente, que verifica dinero/facturas, versión, cuenta, cocina, libera sólo recursos de esa línea, recalcula totales y conserva auditoría/comanda.
 - `ClientOrderChangeRequestIntegrationTest` cubre la migración desde cero, compatibilidad de cancelación completa, ownership, replay, rechazo de una segunda solicitud pendiente, aprobación de línea conservando activa la otra línea, constraint de versión obligatoria y rechazo Operativo sin mutación. PostgreSQL 18/Testcontainers y Flyway V1–V52: prueba focal 6/6. Suite completa: 71 suites / 310 pruebas, cero fallos, errores u omitidas.
+
+## 2026-10-08 — Ownership A/B para perfiles fiscales
+
+- `CustomerTaxProfileIntegrationTest` ahora intenta actualizar y borrar un perfil de Cliente A usando el token de Cliente B. Ambas operaciones deben responder `404`; después se comprueba que el perfil y NIT de A permanecen intactos. La prueba también conserva las verificaciones existentes de lista privada y rol.
+- Focal ejecutada con Testcontainers, PostgreSQL 18 y Flyway V1–V52 desde esquema vacío: 3/3 pruebas, cero fallos/errores/omitidas. El primer intento quedó omitido porque el sandbox bloqueó Docker; se reejecutó con acceso al socket y éste es el resultado válido.
+- No cambió lógica productiva ni esquema. Esta prueba cubre la API que consume la libreta de perfiles fiscales móvil.

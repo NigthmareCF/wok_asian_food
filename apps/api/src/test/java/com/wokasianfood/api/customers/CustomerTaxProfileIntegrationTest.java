@@ -36,9 +36,16 @@ class CustomerTaxProfileIntegrationTest extends PostgresIntegrationTest {
         assertThat(body(get(path, tokenFor(otherCustomer)))).isEmpty();
         assertThat(get(path, tokenForRole("OPERATIONAL")).statusCode()).isEqualTo(403);
 
+        var crossOwnerUpdate = send("PUT", path + "/" + first.path("profileId").asText(), tokenFor(otherCustomer), """
+            {"label":"Robado","customerName":"Otro Cliente","customerTaxId":"9999999-9","isDefault":true,"expectedVersion":1}
+            """, java.util.Map.of());
+        assertThat(crossOwnerUpdate.statusCode()).isEqualTo(404);
         var crossOwnerDelete = send("DELETE", path + "/" + first.path("profileId").asText(), tokenFor(otherCustomer), null, java.util.Map.of());
         assertThat(crossOwnerDelete.statusCode()).isEqualTo(404);
-        assertThat(body(get(path, token)).size()).isEqualTo(2);
+        JsonNode unchanged = body(get(path, token));
+        assertThat(unchanged).hasSize(2);
+        assertThat(unchanged.get(1).path("label").asText()).isEqualTo("Personal");
+        assertThat(unchanged.get(1).path("customerTaxId").asText()).isEqualTo("1234567-8");
     }
 
     @Test
