@@ -1,6 +1,6 @@
 # Backlog backend Spring e integración
 
-> **Backlog vigente desde 2026-09-25.** La tabla de cinco o seis semanas preservada debajo es `SUPERSEDED` como alcance total. Los estados `NOW`, `NEXT`, `LATER` y `BLOCKED` expresan dependencia, no promesa de fecha. Ver [arquitectura](ARCHITECTURE.md) y [matriz de brechas](../project/GAP_ANALYSIS.md).
+> **Backlog vigente desde 2026-09-25.** La tabla de cinco o seis semanas preservada debajo es `SUPERSEDED` como alcance total. Los estados `NOW`, `NEXT`, `LATER` y `BLOCKED` expresan dependencia, no promesa de fecha. Delivery es parte del alcance integral; los detalles comerciales siguen abiertos en `CLIENT-DELIVERY-01`. Ver [arquitectura](ARCHITECTURE.md), [matriz de brechas](../project/GAP_ANALYSIS.md) y [alcance Cliente](../project/CLIENT_SCOPE_DECISIONS.md).
 
 | ID      | Estado | Entrega y criterio observable                                                                   | Requisito / dependencias                  |
 | ------- | ------ | ----------------------------------------------------------------------------------------------- | ----------------------------------------- |
@@ -11,7 +11,7 @@
 | OPS-01  | NOW    | service capability individual, override auditado y salud externa separada                       | CORE-01                                   |
 | CAP-01  | NOW    | motor de capacidad y estimador de ocupación con reason codes/alternativas                       | OPS-01, mesas/turnos                      |
 | RES-01  | NOW    | reserva y mesa digital: 3 h, horarios, 20 min, preorden/condiciones y autorización humana       | CAP-01, IAM-01                            |
-| CAT-01  | NEXT   | menú real, opciones, precios y disponibilidad calculados por backend                            | Menú real `BLOCKED` para seed             |
+| CAT-01  | NEXT   | menú real, opciones, precios y disponibilidad calculados por backend                            | Catálogo recibido; recetario completo pendiente para consumo automático |
 | ORD-01  | NEXT   | pickup/delivery/local: solicitud idempotente, aceptación, cambios con revisión y KDS            | CAT-01, CAP-01, inventario                |
 | FIN-01  | NOW    | Caja interna: apertura/ledger/arqueo/cierre persistentes; conectar ventas desde ORD-01           | V6; `feature/payments` cash slice parcial |
 | FIN-02  | NEXT   | Pagos mixtos, propina y conciliación; `PaymentGateway` mock                                      | ORD-01; proveedor real `BLOCKED`          |
@@ -171,7 +171,7 @@ Esta tabla evita interpretar la exclusión temporal como eliminación de requisi
 | EP-02 Reservaciones      | P1 BE-15; preorden avanzada posterior                           | RN-009–016, RN-042/043/065–069; C-07/08, O-07/08  |
 | EP-03 Pedidos y comandas | P0 BE-06/07/08, sin cambios tardíos habilitados                 | RN-039–045, RN-056–064; C-09/10, O-04/05          |
 | EP-04 Enrutamiento       | P0 KDS por área; revisión/impresión posterior                   | RN-071–074, RT-048–053; O-06                      |
-| EP-05 Delivery           | Posterior                                                       | RN-017–020, RN-137/138; O-11                      |
+| EP-05 Delivery           | `SUPERSEDED` como priorización integral; delivery sí está en alcance | RN-017–020, RN-137/138; O-11; políticas `CLIENT-DELIVERY-01` pendientes |
 | EP-06 Comunicación       | Posterior; seguimiento de pedido sí P0                          | RN-030–036; C-12, O-09                            |
 | EP-07 Clientes           | P0 sesión/propiedad; perfil/restricciones completas posteriores | RN-037/038/113–116; C-13, A-12                    |
 | EP-08 Usuarios/roles     | P0 BE-03; editor avanzado posterior                             | RN-025/026, RT-033–035; C-01, A-02/03             |

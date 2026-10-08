@@ -21,9 +21,11 @@ Actualizado el 2026-09-28 a partir de la instrucción maestra del propietario. U
 | TD-15 | Horizonte de producto es el alcance funcional completo y meta de planeación ≥90 % | CONFIRMED | El 90 % requiere matriz por HU y evidencia end-to-end; los cortes MVP anteriores están SUPERSEDED como definición total. No hay fecha/capacidad nueva aprobada. |
 | TD-16 | Facturación incluye dominio FEL propio, drafts/pool, certificación independiente y reconciliación | CONFIRMED | Proveedor, reglas fiscales y modalidad productiva permanecen decisiones externas. Refund ≠ nota de crédito. |
 | TD-17 | Realtime puede elegirse entre SSE/WebSocket/polling según requisitos y ensayo | OPEN | Definir snapshot/reconexión/latencia de LAN y pruebas antes de fijar tecnología. |
-| TD-18 | Proveedor/direct ingress o tunnel, dominio, correo, pasarela, certificador, modelo/GPU, cámaras | OPEN | Implementar contratos/adapters/mocks mientras se acuerdan insumos reales. |
+| TD-18 | Proveedor/direct ingress o tunnel, dominio, correo, pasarela, certificador, modelo/GPU | OPEN | Implementar contratos/adapters/mocks mientras se acuerdan insumos reales. Cámaras están diferidas fuera del alcance actual. |
 | TD-19 | JDBC frente a Spring Data JPA para módulos nuevos | OPEN | Los controllers/services observados usan JDBC; el mega prompt lista JPA candidato. Comparar coste de integración, locking y `row_version` antes de adoptar. |
 | TD-20 | Apple Login | LATER / DECISION_REQUIRED | Mantener identidad multi-provider; no implementar como requisito de este corte. |
+| TD-21 | Web Cliente integral incluye reservas, pickup y delivery; 3 h sólo reserva/mesa digital; pickup se limita por ETA/calendario | CONFIRMED | Zonas/costos/courier/pagos delivery y plazos de cancelación siguen abiertos en [CLIENT_SCOPE_DECISIONS.md](CLIENT_SCOPE_DECISIONS.md). El código observado se registra aparte de la política. |
+| TD-22 | Cámara/Nexxt fuera del alcance actual | CONFIRMED | `FUTURE / DEFERRED_CAMERA_INTEGRATION`; no blocker ni entrega inmediata. |
 
 ## Decisiones anteriores sustituidas
 

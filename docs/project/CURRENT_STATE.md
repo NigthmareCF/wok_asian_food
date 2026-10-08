@@ -2,6 +2,13 @@
 
 Fecha de revisión: 2026-09-28. Rama local observada: `feature/frontend-admin`, commit `1b6f146`. El árbol rastreado estaba limpio al comenzar. El plan actualizado está en [INTEGRAL_DELIVERY_PLAN.md](INTEGRAL_DELIVERY_PLAN.md); la matriz base de auditoría en [GAP_ANALYSIS.md](GAP_ANALYSIS.md).
 
+## Aclaración Web Cliente — 2026-10-07
+
+- Se añadió [CLIENT_SCOPE_DECISIONS.md](CLIENT_SCOPE_DECISIONS.md) para consolidar alcance, comportamiento backend observado, recorrido de demo y pendientes.
+- Pickup y delivery forman parte del producto integral. Las 3 h mínimas corresponden a reservas y solicitudes digitales de mesa, no pickup. Delivery tiene 21:00 como referencia, pero cobertura, tarifa, mínimo, courier y pagos siguen sin definirse.
+- Las vistas Cliente/Operativo que el equipo revisó pueden mostrarse como UI; declarar si usan fixtures/local state o API persistida. Verificar SHA y build antes de llamarlas E2E.
+- `DECISIONS_REQUIRED.md`, `TECH_DECISIONS.md`, `DEVELOPMENT_PLAN.md` y `BACKLOG.md` se alinearon: el menú ya fue entregado, cámaras están diferidas y los cortes antiguos pickup-only/delivery-posterior son históricos/superseded.
+
 ## Publicaciones especializadas posteriores — 2026-10-02
 
 - `feature/backend-api` `4b5a82a` devuelve el motivo de rechazo en historial/detalle pickup y delivery, sólo para `REJECTED`; suite temporal API+auth: 48/48.

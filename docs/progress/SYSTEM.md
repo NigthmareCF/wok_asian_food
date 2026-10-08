@@ -1,5 +1,12 @@
 # Progreso del sistema
 
+## 2026-10-07 — Alcance operativo Web Cliente
+
+- Nueva fuente canónica: `docs/project/CLIENT_SCOPE_DECISIONS.md`, con decisiones, límites de implementación observada, guion propuesto de viernes y pendientes.
+- Alineados `DECISIONS_REQUIRED.md`, `TECH_DECISIONS.md`, `backend/DEVELOPMENT_PLAN.md`, `backend/BACKLOG.md` y `project/CURRENT_STATE.md`.
+- Delivery permanece en alcance integral; pickup no hereda el mínimo de 3 h; reservas/mesa digital sí. Zonas/costo/courier, sustitución y ventanas de cancelación siguen como decisiones abiertas, no valores inventados.
+- Las rutas/código citados deben confirmarse contra el SHA que se integre al build de demo.
+
 ## 2026-09-28 — Auditoría y planificación integral
 
 - Rama inspeccionada: `feature/frontend-admin` (`1b6f146`), limpia al inicio. Sin cambio de rama ni operaciones Git de publicación.
