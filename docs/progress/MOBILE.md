@@ -2,7 +2,7 @@
 
 ## 2026-10-08 — Explicar el rechazo de comprobantes
 
-- El estado del comprobante ahora incluye el motivo enviado por el personal; Pedidos lo presenta junto a `REJECTED`. La API no acepta el mismo archivo rechazado como reenvío nuevo y devuelve un error explicativo para que se adjunte evidencia diferente o se contacte al restaurante.
+- El estado del comprobante incluye el motivo enviado por el personal; Pedidos lo presenta junto a `REJECTED`. La API impide reutilizar un comprobante rechazado y bloquea una segunda imagen mientras la primera siga pendiente; la app muestra el 409 explicativo y permite escoger otra imagen tras el rechazo.
 - Verificación: 24 archivos/98 pruebas Vitest, ESLint y TypeScript aprobados. Depende del campo `reviewReason` de la API V51.
 
 ## 2026-10-07 — Comprobante de transferencia de pickup
