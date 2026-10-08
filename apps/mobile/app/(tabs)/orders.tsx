@@ -404,6 +404,7 @@ type EvidenceReceipt = {
   byteSize: number;
   createdAt: string;
   version: number;
+  reviewReason: string | null;
 };
 
 function TransferEvidencePanel({ requestId, request }: {
@@ -484,6 +485,8 @@ function TransferEvidencePanel({ requestId, request }: {
       : <Notice tone={current?.status === "VERIFIED" ? "success" : current?.status === "REJECTED" ? "error" : "info"}>{status}</Notice>}
     {message ? <Notice tone="success">{message}</Notice> : null}
     {error ? <Notice tone="error">{error}</Notice> : null}
+    {current?.status === "REJECTED" && current.reviewReason
+      ? <Notice tone="error">Motivo de rechazo: {current.reviewReason}</Notice> : null}
     {!current || current.status === "REJECTED" ? <>
       <Button title={selected ? `Imagen: ${selected.asset.fileName ?? "comprobante seleccionado"}` : "Elegir comprobante JPG o PNG"}
         secondary onPress={() => void chooseImage()} disabled={uploading} />
