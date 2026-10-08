@@ -1,5 +1,11 @@
 # Progreso de identidad backend
 
+## 2026-10-08 — Protección concurrente del último administrador
+
+- Se agregó un escenario PostgreSQL/Testcontainers donde los dos únicos administradores activos intentan suspenderse entre sí al mismo tiempo. Exactamente una suspensión puede confirmarse; la otra queda rechazada por sesión revocada o por la regla de último administrador. La base termina con un administrador activo y una sola acción de suspensión auditada.
+- `RoleAuthorizationIntegrationTest`: 13/13, sin omitidos; Flyway V1–V51 desde PostgreSQL 18 vacío. Suite completa backend: 69 suites / 302 pruebas, 0 fallos, 0 errores, 0 omitidas.
+- Esto verifica específicamente carreras concurrentes de suspensión. Las carreras de edición/revocación de roles y ownership entre clientes siguen pendientes en IAM-02/QA-01.
+
 ## 2026-10-07 — Evidencia persistente de refresh-token reuse
 
 - Se amplió `SecurityCompositionIntegrationTest`: después de rotar un refresh token y reproducir el token padre, la API devuelve 401, la base mantiene `revocation_reason=REFRESH_REUSE`, todos los refresh tokens de la sesión están revocados y existe exactamente un evento `REFRESH_TOKEN_REUSE` de severidad `CRITICAL`.

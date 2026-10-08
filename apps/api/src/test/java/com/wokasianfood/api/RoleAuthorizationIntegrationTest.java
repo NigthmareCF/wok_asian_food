@@ -7,6 +7,8 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
@@ -156,6 +158,55 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
         } finally {
             if (!otherAdminRoles.isEmpty())
                 otherAdminRoles.forEach(roleId -> jdbc.update("UPDATE wok.user_roles SET revoked_at=NULL WHERE id=?", roleId));
+        }
+    }
+
+    @Test
+    void concurrentSuspensionsCannotRemoveTheLastActiveAdministrators() throws Exception {
+        UUID firstTarget = createUserWithRole("admin-concurrent-first-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        UUID secondTarget = createUserWithRole("admin-concurrent-second-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        String firstToken = tokenFor(firstTarget);
+        String secondToken = tokenFor(secondTarget);
+
+        List<UUID> unrelatedAdminRoles = jdbc.query("""
+            SELECT ur.id FROM wok.user_roles ur JOIN wok.roles r ON r.id=ur.role_id
+            WHERE r.code='ADMIN' AND ur.revoked_at IS NULL
+              AND ur.user_id NOT IN (?, ?)
+            """, (rs, row) -> rs.getObject(1, UUID.class), firstTarget, secondTarget);
+        unrelatedAdminRoles.forEach(roleId -> jdbc.update("UPDATE wok.user_roles SET revoked_at=now() WHERE id=?", roleId));
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return send("PUT", ADMIN_USERS + "/" + secondTarget + "/status", firstToken,
+                        "{\"action\":\"SUSPEND\",\"reason\":\"Prueba concurrente\",\"expectedVersion\":1}", Map.of());
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return send("PUT", ADMIN_USERS + "/" + firstTarget + "/status", secondToken,
+                        "{\"action\":\"SUSPEND\",\"reason\":\"Prueba concurrente\",\"expectedVersion\":1}", Map.of());
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            List<Integer> responses = List.of(first.get(15, TimeUnit.SECONDS).statusCode(),
+                    second.get(15, TimeUnit.SECONDS).statusCode());
+
+            assertThat(responses).contains(200).allMatch(status -> status == 200 || status == 401 || status == 409);
+            assertThat(responses.stream().filter(status -> status == 200)).hasSize(1);
+            assertThat(jdbc.queryForObject("""
+                SELECT count(DISTINCT ur.user_id) FROM wok.user_roles ur
+                JOIN wok.roles r ON r.id=ur.role_id JOIN wok.users u ON u.id=ur.user_id
+                WHERE r.code='ADMIN' AND ur.revoked_at IS NULL AND u.status='ACTIVE'
+                """, Integer.class)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE action='USER_SUSPEND' AND entity_id IN (?, ?)",
+                    Integer.class, firstTarget, secondTarget)).isEqualTo(1);
+        } finally {
+            unrelatedAdminRoles.forEach(roleId -> jdbc.update("UPDATE wok.user_roles SET revoked_at=NULL WHERE id=?", roleId));
         }
     }
 
