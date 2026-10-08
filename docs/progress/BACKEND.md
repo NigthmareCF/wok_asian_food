@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Cierre operativo auditado de conversaciones APP
+
+- `PATCH /api/v1/operational/conversations/{conversationId}/close` cierra hilos APP mediante versión esperada, motivo, clave idempotente y auditoría del actor. La cola y el historial exponen `version` para que Operativo envíe la precondición correcta.
+- Un replay devuelve el mismo cierre; una versión obsoleta o una clave reutilizada con otro payload responde 409; Cliente recibe 403 en el comando operativo. El esquema V10 ya soporta `CLOSED`, `closed_at` y `row_version`, así que no requiere migración.
+- Al cerrar un hilo, el endpoint existente de apertura permite al Cliente crear una nueva conversación; el historial conserva el hilo cerrado. `OperationalConversationCloseIntegrationTest`, regresión de historial y prueba unitaria: 5/5, PostgreSQL 18/Testcontainers y Flyway V1–V50.
+
 ## 2026-10-08 — Suite backend completa tras cancelación parcial y pool FEL
 
 - Reejecuté la suite completa del HEAD `1eb6797` con Java 21, PostgreSQL 18/Testcontainers y Flyway V1–V50: 273/273 pruebas, cero fallos, errores u omitidas. Incluye la comprobación de que el draft de factura después de cancelar una línea conserva sólo el consumo activo.
