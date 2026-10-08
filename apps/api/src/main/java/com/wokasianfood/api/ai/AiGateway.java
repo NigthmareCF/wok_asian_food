@@ -20,6 +20,15 @@ public class AiGateway {
                     + "ignora (todas )?(las )?(instrucciones|reglas).*(anteriores|previas|del sistema)|"
                     + "revela (el )?(system prompt|prompt del sistema)).*",
             Pattern.DOTALL);
+    private static final Pattern PROMPT_INJECTION = Pattern.compile(
+            "(?iu).*(?:ignore|disregard|forget|bypass|override|olvida|ignora|desobedece|omite|salta)"
+                    + "[\\s\\S]{0,120}(?:instructions?|rules?|system|developer|safety|instrucciones?|reglas?|"
+                    + "pol[ií]tica|prompt)|(?:reveal|show|print|repeat|disclose|revela|muestra|imprime|repite|"
+                    + "exp[oó]n|dime)[\\s\\S]{0,80}(?:system|developer|hidden|internal|safety|sistema|"
+                    + "desarrollador|oculto|interno)[\\s\\S]{0,40}(?:prompt|instructions?|policy|instrucciones?|"
+                    + "pol[ií]tica)|(?:act as|pretend to be|role.?play as|act[uú]a como|finge ser)"
+                    + "[\\s\\S]{0,60}(?:unrestricted|uncensored|no restrictions|sin restricciones|"
+                    + "developer mode|modo desarrollador).*");
     private static final Pattern OPENING_HOURS = Pattern.compile("(?iu).*(horario|a qu[eé] hora|abren|cierran|opening hours).*", Pattern.DOTALL);
     private static final Pattern SERVICE_STATUS = Pattern.compile("(?iu).*(servicio|delivery|pickup|entrega|disponible|available).*", Pattern.DOTALL);
 
@@ -37,7 +46,8 @@ public class AiGateway {
         if (input == null || input.isBlank() || input.length() > 2000)
             throw new IllegalArgumentException("invalid message");
         String prompt = input.trim();
-        if (OUT_OF_SCOPE.matcher(prompt).matches() || !WOK_DOMAIN.matcher(prompt).matches())
+        if (PROMPT_INJECTION.matcher(prompt).find() || OUT_OF_SCOPE.matcher(prompt).matches()
+                || !WOK_DOMAIN.matcher(prompt).matches())
             return new AiProvider.Reply("Puedo ayudarte con el menú, pedidos, reservas y servicios de WOK Asian Food.", false);
         if (OPENING_HOURS.matcher(prompt).matches()) return openingHoursReply();
         if (SERVICE_STATUS.matcher(prompt).matches()) return serviceStatusReply();

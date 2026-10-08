@@ -12,7 +12,7 @@ El contrato `POST /internal/ai/chat` y `POST /internal/ai/tools` exige `X-WOK-AI
 
 ## Modo y fallback
 
-`WOK_AI_MODE` acepta `disabled` (por defecto) y `mock`. En `disabled`, la respuesta pasa a atención humana/template y no llama al proveedor. `MockAiProvider` permite simular respuesta, timeout, indisponibilidad y handoff; nunca confirma pagos, reservas ni pedidos. La guarda de alcance actual es una regla léxica inicial, no un clasificador semántico robusto. No considerar terminada la defensa ante prompt injection hasta añadir evaluación adversarial y un clasificador/guard más amplio.
+`WOK_AI_MODE` acepta `disabled` (por defecto) y `mock`. En `disabled`, la respuesta pasa a atención humana/template y no llama al proveedor. `MockAiProvider` permite simular respuesta, timeout, indisponibilidad y handoff; nunca confirma pagos, reservas ni pedidos. La guarda léxica bloquea peticiones ajenas al negocio e intentos comunes en español e inglés para ignorar reglas, revelar prompts internos o pedir un rol sin restricciones. `AiGatewayTest` verifica que estas entradas no alcancen inferencia ni herramientas. Esto reduce vectores conocidos, pero no equivale a un clasificador semántico robusto ni a una certificación de seguridad frente a prompt injection.
 
 ## Producción pendiente
 
@@ -23,4 +23,4 @@ El contrato `POST /internal/ai/chat` y `POST /internal/ai/tools` exige `X-WOK-AI
 - Incorporar visión como extracción de indicios únicamente. Una imagen nunca verifica un pago; PaymentService y revisión financiera conservan esa autoridad.
 - Crear dataset versionado y pipeline de entrenamiento con revisión/aprobación humana. No actualizar pesos automáticamente desde conversaciones.
 
-Las pruebas `AiGatewayTest`, `InternalAiControllerTest` y `AiToolBrokerIntegrationTest` cubren alcance/inyección básica, fallback, token service-to-service, allowlist, consultas tipadas y auditoría sobre PostgreSQL/Flyway. Esto valida el esqueleto mock y no certifica una IA productiva.
+Las pruebas `AiGatewayTest`, `InternalAiControllerTest` y `AiToolBrokerIntegrationTest` cubren alcance, variantes comunes de inyección, fallback, token service-to-service, allowlist, consultas tipadas y auditoría sobre PostgreSQL/Flyway. Esto valida el esqueleto mock y no certifica una IA productiva.

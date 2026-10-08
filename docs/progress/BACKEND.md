@@ -626,3 +626,9 @@
 
 - `ApiErrorHandler` ahora traduce `NoResourceFoundException` a HTTP 404 con el mensaje neutral `No encontramos el recurso solicitado.`. Antes el handler genérico devolvía 500 y registraba una ruta inválida como fallo interno.
 - `ApiErrorHandlerTest` verifica el status y mensaje sin exponer detalles del framework. Esto no corrige una ruta faltante del servidor desplegado: la comprobación de `/api/v1/public/service-hours` encontró que el contenedor activo se construyó desde `integration-review` y no reconoce ese controller; la ruta de la rama backend requiere `serviceType`, `from` y `to`.
+
+## 2026-10-08 — Bloqueo temprano de inyección común en AiGateway
+
+- `AiGateway` ahora clasifica antes de herramientas/inferencia variantes comunes de prompt injection en inglés y español: ignorar o reemplazar instrucciones, revelar prompts internos y actuar como modelo sin restricciones. El guard busca esos patrones dentro del texto completo, aunque también pregunte por menú, horarios o delivery.
+- `AiGatewayTest` verifica cuatro formulaciones adversariales y confirma que no se invoquen herramientas ni proveedor. El guard sigue siendo léxico; no se considera una defensa semántica completa ni sustituye revisión humana.
+- Verificación focal: `AiGatewayTest` 5/5. Suite completa con Docker/Testcontainers, PostgreSQL 18 y Flyway V1–V50: 278/278, cero fallos, errores u omitidas. Comando: `bash ./mvnw -DargLine=-javaagent:/home/fer-cachy/.m2/repository/net/bytebuddy/byte-buddy-agent/1.18.11/byte-buddy-agent-1.18.11.jar test` (JDK local requiere agente Byte Buddy explícito).
