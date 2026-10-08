@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — APK Android debug compilado localmente
+
+- Se generó `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk` con Android SDK/NDK instalados fuera del repositorio. APK de 249 MB, application ID `com.anonymous.wokasianfood`, firmado con la clave debug local; `apksigner verify` confirma la firma APK v2. El proyecto nativo `android/` es generado/ignorado y no se versiona.
+- El artefacto es un Expo Development Client, no un APK preview autónomo: requiere Metro en la misma red para cargar JavaScript. No se configuró EAS ni credenciales OAuth; tampoco fue posible iniciar ADB dentro de este entorno (`could not install *smartsocket* listener: Operation not permitted`), así que la instalación y ejecución en dispositivo siguen sin probarse.
+- Copia local disponible en `/tmp/wok-client-debug.apk`. El build cubrió todos los ABI y tardó bastante en la primera compilación; las ejecuciones posteriores reutilizan Gradle/NDK en `~/.cache/wok-build/`.
+
 ## 2026-10-08 — Persistencia atómica de sesión Cliente
 
 - La app guarda refresh token y correo en un único registro versionado de SecureStore para impedir que escrituras parciales emparejen el token de una cuenta con la identidad local de otra. La sesión anterior de dos claves se migra al primer acceso; logout deja una marca `SIGNED_OUT` que impide recuperar claves antiguas si su eliminación falla.
