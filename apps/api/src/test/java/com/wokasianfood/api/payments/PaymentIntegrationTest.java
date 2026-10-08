@@ -153,6 +153,10 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                 sessionId, tipMovementRequestId)).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE action = 'COURIER_CASH_SETTLED' "
                 + "AND entity_id = ? AND request_id = ?", collectionId, settleRequestId)).isEqualTo(1);
+        JsonNode settledCash = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
+        assertThat(settledCash.path("breakdown").path("tips").decimalValue()).isEqualByComparingTo("5.00");
+        assertThat(settledCash.path("breakdown").path("otherIncome").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(settledCash.path("breakdown").path("expectedCash").decimalValue()).isEqualByComparingTo("135.00");
 
         JsonNode replay = body(post(settlePath, token,
                 "{\"cashSessionId\":\"" + sessionId + "\"}", Map.of("Idempotency-Key", settleKey)));

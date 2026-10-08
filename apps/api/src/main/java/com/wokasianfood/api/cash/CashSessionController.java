@@ -317,8 +317,11 @@ class CashSessionService {
         BigDecimal tips = jdbc.queryForObject("""
             SELECT COALESCE(SUM(p.tip_amount), 0)
             FROM wok.payments p
-            WHERE p.cash_session_id = ? AND p.status <> 'VOIDED'
-            """, BigDecimal.class, sessionId);
+            LEFT JOIN wok.courier_cash_collections c
+              ON c.payment_id = p.id AND c.status = 'SETTLED'
+            WHERE p.status <> 'VOIDED'
+              AND (p.cash_session_id = ? OR c.settled_cash_session_id = ?)
+            """, BigDecimal.class, sessionId, sessionId);
         return tips == null ? BigDecimal.ZERO : tips;
     }
 

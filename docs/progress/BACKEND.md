@@ -573,3 +573,8 @@
 - `POST /api/v1/operational/invoices/{id}/reconcile` exige `invoices:manage`, `Idempotency-Key`, razón y referencia de consulta. Registra la confirmación humana obtenida en el portal/proveedor: `CONFIRMED_CERTIFIED` guarda los datos del DTE como emitido; `CONFIRMED_NOT_CERTIFIED` conserva evidencia/referencia auditada y crea un nuevo outbox para reintentar. No simula consulta automática del certificador.
 - `InvoiceUnknownOutcomeIntegrationTest` prueba timeout → UNKNOWN sin retry, los dos desenlaces manuales, reencolado tras confirmación negativa e idempotencia/rastro de auditoría. Suite completa: 268 pruebas, 0 fallos/errores/omitidas; PostgreSQL 18 aplica Flyway V1–V49.
 - Los fallos inesperados siguen registrándose sólo por clase de excepción; no se emite mensaje ni stacktrace potencialmente sensible a logs.
+
+## 2026-10-07 — Resumen de propina courier en cierre de caja
+
+- El resumen `CashBreakdown` ahora atribuye propinas de courier a la sesión de caja donde se liquidaron (`courier_cash_collections.settled_cash_session_id`). Antes el movimiento se contaba como `otherIncome`, porque el pago original nunca pertenece a una caja al quedar en custodia del repartidor.
+- La prueba `PaymentIntegrationTest.courierCashIsReceivableUntilIdempotentlySettledIntoRegister` verifica que Q5 se muestra como propina, Q0 como otro ingreso y el efectivo esperado conserva Q135. Prueba focal PostgreSQL 18/Testcontainers + Flyway V1–V49.
