@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-07 — Verificación actual de la app Cliente y límite del build local
+
+- En `feature/mobile-shell` (HEAD `dfee2b4`), se volvieron a ejecutar 73 pruebas Vitest, ESLint y TypeScript sin errores. Export Expo Android y Web también completó; Web genera 17 rutas, incluidas facturas, mensajes, reservas y perfil fiscal.
+- La exportación empaqueta bundles, pero no crea APK. Esta laptop no tiene `ANDROID_HOME`/`ANDROID_SDK_ROOT`, `adb`, `sdkmanager` ni Gradle; no se ejecutó prueba instalada/dispositivo. El perfil EAS `preview` existe, pero falta `owner`/`projectId` en la config del proyecto, por lo que distribución remota requiere configurar una cuenta/proyecto Expo.
+- Sin cambios funcionales ni dependencias en este chequeo; quedan pruebas nativas Android/iOS y E2E contra backend integrado pendientes.
+
 ## 2026-10-07 — Mostrar validaciones seguras de la API en la app
 
 - `apiRequest` ahora lee el campo `message` únicamente en respuestas JSON 4xx distintas de autenticación/autorización, limpia controles y limita el texto a 300 caracteres. Esto permite mostrar correcciones concretas del backend (por ejemplo, opciones obligatorias) en lugar del mensaje genérico de horario. Respuestas 401/403 mantienen mensajes neutros y errores 5xx no exponen detalles del servidor.
