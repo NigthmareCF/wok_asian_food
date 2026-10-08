@@ -154,6 +154,105 @@ test("compact Field hides only the visual label and preserves defaults, touch si
   );
 });
 
+test("actual pickup footer uses the typed selector and retries the exact stored request", async () => {
+  const existing = {
+    email: "client@example.test",
+    key: "stored-key",
+    body: {
+      requestedFor: "2026-01-01T00:00:00.000Z",
+      items: [{ menuItemId: "dish", quantity: 1 }],
+    },
+  };
+  for (const attempt of [null, existing]) {
+    const sent = [];
+    const cart = {
+      items: { dish: 1 },
+      ready: true,
+      attempt,
+      prepareAttempt: async (value) => {
+        assert.equal(value, existing);
+      },
+      completeAttempt: async () => {},
+    };
+    const { default: CartScreen } = presentationModule("app/cart.tsx", {
+      react: {
+        useMemo: (fn) => fn(),
+        useState: (value) => [value, () => {}],
+        useRef: (value) => ({ current: value }),
+      },
+      "expo-router": {
+        useLocalSearchParams: () => ({}),
+        router: { push() {} },
+      },
+      "@/components/ui": Object.fromEntries(
+        [
+          "Button",
+          "Card",
+          "Field",
+          "Heading",
+          "Notice",
+          "Page",
+          "EmptyState",
+        ].map((name) => [name, name]),
+      ),
+      "@/components/reservation-date-time": {
+        ReservationDateTime: "ReservationDateTime",
+      },
+      "@/hooks/use-cart": { useCart: () => cart },
+      "@/hooks/use-menu": {
+        useMenu: () => ({ isSuccess: true, isError: false, isFetching: false }),
+      },
+      "@/lib/catalog": {
+        menuProducts: () => [{ id: "dish", estimatedPreparationSeconds: 300 }],
+        cartTotals: () => [{ currency: "GTQ", price: 35 }],
+        formatPrice: () => "Q35",
+        pickupReceiptSchema: { safeParse: () => ({ success: true, data: {} }) },
+      },
+      "@/providers/session-provider": {
+        useSession: () => ({
+          session: { email: "client@example.test" },
+          ready: true,
+          request: async (path, options) => {
+            sent.push({ path, options });
+            return {};
+          },
+        }),
+      },
+    });
+    const list = elements(CartScreen()).find(
+      (element) => element.type === "FlatList",
+    );
+    const footer = elements(list.props.ListFooterComponent);
+    assert.equal(
+      footer.some(
+        (element) =>
+          element.type === "Field" &&
+          element.props.placeholder === "AAAA-MM-DDTHH:mm",
+      ),
+      false,
+    );
+    assert.equal(
+      footer.filter((element) => element.type === "ReservationDateTime").length,
+      attempt ? 0 : 1,
+    );
+    if (!attempt)
+      assert.ok(
+        footer.some((element) => element.props.children === "Pasar a recoger"),
+      );
+    if (attempt) {
+      const retry = elements(list.props.ListHeaderComponent).find(
+        (element) => element.props.title === "Reintentar la misma solicitud",
+      );
+      await retry.props.onPress();
+      // The event handler intentionally returns void; drain the injected async operations.
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].options.headers["Idempotency-Key"], existing.key);
+      assert.equal(sent[0].options.body, JSON.stringify(existing.body));
+    }
+  }
+});
+
 function rgb(value) {
   return value.match(/[\d.]+/g).map(Number);
 }
