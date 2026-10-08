@@ -240,6 +240,13 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
         assertThat(finalLineCancellation.statusCode()).isEqualTo(409);
         assertThat(reserved(componentId)).isEqualByComparingTo("2");
         assertThat(count("SELECT count(*) FROM wok.order_item_change_events WHERE order_id = ?", orderId)).isEqualTo(1);
+
+        JsonNode invoice = body(post("/api/v1/operational/accounts/" + account + "/invoices", token, """
+                {"customerName":"Cliente posterior a ajuste","customerTaxId":"11223344"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(invoice.path("total").decimalValue()).isEqualByComparingTo("25.00");
+        assertThat(invoice.path("items")).hasSize(1);
+        assertThat(invoice.path("items").get(0).path("orderItemId").asText()).isEqualTo(siblingOrderItemId.toString());
     }
 
     @Test
