@@ -1,5 +1,6 @@
 package com.wokasianfood.api.ai;
 
+import java.text.Normalizer;
 import java.time.DayOfWeek;
 import java.util.List;
 import java.util.Locale;
@@ -45,7 +46,7 @@ public class AiGateway {
     public AiProvider.Reply reply(String input) {
         if (input == null || input.isBlank() || input.length() > 2000)
             throw new IllegalArgumentException("invalid message");
-        String prompt = input.trim();
+        String prompt = normalizeForPolicy(input);
         if (PROMPT_INJECTION.matcher(prompt).find() || OUT_OF_SCOPE.matcher(prompt).matches()
                 || !WOK_DOMAIN.matcher(prompt).matches())
             return new AiProvider.Reply("Puedo ayudarte con el menú, pedidos, reservas y servicios de WOK Asian Food.", false);
@@ -82,5 +83,13 @@ public class AiGateway {
 
     private AiProvider.Reply humanFallback() {
         return new AiProvider.Reply("Te pondremos en contacto con nuestro equipo.", true);
+    }
+
+    /** Normalizes compatibility forms and removes invisible format characters before lexical policy checks. */
+    private static String normalizeForPolicy(String input) {
+        return Normalizer.normalize(input, Normalizer.Form.NFKC)
+                .replaceAll("\\p{Cf}", "")
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 }
