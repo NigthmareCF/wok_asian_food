@@ -1,5 +1,13 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Listado de cuentas y saldos financieros por moneda
+
+- `GET /api/v1/operational/accounts?tableId=...` lista cuentas abiertas, en cobro o pagadas asociadas a una mesa; `GET /{accountId}` mantiene su contrato e incluye snapshots de líneas, estado, cantidad, precio y totales por moneda.
+- Los saldos agrupan consumos y pagos por moneda, excluyen consumo cancelado, descuentan reembolsos registrados y separan propinas. Si una atención tiene más de una moneda, no publica un total/balance único que pueda inducir a cobrar mal. Una cuenta sin consumos conserva ceros.
+- Las rutas autorizan `accounts:manage` o `payments:manage`; mesa inexistente responde 404 y Clientes reciben 403. Sin cambio de esquema ni de flujos de cobro, courier o reembolso.
+- Pruebas de integración: `PaymentIntegrationTest` 14/14 y `OperationalFlowIntegrationTest` 9/9, incluyendo multimoneda, consumo cancelado, cuenta vacía, listado por mesa, snapshots y permisos. Suite completa: 67 suites / 283 tests, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V51 desde base vacía. `git diff --check` limpio.
+- Fetch se intentó esta sesión, pero falló por configuración global SSH y DNS de GitHub; las refs de rama indicaban igualdad con origin al último fetch exitoso, sin probar avance remoto posterior. Cambios en la rama especializada, aún locales y sin publicar.
+
 ## 2026-10-08 — Documentación API sólo en desarrollo
 
 - El Compose base activa el perfil Spring `prod`; ese perfil deshabilita OpenAPI y Swagger UI. El override `infra/compose.dev.yml` activa `dev` y habilita ambos para inspección local; los controles de autorización de negocio en Spring no cambian.

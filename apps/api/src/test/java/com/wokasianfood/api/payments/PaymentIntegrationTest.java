@@ -274,6 +274,50 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void accountBalancesAreListedPerTableAndNeverNetDifferentCurrenciesTogether() {
+        UUID actor = createUserWithRole("cajero-multimoneda-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID tableId = createTable(token);
+        UUID accountId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wok.order_accounts (id, dining_table_id, name, status, opened_by)
+                VALUES (?, ?, 'Cuenta multimoneda', 'OPEN', ?)
+                """, accountId, tableId, actor);
+        UUID emptyAccountId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wok.order_accounts (id, dining_table_id, name, status, opened_by)
+                VALUES (?, ?, 'Cuenta sin consumos', 'OPEN', ?)
+                """, emptyAccountId, tableId, actor);
+        jdbc.update("INSERT INTO wok.currencies (code, name) VALUES ('USD', 'Dólar') ON CONFLICT (code) DO NOTHING");
+        insertOrder(accountId, actor, "10.10", "GTQ", "SERVED");
+        insertOrder(accountId, actor, "5.20", "USD", "SERVED");
+        insertOrder(accountId, actor, "999.00", "GTQ", "CANCELLED");
+
+        JsonNode details = body(get("/api/v1/operational/accounts/" + accountId, token));
+        assertThat(details.path("total").isMissingNode()).isTrue();
+        assertThat(details.path("balance").isMissingNode()).isTrue();
+        assertThat(details.path("currencyTotals")).hasSize(2);
+        assertThat(details.path("currencyTotals").get(0).path("currency").asText()).isEqualTo("GTQ");
+        assertThat(details.path("currencyTotals").get(0).path("total").decimalValue()).isEqualByComparingTo("10.10");
+        assertThat(details.path("currencyTotals").get(1).path("currency").asText()).isEqualTo("USD");
+        assertThat(details.path("currencyTotals").get(1).path("total").decimalValue()).isEqualByComparingTo("5.20");
+
+        JsonNode listed = body(get("/api/v1/operational/accounts?tableId=" + tableId, token));
+        assertThat(listed).hasSize(2);
+        JsonNode listedAccount = java.util.stream.StreamSupport.stream(listed.spliterator(), false)
+                .filter(row -> row.path("account").path("id").asText().equals(accountId.toString()))
+                .findFirst().orElseThrow();
+        JsonNode listedEmpty = java.util.stream.StreamSupport.stream(listed.spliterator(), false)
+                .filter(row -> row.path("account").path("id").asText().equals(emptyAccountId.toString()))
+                .findFirst().orElseThrow();
+        assertThat(listedAccount.path("orderCount").asInt()).isEqualTo(3);
+        assertThat(listedAccount.path("currencyTotals")).hasSize(2);
+        assertThat(listedEmpty.path("total").decimalValue()).isEqualByComparingTo("0.00");
+        assertThat(get("/api/v1/operational/accounts?tableId=" + UUID.randomUUID(), token).statusCode()).isEqualTo(404);
+        assertThat(get("/api/v1/operational/accounts?tableId=" + tableId, tokenForRole("CLIENT")).statusCode()).isEqualTo(403);
+    }
+
+    @Test
     void capturesPartialAndMixedPaymentsUntilBalanceIsSettled() {
         UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
@@ -480,6 +524,19 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                        CASE WHEN ? IN ('CLOSED', 'CANCELLED') THEN now() ELSE NULL END
                 FROM wok.currencies WHERE code = 'GTQ'
                 """, id, uniqueCode("ORD-PAY"), accountId, status, total, total, actor, status);
+        return id;
+    }
+
+    private UUID insertOrder(UUID accountId, UUID actor, String total, String currency, String status) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wok.orders
+                    (id, code, account_id, dining_table_id, channel, status, subtotal, discount, total,
+                     currency_id, guest_count, opened_by, closed_at)
+                SELECT ?, ?, ?, NULL, 'DINE_IN', ?, ?::numeric, 0, ?::numeric, id, 1, ?,
+                       CASE WHEN ? IN ('CLOSED', 'CANCELLED') THEN now() ELSE NULL END
+                FROM wok.currencies WHERE code = ?
+                """, id, uniqueCode("ORD-FX"), accountId, status, total, total, actor, status, currency);
         return id;
     }
 
