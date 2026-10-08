@@ -160,9 +160,68 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void administratorCanInspectAndRevokeOnlySessionsOwnedByTheSelectedAccount() {
+        UUID adminId = createUserWithRole("admin-session-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        String adminToken = tokenFor(adminId);
+        UUID targetId = createUserWithRole("session-target-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        UUID targetSession = openSession(targetId);
+        jdbc.update("UPDATE wok.auth_sessions SET device_name='Android test device' WHERE id=?", targetSession);
+        String targetToken = tokens.access(targetId, targetSession);
+        String refresh = tokens.refresh();
+        jdbc.update("INSERT INTO wok.refresh_tokens (session_id, token_hash, expires_at) VALUES (?, ?, now() + interval '1 day')",
+                targetSession, tokens.hash(refresh));
+        UUID unrelatedUser = createUserWithRole("session-other-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        UUID unrelatedSession = openSession(unrelatedUser);
+
+        HttpResponse<String> listed = get(ADMIN_USERS + "/" + targetId + "/sessions", adminToken);
+        assertThat(listed.statusCode()).isEqualTo(200);
+        assertThat(listed.body()).contains(targetSession.toString(), "Android test device", "\"active\":true");
+
+        UUID requestId = UUID.randomUUID();
+        String revokePath = ADMIN_USERS + "/" + targetId + "/sessions/" + targetSession + "/revoke";
+        HttpResponse<String> revoked = send("POST", revokePath, adminToken,
+                "{\"reason\":\"Dispositivo reportado perdido\"}", Map.of("X-Request-Id", requestId.toString()));
+        assertThat(revoked.statusCode()).isEqualTo(200);
+        assertThat(revoked.body()).contains("\"active\":false", "\"revocationReason\":\"ADMIN_REVOKED\"");
+        assertThat(get(OPERATIONAL_TABLES, targetToken).statusCode()).isEqualTo(401);
+        assertThat(jdbc.queryForObject("SELECT revoked_at IS NOT NULL FROM wok.refresh_tokens WHERE session_id=?",
+                Boolean.class, targetSession)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT request_id FROM wok.audit_logs WHERE entity_type='AUTH_SESSION' AND entity_id=?",
+                UUID.class, targetSession)).isEqualTo(requestId);
+
+        HttpResponse<String> replay = send("POST", revokePath, adminToken,
+                "{\"reason\":\"Reintento\"}", Map.of());
+        assertThat(replay.statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE entity_type='AUTH_SESSION' AND entity_id=?",
+                Integer.class, targetSession)).isEqualTo(1);
+
+        HttpResponse<String> foreign = send("POST", ADMIN_USERS + "/" + targetId + "/sessions/" + unrelatedSession + "/revoke",
+                adminToken, "{\"reason\":\"Prueba de aislamiento\"}", Map.of());
+        assertThat(foreign.statusCode()).isEqualTo(404);
+        assertThat(jdbc.queryForObject("SELECT revoked_at IS NULL FROM wok.auth_sessions WHERE id=?",
+                Boolean.class, unrelatedSession)).isTrue();
+    }
+
+    @Test
+    void sessionManagementIsAdminOnly() {
+        String client = tokenForRole("CLIENT");
+        String operational = tokenForRole("OPERATIONAL");
+        String sessionPath = ADMIN_USERS + "/" + UUID.randomUUID() + "/sessions";
+        assertThat(get(sessionPath, client).statusCode()).isEqualTo(403);
+        assertThat(get(sessionPath, operational).statusCode()).isEqualTo(403);
+        String revokePath = sessionPath + "/" + UUID.randomUUID() + "/revoke";
+        String body = "{\"reason\":\"Solicitud inválida\"}";
+        assertThat(send("POST", revokePath, client, body, Map.of()).statusCode()).isEqualTo(403);
+        assertThat(send("POST", revokePath, operational, body, Map.of()).statusCode()).isEqualTo(403);
+    }
+
+    @Test
     void keepsPublicEndpointsOpenToAnonymous() {
         assertThat(get("/actuator/health", null).statusCode()).isEqualTo(200);
-        assertThat(get("/api/v1/openapi", null).statusCode()).isEqualTo(200);
+        HttpResponse<String> openApi = get("/api/v1/openapi", null);
+        assertThat(openApi.statusCode()).isEqualTo(200);
+        assertThat(openApi.body()).contains("/api/v1/admin/users/{userId}/status",
+                "/api/v1/admin/users/{userId}/sessions/{sessionId}/revoke");
         assertThat(get("/api/v1/public/menu", null).statusCode()).isEqualTo(200);
     }
 

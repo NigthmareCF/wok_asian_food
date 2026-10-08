@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Inspección y revocación administrativa de sesiones
+
+- IAM expone sesiones de una cuenta con plataforma, nombre del dispositivo, actividad, expiración y motivo de revocación, sin incluir IP ni identificadores de dispositivo. `POST /api/v1/admin/users/{userId}/sessions/{sessionId}/revoke` bloquea la fila de sesión, revoca sesión y refresh tokens juntos, y registra actor, motivo y request ID.
+- El endpoint no revela sesiones de otra cuenta (404), el replay de una sesión ya revocada no crea otro evento de auditoría, y la lectura/acción está restringida al rol ADMIN. Springdoc incluye ambos contratos de cambio de estado y revocación.
+- `RoleAuthorizationIntegrationTest`: 12/12; cubre propiedad, permisos, sesión/refresh realmente revocados y auditoría. Suite completa: 69 suites / 301 pruebas, cero fallos/errores/omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V51; `git diff --check` limpio.
+
 ## 2026-10-08 — Suspensión de cuentas y revocación de sesiones
 
 - `PUT /api/v1/admin/users/{userId}/status` ahora suspende cuentas activas y permite reactivar sólo cuentas suspendidas, con `expectedVersion`, motivo y auditoría ligada a `X-Request-Id`. El cambio de estado incrementa versión; suspender corta sesiones/refresh tokens existentes, y reactivar no los restaura.
