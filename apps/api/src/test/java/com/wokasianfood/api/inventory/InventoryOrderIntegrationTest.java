@@ -224,6 +224,22 @@ class InventoryOrderIntegrationTest extends PostgresIntegrationTest {
                         "Idempotency-Key", idempotencyKey.toString(), "X-Request-Id", UUID.randomUUID().toString()));
         assertThat(replay.statusCode()).isEqualTo(200);
         assertThat(count("SELECT count(*) FROM wok.order_item_change_events WHERE order_id = ?", orderId)).isEqualTo(1);
+
+        var conflictingReplay = send("POST", path, token, """
+                {"expectedOrderVersion":%d,"expectedItemVersion":%d,"reason":"Otro motivo distinto"}
+                """.formatted(orderVersion, itemVersion), Map.of("Idempotency-Key", idempotencyKey.toString()));
+        assertThat(conflictingReplay.statusCode()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.order_item_change_events WHERE order_id = ?", orderId)).isEqualTo(1);
+
+        var finalLineCancellation = send("POST", "/api/v1/operational/orders/" + orderId
+                + "/items/" + siblingOrderItemId + "/cancellations", token, """
+                {"expectedOrderVersion":%d,"expectedItemVersion":%d,"reason":"Cliente solicita otro retiro"}
+                """.formatted(adjusted.path("order").path("rowVersion").asInt(),
+                        orderLine(adjusted, siblingOrderItemId).path("version").asInt()),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(finalLineCancellation.statusCode()).isEqualTo(409);
+        assertThat(reserved(componentId)).isEqualByComparingTo("2");
+        assertThat(count("SELECT count(*) FROM wok.order_item_change_events WHERE order_id = ?", orderId)).isEqualTo(1);
     }
 
     @Test
