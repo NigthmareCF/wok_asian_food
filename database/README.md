@@ -18,7 +18,7 @@ It starts an unexposed PostgreSQL 18 container, applies every migration to an em
 
 ## Development menu seed
 
-`seeds/menu_real_dev.sql` is idempotent development data, not a Flyway migration. It adds the current 31 menu products, their published options, and measured preliminary beverage components, including 2 fl oz of prepared simple syrup for each matcha drink. It creates no opening stock and leaves incomplete product recipes inactive. Run it only after migrations and only in a development database. It does not contain demo-user credentials.
+`seeds/menu_real_dev.sql` is idempotent development data, not a Flyway migration. It adds the current 31 menu products, their published options, and measured preliminary beverage components, including 2 fl oz of prepared simple syrup for each matcha drink and carbonatada. It creates no opening stock and leaves incomplete product recipes inactive. Run it only after migrations and only in a development database. It does not contain demo-user credentials.
 
 ## Scope limits
 

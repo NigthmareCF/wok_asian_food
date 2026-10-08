@@ -41,7 +41,7 @@
 
 ## 2026-10-08 — Medida preliminar de jarabe simple en matcha
 
-- El seed de desarrollo incorpora el jarabe simple preparado como insumo intermedio medido en ML y registra 2 oz líquidas (59.14706 ml) en cada una de las cuatro bebidas matcha. No descuenta azúcar y agua en la bebida ni inventa el rendimiento de producción del jarabe (70 oz + 70 oz por peso, `TO_MEASURE`).
+- El seed de desarrollo incorpora el jarabe simple preparado como insumo intermedio medido en ML y registra 2 oz líquidas (59.14706 ml) en cada bebida matcha y carbonatada. No descuenta azúcar y agua en la bebida ni inventa el rendimiento de producción del jarabe (70 oz + 70 oz por peso, `TO_MEASURE`); la pulpa de carbonatada queda en el modificador sabor como impacto no operativo.
 - Las 31 recetas de menú continúan `PENDING_DATA`, no se crean existencias y no se activa consumo/reserva automática. Antes de activar la receta se debe medir el rendimiento/densidad y registrar inventario del jarabe ya preparado.
 - Prueba `RealMenuSeedIntegrationTest`: 1/1 aprobada contra PostgreSQL 18 con Flyway V1–V49. `./database/validate.sh`: 49 migraciones, 13 checks SQL y seed repetido idempotente con 31 productos.
 
