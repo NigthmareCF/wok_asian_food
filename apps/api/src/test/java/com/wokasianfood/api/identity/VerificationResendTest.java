@@ -102,6 +102,20 @@ class VerificationResendTest {
         verify(jdbc).update(contains("UPDATE wok.verification_challenges"), eq(userId), eq("ACCOUNT_VERIFICATION"));
     }
 
+    @Test
+    void passwordResetRequestLocksTheAccountBeforeCheckingHourlyLimit() {
+        UUID userId = UUID.randomUUID();
+        String email = "active@example.test";
+        when(jdbc.query(anyString(), anyRowMapper(), eq(email))).thenReturn(List.of(userId));
+        when(jdbc.queryForObject(contains("PASSWORD_RESET"), eq(Integer.class), eq(userId))).thenReturn(0);
+
+        auth.requestReset(new ResetRequest(email));
+
+        verify(jdbc).query(argThat(sql -> sql.contains("status = 'ACTIVE' FOR UPDATE")), anyRowMapper(), eq(email));
+        verify(jdbc).queryForObject(contains("created_at > now() - interval '1 hour'"), eq(Integer.class), eq(userId));
+        verify(jdbc).update(startsWith("INSERT INTO wok.email_outbox"), eq(email), eq("PASSWORD_RESET"), anyString(), anyString());
+    }
+
     private void stubPendingUser(String email, UUID userId) {
         when(jdbc.query(anyString(), anyRowMapper(), eq(email))).thenReturn(List.of(userId));
     }

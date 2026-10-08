@@ -95,7 +95,7 @@ public class AuthService {
     @Transactional
     public void requestReset(ResetRequest request) {
         String email = normalize(request.email());
-        List<UUID> ids = jdbc.query("SELECT id FROM wok.users WHERE email = ? AND status = 'ACTIVE'",
+        List<UUID> ids = jdbc.query("SELECT id FROM wok.users WHERE email = ? AND status = 'ACTIVE' FOR UPDATE",
                 (rs, row) -> rs.getObject(1, UUID.class), email);
         if (ids.isEmpty()) return;
         Integer recent = jdbc.queryForObject("""

@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Serializar solicitudes de recuperación de contraseña
+
+- `requestReset` bloquea la fila de la cuenta activa (`FOR UPDATE`) antes de consultar el límite horario y crear un challenge. Solicitudes simultáneas para la misma cuenta ya no pueden observar el mismo contador anterior y emitir en paralelo por encima del límite interno.
+- Prueba `VerificationResendTest`: 6/6 aprobadas, incluida verificación del bloqueo antes del conteo. La primera ejecución bajo sandbox no pudo adjuntar el agente inline de Mockito y produjo fallos ambientales; repetida con permisos de ejecución pasó. Sin cambio de esquema/endpoint.
+
 ## 2026-10-08 — Expiración de holds usa el reloj de PostgreSQL
 
 - `OrderCapacityHoldService.finish` ahora decide si un hold venció con `now()` de la misma base que gobierna `expires_at`, evitando que desfase entre el reloj de la JVM y PostgreSQL convierta un hold expirado en trabajo de cola aceptado.
