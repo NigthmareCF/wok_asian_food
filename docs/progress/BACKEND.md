@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Limpieza de archivo de comprobante al revertir la transacción
+
+- El almacenamiento privado de comprobantes ahora registra una compensación ligada al ciclo de vida de la transacción Spring. Si PostgreSQL revierte, el archivo UUID se elimina; si confirma, se conserva.
+- `PaymentEvidenceIntegrationTest` fuerza un fallo diferido durante el commit y verifica que la fila se revierta y el directorio vuelva exactamente al contenido previo. La suite de evidencia pasa 3/3.
+- Suite completa: 67 suites / 290 pruebas, cero fallos/errores/omitidas; Testcontainers PostgreSQL 18 y Flyway V1–V51. Sin cambio de esquema ni contrato HTTP.
+
 ## 2026-10-08 — Validación exacta de importes de caja
 
 - Los valores de fondo de apertura, movimientos, arqueos intermedios y cierre ahora se normalizan a dos decimales sin redondear y se limitan a la precisión de `NUMERIC(14,2)`. Se valida también el saldo esperado antes de persistir una conciliación.

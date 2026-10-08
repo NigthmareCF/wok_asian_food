@@ -30,6 +30,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -165,6 +167,7 @@ class PaymentEvidenceService {
             throw new AuthException(409, "Ya hay un comprobante pendiente de revisión para esta solicitud.");
 
         UUID evidenceId = UUID.randomUUID();
+        cleanupStoredFileAfterRollback(evidenceId);
         storage.write(evidenceId, contents);
         try {
             jdbc.update("""
@@ -181,6 +184,17 @@ class PaymentEvidenceService {
             throw new AuthException(409, "Este comprobante ya fue enviado o la solicitud cambió.");
         }
         return new Receipt(evidenceId, requestId, "NEEDS_REVIEW", type, (long) contents.length, Instant.now(), 1, null);
+    }
+
+    private void cleanupStoredFileAfterRollback(UUID evidenceId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive())
+            throw new IllegalStateException("Payment evidence requires an active database transaction");
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) storage.delete(evidenceId);
+            }
+        });
     }
 
     @Transactional(readOnly = true)

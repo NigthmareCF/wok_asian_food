@@ -7,23 +7,48 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 
 class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
+    private static final Path EVIDENCE_DIRECTORY = Path.of(System.getProperty("java.io.tmpdir"),
+            "wok-payment-evidence-it-" + UUID.randomUUID());
     private static final byte[] PNG_1X1 = Base64.getDecoder().decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAE0lEQVR4nGP8//8/AwMDEwMYAAAkBgMBXaJOiAAAAABJRU5ErkJggg==");
     private static final byte[] PNG_DIFFERENT = Base64.getDecoder().decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGP8IMLFwMDAxAAGAA24ARLUywghAAAAAElFTkSuQmCC");
     private final ObjectMapper json = new ObjectMapper();
+
+    @DynamicPropertySource
+    static void evidenceProperties(DynamicPropertyRegistry properties) {
+        properties.add("wok.payments.evidence-directory", EVIDENCE_DIRECTORY::toString);
+    }
+
+    @AfterAll
+    static void deleteEvidenceDirectory() throws IOException {
+        if (!Files.exists(EVIDENCE_DIRECTORY)) return;
+        try (Stream<Path> files = Files.walk(EVIDENCE_DIRECTORY)) {
+            for (Path file : files.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(file);
+        }
+    }
 
     @Test
     void pickupTransferEvidenceIsPrivateIdempotentAndNeverCapturesPaymentOnUpload() throws Exception {
@@ -115,6 +140,56 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT method FROM wok.payments WHERE id = ?", String.class, paymentId)).isEqualTo("TRANSFER");
         assertThat(jdbc.queryForObject("SELECT amount FROM wok.payments WHERE id = ?", java.math.BigDecimal.class, paymentId))
                 .isEqualByComparingTo("25.00");
+    }
+
+    @Test
+    void removesStoredFileWhenEvidenceDatabaseTransactionRollsBack() throws Exception {
+        var requestResponse = createTransferPickup();
+        UUID requestId = UUID.fromString(body(requestResponse).path("requestId").asText());
+        Set<String> filesBefore = storedFiles();
+        jdbc.execute("""
+                CREATE FUNCTION wok.fail_payment_evidence_event_test() RETURNS trigger
+                LANGUAGE plpgsql AS $$ BEGIN
+                    RAISE EXCEPTION 'forced evidence event failure' USING ERRCODE = 'XX000';
+                END; $$
+                """);
+        jdbc.execute("""
+                CREATE CONSTRAINT TRIGGER fail_payment_evidence_event_test
+                AFTER INSERT ON wok.payment_evidence_events
+                DEFERRABLE INITIALLY DEFERRED
+                FOR EACH ROW EXECUTE FUNCTION wok.fail_payment_evidence_event_test()
+                """);
+
+        try {
+            HttpResponse<String> response = upload(requestId, UUID.randomUUID(), requestClientToken,
+                    "image/png", uniquePng());
+
+            assertThat(response.statusCode()).as(response.body()).isGreaterThanOrEqualTo(500);
+            assertThat(count("SELECT count(*) FROM wok.payment_evidence WHERE order_request_id = ?", requestId)).isZero();
+            assertThat(storedFiles()).isEqualTo(filesBefore);
+        } finally {
+            jdbc.execute("DROP TRIGGER IF EXISTS fail_payment_evidence_event_test ON wok.payment_evidence_events");
+            jdbc.execute("DROP FUNCTION IF EXISTS wok.fail_payment_evidence_event_test()");
+        }
+    }
+
+    private Set<String> storedFiles() throws IOException {
+        if (!Files.exists(EVIDENCE_DIRECTORY)) return Set.of();
+        try (Stream<Path> files = Files.list(EVIDENCE_DIRECTORY)) {
+            return files.map(path -> path.getFileName().toString()).collect(Collectors.toCollection(HashSet::new));
+        }
+    }
+
+    private byte[] uniquePng() throws IOException {
+        BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
+        int color = UUID.randomUUID().hashCode() | 0xff000000;
+        image.setRGB(0, 0, color);
+        image.setRGB(1, 0, ~color | 0xff000000);
+        image.setRGB(0, 1, Integer.rotateLeft(color, 7));
+        image.setRGB(1, 1, Integer.rotateLeft(color, 13));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image, "png", output);
+        return output.toByteArray();
     }
 
     private String requestClientToken;
