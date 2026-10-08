@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, apiRequest, PublicServiceDay } from "./api";
+import { ApiError, PublicServiceDay } from "./api";
 import { selectedServiceDate } from "./service-hours";
+import { fetchPublicServiceDay } from "./service-hours-api";
 import { useFocusedPolling } from "./use-focused-polling";
 
 export function useServiceHours(serviceType: "PICKUP" | "DELIVERY", localDateTime: string) {
@@ -20,10 +21,9 @@ export function useServiceHours(serviceType: "PICKUP" | "DELIVERY", localDateTim
     }
     setLoading(true);
     try {
-      const params = new URLSearchParams({ serviceType, from: serviceDate, to: serviceDate });
-      const days = await apiRequest<PublicServiceDay[]>(`/api/v1/public/service-hours?${params.toString()}`);
+      const result = await fetchPublicServiceDay(serviceType, serviceDate);
       if (revision.current === currentRevision) {
-        setDay(days.find((item) => item.serviceDate === serviceDate) ?? null);
+        setDay(result);
         setError("");
       }
     } catch (cause) {

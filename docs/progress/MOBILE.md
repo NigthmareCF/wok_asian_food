@@ -460,3 +460,8 @@
 
 - Menú/pickup y delivery impiden agregar un producto distinto después de alcanzar 100 líneas, con mensaje visible en español; permiten aumentar cantidades de productos ya incluidos. Esto evita que un catálogo administrable amplio produzca solicitudes que el backend rechazará por límite de transporte.
 - La regla se comparte con preórdenes mediante `canAddDistinctMenuLine` y queda cubierta al límite y por debajo de él en Vitest. Verificación: 59/59 pruebas, ESLint, TypeScript y export Expo Android completan correctamente; el export es un bundle, no un APK instalable.
+## 2026-10-08 — Compatibilidad entre contratos de calendario publicados
+
+- `useServiceHours` consulta primero la ruta vigente por rango (`?serviceType&from&to`). Si el servidor responde 404 o 500 por una ruta no reconocida, intenta la ruta integrada por tipo/fecha (`/service-hours/{tipo}/{fecha}`) y adapta su lista de ventanas al DTO que consume Cliente. La adaptación sólo ocurre si la ruta alternativa devuelve datos válidos; 401/403/422 y fallos de ambas rutas se conservan como error.
+- Esta compatibilidad cubre la divergencia observada entre `feature/backend-capacity-order-lifecycle` y el servidor integrado activo; no cambia la autoridad de horarios del backend ni confirma disponibilidad de pedidos.
+- Verificación: Vitest 73/73; ESLint, TypeScript y export Expo Android/Web pasan. Los exports no son APK instalable ni prueba física.

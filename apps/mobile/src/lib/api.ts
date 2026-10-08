@@ -166,7 +166,7 @@ export type PublicServiceDay = {
   opensAt: string | null;
   closesAt: string | null;
   timezoneName: string;
-  source: "WEEKLY" | "OVERRIDE" | "CLOSED";
+  source: "WEEKLY" | "OVERRIDE" | "CLOSED" | "COMPATIBILITY";
 };
 export type RequestModifierSnapshot = { group: string; name: string; priceDelta: number };
 export type PickupRequestBody = {
