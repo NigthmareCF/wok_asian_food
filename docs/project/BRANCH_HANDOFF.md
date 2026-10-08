@@ -1,5 +1,9 @@
 # Handoff por ramas y merge de integración
 
+## Estado remoto reciente — 2026-10-08
+
+`origin/feature/web-integrated-delivery-finance` (`599f19a`) contiene intentos persistentes para cobros presenciales y resolución administrativa, junto con cambios Web amplios. No es compatible para merge directo con `feature/backend-capacity-order-lifecycle` (`9b47e21`): ambos modifican controladores de pago/caja/pickup/pedidos y el primero agrega Flyway V26/V27 mientras la rama backend actual ya usa esos números para perfiles fiscales y despacho delivery, extendida hasta V51. Además el delta remoto no contiene cambios Mobile. Antes de integrar sus piezas backend, definir una migración reconciliada y portar contratos/código sobre la secuencia activa; no cherry-pick los commits completos ni copiar V26/V27. La rama remota se revisó por alcance y nombres de archivo, no es una auditoría de seguridad ni una aceptación de sus flujos financieros.
+
 > Estado de worktrees: fotografía del 2026-09-26. Auditoría read-only del 2026-09-28 encontró que los worktrees `/tmp/wok-worktrees/*` registrados abajo no existen; únicamente `/home/fer-cachy/Wok_Asian_Food` está activo. Ver [GAP_ANALYSIS.md](GAP_ANALYSIS.md) antes de usar los paths/commits de esta tabla. No se refrescaron ramas ni se integraron en este ciclo.
 
 Fecha: 2026-09-26. Este documento organiza el trabajo que sigue al corte integral y evita que cada PR replantee contratos compartidos. Se usaron las ramas existentes. Todas eran antecesoras de `origin/development` y no tenían commits exclusivos, así que se adelantaron con `--ff-only` a `3bbd0ed`; no hubo rebase, force ni resolución de conflictos. Después se crearon y publicaron commits normales para el primer reparto en 18 ramas. El workspace principal sigue en `feature/frontend-admin`.
