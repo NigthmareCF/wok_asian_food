@@ -2,6 +2,9 @@
 services:
   api:
     environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
       WOK_EMAIL_MODE: smtp
       SPRING_MAIL_HOST: mailpit
       SPRING_MAIL_PORT: 1025

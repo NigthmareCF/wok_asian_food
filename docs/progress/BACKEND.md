@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Documentación API sólo en desarrollo
+
+- El Compose base activa el perfil Spring `prod`; ese perfil deshabilita OpenAPI y Swagger UI. El override `infra/compose.dev.yml` activa `dev` y habilita ambos para inspección local; los controles de autorización de negocio en Spring no cambian.
+- Agregué integración que arranca con PostgreSQL 18/Flyway V1–V50 en perfil prod y confirma 404 en `/api/v1/openapi`, `/swagger-ui.html` y `/swagger-ui/index.html`. `docker compose config` verifica el perfil prod por defecto y `dev` + documentación habilitada al aplicar override.
+- Suite backend completa con Docker/Testcontainers: 277/277, sin fallos, errores ni omitidas; incluye la carrera mensaje/cierre y la exposición prod de Swagger/OpenAPI.
+
 ## 2026-10-08 — Cierre operativo auditado de conversaciones APP
 
 - `PATCH /api/v1/operational/conversations/{conversationId}/close` cierra hilos APP mediante versión esperada, motivo, clave idempotente y auditoría del actor. La cola y el historial exponen `version` para que Operativo envíe la precondición correcta.

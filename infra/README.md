@@ -11,6 +11,8 @@ This is the initial single-server deployment contract, not evidence that WAN-fai
 
 The plain HTTP configuration is for a trusted development LAN only. For authenticated pilot or production traffic, obtain a domain and certificate outside the repository, set `WOK_TLS_CERT_PATH` and `WOK_TLS_KEY_PATH` to host file paths, and run `docker compose -f docker-compose.yml -f infra/compose.tls.yml up --build -d`. The TLS override redirects port 80 to 443. Configure a firewall to allow only the intended LAN clients and public 443 ingress. Do not forward 5432 or 8080. Review HSTS duration after the hostname and certificate are operational.
 
+The base Compose deployment activates Spring's `prod` profile, which disables OpenAPI and Swagger UI on the API. Local API development keeps both enabled by default; when using the development Compose override, Swagger remains available for inspection. Do not enable API documentation on a public production host.
+
 ## Optional local demo data
 
 `database/seeds/dev_demo.sql` contains fixed demonstration accounts and sample tables/menu data. It is not part of Flyway and is never loaded by normal startup. Apply it only to a disposable local database after migrations complete, from the repository root:
