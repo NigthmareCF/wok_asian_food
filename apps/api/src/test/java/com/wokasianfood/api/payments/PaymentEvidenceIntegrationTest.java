@@ -43,6 +43,10 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
         JsonNode replay = body(upload(requestId, idempotencyKey, client, "image/png", PNG_1X1));
         assertThat(replay.path("id").asText()).isEqualTo(evidenceId.toString());
         assertThat(count("SELECT count(*) FROM wok.payment_evidence_events WHERE payment_evidence_id = ?", evidenceId)).isEqualTo(1);
+        HttpResponse<String> secondPendingImage = upload(requestId, UUID.randomUUID(), client, "image/png", PNG_DIFFERENT);
+        assertThat(secondPendingImage.statusCode()).isEqualTo(409);
+        assertThat(secondPendingImage.body()).contains("pendiente de revisión");
+        assertThat(count("SELECT count(*) FROM wok.payment_evidence WHERE order_request_id = ?", requestId)).isEqualTo(1);
 
         HttpResponse<String> otherCustomer = get("/api/v1/client/order-requests/" + requestId + "/payment-evidence", tokenForRole("CLIENT"));
         assertThat(otherCustomer.statusCode()).isEqualTo(404);

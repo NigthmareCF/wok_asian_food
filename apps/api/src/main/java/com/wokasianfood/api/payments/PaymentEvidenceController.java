@@ -155,6 +155,14 @@ class PaymentEvidenceService {
                 throw new AuthException(409, "Este comprobante ya fue rechazado. Adjunta una imagen nueva o contacta al restaurante.");
             return previous;
         }
+        boolean pendingEvidence = jdbc.queryForObject("""
+            SELECT EXISTS (
+                SELECT 1 FROM wok.payment_evidence
+                WHERE order_request_id = ? AND customer_user_id = ? AND status = 'NEEDS_REVIEW'
+            )
+            """, Boolean.class, requestId, customerId);
+        if (Boolean.TRUE.equals(pendingEvidence))
+            throw new AuthException(409, "Ya hay un comprobante pendiente de revisión para esta solicitud.");
 
         UUID evidenceId = UUID.randomUUID();
         storage.write(evidenceId, contents);
