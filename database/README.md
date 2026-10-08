@@ -4,7 +4,7 @@ This directory contains the Flyway SQL sequence used by the WOK API, standalone 
 
 ## Apply schema
 
-The API applies `migrations/V*.sql` through Flyway in version order. Never edit an already released migration to change an installed schema; add a new versioned migration instead. The current sequence is V1–V49.
+The API applies `migrations/V*.sql` through Flyway in version order. Never edit an already released migration to change an installed schema; add a new versioned migration instead. The current sequence is V1–V50. V50 stores immutable per-line inventory resource snapshots and audited pre-kitchen line cancellation, and permits `WASTE` inventory movements to reference the cancelled order while retaining the production-batch/order exclusivity rule.
 
 Run the disposable PostgreSQL verification with:
 

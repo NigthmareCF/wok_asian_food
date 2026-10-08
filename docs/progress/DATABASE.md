@@ -1,5 +1,11 @@
 # Database progress
 
+## 2026-10-07 — Audited order-line cancellation schema (V50)
+
+- V50 adds status, actor/time and resource-snapshot readiness to order lines; captures the per-line inventory contribution at reservation time so cancellation does not recalculate from mutable recipes/modifiers; and stores a reasoned before/after change event with financial/resource/kitchen snapshots.
+- The inventory movement scope check now permits order-linked `WASTE` while continuing to forbid linking one movement to both an order and production batch. Existing migration files remain unchanged.
+- Added a SQL schema assertion for V50 and advanced the validation script to require a contiguous V1–V50 chain. `bash database/validate.sh`: 50 migrations, 14 SQL checks and repeatable 31-product seed passed on PostgreSQL 18.
+
 ## 2026-10-08 — Full runtime migration chain V1–V49
 
 - Reconciled `feature/database-migrations` with the executable sequence in `feature/backend-capacity-order-lifecycle`: added the missing V13–V37 and V39–V49; existing V1–V12 and V38 were compared byte-for-byte and left unchanged. Added the V13 SQL constraint test and the idempotent real-menu development seed. The local demo-user seed was deliberately excluded because it documents development passwords.
