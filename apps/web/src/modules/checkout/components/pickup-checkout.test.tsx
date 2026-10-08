@@ -8,6 +8,7 @@ import { createPickupAttemptStore } from "../pickup-attempt";
 import { PickupCheckout } from "./pickup-checkout";
 
 const id = "11111111-1111-4111-8111-111111111111";
+const now = "2026-10-04T20:00:00-06:00";
 const product = {
   id,
   name: "Gyozas",
@@ -16,14 +17,15 @@ const product = {
   estimatedPreparationSeconds: 300,
 };
 const menu = {
-  asOf: new Date().toISOString(),
+  asOf: new Date(now).toISOString(),
   categories: [{ id, name: "Platos", items: [product] }],
 };
 const date = "2026-10-04T20:20";
+// El control usa la hora de Guatemala; el API recibe el instante UTC.
 const receipt = {
   requestId: id,
   status: "PENDING_REVIEW",
-  requestedFor: new Date(date).toISOString(),
+  requestedFor: "2026-10-05T02:20:00.000Z",
   subtotal: 68,
   currency: "GTQ",
   idempotentReplay: false,
@@ -44,7 +46,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
-  vi.setSystemTime(new Date("2026-10-04T20:00:00-06:00"));
+  vi.setSystemTime(new Date(now));
 });
 
 describe("pickup checkout", () => {
