@@ -538,3 +538,10 @@
 - En Pedidos, Cliente puede consultar las líneas que todavía están en cola y solicitar cancelar una individual en pedidos pickup y delivery aceptados. La solicitud requiere motivo y revisión Operativa; la app explica que el pedido permanece activo hasta la decisión. La ruta sólo se ofrece en estado `SENT` y, para delivery, mientras el despacho siga sin asignar.
 - La API tipada representa cancelación completa e individual. Las claves idempotentes se aíslan por cuenta, pedido y línea en SecureStore, sobreviven reinicios y siguen leyendo registros anteriores de cancelación completa sin `orderItemId`.
 - Vitest: 120/120 (27 archivos); `npm run lint`, `npm run typecheck` y `npx expo export --platform android` pasan. La integración UI/API aún depende de que las ramas backend y móvil se desplieguen juntas; backend verificó por separado el flujo de extremo a extremo con PostgreSQL. No se generó un APK nuevo: este host carece de Android SDK/`ANDROID_HOME`, por lo que el APK anterior no incluye este cambio.
+
+## 2026-10-08 — APP-06: facturas emitidas y perfiles fiscales
+
+- Desde Cuenta se puede abrir el historial de facturas propias y consultar el detalle de cada documento con los endpoints de Cliente. La interfaz deja claro que la API no ofrece descargas PDF/XML; los documentos marcados como prueba se identifican como no válidos fiscalmente.
+- La libreta de datos fiscales permite crear, editar con `expectedVersion`, marcar como predeterminado y eliminar perfiles mediante endpoints autenticados del Cliente. El NIT se enmascara en la lista. Si la respuesta de alta se pierde, la app consulta la lista antes de permitir que se reintente una creación posiblemente ya guardada.
+- Los perfiles privados se reinician al cambiar de cuenta. No se agregaron credenciales ni dependencias.
+- Verificación: Vitest 120/120, ESLint, TypeScript `--noEmit` y exports Expo Android/Web; las rutas Web incluyen `/invoices` y `/tax-profiles`. Estos exports no son pruebas E2E ni instalación física. La API todavía no entrega archivos fiscales; pasarela real, 3DS y FEL siguen pendientes de proveedor/integración.
