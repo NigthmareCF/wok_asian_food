@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Suite backend completa tras cancelación parcial y pool FEL
+
+- Reejecuté la suite completa del HEAD `1eb6797` con Java 21, PostgreSQL 18/Testcontainers y Flyway V1–V50: 273/273 pruebas, cero fallos, errores u omitidas. Incluye la comprobación de que el draft de factura después de cancelar una línea conserva sólo el consumo activo.
+- La rama `feature/backend-capacity-order-lifecycle` estaba alineada con su remoto antes de esta verificación; no cambió código backend en esta corrida. No se hizo merge a `development`.
+
 ## 2026-10-07 — Cancelación auditable de líneas y merma tras inicio de cocina
 
 - `POST /api/v1/operational/orders/{orderId}/items/{orderItemId}/cancellations` permite cancelar una línea individual idempotentemente sólo mientras el pedido siga `SENT`, la comanda permanezca `QUEUED`, la línea conserve snapshot de recursos y no existan pagos cobrados, intents pendientes ni facturas preparadas. Requiere versiones esperadas de pedido y línea, motivo e `Idempotency-Key`.
