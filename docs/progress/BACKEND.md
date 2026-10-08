@@ -745,3 +745,8 @@
 - `CustomerTaxProfileIntegrationTest` ahora intenta actualizar y borrar un perfil de Cliente A usando el token de Cliente B. Ambas operaciones deben responder `404`; después se comprueba que el perfil y NIT de A permanecen intactos. La prueba también conserva las verificaciones existentes de lista privada y rol.
 - Focal ejecutada con Testcontainers, PostgreSQL 18 y Flyway V1–V52 desde esquema vacío: 3/3 pruebas, cero fallos/errores/omitidas. El primer intento quedó omitido porque el sandbox bloqueó Docker; se reejecutó con acceso al socket y éste es el resultado válido.
 - No cambió lógica productiva ni esquema. Esta prueba cubre la API que consume la libreta de perfiles fiscales móvil.
+
+## 2026-10-08 — Alcance de la falla al correr la suite completa
+
+- Después de la prueba fiscal se ejecutó la suite completa: 310 pruebas, con una falla en `OperationalFlowIntegrationTest.keepsBlockingCloseWhileOrderIsOpen`; esa prueba tomó 1240 s y falló con HTTP 401 en la apertura de mesa. No se cuenta esta corrida como verde.
+- La prueba de mesa aislada y la clase `OperationalFlowIntegrationTest` completa se repitieron contra PostgreSQL 18/Testcontainers y pasaron. La prueba fiscal focal también pasó 3/3. El fallo aparece sólo en la suite completa; falta reproducir/aislar qué estado compartido o demora lo provoca antes de volver a declarar la suite completa verde.
