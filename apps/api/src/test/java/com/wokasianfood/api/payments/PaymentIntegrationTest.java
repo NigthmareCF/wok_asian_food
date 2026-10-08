@@ -134,6 +134,47 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void blocksTableCloseWithoutPartialChangesUntilEveryAccountIsPaid() {
+        UUID actor = createUserWithRole("cierre-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID tableId = createTable(token);
+        UUID paidAccountId = UUID.fromString(body(post("/api/v1/operational/tables/" + tableId + "/open", token, null))
+                .path("accountId").asText());
+        closedOrder(paidAccountId, actor, "40.00");
+        body(post("/api/v1/operational/accounts/" + paidAccountId + "/payments", token,
+                """
+                {"method":"TRANSFER"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID unpaidAccountId = createAccount(actor, tableId, "Cuenta pendiente");
+        closedOrder(unpaidAccountId, actor, "60.00");
+        var tableBefore = jdbc.queryForMap("SELECT * FROM wok.dining_tables WHERE id = ?", tableId);
+        var accountsBefore = jdbc.queryForList(
+                "SELECT * FROM wok.order_accounts WHERE dining_table_id = ? ORDER BY id", tableId);
+        int historyBefore = count("SELECT count(*) FROM wok.dining_table_status_history WHERE dining_table_id = ?", tableId);
+        int auditBefore = count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ?", tableId);
+
+        var rejected = post("/api/v1/operational/tables/" + tableId + "/close", token, null);
+
+        assertThat(rejected.statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForMap("SELECT * FROM wok.dining_tables WHERE id = ?", tableId)).isEqualTo(tableBefore);
+        assertThat(jdbc.queryForList("SELECT * FROM wok.order_accounts WHERE dining_table_id = ? ORDER BY id", tableId))
+                .isEqualTo(accountsBefore);
+        assertThat(count("SELECT count(*) FROM wok.dining_table_status_history WHERE dining_table_id = ?", tableId))
+                .isEqualTo(historyBefore);
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ?", tableId)).isEqualTo(auditBefore);
+
+        body(post("/api/v1/operational/accounts/" + unpaidAccountId + "/payments", token,
+                """
+                {"method":"TRANSFER"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        var closed = post("/api/v1/operational/tables/" + tableId + "/close", token, null);
+        assertThat(closed.statusCode()).isEqualTo(200);
+        assertThat(body(closed).path("status").asText()).isEqualTo("CLEANING");
+        assertThat(jdbc.queryForList("SELECT status FROM wok.order_accounts WHERE dining_table_id = ?", String.class, tableId))
+                .containsExactly("CLOSED", "CLOSED");
+    }
+
+    @Test
     void closesTableAfterAccountIsPaid() {
         UUID actor = createUserWithRole("cajero-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
         String token = tokenFor(actor);
@@ -238,10 +279,13 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
         UUID sessionId = openCash(token, code, "0.00");
         UUID accountId = createAccount(actor, null, "Cuenta propina efectivo");
         closedOrder(accountId, actor, "50.00");
+        UUID requestId = UUID.randomUUID();
+        String idempotencyKey = UUID.randomUUID().toString();
 
         JsonNode payment = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
                 {"method":"CASH","registerCode":"%s","amount":50.00,"tipAmount":5.00}
-                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+                """.formatted(code), Map.of("Idempotency-Key", idempotencyKey, "X-Request-Id", requestId.toString())));
+        UUID paymentId = UUID.fromString(payment.path("paymentId").asText());
         assertThat(payment.path("amount").decimalValue()).isEqualByComparingTo("50.00");
         assertThat(payment.path("tipAmount").decimalValue()).isEqualByComparingTo("5.00");
         assertThat(payment.path("balance").decimalValue()).isEqualByComparingTo("0.00");
@@ -253,6 +297,30 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                 SELECT count(*) FROM wok.cash_movements
                 WHERE cash_session_id = ? AND movement_type = 'INCOME' AND reason = 'Propina de cuenta'
                 """, sessionId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM wok.cash_movements
+                WHERE payment_id = ? AND request_id = ?
+                """, Integer.class, paymentId, requestId)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM wok.cash_movements
+                WHERE payment_id = ? AND request_id = ? AND movement_type = 'SALE'
+                """, Integer.class, paymentId, requestId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM wok.cash_movements
+                WHERE payment_id = ? AND request_id = ? AND movement_type = 'INCOME'
+                """, Integer.class, paymentId, requestId)).isEqualTo(1);
+
+        JsonNode replay = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CASH","registerCode":"%s","amount":50.00,"tipAmount":5.00}
+                """.formatted(code), Map.of("Idempotency-Key", idempotencyKey, "X-Request-Id", requestId.toString())));
+        assertThat(replay.path("paymentId").asText()).isEqualTo(paymentId.toString());
+        assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE id = ?", paymentId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE payment_id = ?", paymentId)).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE payment_id = ? AND movement_type = 'SALE'", paymentId))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE payment_id = ? AND movement_type = 'INCOME'", paymentId))
+                .isEqualTo(1);
 
         JsonNode session = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
         assertThat(session.path("breakdown").path("sales").decimalValue()).isEqualByComparingTo("50.00");
