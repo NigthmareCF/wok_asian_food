@@ -2,9 +2,9 @@
 
 ## 2026-10-08 — Jarabe simple registrado como componente preliminar de matcha
 
-- El seed de desarrollo añade `ING_SIMPLE_SYRUP` en ML y 2 oz líquidas por cada Matcha Latte, Matcha Kiwi, Matcha Maracuyá y Blue Matcha. La unidad se convierte a 59.14706 ml; no se traducen ambas partes del jarabe a consumo de bebida.
+- El seed de desarrollo añade `ING_SIMPLE_SYRUP` en ML y 2 oz líquidas por cada bebida matcha y carbonatada. La unidad se convierte a 59.14706 ml; las pulpas de carbonatada se mantienen asociadas al sabor sin activar consumo.
 - La receta de producción de `JARABE_SIMPLE` sigue pendiente porque el rendimiento final de la tanda 1:1 por peso no se ha medido. Los productos siguen `PENDING_DATA` y no se generan reservas ni consumos automáticos.
-- `RealMenuSeedIntegrationTest`: 1/1 aprobada con PostgreSQL 18 y migraciones V1–V49; valida 19 componentes preliminares, los cuatro consumos de jarabe y ausencia de receta activa/saldo.
+- `RealMenuSeedIntegrationTest`: 1/1 aprobada con PostgreSQL 18 y migraciones V1–V49; valida 20 componentes preliminares, cinco consumos de jarabe y ausencia de receta activa/saldo.
 
 ## 2026-10-08 — Rechazo de importes de pago fuera de precisión GTQ
 

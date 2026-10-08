@@ -152,7 +152,7 @@ INSERT INTO seed_preliminary_recipe_components VALUES
  ('matcha-kiwi','ING_MATCHA_GREEN',1),('matcha-kiwi','ING_WATER',59.14706),('matcha-kiwi','ING_MILK',147.86765),('matcha-kiwi','ING_SIMPLE_SYRUP',59.14706),('matcha-kiwi','ING_KIWI_PULP',29.57353),
  ('matcha-maracuya','ING_MATCHA_GREEN',1),('matcha-maracuya','ING_WATER',59.14706),('matcha-maracuya','ING_MILK',147.86765),('matcha-maracuya','ING_SIMPLE_SYRUP',59.14706),('matcha-maracuya','ING_PASSIONFRUIT_PULP',29.57353),
  ('blue-matcha','ING_MATCHA_BLUE',1),('blue-matcha','ING_WATER',59.14706),('blue-matcha','ING_MILK',147.86765),('blue-matcha','ING_SIMPLE_SYRUP',59.14706),
- ('carbonatada','ING_MINERAL_WATER_CAN',1);
+ ('carbonatada','ING_MINERAL_WATER_CAN',1),('carbonatada','ING_SIMPLE_SYRUP',59.14706);
 INSERT INTO item_recipe_components(parent_item_id,component_item_id,quantity)
 SELECT product.item_id,component.id,recipe.quantity
 FROM seed_preliminary_recipe_components recipe
