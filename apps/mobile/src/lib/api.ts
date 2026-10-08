@@ -210,7 +210,9 @@ export type OrderChangeRequestReceipt = {
   id: string;
   orderRequestId: string;
   orderCode: string;
-  requestType: "CANCEL_ORDER";
+  requestType: "CANCEL_ORDER" | "CANCEL_LINE";
+  orderItemId?: string | null;
+  expectedItemVersion?: number | null;
   status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
   reason: string;
   decisionReason: string | null;
@@ -218,6 +220,13 @@ export type OrderChangeRequestReceipt = {
   version: number;
   requestedAt: string;
   decidedAt: string | null;
+};
+export type CancellableOrderItem = {
+  orderItemId: string;
+  name: string;
+  quantity: number;
+  itemVersion: number;
+  orderVersion: number;
 };
 export type PaymentIntentReceipt = {
   intentId: string;

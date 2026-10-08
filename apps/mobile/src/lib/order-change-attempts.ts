@@ -1,6 +1,7 @@
 export type OrderChangeAttempt = {
   ownerEmail: string;
   orderRequestId: string;
+  orderItemId?: string | null;
   reason: string;
   key: string;
   savedAt: number;
@@ -19,6 +20,8 @@ export function parseOrderChangeAttempts(raw: string, now = Date.now()): OrderCh
       const attempt = item as Partial<OrderChangeAttempt>;
       return typeof attempt.ownerEmail === "string" && Boolean(attempt.ownerEmail.trim()) &&
         typeof attempt.orderRequestId === "string" && uuidV4Pattern.test(attempt.orderRequestId) &&
+        (attempt.orderItemId === undefined || attempt.orderItemId === null ||
+          (typeof attempt.orderItemId === "string" && uuidV4Pattern.test(attempt.orderItemId))) &&
         typeof attempt.reason === "string" && attempt.reason.trim().length >= 3 && attempt.reason.length <= 500 &&
         typeof attempt.key === "string" && uuidV4Pattern.test(attempt.key) &&
         typeof attempt.savedAt === "number" && Number.isFinite(attempt.savedAt) &&
@@ -36,28 +39,33 @@ export function resolveOrderChangeAttempt(
   reason: string,
   createKey: () => string,
   now = Date.now(),
+  orderItemId: string | null = null,
 ): OrderChangeAttempt[] {
   const owner = normalizeEmail(ownerEmail);
   const normalizedReason = reason.trim();
-  const existing = attempts.find((attempt) =>
-    normalizeEmail(attempt.ownerEmail) === owner && attempt.orderRequestId === orderRequestId,
+  const matchingIndex = attempts.findIndex((attempt) =>
+    normalizeEmail(attempt.ownerEmail) === owner && attempt.orderRequestId === orderRequestId &&
+      (attempt.orderItemId ?? null) === orderItemId,
   );
+  const existing = matchingIndex >= 0 ? attempts[matchingIndex] : undefined;
   const next = existing?.reason === normalizedReason
     ? existing
-    : { ownerEmail: ownerEmail.trim(), orderRequestId, reason: normalizedReason, key: createKey(), savedAt: now };
-  return [...attempts.filter((attempt) =>
-    normalizeEmail(attempt.ownerEmail) !== owner || attempt.orderRequestId !== orderRequestId,
-  ), next];
+    : { ownerEmail: ownerEmail.trim(), orderRequestId, orderItemId, reason: normalizedReason, key: createKey(), savedAt: now };
+  if (matchingIndex < 0) return [...attempts, next];
+  if (next === existing) return attempts;
+  return attempts.map((attempt, index) => index === matchingIndex ? next : attempt);
 }
 
 export function removeOrderChangeAttempt(
   attempts: OrderChangeAttempt[],
   ownerEmail: string,
   orderRequestId: string,
+  orderItemId: string | null = null,
 ): OrderChangeAttempt[] {
   const owner = normalizeEmail(ownerEmail);
   return attempts.filter((attempt) =>
-    normalizeEmail(attempt.ownerEmail) !== owner || attempt.orderRequestId !== orderRequestId,
+    normalizeEmail(attempt.ownerEmail) !== owner || attempt.orderRequestId !== orderRequestId ||
+      (attempt.orderItemId ?? null) !== orderItemId,
   );
 }
 

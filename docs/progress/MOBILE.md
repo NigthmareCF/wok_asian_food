@@ -532,3 +532,9 @@
 - Se añadieron casos Vitest para permitir HTTP únicamente a loopback, IPv4 privada RFC1918 e IPv6 ULA, y mantenerlo deshabilitado para HTTPS, hosts públicos y rangos no privados. ESLint ahora también analiza `app.config.js` y su prueba.
 - Este control evita que una configuración futura de URL pública habilite accidentalmente tráfico HTTP. La propiedad se comprueba contra la configuración Expo que usa el plugin de build, además del manifiesto del APK ya inspeccionado.
 - Verificación actual tras la cobertura: `npm run lint --workspace mobile`, `npm run typecheck --workspace mobile` y Vitest 118/118 (27 archivos) pasan. El APK ya generado no cambió porque el ajuste sólo añade pruebas/configuración de tooling.
+
+## 2026-10-08 — Solicitud de cancelación móvil por platillo
+
+- En Pedidos, Cliente puede consultar las líneas que todavía están en cola y solicitar cancelar una individual en pedidos pickup y delivery aceptados. La solicitud requiere motivo y revisión Operativa; la app explica que el pedido permanece activo hasta la decisión. La ruta sólo se ofrece en estado `SENT` y, para delivery, mientras el despacho siga sin asignar.
+- La API tipada representa cancelación completa e individual. Las claves idempotentes se aíslan por cuenta, pedido y línea en SecureStore, sobreviven reinicios y siguen leyendo registros anteriores de cancelación completa sin `orderItemId`.
+- Vitest: 120/120 (27 archivos); `npm run lint`, `npm run typecheck` y `npx expo export --platform android` pasan. La integración UI/API aún depende de que las ramas backend y móvil se desplieguen juntas; backend verificó por separado el flujo de extremo a extremo con PostgreSQL. No se generó un APK nuevo: este host carece de Android SDK/`ANDROID_HOME`, por lo que el APK anterior no incluye este cambio.
