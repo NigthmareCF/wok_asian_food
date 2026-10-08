@@ -750,3 +750,8 @@
 
 - Después de la prueba fiscal se ejecutó la suite completa: 310 pruebas, con una falla en `OperationalFlowIntegrationTest.keepsBlockingCloseWhileOrderIsOpen`; esa prueba tomó 1240 s y falló con HTTP 401 en la apertura de mesa. No se cuenta esta corrida como verde.
 - La prueba de mesa aislada y la clase `OperationalFlowIntegrationTest` completa se repitieron contra PostgreSQL 18/Testcontainers y pasaron. La prueba fiscal focal también pasó 3/3. El fallo aparece sólo en la suite completa; falta reproducir/aislar qué estado compartido o demora lo provoca antes de volver a declarar la suite completa verde.
+
+## 2026-10-08 — Suite completa estable sin sondeo de pagos en background
+
+- El worker `PaymentIntentCreationWorker` conserva su intervalo de producción, pero el `PostgresIntegrationTest` común ahora lo configura a una hora, igual que los otros workers. Las pruebas que necesitan procesarlo lo invocan explícitamente; así se evita actividad asíncrona innecesaria entre casos.
+- Repetición completa con Testcontainers/PostgreSQL 18 y Flyway V1–V52: 71 suites / 310 pruebas, cero fallos, errores u omitidas. La falla anterior de 1240 s no volvió a aparecer con el worker pausado; esto apunta a interferencia del sondeo, aunque no se pudo capturar un lock específico durante aquella corrida.

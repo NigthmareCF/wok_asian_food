@@ -61,6 +61,7 @@ public abstract class PostgresIntegrationTest {
         properties.add("wok.auth.issuer", () -> "https://identity.wok.test");
         properties.add("wok.email.poll-ms", () -> "3600000");
         properties.add("wok.fiscal.poll-ms", () -> "3600000");
+        properties.add("wok.payments.poll-ms", () -> "3600000");
         properties.add("wok.orders.capacity-hold-poll-ms", () -> "3600000");
     }
 
