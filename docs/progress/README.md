@@ -5,6 +5,7 @@ Este directorio conserva resúmenes de avances relevantes para que otra persona 
 - [Cliente](CLIENT.md)
 - [Operativo](OPERATIONAL.md)
 - [Administrativo](ADMIN.md)
+- [Aplicación Cliente](MOBILE.md)
 
 El pull request y sus commits son la evidencia principal. Estos archivos son un índice humano de resultados, decisiones y pendientes.
 

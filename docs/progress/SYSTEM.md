@@ -1,5 +1,16 @@
 # Progreso del sistema
 
+## 2026-10-07 — Evidencia de transferencia Cliente y revisión Operativa
+
+- Backend branch `feature/backend-capacity-order-lifecycle`: `V51__customer_transfer_payment_evidence.sql` agrega evidencia privada y eventos auditables; hashes globales evitan reutilizar la misma imagen. Upload sólo acepta comprobantes pickup con `TRANSFER_AT_PICKUP`, ownership del cliente, JPG/PNG por firma, hasta 8 MB e idempotencia.
+- API Cliente: `POST/GET /api/v1/client/order-requests/{requestId}/payment-evidence` y descarga autenticada de contenido. API Operativo con `payments:manage`: cola, contenido y decisión `VERIFY/REJECT` con versión esperada y motivo para rechazo.
+- Subir imagen nunca crea un pago. `VERIFY` exige solicitud pickup aceptada, una cuenta asociada y monto confirmado por personal; registra transferencia mediante `PaymentService` dentro de la transacción. Proveedor/OCR no confirma el pago.
+- Storage fuera del web root, volumen persistente en Compose, permisos POSIX privados, validación de decodificación, tamaño multipart limitado y `nosniff`/no-store en lectura. Suite backend completa con Docker/PostgreSQL 18: 67 suites, 282 pruebas, 0 fallos, errores u omitidas; V1–V51 aplicadas durante la ejecución.
+- Mismo V51 en `feature/database-migrations`; `bash database/validate.sh` pasó 51 migraciones, 15 checks SQL y seed idempotente (31 productos) en PostgreSQL 18.
+- App Cliente branch `feature/mobile-shell`: selector Expo ImagePicker, envío multipart con la sesión/refresco existentes, idempotency key estable durante retry, estados de revisión en Pedidos. `expo-image-picker ~57.0.20`, compatible con SDK 57; permite galería Android/iOS/Web, sin permisos de cámara o micrófono.
+- Se evita fijar `Content-Type` en solicitudes FormData para que fetch agregue el boundary. Lint, TypeScript y Vitest pasaron (24 archivos, 98 tests); Expo exportó Web (17 rutas estáticas) y el bundle Android. No es APK ni prueba física.
+- Recibos sólo son evidencia y quedan pendientes hasta confirmación financiera autorizada; una imagen/OCR nunca marca dinero recibido.
+
 ## 2026-10-07 — Alcance operativo Web Cliente
 
 - Nueva fuente canónica: `docs/project/CLIENT_SCOPE_DECISIONS.md`, con decisiones, límites de implementación observada, guion propuesto de viernes y pendientes.

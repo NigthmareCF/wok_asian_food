@@ -1,5 +1,12 @@
 # Estado actual del proyecto
 
+## Avance backend/app — 2026-10-07
+
+- En `feature/backend-capacity-order-lifecycle` se agregó el slice de evidencia para pickup con V51: upload privado, ownership, validación JPEG/PNG real y tamaño, deduplicación, revisión Operativa y captura sólo después de verificación humana. Suite completa ejecutada con Docker/PostgreSQL 18: 67 suites, 282 pruebas, 0 fallos/errores/omitidas; V1–V51 aplicadas desde cero.
+- En `feature/mobile-shell` se agregó ImagePicker SDK 57 al historial de pedidos. Lint, typecheck y 98 tests pasaron; Expo exportó Web (17 rutas) y bundle Android. No equivale a APK ni prueba física.
+- V51 también está en `feature/database-migrations`; `bash database/validate.sh` pasó las 51 migraciones, 15 checks SQL y seed idempotente en PostgreSQL 18.
+- Los pagos externos siguen sin gateway real. Este flujo es evidencia de transferencia y revisión autorizada; no existe OCR ni acreditación automática.
+
 Fecha de revisión: 2026-09-28. Rama local observada: `feature/frontend-admin`, commit `1b6f146`. El árbol rastreado estaba limpio al comenzar. El plan actualizado está en [INTEGRAL_DELIVERY_PLAN.md](INTEGRAL_DELIVERY_PLAN.md); la matriz base de auditoría en [GAP_ANALYSIS.md](GAP_ANALYSIS.md).
 
 ## Aclaración Web Cliente — 2026-10-07
