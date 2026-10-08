@@ -51,9 +51,23 @@ public class AdminUserController {
                 requestId == null ? UUID.randomUUID() : requestId);
     }
 
+    @PutMapping("/{userId}/status")
+    public AdminUser changeStatus(@PathVariable UUID userId,
+                                  @AuthenticationPrincipal Jwt jwt,
+                                  @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+                                  @Valid @RequestBody StatusChange request) {
+        return users.changeStatus(UUID.fromString(jwt.getSubject()), userId,
+                request.action(), request.reason().trim(), request.expectedVersion(),
+                requestId == null ? UUID.randomUUID() : requestId);
+    }
+
     public record RoleChange(Action action, @NotBlank @Size(min = 3, max = 500) String reason,
                              @Positive int expectedVersion) {}
     public enum Action { GRANT, REVOKE }
+    public record StatusChange(@NotNull StatusAction action,
+                               @NotBlank @Size(min = 3, max = 500) String reason,
+                               @Positive int expectedVersion) {}
+    public enum StatusAction { SUSPEND, REACTIVATE }
     public record AdminUser(UUID id, String email, String displayName, String status, int rowVersion,
                             Instant createdAt, List<String> roles) {}
 }
@@ -136,6 +150,77 @@ class AdminUserService {
             """, actor, "USER_ROLE_" + action.name(), userId, role, active, role,
                 action == AdminUserController.Action.GRANT, reason, requestId);
         UserRow changed = new UserRow(target.id, target.email, target.displayName, target.status,
+                target.rowVersion + 1, target.createdAt);
+        return map(changed);
+    }
+
+    @Transactional
+    public AdminUserController.AdminUser changeStatus(UUID actor, UUID userId,
+            AdminUserController.StatusAction action, String reason, int expectedVersion, UUID requestId) {
+        // Serialize account suspension/reactivation with changes to the ADMIN role so that
+        // two concurrent requests cannot both remove the final active administrator.
+        List<UUID> adminRoleIds = jdbc.query("SELECT id FROM wok.roles WHERE code = 'ADMIN' AND active FOR UPDATE",
+                (rs, row) -> rs.getObject(1, UUID.class));
+        if (adminRoleIds.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "El rol administrativo no está disponible.");
+        UUID adminRoleId = adminRoleIds.getFirst();
+        List<UserRow> rows = jdbc.query("""
+            SELECT id, email, display_name, status, row_version, created_at FROM wok.users WHERE id = ? FOR UPDATE
+            """, (rs, row) -> new UserRow(rs.getObject("id", UUID.class), rs.getString("email"),
+                rs.getString("display_name"), rs.getString("status"), rs.getInt("row_version"),
+                rs.getTimestamp("created_at").toInstant()), userId);
+        if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No se encontró la cuenta.");
+        UserRow target = rows.getFirst();
+        if (target.rowVersion != expectedVersion)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "La cuenta cambió. Actualiza la lista.");
+
+        String newStatus;
+        if (action == AdminUserController.StatusAction.SUSPEND) {
+            if ("SUSPENDED".equals(target.status)) return map(target);
+            if (!"ACTIVE".equals(target.status))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Sólo se suspenden cuentas activas.");
+            boolean targetIsAdmin = Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM wok.user_roles WHERE user_id = ? AND role_id = ? AND revoked_at IS NULL)
+                """, Boolean.class, userId, adminRoleId));
+            if (targetIsAdmin) {
+                Integer activeAdmins = jdbc.queryForObject("""
+                    SELECT count(DISTINCT ur.user_id) FROM wok.user_roles ur
+                    JOIN wok.users u ON u.id = ur.user_id
+                    WHERE ur.role_id = ? AND ur.revoked_at IS NULL AND u.status = 'ACTIVE'
+                    """, Integer.class, adminRoleId);
+                if (activeAdmins != null && activeAdmins <= 1)
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "No se puede suspender al último administrador activo.");
+            }
+            newStatus = "SUSPENDED";
+        } else {
+            if ("ACTIVE".equals(target.status)) return map(target);
+            if (!"SUSPENDED".equals(target.status))
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Sólo se reactivan cuentas suspendidas.");
+            newStatus = "ACTIVE";
+        }
+
+        jdbc.update("""
+            UPDATE wok.users SET status = ?, row_version = row_version + 1,
+                sessions_valid_after = CASE WHEN ? = 'SUSPENDED' THEN now() ELSE sessions_valid_after END,
+                updated_by = ?, updated_at = now()
+            WHERE id = ?
+            """, newStatus, newStatus, actor, userId);
+        if ("SUSPENDED".equals(newStatus)) {
+            jdbc.update("""
+                UPDATE wok.auth_sessions SET revoked_at = now(), revoked_by = ?, revocation_reason = 'ACCOUNT_SUSPENDED'
+                WHERE user_id = ? AND revoked_at IS NULL
+                """, actor, userId);
+            jdbc.update("""
+                UPDATE wok.refresh_tokens SET revoked_at = now()
+                WHERE revoked_at IS NULL AND session_id IN (SELECT id FROM wok.auth_sessions WHERE user_id = ?)
+                """, userId);
+        }
+        jdbc.update("""
+            INSERT INTO wok.audit_logs (actor_user_id, action, entity_type, entity_id, before_data, after_data, reason, result, request_id)
+            VALUES (?, ?, 'USER', ?, jsonb_build_object('status', ?, 'rowVersion', ?),
+                    jsonb_build_object('status', ?, 'rowVersion', ?), ?, 'SUCCESS', ?)
+            """, actor, "USER_" + action.name(), userId, target.status, target.rowVersion,
+                newStatus, target.rowVersion + 1, reason, requestId);
+        UserRow changed = new UserRow(target.id, target.email, target.displayName, newStatus,
                 target.rowVersion + 1, target.createdAt);
         return map(changed);
     }

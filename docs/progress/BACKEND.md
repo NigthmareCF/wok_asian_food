@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Suspensión de cuentas y revocación de sesiones
+
+- `PUT /api/v1/admin/users/{userId}/status` ahora suspende cuentas activas y permite reactivar sólo cuentas suspendidas, con `expectedVersion`, motivo y auditoría ligada a `X-Request-Id`. El cambio de estado incrementa versión; suspender corta sesiones/refresh tokens existentes, y reactivar no los restaura.
+- El rol `ADMIN` se bloquea en DB durante cambios de estado para serializar con cambios del último rol administrativo. Una cuenta ADMIN no se suspende si es la última activa. Registro pendiente/verificado no puede suspenderse ni reactivarse mediante este comando.
+- `RoleAuthorizationIntegrationTest`: 10/10; suite completa: 69 suites / 299 pruebas, 0 fallos/errores/omitidas con PostgreSQL 18/Testcontainers y Flyway V1–V51 desde esquema vacío. Sin cambio de esquema; `git diff --check` limpio.
+
 ## 2026-10-08 — Serializar solicitudes de recuperación de contraseña
 
 - `requestReset` bloquea la fila de la cuenta activa (`FOR UPDATE`) antes de consultar el límite horario y crear un challenge. Solicitudes simultáneas para la misma cuenta ya no pueden observar el mismo contador anterior y emitir en paralelo por encima del límite interno.

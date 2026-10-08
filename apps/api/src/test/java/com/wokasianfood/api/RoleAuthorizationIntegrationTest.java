@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,8 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
         assertThat(get(OPERATIONAL_ORDERS, client).statusCode()).isEqualTo(403);
         assertThat(get(OPERATIONAL_KITCHEN, client).statusCode()).isEqualTo(403);
         assertThat(get(ADMIN_USERS, client).statusCode()).isEqualTo(403);
+        assertThat(send("PUT", ADMIN_USERS + "/" + UUID.randomUUID() + "/status", client,
+                "{\"action\":\"SUSPEND\",\"reason\":\"Prueba\",\"expectedVersion\":1}", Map.of()).statusCode()).isEqualTo(403);
         assertThat(get(CLIENT_SESSIONS, client).statusCode()).isEqualTo(200);
     }
 
@@ -42,6 +45,8 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
 
         assertThat(get(CLIENT_SESSIONS, operational).statusCode()).isEqualTo(403);
         assertThat(get(ADMIN_USERS, operational).statusCode()).isEqualTo(403);
+        assertThat(send("PUT", ADMIN_USERS + "/" + UUID.randomUUID() + "/status", operational,
+                "{\"action\":\"SUSPEND\",\"reason\":\"Prueba\",\"expectedVersion\":1}", Map.of()).statusCode()).isEqualTo(403);
         assertThat(get(OPERATIONAL_TABLES, operational).statusCode()).isEqualTo(200);
         assertThat(get(OPERATIONAL_ORDERS, operational).statusCode()).isEqualTo(200);
         assertThat(get(OPERATIONAL_KITCHEN, operational).statusCode()).isEqualTo(200);
@@ -84,6 +89,74 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
         assertThat(revoked.statusCode()).isEqualTo(200);
         assertThat(jdbc.queryForObject("SELECT request_id IS NOT NULL FROM wok.audit_logs WHERE entity_id=? AND action='USER_ROLE_REVOKE'",
                 Boolean.class, customerId)).isTrue();
+    }
+
+    @Test
+    void suspensionRevokesAllSessionsAndReactivationDoesNotRestoreThem() {
+        UUID adminId = createUserWithRole("admin-suspend-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        String adminToken = tokenFor(adminId);
+        UUID targetId = createUserWithRole("suspend-target-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        UUID targetSession = openSession(targetId);
+        String targetToken = tokens.access(targetId, targetSession);
+        UUID requestId = UUID.randomUUID();
+
+        HttpResponse<String> suspended = send("PUT", ADMIN_USERS + "/" + targetId + "/status", adminToken,
+                """
+                {"action":"SUSPEND","reason":"Investigación de seguridad","expectedVersion":1}
+                """, Map.of("X-Request-Id", requestId.toString()));
+
+        assertThat(suspended.statusCode()).isEqualTo(200);
+        assertThat(suspended.body()).contains("\"status\":\"SUSPENDED\"", "\"rowVersion\":2", "\"OPERATIONAL\"");
+        assertThat(jdbc.queryForObject("SELECT revoked_at IS NOT NULL AND revocation_reason = 'ACCOUNT_SUSPENDED' FROM wok.auth_sessions WHERE id = ?",
+                Boolean.class, targetSession)).isTrue();
+        assertThat(get(OPERATIONAL_TABLES, targetToken).statusCode()).isEqualTo(401);
+        assertThat(jdbc.queryForObject("SELECT request_id FROM wok.audit_logs WHERE entity_id=? AND action='USER_SUSPEND'",
+                UUID.class, targetId)).isEqualTo(requestId);
+
+        HttpResponse<String> reactivated = send("PUT", ADMIN_USERS + "/" + targetId + "/status", adminToken,
+                """
+                {"action":"REACTIVATE","reason":"Revisión completada","expectedVersion":2}
+                """, Map.of());
+
+        assertThat(reactivated.statusCode()).isEqualTo(200);
+        assertThat(reactivated.body()).contains("\"status\":\"ACTIVE\"", "\"rowVersion\":3");
+        assertThat(get(OPERATIONAL_TABLES, targetToken).statusCode()).isEqualTo(401);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE entity_id=? AND action IN ('USER_SUSPEND','USER_REACTIVATE')",
+                Integer.class, targetId)).isEqualTo(2);
+    }
+
+    @Test
+    void rejectsStaleSuspensionAndProtectsTheLastActiveAdministrator() {
+        UUID adminId = createUserWithRole("admin-last-" + UUID.randomUUID() + "@wok.test", "ADMIN");
+        String adminToken = tokenFor(adminId);
+        UUID customerId = createUserWithRole("suspend-stale-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+
+        HttpResponse<String> stale = send("PUT", ADMIN_USERS + "/" + customerId + "/status", adminToken,
+                """
+                {"action":"SUSPEND","reason":"Solicitud obsoleta","expectedVersion":2}
+                """, Map.of());
+        assertThat(stale.statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.users WHERE id=?", String.class, customerId)).isEqualTo("ACTIVE");
+
+        List<UUID> otherAdminRoles = jdbc.query("""
+            SELECT ur.id FROM wok.user_roles ur JOIN wok.roles r ON r.id=ur.role_id
+            WHERE r.code='ADMIN' AND ur.revoked_at IS NULL AND ur.user_id<>?
+            """, (rs, row) -> rs.getObject(1, UUID.class), adminId);
+        otherAdminRoles.forEach(roleId -> jdbc.update("UPDATE wok.user_roles SET revoked_at=now() WHERE id=?", roleId));
+        try {
+            HttpResponse<String> lastAdmin = send("PUT", ADMIN_USERS + "/" + adminId + "/status", adminToken,
+                    """
+                    {"action":"SUSPEND","reason":"Prueba de último administrador","expectedVersion":1}
+                    """, Map.of());
+            assertThat(lastAdmin.statusCode()).isEqualTo(409);
+            assertThat(lastAdmin.body()).contains("último administrador");
+            assertThat(jdbc.queryForObject("SELECT status FROM wok.users WHERE id=?", String.class, adminId)).isEqualTo("ACTIVE");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.audit_logs WHERE entity_id=? AND action='USER_SUSPEND'",
+                    Integer.class, adminId)).isZero();
+        } finally {
+            if (!otherAdminRoles.isEmpty())
+                otherAdminRoles.forEach(roleId -> jdbc.update("UPDATE wok.user_roles SET revoked_at=NULL WHERE id=?", roleId));
+        }
     }
 
     @Test
