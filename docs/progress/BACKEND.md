@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Cobros y devoluciones parciales concurrentes
+
+- Se probaron dos requests concurrentes con claves idempotentes distintas contra la misma cuenta: cobrar simultáneamente todo el saldo permite un único pago; solicitar simultáneamente devoluciones que juntas superarían el pago deja registrado sólo un reembolso válido. La comprobación incluye saldo, estado financiero y cantidades agregadas en PostgreSQL.
+- `PaymentIntegrationTest`: 20/20; suite completa: 69 suites / 305 pruebas, 0 fallos/errores/omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V51 desde esquema vacío.
+- `PaymentGateway` productivo, 3DS/webhooks y conciliación bancaria siguen bloqueados por proveedor; estos tests cubren el ledger interno/mock, no el settlement externo.
+
 ## 2026-10-08 — Inspección y revocación administrativa de sesiones
 
 - IAM expone sesiones de una cuenta con plataforma, nombre del dispositivo, actividad, expiración y motivo de revocación, sin incluir IP ni identificadores de dispositivo. `POST /api/v1/admin/users/{userId}/sessions/{sessionId}/revoke` bloquea la fila de sesión, revoca sesión y refresh tokens juntos, y registra actor, motivo y request ID.

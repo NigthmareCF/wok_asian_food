@@ -7,8 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class PaymentIntegrationTest extends PostgresIntegrationTest {
@@ -91,6 +94,45 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                 """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(secondCharge.statusCode()).isEqualTo(409);
         assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = ?", accountId)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentPartialCapturesCannotOverpayAnAccount() throws Exception {
+        UUID actor = createUserWithRole("cajero-captura-concurrente-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, null, "Cuenta cobro concurrente");
+        closedOrder(accountId, actor, "20.00");
+        String path = "/api/v1/operational/accounts/" + accountId + "/payments";
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, token, "{\"method\":\"CARD_EXTERNAL\",\"amount\":20.00,\"reference\":\"CAP-A\"}",
+                        Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, token, "{\"method\":\"CARD_EXTERNAL\",\"amount\":20.00,\"reference\":\"CAP-B\"}",
+                        Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            var firstResponse = first.get(15, TimeUnit.SECONDS);
+            var secondResponse = second.get(15, TimeUnit.SECONDS);
+
+            assertThat(List.of(firstResponse.statusCode(), secondResponse.statusCode()))
+                    .containsExactlyInAnyOrder(201, 409);
+            assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = ?", accountId)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT sum(amount) FROM wok.payments WHERE account_id = ?",
+                    BigDecimal.class, accountId)).isEqualByComparingTo("20.00");
+            assertThat(jdbc.queryForObject("SELECT status FROM wok.order_accounts WHERE id = ?",
+                    String.class, accountId)).isEqualTo("PAID");
+        }
     }
 
     @Test
@@ -591,6 +633,51 @@ class PaymentIntegrationTest extends PostgresIntegrationTest {
                 """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(overRefund.statusCode()).isEqualTo(422);
         assertThat(count("SELECT count(*) FROM wok.payment_refunds WHERE payment_id = ?", paymentId)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentRefundsCannotReturnMoreThanTheCapturedPayment() throws Exception {
+        UUID actor = createUserWithRole("cajero-reembolso-concurrente-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, null, "Cuenta reembolso concurrente");
+        closedOrder(accountId, actor, "20.00");
+        JsonNode captured = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token, """
+                {"method":"CARD_EXTERNAL","reference":"CAPTURE-CONCURRENT"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID paymentId = UUID.fromString(captured.path("paymentId").asText());
+        String path = "/api/v1/operational/accounts/" + accountId + "/payments/" + paymentId + "/refunds";
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, token, "{\"amount\":15.00,\"method\":\"CARD_EXTERNAL\",\"reference\":\"REF-A\",\"reason\":\"Prueba concurrente\"}",
+                        Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, token, "{\"amount\":15.00,\"method\":\"CARD_EXTERNAL\",\"reference\":\"REF-B\",\"reason\":\"Prueba concurrente\"}",
+                        Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            var firstResponse = first.get(15, TimeUnit.SECONDS);
+            var secondResponse = second.get(15, TimeUnit.SECONDS);
+
+            assertThat(List.of(firstResponse.statusCode(), secondResponse.statusCode()))
+                    .containsExactlyInAnyOrder(201, 422);
+            assertThat(count("SELECT count(*) FROM wok.payment_refunds WHERE payment_id = ?", paymentId)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT sum(refund_amount) FROM wok.payment_refunds WHERE payment_id = ?",
+                    BigDecimal.class, paymentId)).isEqualByComparingTo("15.00");
+            assertThat(jdbc.queryForObject("SELECT status FROM wok.payments WHERE id = ?", String.class, paymentId))
+                    .isEqualTo("PARTIALLY_REFUNDED");
+            assertThat(jdbc.queryForObject("SELECT status FROM wok.order_accounts WHERE id = ?", String.class, accountId))
+                    .isEqualTo("OPEN");
+        }
     }
 
     @Test
