@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Persistencia atómica de sesión Cliente
+
+- La app guarda refresh token y correo en un único registro versionado de SecureStore para impedir que escrituras parciales emparejen el token de una cuenta con la identidad local de otra. La sesión anterior de dos claves se migra al primer acceso; logout deja una marca `SIGNED_OUT` que impide recuperar claves antiguas si su eliminación falla.
+- Renovación desde estado offline y reintento tras `401` comparan la identidad persistida con la sesión activa antes de usar el refresh token. Registro malformado falla cerrado y no recupera credenciales heredadas.
+- Verificación: Vitest 26 archivos / 107 pruebas; ESLint y TypeScript pasan; export Expo Android y Web pasan (17 rutas Web). Son bundles, no APK ni prueba física. No se ejecutó E2E con API.
+
 ## 2026-10-08 — Evitar reenvío de comprobantes sin estado confirmado
 
 - La pantalla de pedidos espera una lectura correcta de la lista de comprobantes antes de permitir un nuevo envío. Si falla la consulta, muestra que el resultado es desconocido y ofrece reintentar la lectura en vez de habilitar otra carga a ciegas.

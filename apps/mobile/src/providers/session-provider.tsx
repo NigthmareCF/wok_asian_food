@@ -4,6 +4,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useRe
 import { Platform } from "react-native";
 import { ApiError, apiRequest, TokenPair } from "@/lib/api";
 import { completeGoogleSignIn } from "@/lib/google-auth";
+import { clearStoredSession as clearSessionRecord, readStoredSession, writeStoredSession } from "@/lib/secure-session-storage";
 import { createRefreshTokenCoordinator, createSerializedWriteQueue } from "@/lib/session-coordination";
 
 type Session = { accessToken: string; email: string; offline: boolean };
@@ -22,14 +23,21 @@ type SessionContextValue = {
   logout: () => Promise<void>;
 };
 const SessionContext = createContext<SessionContextValue | null>(null);
-const refreshKey = "wok.refresh-token";
-const emailKey = "wok.session-email";
+const secureStore = {
+  getItemAsync: (key: string) => SecureStore.getItemAsync(key),
+  setItemAsync: (key: string, value: string) => SecureStore.setItemAsync(key, value),
+  deleteItemAsync: (key: string) => SecureStore.deleteItemAsync(key),
+};
 const refreshCoordinator = createRefreshTokenCoordinator<TokenPair>((refreshToken) =>
   apiRequest<TokenPair>("/api/v1/auth/refresh", {
     method: "POST", body: JSON.stringify({ refreshToken }),
   }),
 );
 const serializeSecureStoreWrite = createSerializedWriteQueue();
+
+function normalizeSessionEmail(email: string) {
+  return email.trim().toLowerCase();
+}
 
 function getGoogleWebClientId() {
   if (Platform.OS === "web") throw new ApiError("El acceso con Google está disponible en la aplicación móvil.");
@@ -66,10 +74,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   function saveTokens(tokens: TokenPair, email: string, generation: number) {
     return serializeSecureStoreWrite(async () => {
       if (generation !== authGeneration.current) return false;
-      await Promise.all([
-        SecureStore.setItemAsync(refreshKey, tokens.refreshToken),
-        SecureStore.setItemAsync(emailKey, email),
-      ]);
+      await writeStoredSession(secureStore, { status: "ACTIVE", refreshToken: tokens.refreshToken, email });
       return true;
     });
   }
@@ -77,7 +82,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   function clearStoredSession(generation: number) {
     return serializeSecureStoreWrite(async () => {
       if (generation !== authGeneration.current) return false;
-      await Promise.all([SecureStore.deleteItemAsync(refreshKey), SecureStore.deleteItemAsync(emailKey)]);
+      await clearSessionRecord(secureStore);
       return true;
     });
   }
@@ -87,20 +92,19 @@ export function SessionProvider({ children }: PropsWithChildren) {
     async function restore() {
       const generation = authGeneration.current;
       if (Platform.OS === "web") { setReady(true); return; }
+      let storedEmail: string | null = null;
       try {
-        const [refreshToken, storedEmail] = await Promise.all([
-          SecureStore.getItemAsync(refreshKey), SecureStore.getItemAsync(emailKey),
-        ]);
-        if (refreshToken) {
-          const email = storedEmail || "Cuenta Cliente";
+        const stored = await readStoredSession(secureStore);
+        if (stored) {
+          storedEmail = stored.email;
           if (!process.env.EXPO_PUBLIC_API_BASE_URL) {
-            if (mounted) setSession({ accessToken: "", email, offline: true });
+            if (mounted) setSession({ accessToken: "", email: stored.email, offline: true });
             return;
           }
-          const tokens = await refreshCoordinator.rotate(refreshToken);
+          const tokens = await refreshCoordinator.rotate(stored.refreshToken);
           if (generation !== authGeneration.current) return;
-          const saved = await saveTokens(tokens, email, generation);
-          if (mounted && saved && generation === authGeneration.current) setSession({ accessToken: tokens.accessToken, email, offline: false });
+          const saved = await saveTokens(tokens, stored.email, generation);
+          if (mounted && saved && generation === authGeneration.current) setSession({ accessToken: tokens.accessToken, email: stored.email, offline: false });
         }
       } catch (error) {
         if (generation !== authGeneration.current) return;
@@ -108,8 +112,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           authGeneration.current += 1;
           await clearStoredSession(authGeneration.current);
         } else {
-          const email = await SecureStore.getItemAsync(emailKey);
-          if (mounted && generation === authGeneration.current && email) setSession({ accessToken: "", email, offline: true });
+          if (mounted && generation === authGeneration.current && storedEmail) setSession({ accessToken: "", email: storedEmail, offline: true });
           // Keep the refresh token after network failures so the customer can retry.
         }
       } finally { if (mounted) setReady(true); }
@@ -219,15 +222,18 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const requestGeneration = authGeneration.current;
       let activeSession = session;
       if (session.offline) {
-        const refreshToken = await SecureStore.getItemAsync(refreshKey);
-        if (!refreshToken) {
+        const stored = await readStoredSession(secureStore);
+        if (!stored) {
           authGeneration.current += 1;
           setSession(null);
           await clearStoredSession(authGeneration.current);
           throw new ApiError("La sesión ya no está disponible. Inicia sesión nuevamente.", 401);
         }
+        if (normalizeSessionEmail(stored.email) !== normalizeSessionEmail(session.email)) {
+          throw new ApiError("La cuenta activa cambió. Inicia sesión nuevamente para continuar.", 401);
+        }
         try {
-          const rotated = await refreshCoordinator.rotate(refreshToken);
+          const rotated = await refreshCoordinator.rotate(stored.refreshToken);
           if (authGeneration.current !== requestGeneration) throw new ApiError("La sesión cambió. Repite la acción con tu cuenta actual.", 401);
           const saved = await saveTokens(rotated, session.email, requestGeneration);
           if (!saved || authGeneration.current !== requestGeneration) throw new ApiError("La sesión cambió. Repite la acción con tu cuenta actual.", 401);
@@ -255,17 +261,20 @@ export function SessionProvider({ children }: PropsWithChildren) {
           if (error.status == null) setSession({ ...activeSession, offline: true });
           throw error;
         }
-        const refreshToken = await SecureStore.getItemAsync(refreshKey);
+        const stored = await readStoredSession(secureStore);
         if (authGeneration.current !== requestGeneration) throw new ApiError("La sesión cambió. Repite la acción con tu cuenta actual.", 401);
-        if (!refreshToken) {
+        if (!stored) {
           authGeneration.current += 1;
           setSession(null);
           await clearStoredSession(authGeneration.current);
           throw error;
         }
+        if (normalizeSessionEmail(stored.email) !== normalizeSessionEmail(session.email)) {
+          throw new ApiError("La cuenta activa cambió. Inicia sesión nuevamente para continuar.", 401);
+        }
         let rotated: TokenPair;
         try {
-          rotated = await refreshCoordinator.rotate(refreshToken);
+          rotated = await refreshCoordinator.rotate(stored.refreshToken);
         } catch (refreshError) {
           if (authGeneration.current !== requestGeneration) throw new ApiError("La sesión cambió. Repite la acción con tu cuenta actual.", 401);
           if (refreshError instanceof ApiError && refreshError.status === 401) {
