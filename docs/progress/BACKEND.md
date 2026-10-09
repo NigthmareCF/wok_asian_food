@@ -878,3 +878,8 @@
 - La cola de revisión informa modalidad y preferencia de pago para distinguir comprobantes delivery. `PaymentEvidenceIntegrationTest` cubre carga sin cobro, metadatos de cola, rechazo para efectivo y verificación operativa de delivery aceptado.
 - Pruebas focales: `PaymentEvidenceIntegrationTest` 6/6 y `ClientDeliveryRequestControllerTest` 5/5. La verificación de delivery confirma que Operativo captura la transferencia sólo tras aceptar el pedido y que repetir la misma decisión no duplica el pago ni el evento.
 - Suite completa: 75 suites / 329 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers aplicó Flyway V1–V53 desde esquema vacío. `git diff --check` limpio.
+
+## 2026-10-08 — Preflight CORS de la API
+
+- `SecurityCompositionIntegrationTest` envía preflight HTTP real a Spring Security y comprueba que `http://localhost:3000` reciba permiso para `POST` y `Idempotency-Key`, que no se habiliten credenciales/cookies cross-origin y que `https://hostile.example` no reciba `Access-Control-Allow-Origin`.
+- Prueba focal: 6/6 con PostgreSQL 18/Testcontainers y Flyway V1–V55 desde esquema vacío; cero fallos, errores u omitidas. No cambió lógica productiva ni esquema.

@@ -11,6 +11,10 @@ import java.util.Base64;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.URI;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -31,6 +35,32 @@ class SecurityCompositionIntegrationTest extends PostgresIntegrationTest {
         assertThat(get("/api/v1/public/menu", null).statusCode()).isEqualTo(200);
         assertThat(get("/api/v1/admin/users", null).statusCode()).isEqualTo(401);
         assertThat(get("/api/v1/operational/tables", null).statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    void corsPreflightAllowsConfiguredWebOriginAndRejectsUnlistedOrigins() throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> allowed = client.send(HttpRequest.newBuilder(URI.create(baseUrl() + "/api/v1/public/menu"))
+                .header("Origin", "http://localhost:3000")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key")
+                .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertThat(allowed.statusCode()).isEqualTo(200);
+        assertThat(allowed.headers().firstValue("Access-Control-Allow-Origin")).contains("http://localhost:3000");
+        assertThat(allowed.headers().firstValue("Access-Control-Allow-Credentials")).isEmpty();
+        assertThat(allowed.headers().firstValue("Access-Control-Allow-Headers").orElse("").toLowerCase())
+                .contains("idempotency-key");
+        assertThat(allowed.headers().firstValue("Access-Control-Allow-Methods").orElse("").toUpperCase())
+                .contains("POST");
+
+        HttpResponse<String> denied = client.send(HttpRequest.newBuilder(URI.create(baseUrl() + "/api/v1/public/menu"))
+                .header("Origin", "https://hostile.example")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key")
+                .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString());
+
+        assertThat(denied.headers().firstValue("Access-Control-Allow-Origin")).isEmpty();
     }
 
     @Test
