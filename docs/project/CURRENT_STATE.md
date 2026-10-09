@@ -1,13 +1,13 @@
 # Estado actual verificado
 
-**Corte:** 2026-10-08. Este documento describe evidencia revisada en esta fecha; no declara terminado el sistema integrado.
+**Corte:** 2026-10-09. Este documento describe evidencia revisada en esta fecha; no declara terminado el sistema integrado.
 
-**Actualización de trabajo:** en las ramas especializadas se implementaron solicitudes Cliente de cambio de modificadores en una línea aún en cola, sujetas a aprobación Operativa. Se conservan los cambios previos de cantidad. Backend: suite completa de 333 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V55, cero fallos/errores/omisiones. App: Vitest 125/125, lint, TypeScript y exportación Expo Web de 17 rutas correctos. Estos cambios aún deben publicarse desde sus ramas; el APK existente no incluye el selector de opciones y no se ha probado físicamente.
+**Actualización de trabajo:** las ramas especializadas publicaron los cambios de pedidos con revisión Operativa y la app Cliente mantiene solicitudes de cancelación/cantidad/modificadores. Backend añade confirmación de reserva con selección explícita de mesas; valida zona, estado, capacidad y traslapes y guarda asignación/confirmación atómicamente. La confirmación concurrente sobre la misma mesa deja una sola reserva confirmada. Backend: suite completa de 349 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V55, cero fallos/errores/omisiones. App: Vitest 134/134, lint, TypeScript y exports Expo Android/Web correctos. Las ramas backend y móvil están publicadas; APK ARM64 local coincide con SHA-256 `1e18488863ed74aefe4c2f2ac679fa7b1e3751adfbc5aea65a9e5b55656e6f4d`. No se ha probado en teléfono ni se ha hecho merge a `development`.
 
 ## Ramas y revisión
 
-- Backend: `feature/backend-capacity-order-lifecycle`. Incluye cuenta/roles, sesiones, autenticación, reservas/capacidad, catálogo, solicitudes/cotizaciones, pagos/caja, FEL mock, mensajería/IA mock, inventario/producción parcial y el nuevo flujo de modificadores de líneas en cola. Suite completa verificada: **75 suites / 333 pruebas**, cero fallos, errores u omitidas, en PostgreSQL 18/Testcontainers con Flyway V1–V55. Se probaron ownership HTTP, idempotencia, cambios de cantidad y modificadores/inventario, capacidad de reservas, CORS y comprobantes delivery.
-- App Cliente: `feature/mobile-shell`. Expo Router y sesión WOK con catálogo, reservas, pickup, delivery con transferencia anticipada/evidencia, solicitudes revisables de cancelación/cantidad/modificadores, mensajes, perfil/direcciones, facturas y seguimiento. Vitest **125/125**, lint y TypeScript pasan; export web genera 17 rutas. APK ARM64 local anterior (SHA-256 `963137e4f553c84858942217aa176632c224e41f4a90071a99006076eb551009`) no incluye esta última función, no trae URL API y no se probó en teléfono.
+- Backend: `feature/backend-capacity-order-lifecycle`, publicado hasta `40f36a6`. Incluye cuenta/roles, sesiones, autenticación, reservas/capacidad, catálogo, solicitudes/cotizaciones, pagos/caja, FEL mock, mensajería/IA mock e inventario/producción parcial. Suite completa verificada: **349 pruebas**, cero fallos, errores u omitidas, en PostgreSQL 18/Testcontainers con Flyway V1–V55. Se probaron ownership HTTP, idempotencia, cambios de cantidad/modificadores/inventario, horarios, capacidad y confirmación concurrente de mesas.
+- App Cliente: `feature/mobile-shell`, publicada hasta `5b37922`. Expo Router y sesión WOK con catálogo, reservas, pickup, delivery con transferencia anticipada/evidencia, solicitudes revisables de cancelación/cantidad/modificadores, mensajes, perfil/direcciones, facturas y seguimiento. Vitest **134/134**, lint, TypeScript y exports Expo Android/Web pasan. El APK ARM64 local mide 44,333,211 bytes, SHA-256 `1e18488863ed74aefe4c2f2ac679fa7b1e3751adfbc5aea65a9e5b55656e6f4d`; no se instaló ni probó en teléfono.
 - Web: se trabaja en una rama/check-out aparte. Este corte no vuelve a auditar sus rutas o fixtures. La web respondió HTTP 200 en `localhost:3000`; ese smoke sólo prueba que el servidor levantó, no que el sistema esté conectado a backend.
 - Las ramas anteriores están especializadas: revisar su base, HEAD y estado antes de integrar. No se realizó merge a `development` como parte de este corte.
 
@@ -21,16 +21,16 @@
 ## Capacidades funcionales backend verificadas
 
 - Identidad WOK con register/verify/login, access token, refresh rotativo/revocación, recuperación de cuenta y rol; base Google OIDC preparada, cliente OAuth real sin configurar.
-- Catálogo público y administración auditada; solicitudes de reserva, pickup y delivery sujetas a validación de horario/capacidad y revisión del personal; quotes de pickup/delivery con precio y ETA de servidor; holds temporales por estación.
+- Catálogo público y administración auditada; solicitudes de reserva, pickup y delivery sujetas a validación de horario/capacidad y revisión del personal; la confirmación operativa de reserva requiere una selección explícita de mesas y persiste asignación/estado/auditoría en una transacción. Quotes de pickup/delivery con precio y ETA de servidor; holds temporales por estación.
 - Operación de mesas, comandas/cocina, inventario/producción parcial, caja, pagos mock, liquidación de efectivo de repartidor y workspace/outbox FEL mock.
 - Mensajería persistida y broker IA mock presentes; proveedores de Meta, pago bancario, FEL, email de producción, runtime IA y storage externo no están conectados productivamente.
 
-La existencia de un endpoint o pantalla no demuestra la aceptación operativa integral. La evaluación de reservas aún no conecta snapshots de mesas/asignaciones a capacidad ni fuentes de personal, cocina, producción y carga; solicitudes siguen requiriendo aprobación humana. Checkout/3DS real, conciliación con proveedor, LAN sin WAN, recuperación física e instalación de la app aún requieren integración o pruebas específicas.
+La existencia de un endpoint o pantalla no demuestra la aceptación operativa integral. La evaluación de reservas aún no conecta snapshots de mesas/asignaciones a capacidad ni fuentes de personal, cocina, producción y carga; las solicitudes siguen requiriendo aprobación humana, y Operativo debe integrar el nuevo envío de `tableIds` al confirmar. Checkout/3DS real, conciliación con proveedor, LAN sin WAN, recuperación física e instalación de la app aún requieren integración o pruebas específicas.
 
 ## Bloqueos externos y siguientes dependencias
 
 - Confirmar proveedores/credenciales productivos de pagos, certificador FEL, email y APIs oficiales Meta; configurar dominio y exposición pública.
-- Vincular EAS y configurar su entorno antes de generar un APK de preview. Aún falta instalación y prueba en dispositivos reales.
+- Vincular EAS y configurar su entorno si se necesita build remoto; el APK ARM64 local de revisión ya existe. Aún falta instalarlo y probar conectividad/recorridos en dispositivos reales.
 - Completar y validar el recetario, midiendo el rendimiento real de jarabe, antes de activar BOM y consumo de stock.
 - Mantener revisión de ownership, autorización y concurrencia en cada slice; ejecutar pruebas LAN/WAN y restauración de backups en la topología física.
 - Conciliar el ERD/modelo candidato con las 55 migraciones y actualizar diagramas desde una fuente de verdad acordada antes de declarar la base de datos definitiva.
