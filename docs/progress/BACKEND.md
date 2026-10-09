@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-09 — Apertura concurrente de hilo Cliente
+
+- La prueba HTTP `ClientMessagingHistoryIntegrationTest.concurrentOpenRequestsReturnTheSameActiveConversation` arranca dos `POST /api/v1/client/conversations` simultáneos para el mismo perfil. Ambas solicitudes devuelven el mismo ID y PostgreSQL conserva exactamente un hilo APP activo.
+- Validación focal: 3/3 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V55, cero fallos/errores/omisiones. La primera ejecución falló por un fixture que omitía el perfil Cliente; corregido el fixture, la repetición pasó. No hubo cambios de producción ni esquema.
+
 ## 2026-10-09 — Suite móvil incorporada al CI compartido
 
 - El job JavaScript de CI ahora ejecuta las pruebas Vitest de la app si el workspace ya incluye el script `test`, además de lint y typecheck. El uso de `--if-present` permite que ramas anteriores al arnés móvil sigan validándose sin fallar por un script ausente; al integrar la rama móvil, el job ejecutará su suite.
