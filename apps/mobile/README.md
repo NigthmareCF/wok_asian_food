@@ -38,13 +38,13 @@ El backend emite un nonce criptográfico de un solo uso; la app lo pasa al SDK d
 export EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-DEL-BACKEND>:<PUERTO>
 npx expo prebuild --platform android --no-install
 cd android
-./gradlew --no-daemon --max-workers=4 \
+./gradlew --no-daemon --max-workers=2 --no-parallel \
   -PreactNativeArchitectures=arm64-v8a assembleRelease
 ```
 
 Define `EXPO_PUBLIC_API_BASE_URL` antes de `expo prebuild` y mantenla en el mismo entorno al compilar: el prebuild usa esta URL para configurar el permiso HTTP privado de Android y Gradle la incluye en el bundle JavaScript. Si cambias de host o esquema, vuelve a ejecutar ambos pasos.
 
-El APK queda en `android/app/build/outputs/apk/release/app-release.apk`. Gradle puede requerir más memoria en la primera compilación; si aparece `Java heap space`, reintenta con `-Dorg.gradle.jvmargs='-Xmx5g -XX:MaxMetaspaceSize=1g'`. Este perfil local es ARM64 y se firma con la clave de debug del proyecto para revisión interna: no es un artefacto de tienda ni de producción. Debe generarse de nuevo tras cambiar configuración o código.
+El APK queda en `android/app/build/outputs/apk/release/app-release.apk`. El comando limita Gradle a dos workers y desactiva compilación paralela para reducir picos de memoria durante NDK/React Native; la compilación puede tardar más. Si aparece `Java heap space`, cierra primero procesos pesados y, si hay memoria disponible, reintenta manteniendo dos workers con `-Dorg.gradle.jvmargs='-Xmx3g -XX:MaxMetaspaceSize=768m'`. No aumentes simultáneamente el heap y los workers. Este perfil local es ARM64 y se firma con la clave de debug del proyecto para revisión interna: no es un artefacto de tienda ni de producción. Debe generarse de nuevo tras cambiar configuración o código.
 
 Para API por HTTP, `app.config.js` habilita cleartext sólo si `EXPO_PUBLIC_API_BASE_URL` es una dirección privada IPv4 RFC1918, loopback o IPv6 ULA. HTTPS y hosts públicos no reciben esa excepción. Usa una IP alcanzable desde el teléfono; `localhost` apunta al propio teléfono. La misma URL queda visible en el bundle y nunca debe contener secretos. La API debe exponer HTTPS fuera de una LAN de desarrollo controlada.
 

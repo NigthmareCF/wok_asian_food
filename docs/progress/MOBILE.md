@@ -5,6 +5,7 @@
 - `assembleRelease` ARM64 compiló el commit `680e8a0` correctamente con Gradle 9.3.1, Android SDK 36 y NDK 27.1. El APK local ignorado por Git mide 44,332,267 bytes; SHA-256 `cec0c17546508feb1c2debe871787c817268d5344c394bbd057e25fb03731fc4`. `apksigner verify` confirmó la firma.
 - El bundle Android se generó desde el código que permite reemplazar una opción única directamente. La compilación tomó 7 min 35 s. El host API lo determina la configuración `.env` local; no queda acreditado aquí qué IP quedó embebida.
 - `adb` no está disponible en PATH y no se conectó un teléfono: faltan instalación y recorrido físico Android. No se afirma que el APK haya sido probado en dispositivo.
+- Para reducir picos de memoria en la próxima compilación, el README ahora recomienda `--max-workers=2 --no-parallel` y subir heap sólo si hay memoria disponible. El archivo nativo `android/gradle.properties` es generado e ignorado; el límite versionado se aplica desde el comando. No se repitió el build después de este ajuste de recursos.
 
 ## 2026-10-09 — Reemplazo directo de opciones de selección única
 
