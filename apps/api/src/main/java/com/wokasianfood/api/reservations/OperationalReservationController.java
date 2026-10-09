@@ -61,11 +61,12 @@ public class OperationalReservationController {
             @Valid @RequestBody DecisionRequest request) {
         return reviews.decide(reservationId, UUID.fromString(jwt.getSubject()),
                 requestId == null ? UUID.randomUUID() : requestId,
-                request.decision(), request.reason().trim(), request.expectedVersion());
+                request.decision(), request.reason().trim(), request.expectedVersion(), request.tableIds());
     }
 
     public record DecisionRequest(@NotNull Decision decision, @NotBlank @Size(min = 3, max = 500) String reason,
-                                  @Positive int expectedVersion) {}
+                                  @Positive int expectedVersion,
+                                  @Size(max = 12) List<@NotNull UUID> tableIds) {}
 }
 
 @Service
@@ -74,10 +75,13 @@ class ReservationReviewService {
     private static final LocalTime NORMAL_LAST_ENTRY = LocalTime.of(21, 15);
     private final JdbcTemplate jdbc;
     private final OperatingHoursProvider operatingHours;
+    private final ReservationTableAssignmentService tableAssignments;
 
-    ReservationReviewService(JdbcTemplate jdbc, OperatingHoursProvider operatingHours) {
+    ReservationReviewService(JdbcTemplate jdbc, OperatingHoursProvider operatingHours,
+                             ReservationTableAssignmentService tableAssignments) {
         this.jdbc = jdbc;
         this.operatingHours = operatingHours;
+        this.tableAssignments = tableAssignments;
     }
 
     public List<PendingReservation> pending() {
@@ -145,19 +149,29 @@ class ReservationReviewService {
     @Transactional
     public DecisionResult decide(UUID reservationId, UUID actor, UUID requestId,
                                  OperationalReservationController.Decision decision,
-                                 String reason, int expectedVersion) {
+                                 String reason, int expectedVersion, List<UUID> requestedTableIds) {
         List<CurrentReservation> rows = jdbc.query("""
-            SELECT id, status, row_version, reservation_at
+            SELECT id, status, row_version, reservation_at, ends_at, party_size
             FROM wok.reservations WHERE id = ? FOR UPDATE
             """, (rs, row) -> new CurrentReservation(rs.getObject("id", UUID.class),
-                rs.getString("status"), rs.getInt("row_version"), rs.getTimestamp("reservation_at").toInstant()), reservationId);
+                rs.getString("status"), rs.getInt("row_version"), rs.getTimestamp("reservation_at").toInstant(),
+                rs.getTimestamp("ends_at").toInstant(), rs.getInt("party_size")), reservationId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Solicitud no encontrada.");
         CurrentReservation current = rows.getFirst();
         if (!"REQUESTED".equals(current.status))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud ya fue revisada.");
         if (current.rowVersion != expectedVersion)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud cambió. Actualiza la vista y vuelve a intentarlo.");
-        if (decision == OperationalReservationController.Decision.CONFIRM) validateCurrentSchedule(current);
+        List<UUID> confirmedTableIds = List.of();
+        if (decision == OperationalReservationController.Decision.CONFIRM) {
+            validateCurrentSchedule(current);
+            confirmedTableIds = tableAssignments.reserveForConfirmation(reservationId, actor, requestId,
+                    expectedVersion, expectedVersion + 1, current.partySize(), current.reservationAt(), current.endsAt(),
+                    requestedTableIds, reason);
+        } else if (requestedTableIds != null && !requestedTableIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "No selecciones mesas cuando rechaces una solicitud.");
+        }
 
         String nextStatus = decision == OperationalReservationController.Decision.CONFIRM ? "CONFIRMED" : "CANCELLED";
         String cancellationReason = decision == OperationalReservationController.Decision.REJECT ? "STAFF_REJECTED: " + reason : null;
@@ -181,7 +195,7 @@ class ReservationReviewService {
                     jsonb_build_object('status', 'REQUESTED', 'version', ?),
                     jsonb_build_object('status', ?, 'version', ?), ?, 'SUCCESS', ?)
             """, actor, reservationId, expectedVersion, nextStatus, expectedVersion + 1, reason, requestId);
-        return new DecisionResult(reservationId, decision, nextStatus, expectedVersion + 1, reason);
+        return new DecisionResult(reservationId, decision, nextStatus, expectedVersion + 1, reason, confirmedTableIds);
     }
 
     private void validateCurrentSchedule(CurrentReservation reservation) {
@@ -209,12 +223,12 @@ class ReservationReviewService {
                     "El horario solicitado ya no coincide con el horario de servicio vigente. Rechaza la solicitud para que el cliente elija otro horario.");
     }
 
-    record CurrentReservation(UUID id, String status, int rowVersion, Instant reservationAt) {}
+    record CurrentReservation(UUID id, String status, int rowVersion, Instant reservationAt, Instant endsAt, int partySize) {}
     public record PendingReservation(UUID id, int guests, Instant reservationAt, Instant estimatedEndAt,
                                      String notes, int rowVersion, String customerName, String email,
                                      List<OperationalReservationScheduleController.PreorderItem> preorderItems) {}
     public record DecisionResult(UUID reservationId, OperationalReservationController.Decision decision,
-                                 String status, int rowVersion, String reason) {}
+                                 String status, int rowVersion, String reason, List<UUID> tableIds) {}
     private record PendingReservationRow(UUID id, int guests, Instant reservationAt, Instant estimatedEndAt,
                                          String notes, int rowVersion, String customerName, String email) {}
     private static final class PendingPreorderBuilder {

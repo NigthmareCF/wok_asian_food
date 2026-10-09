@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-09 — Confirmación de reserva y asignación atómica de mesas
+
+- La revisión Operativa puede consultar opciones mientras una solicitud está `REQUESTED`. Al confirmar, debe enviar explícitamente una o varias mesas elegidas; en una sola transacción el backend valida que estén activas/libres, en la misma zona, que alcancen la capacidad, que no exista otra asignación en el intervalo y que el horario siga vigente, y luego registra la asignación, transición de estado e historial/auditoría.
+- Si falta una mesa, cambió su estado o la restricción temporal detecta una carrera, la confirmación se revierte y la solicitud permanece pendiente. No se infiere un plano ni se asignan mesas automáticamente. El endpoint de asignación posterior sigue disponible para reservas confirmadas que requieran cambio explícito.
+- `ReservationTableAssignmentIntegrationTest` y `ReservationReviewScheduleIntegrationTest`: 11/11 pruebas focales aprobadas con PostgreSQL 18/Testcontainers y Flyway V1–V55. Suite completa: 346/346, cero fallos, errores u omitidas.
+
 ## 2026-10-09 — Lease vencido de emisión FEL pasa a conciliación
 
 - El worker FEL ya no vuelve a llamar automáticamente al certificador cuando recupera una tarea con lease vencido. Una caída del proceso pudo ocurrir después de que el proveedor certificó y antes de guardar la respuesta; el documento pasa a `UNKNOWN`, la tarea se cierra y se registra auditoría para conciliación humana.

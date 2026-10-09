@@ -96,6 +96,60 @@ class ReservationTableAssignmentService {
         this.idempotency = idempotency;
     }
 
+    /** Reserves explicitly selected tables in the same transaction that confirms a pending reservation. */
+    List<UUID> reserveForConfirmation(UUID reservationId, UUID actor, UUID requestId,
+            int expectedVersion, int nextVersion, int partySize, Instant startsAt, Instant endsAt,
+            List<UUID> requestedTableIds, String reason) {
+        if (requestedTableIds == null || requestedTableIds.isEmpty())
+            throw new AuthException(422, "Selecciona las mesas disponibles antes de confirmar la reserva.");
+        List<UUID> tableIds = requestedTableIds.stream().sorted().toList();
+        if (tableIds.size() > 12 || new HashSet<>(tableIds).size() != tableIds.size())
+            throw new AuthException(422, "Selecciona hasta 12 mesas distintas.");
+        List<SelectedTable> selected = lockTables(tableIds);
+        if (selected.size() != tableIds.size())
+            throw new AuthException(404, "No encontramos todas las mesas seleccionadas.");
+        if (selected.stream().anyMatch(table -> !table.active()))
+            throw new AuthException(409, "Una o más mesas están inactivas.");
+        if (selected.stream().anyMatch(table -> !"FREE".equals(table.status())))
+            throw new AuthException(409, "Una mesa seleccionada ya no está libre. Actualiza las disponibilidades.");
+        if (selected.stream().map(SelectedTable::zone).map(value -> value.toUpperCase(Locale.ROOT)).distinct().count() > 1)
+            throw new AuthException(422, "Las mesas de una misma reserva deben pertenecer a la misma zona.");
+        long capacity = selected.stream().mapToLong(SelectedTable::capacity).sum();
+        if (capacity < partySize)
+            throw new AuthException(422, "La capacidad conjunta de las mesas no alcanza para todas las personas.");
+
+        Instant occupiedUntil = endsAt.plus(ARRIVAL_TOLERANCE);
+        if (!occupiedUntil.isAfter(startsAt))
+            throw new AuthException(409, "El periodo estimado de la reserva no es válido.");
+        if (!currentTableIds(reservationId).isEmpty())
+            throw new AuthException(409, "La solicitud ya tiene mesas asignadas; actualiza la revisión antes de confirmar.");
+        try {
+            for (SelectedTable table : selected) {
+                jdbc.update("""
+                    INSERT INTO wok.reservation_table_assignments
+                        (reservation_id, table_id, occupied_period, assigned_by)
+                    VALUES (?, ?, tstzrange(?, ?, '[)'), ?)
+                    """, reservationId, table.id(), Timestamp.from(startsAt), Timestamp.from(occupiedUntil), actor);
+            }
+        } catch (DataIntegrityViolationException conflict) {
+            throw new AuthException(409, "Una de las mesas se reservó en ese horario. Actualiza las disponibilidades.");
+        }
+
+        String idsJson = tableIds.stream().map(id -> "\"" + id + "\"")
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, before_data, after_data, reason, result, request_id)
+            VALUES (?, 'RESERVATION_TABLES_ASSIGNED', 'RESERVATION', ?,
+                    jsonb_build_object('rowVersion', ?),
+                    jsonb_build_object('tableIds', ?::jsonb, 'occupiedFrom', ?::timestamptz,
+                                       'occupiedUntil', ?::timestamptz, 'rowVersion', ?::integer),
+                    ?, 'SUCCESS', ?)
+            """, actor, reservationId, expectedVersion, idsJson, Timestamp.from(startsAt),
+                Timestamp.from(occupiedUntil), nextVersion, reason, requestId);
+        return List.copyOf(tableIds);
+    }
+
     @Transactional(readOnly = true)
     TableOptions options(UUID reservationId) {
         List<Reservation> reservations = jdbc.query("""
@@ -106,8 +160,8 @@ class ReservationTableAssignmentService {
                 rs.getTimestamp("ends_at").toInstant(), rs.getInt("row_version")), reservationId);
         if (reservations.isEmpty()) throw new AuthException(404, "No encontramos la reserva.");
         Reservation reservation = reservations.getFirst();
-        if (!Set.of("CONFIRMED", "ARRIVED").contains(reservation.status()))
-            throw new AuthException(409, "Sólo se pueden consultar mesas para una reserva confirmada o que ya llegó.");
+        if (!Set.of("REQUESTED", "CONFIRMED", "ARRIVED").contains(reservation.status()))
+            throw new AuthException(409, "Sólo se pueden consultar mesas para solicitudes pendientes o reservas activas.");
 
         Instant occupiedUntil = reservation.endsAt().plus(ARRIVAL_TOLERANCE);
         List<TableOption> tables = jdbc.query("""

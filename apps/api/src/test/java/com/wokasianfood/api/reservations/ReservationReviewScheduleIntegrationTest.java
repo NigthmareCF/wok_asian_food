@@ -84,14 +84,19 @@ class ReservationReviewScheduleIntegrationTest extends PostgresIntegrationTest {
                 Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(submitted.statusCode()).as(submitted.body()).isEqualTo(202);
         UUID reservationId = UUID.fromString(json.readTree(submitted.body()).path("reservationId").asText());
-        return new ReviewCase(hoursId, date, reservationId, tokenForRole("OPERATIONAL"));
+        UUID tableId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO wok.dining_tables (id, name, capacity, zone, created_by, updated_by)
+            VALUES (?, ?, 2, 'SALON', NULL, NULL)
+            """, tableId, "Mesa revisión " + UUID.randomUUID());
+        return new ReviewCase(hoursId, date, reservationId, tableId, tokenForRole("OPERATIONAL"));
     }
 
     private java.net.http.HttpResponse<String> decide(ReviewCase review, String decision) {
         return send("PUT", "/api/v1/operational/reservations/" + review.reservationId() + "/decision",
                 review.staffToken(), """
-                    {"decision":"%s","reason":"Revisión del horario solicitado","expectedVersion":1}
-                    """.formatted(decision), Map.of());
+                    {"decision":"%s","reason":"Revisión del horario solicitado","expectedVersion":1,"tableIds":["%s"]}
+                    """.formatted(decision, review.tableId()), Map.of());
     }
 
     private void cleanup(ReviewCase review) {
@@ -100,5 +105,5 @@ class ReservationReviewScheduleIntegrationTest extends PostgresIntegrationTest {
                 review.serviceDate());
     }
 
-    private record ReviewCase(UUID hoursId, LocalDate serviceDate, UUID reservationId, String staffToken) {}
+    private record ReviewCase(UUID hoursId, LocalDate serviceDate, UUID reservationId, UUID tableId, String staffToken) {}
 }
