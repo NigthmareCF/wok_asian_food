@@ -1,15 +1,12 @@
-import { PaymentDetailView } from "@/modules/payments";
-import { PaymentsSessionProvider } from "@/modules/payments";
+import { OperationalAccountView } from "@/modules/payments/components/operational-account-view";
 
 interface PaymentDetailPageProps {
   params: Promise<{ recordId: string }>;
 }
 
-export default async function PaymentDetailPage({ params }: PaymentDetailPageProps) {
+export default async function PaymentDetailPage({
+  params,
+}: PaymentDetailPageProps) {
   const { recordId } = await params;
-  return (
-    <PaymentsSessionProvider>
-      <PaymentDetailView recordId={recordId} />
-    </PaymentsSessionProvider>
-  );
+  return <OperationalAccountView accountId={recordId} />;
 }
