@@ -227,6 +227,10 @@ function OrderHistory() {
         item.requestType === "CANCEL_LINE" && item.orderItemId === orderItemId));
   }
 
+  function orderChangeIsPending(orderRequestId: string) {
+    return changeRequests.some((item) => item.orderRequestId === orderRequestId && item.status === "PENDING_REVIEW");
+  }
+
   function changeSelectionKey(orderRequestId: string, orderItemId: string | null = null) {
     return `${orderRequestId}:${orderItemId ?? "order"}`;
   }
@@ -433,6 +437,7 @@ function OrderHistory() {
       <Button title="Solicitar nuevamente" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline) || !cancellationAttemptsReady}
         onPress={() => { setError(""); setSelectedChangeRequest(changeSelectionKey(orderRequestId, orderItemId)); }} />
     </View>;
+    if (orderChangeIsPending(orderRequestId)) return <Notice>Ya hay otra solicitud de cambio pendiente para este pedido. Espera la respuesta del equipo antes de enviar otra.</Notice>;
     const selectionKey = changeSelectionKey(orderRequestId, orderItemId);
     if (selectedChangeRequest === selectionKey) return <View style={ui.section}>
       <Text style={ui.body}>{orderItemId ? "El producto no se cancela automáticamente; el equipo revisará tu solicitud." : "El pedido no se cancela automáticamente. El equipo revisará tu solicitud."}</Text>
@@ -454,6 +459,7 @@ function OrderHistory() {
     if (change?.status === "PENDING_REVIEW") return <Notice>Cambio de cantidad a {change.requestedQuantity} pendiente de revisión; el pedido conserva {line.quantity} por ahora.</Notice>;
     if (change?.status === "APPROVED") return <Notice>El equipo aprobó el cambio a {change.requestedQuantity} unidades.</Notice>;
     if (change?.status === "REJECTED") return <Notice tone="error">El equipo no aceptó el cambio de cantidad.{change.decisionReason ? ` Motivo: ${change.decisionReason}` : ""}</Notice>;
+    if (orderChangeIsPending(orderRequestId)) return <Notice>Hay otra solicitud de cambio pendiente para este pedido; espera la respuesta del equipo.</Notice>;
     const selectionKey = `${orderRequestId}:${line.orderItemId}:quantity`;
     if (selectedQuantityChange === selectionKey) return <View style={ui.section}>
       <Text style={ui.body}>El equipo revisará disponibilidad, preparación y el nuevo total antes de modificar el pedido.</Text>
@@ -479,6 +485,7 @@ function OrderHistory() {
     if (change?.status === "PENDING_REVIEW") return <Notice>Opciones solicitadas: {(change.requestedModifiers ?? []).map((option) => option.name).join(", ") || "sin opciones"}. Pendiente de revisión; tu pedido conserva su configuración actual.</Notice>;
     if (change?.status === "APPROVED") return <Notice>El equipo aprobó el cambio de opciones.</Notice>;
     if (change?.status === "REJECTED") return <Notice tone="error">El equipo no aceptó el cambio de opciones.{change.decisionReason ? ` Motivo: ${change.decisionReason}` : ""}</Notice>;
+    if (orderChangeIsPending(orderRequestId)) return <Notice>Hay otra solicitud de cambio pendiente para este pedido; espera la respuesta del equipo.</Notice>;
     const selectionKey = `${orderRequestId}:${line.orderItemId}:modifiers`;
     const availableIds = new Set(line.modifierGroups.flatMap((group) => group.options.map((option) => option.id)));
     const unavailableSelections = line.selectedModifiers.filter((modifier) => !availableIds.has(modifier.modifierId));

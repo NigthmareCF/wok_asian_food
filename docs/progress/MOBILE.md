@@ -2,7 +2,7 @@
 
 ## 2026-10-08 — Solicitud de cambio de opciones de producto
 
-- Mis pedidos incorpora selección estructurada por los grupos/opciones activos del producto para solicitar cambios de modificadores; la app conserva la configuración vigente hasta aprobación Operativa y comunica estado/motivo de rechazo. Opciones históricas desactivadas se muestran y pueden quitarse, sin permitir reenviarlas como activas.
+- Mis pedidos incorpora selección estructurada por los grupos/opciones activos del producto para solicitar cambios de modificadores; la app conserva la configuración vigente hasta aprobación Operativa y comunica estado/motivo de rechazo. Opciones históricas desactivadas se muestran y pueden quitarse, sin permitir reenviarlas como activas. Mientras haya una solicitud pendiente en el pedido, la interfaz bloquea solicitudes competidoras en otras líneas, de acuerdo con el control transaccional del backend.
 - La clave idempotente se conserva en SecureStore por pedido, línea y conjunto de opciones. Si se pierde la respuesta, se consulta el historial para recuperar la solicitud en vez de duplicarla.
 - El contrato necesita `modifierChangeSupported`, `selectedModifiers`, `selectedModifierIds` y `modifierGroups` en la respuesta de productos editables, ya implementados localmente en la rama backend correspondiente. Verificación después de la implementación: Vitest 125/125, ESLint, TypeScript y export Expo Web con 17 rutas estáticas. APK todavía no recompilado con esta función y falta prueba física.
 
