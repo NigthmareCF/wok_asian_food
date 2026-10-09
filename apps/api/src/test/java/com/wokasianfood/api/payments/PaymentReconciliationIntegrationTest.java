@@ -60,6 +60,14 @@ class PaymentReconciliationIntegrationTest extends PostgresIntegrationTest {
                 Integer.class, unknownIntent)).isZero();
     }
 
+    @Test
+    void reconciliationQueueRejectsUnboundedPagination() {
+        String operator = tokenForRole("OPERATIONAL");
+
+        assertThat(get(QUEUE + "?limit=101", operator).statusCode()).isEqualTo(400);
+        assertThat(get(QUEUE + "?offset=-1", operator).statusCode()).isEqualTo(400);
+    }
+
     private UUID createAcceptedDeliveryIntent(String customer, String operator, String name, String price) throws Exception {
         UUID itemId = seedMenuItem(name, price);
         JsonNode request = body(post("/api/v1/client/delivery-requests", customer, """
