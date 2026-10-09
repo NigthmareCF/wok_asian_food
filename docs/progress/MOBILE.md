@@ -604,3 +604,8 @@
 - El formulario delivery permite elegir efectivo contra entrega, transferencia anticipada o solicitud de cobro online. La app identifica la transferencia como preferencia y explica que el comprobante se adjunta desde Mis pedidos y requiere revisión del restaurante.
 - Mis pedidos reutiliza el panel existente para enviar y consultar comprobantes de transferencias delivery en solicitudes pendientes o aceptadas. Mientras la revisión siga pendiente, el estado se actualiza cada 30 segundos con la pantalla enfocada y deja de consultar al resolverse. La carga no se presenta como pago confirmado; el backend registra el pago sólo tras revisión operativa.
 - Verificación: Vitest 123/123 en 27 archivos, ESLint, TypeScript `--noEmit` y `git diff --check`. No se reconstruyó ni instaló APK para este cambio.
+
+## 2026-10-08 — Identidad normalizada para intentos de reserva
+
+- La app normaliza el correo de la cuenta antes de derivar la clave de almacenamiento del intento pendiente de reserva y al validar su propietario. Se conserva el mismo intento idempotente si el cliente vuelve a entrar con diferente capitalización o espacios en el correo.
+- Los borradores e intentos nuevos guardan el correo normalizado. Prueba unitaria cubre capitalización/espacios; Vitest 127/127, ESLint y TypeScript `--noEmit` pasan. No se modificaron APIs ni dependencias y no se generó APK.

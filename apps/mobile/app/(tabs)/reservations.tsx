@@ -6,7 +6,7 @@ import { ApiError, PublicMenu, ReservationCapacityEvaluation, ReservationHistory
 import { PublicServiceCapability, reservationServiceState } from "@/lib/reservation-service-status";
 import { parsePendingReservationAttempt, PendingReservationAttempt, resolvePendingReservationAttempt } from "@/lib/reservation-attempt";
 import { deleteSecurePayload, readSecurePayload, saveSecurePayload } from "@/lib/reservation-attempt-storage";
-import { legacyReservationDraftKey, reservationStorageKeys } from "@/lib/reservation-storage-keys";
+import { legacyReservationDraftKey, normalizeReservationOwnerEmail, reservationStorageKeys } from "@/lib/reservation-storage-keys";
 import { formatRestaurantDateTime, formatRestaurantLocalInput, parseRestaurantLocalDateTime, restaurantTimeZone } from "@/lib/restaurant-time";
 import { MenuItemOptions } from "@/components/menu-item-options";
 import { menuItemUnitPrice, menuModifiersAreValid } from "@/lib/menu-options";
@@ -95,7 +95,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
         const rawAttempt = await readSecurePayload(storageKeys.attempt);
         if (rawAttempt) {
           const attempt = parsePendingReservationAttempt(rawAttempt);
-          if (attempt && attempt.ownerEmail === session.email) {
+          if (attempt && normalizeReservationOwnerEmail(attempt.ownerEmail) === normalizeReservationOwnerEmail(session.email)) {
             if (active) {
               pendingRequest.current = attempt;
               setAttemptRestored(true);
@@ -113,7 +113,7 @@ function ReservationForm({ session, request }: Pick<ReturnType<typeof useSession
   useEffect(() => {
     if (!session?.email || !draftReady || Platform.OS === "web" || !hasReservationDraft(guests, requestedAt, notes, preorder, preorderQuantities)) return;
     const draft: ReservationDraft = {
-      ownerEmail: session.email, guests, requestedAt, notes, preorder, preorderQuantities, preorderModifiers, savedAt: Date.now(),
+      ownerEmail: normalizeReservationOwnerEmail(session.email), guests, requestedAt, notes, preorder, preorderQuantities, preorderModifiers, savedAt: Date.now(),
     };
     const storageKeys = getReservationStorageKeys(session.email);
     const timer = setTimeout(() => {
@@ -376,12 +376,13 @@ const reservationDraftLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function getReservationStorageKeys(ownerEmail: string) {
-  const draftOwnerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, normalizeEmail(ownerEmail));
-  const attemptOwnerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, ownerEmail);
+  const normalizedEmail = normalizeReservationOwnerEmail(ownerEmail);
+  const draftOwnerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, normalizedEmail);
+  const attemptOwnerHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, normalizedEmail);
   return reservationStorageKeys(draftOwnerHash, attemptOwnerHash);
 }
 
-function normalizeEmail(value: string) { return value.trim().toLowerCase(); }
+function normalizeEmail(value: string) { return normalizeReservationOwnerEmail(value); }
 
 function parseReservationDraft(raw: string): ReservationDraft | null {
   if (raw.length > 30000) return null;
