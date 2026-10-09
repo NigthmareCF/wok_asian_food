@@ -28,6 +28,42 @@ class ConfiguredReservationHoursIntegrationTest extends PostgresIntegrationTest 
     @Autowired private ReservationRequestService reservationRequests;
 
     @Test
+    void reservationCreationDerivesOwnerAndLifecycleFromAuthenticatedCustomer() throws Exception {
+        UUID owner = createUserWithRole("reservation-create-owner-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID forgedOwner = createUserWithRole("reservation-create-forged-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID ownerProfile = jdbc.queryForObject("INSERT INTO wok.customer_profiles (user_id, full_name) "
+                + "VALUES (?, 'Titular real') RETURNING id", UUID.class, owner);
+        jdbc.update("INSERT INTO wok.customer_profiles (user_id, full_name) VALUES (?, 'Titular falsificado')", forgedOwner);
+        LocalDate targetDate = LocalDate.now(ZONE).plusDays(7);
+        while (targetDate.getDayOfWeek() == java.time.DayOfWeek.MONDAY) targetDate = targetDate.plusDays(1);
+        Instant requestedAt = LocalDateTime.of(targetDate, LocalTime.of(18, 0)).atZone(ZONE).toInstant();
+        UUID idempotencyKey = UUID.randomUUID();
+
+        var response = post("/api/v1/client/reservations", tokenFor(owner), """
+                {"guests":2,"requestedAt":"%s","preorder":false,"notes":"Ventana tranquila",
+                 "customerUserId":"%s","reservationId":"%s","status":"CONFIRMED",
+                 "decision":"ACCEPT","createdBy":"%s"}
+                """.formatted(requestedAt, forgedOwner, UUID.randomUUID(), forgedOwner),
+                Map.of("Idempotency-Key", idempotencyKey.toString()));
+
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(202);
+        JsonNode receipt = json.readTree(response.body());
+        UUID requestId = UUID.fromString(receipt.path("requestId").asText());
+        UUID reservationId = UUID.fromString(receipt.path("reservationId").asText());
+        assertThat(receipt.path("confirmed").asBoolean()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT customer_id FROM wok.reservations WHERE id = ?", UUID.class, reservationId))
+                .isEqualTo(ownerProfile);
+        assertThat(jdbc.queryForObject("SELECT created_by FROM wok.reservations WHERE id = ?", UUID.class, reservationId))
+                .isEqualTo(owner);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.reservations WHERE id = ?", String.class, reservationId))
+                .isEqualTo("REQUESTED");
+        assertThat(jdbc.queryForObject("SELECT requester_user_id FROM wok.reservation_evaluations WHERE request_id = ?",
+                UUID.class, requestId)).isEqualTo(owner);
+        assertThat(get("/api/v1/client/reservations", tokenFor(forgedOwner)).body()).isEqualTo("[]");
+        assertThat(get("/api/v1/client/reservations", tokenFor(owner)).body()).contains(requestId.toString());
+    }
+
+    @Test
     void acceptsPreordersWithMoreThanTwentyDistinctProductsWithoutCreatingAnOrder() throws Exception {
         UUID userId = createUserWithRole("reservation-many-lines-" + UUID.randomUUID() + "@wok.test", "CLIENT");
         jdbc.update("INSERT INTO wok.customer_profiles (user_id, full_name) VALUES (?, 'Cliente muchas líneas')", userId);

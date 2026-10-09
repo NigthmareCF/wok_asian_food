@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Autoridad del servidor en solicitudes de reserva
+
+- La prueba HTTP `reservationCreationDerivesOwnerAndLifecycleFromAuthenticatedCustomer` envía campos falsificados para cliente, reserva, estado, decisión y creador. Con PostgreSQL confirma que la reserva se asocia al usuario/perfil del JWT, queda `REQUESTED` y sólo aparece en el historial de su propietario.
+- Prueba focal: 1/1 con Testcontainers PostgreSQL 18 y Flyway V1–V55. Esta verificación no convierte la solicitud en confirmación automática: el flujo sigue sujeto a capacidad y revisión Operativa.
+
 ## 2026-10-08 — Aislamiento HTTP del perfil Cliente
 
 - `ClientProfileOwnershipIntegrationTest` usa PostgreSQL/Testcontainers para comprobar que los perfiles A y B sólo exponen su propio ID/correo y que editar A no altera B. El payload intenta además fijar el ID de B, cambiar el correo y elevar roles; la API deriva al usuario del JWT e ignora esos campos.
