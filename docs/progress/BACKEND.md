@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Revocación concurrente de sesión con auditoría única
+
+- `ClientSessionOwnershipIntegrationTest.concurrentRevocationOfOwnedSessionWritesOneAuditEvent` envía dos DELETE HTTP simultáneos para la misma sesión propia. PostgreSQL serializa las actualizaciones: una devuelve 204 y la otra 404; la sesión y refresh token quedan revocados y se registra exactamente un evento `CLIENT_SESSION_REVOKED`.
+- Prueba focal: 3/3 con PostgreSQL 18/Testcontainers y Flyway V1–V55. La suite completa pasó 343/343 (cero fallos, errores u omitidas). La ejecución inicial sin acceso Docker omitió las pruebas y no se consideró verificación; la repetición autorizada con Testcontainers quedó en cero omitidas. Sin cambio de endpoint ni esquema.
+
 ## 2026-10-08 — Cancelación concurrente e idempotente de reserva
 
 - `ReservationOwnershipIntegrationTest.concurrentClientCancellationIsIdempotentAndWritesOneHistoryEvent` dispara dos DELETE simultáneos para la misma reserva pendiente con PostgreSQL 18/Testcontainers y Flyway V1–V55. Ambos reciben `200 CANCELLED`, queda una sola transición y una sola fila de historial `CANCELLED_BY_CLIENT`.
