@@ -108,3 +108,25 @@ it("reloads after a 409 without allowing another table action", async () => {
   );
   expect(fetch).toHaveBeenCalledTimes(3);
 });
+
+it("keeps the table list visible when an occupied table has a paid account", async () => {
+  vi.mocked(fetch).mockResolvedValue(
+    Response.json([
+      freeTable,
+      {
+        ...freeTable,
+        id: "33333333-3333-4333-8333-333333333333",
+        name: "Mesa pagada",
+        status: "OCCUPIED",
+        accountId: "44444444-4444-4444-8444-444444444444",
+        accountName: "Cuenta 1",
+        accountStatus: "PAID",
+      },
+    ]),
+  );
+  render(<OperationalTablesView />);
+  expect(await screen.findByText("Mesa pagada")).toBeInTheDocument();
+  expect(screen.getByText("Mesa 01")).toBeInTheDocument();
+  expect(screen.getByText("Cuenta 1 · PAID")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});

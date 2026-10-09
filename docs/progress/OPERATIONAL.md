@@ -252,3 +252,72 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Después de responder, el hilo permanece visible con estado Abierta y la conversación sale de la cola. Se conserva el intento idempotente ante respuestas perdidas. Estado del servicio en el shell sigue simulado y su etiqueta lo aclara.
 - Prueba local entre Cliente Demo Checkout y Operativo Demo mediante HTTP y navegador: mensaje enviado, respuesta visible, cola sin pendientes. Cliente sin rol operativo recibe 403. Suite web 368 pruebas aprobadas, lint/TypeScript/build Docker correctos.
 - Delivery y reservas operativas conservan sus vistas previas; su integración y gestión posterior se deben abordar como siguiente sección. No se hicieron commits ni push.
+
+## 2026-10-08 — Barrera: compatibilidad de mesas con cuentas pagadas
+
+- Sección individual O-02/O-03: corrección del contrato de lectura de mesas. La API existente incluye cuentas PAID en OperationalTableController, pero el validador web solo aceptaba OPEN e IN_COBRO; una mesa pagada invalidaba todo el listado.
+- Cambio: aceptar PAID en modules/tables/live-contract.ts sin alterar reglas, backend, transporte común ni rutas BFF. Se conservan validaciones de estados desconocidos y cuentas incompletas.
+- Archivos: live-contract.ts, live-contract.test.ts y components/operational-tables-view.test.tsx dentro de apps/web/src/modules/tables.
+- Evidencia: dos regresiones nuevas fallaron antes de corregir; después pasaron 13 pruebas de contrato, pantalla y BFF de mesas. TypeScript sin emisión, lint web y build web aprobados. Pruebas y build necesitaron ejecución fuera del aislamiento por permisos de archivos temporales/configuración; la invocación inicial de ESLint desde raíz se corrigió usando el workspace web.
+- Estado: listo individualmente con respuestas controladas en pruebas; no validado en navegador contra una cuenta pagada real en esta sesión. No se crearon datos ni se ejecutaron cobros. No se certifica pago/cierre financiero.
+- Inventario acotado: mesas y reservas operativas tienen conexiones existentes; detalle de cuenta/pedidos/cocina tiene contratos backend, pero requiere revisar y autorizar BFF faltante antes de conectar. No se declara completado el inventario de todo el canal.
+- Próxima tarea independiente: probar y mejorar recuperación del detalle de mesa ante conflicto, respuesta perdida y permisos usando rutas existentes.
+- Rama conservada: development; cambios locales sin commit, push ni despliegue. Se preservan los dos documentos locales sin seguimiento. Antes de publicar, mover el trabajo a una rama de tarea autorizada.
+
+## 2026-10-08 — Barrera: recuperación del detalle de mesa
+
+- Sección O-03: ante fallo de red, respuesta inválida o HTTP 5xx después de abrir/cerrar, el detalle informa resultado incierto y consulta nuevamente el listado sin reenviar la mutación. Si falla la consulta, solo ofrece Actualizar hasta recuperar el estado.
+- Los conflictos 409 conservan el motivo recibido (incluido cierre rechazado por pedidos pendientes); 401/403 muestran mensajes específicos y bloquean mutaciones hasta volver a entrar al componente con sesión/permisos adecuados. El backend sigue siendo responsable de autorizar cada operación.
+- Se evita apertura de mesas inactivas y se añade bloqueo inmediato de solicitudes simultáneas mediante referencia local.
+- Archivos: apps/web/src/modules/tables/components/operational-table-detail-view.tsx y su nuevo operational-table-detail-view.test.tsx.
+- Validación: 36 pruebas aprobadas en 7 archivos de mesas/BFF, incluidas 10 pruebas nuevas del detalle; lint web y build web con TypeScript aprobados. Dobles HTTP usados exclusivamente en pruebas. No hubo mutaciones de base de datos, despliegue ni pruebas nuevas en navegador real.
+- Estado individual listo; validación integrada pendiente. Se preservó el archivo next-env.d.ts que ya estaba modificado al comenzar y el resto del trabajo local. Sin nuevas rutas, cambios backend ni transporte compartido, commit o push.
+- Límite: no se añadió timeout local; la recuperación se activa al recibir error/respuesta o rechazo de fetch. La recuperación del listado utiliza el hook compartido existente sin modificarlo.
+- Próxima tarea independiente: auditar/probar recuperación y decisiones de reservas operativas con las rutas ya existentes; pedidos/cocina siguen pendientes de autorización para BFF faltante.
+
+## 2026-10-08 — Barrera: recuperación de decisiones de reservas
+
+- Sección O-07: se valida la respuesta de decisión con el contrato existente y se comprueba identidad, decisión, estado y avance de versión antes de anunciar éxito.
+- Fallos de red, respuestas inválidas y HTTP 5xx descartan el borrador y recargan pendientes sin repetir PUT. Actualizar manualmente también elimina el borrador para evitar operar con una versión anterior.
+- Se conserva el tratamiento de conflictos 409; 404 recarga la cola. HTTP 401/403 muestra mensaje específico y bloquea decisiones hasta volver a entrar con sesión/permisos adecuados. Errores de validación conservan el motivo escrito para corregirlo.
+- Se reutiliza el parser existente para validar motivos y versiones; referencia local bloquea envíos simultáneos. No se modifica transporte común, contrato backend ni rutas BFF.
+- Archivos: apps/web/src/modules/reservations/components/operational-reservation-queue.tsx y operational-reservation-queue.test.tsx.
+- Pruebas: 22 aprobadas en contrato, componente y BFF (7 casos nuevos); lint web aprobado; build con TypeScript aprobado tras corregir dos errores detectados en la primera compilación. Pruebas HTTP controladas, sin registros nuevos en BD ni validación de navegador real en esta sección.
+- Estado: listo individualmente, integración real pendiente. Sin commit, push ni despliegue; cambios previos preservados.
+- Próxima tarea independiente: ampliar aceptación de rechazo, actualización de expectedVersion tras conflicto y consulta fallida en reservas. La conexión de cuentas/pedidos/cocina mantiene dependencia de BFF aún no autorizado.
+
+## 2026-10-08 — Barrera: aceptación complementaria de reservas
+
+- Se completó la sección de validación acordada sin cambios adicionales al componente productivo.
+- Cuatro casos nuevos: rechazo REJECT/CANCELLED exitoso; conflicto seguido de nueva decisión con expectedVersion actualizado (1 → 4); respuesta perdida y consulta fallida con recuperación exclusivamente GET; doble clic mientras PUT está pendiente sin duplicar decisión.
+- Archivo: apps/web/src/modules/reservations/components/operational-reservation-queue.test.tsx.
+- Evidencia: 26 pruebas aprobadas en 3 archivos de contrato/componente/BFF. TypeScript sin emisión y ESLint del archivo modificado aprobados. No se repitió build porque esta sección solo amplía pruebas; la compilación productiva se verificó en la sección anterior.
+- Estado: aceptación individual con dobles HTTP; no representa una nueva prueba integrada ni datos reales. Sin cambios de backend, BFF, contratos, datos, commit o push.
+- Próximo avance útil: validación visual de mesas y reservas con el sistema local, verificando primero qué versión sirve el entorno. La conexión nueva de cuenta/pedidos mantiene su dependencia explícita de aprobación del BFF mínimo y no se sustituye por nuevas rondas de pruebas del mismo componente.
+
+## 2026-10-08 — Barrera: comprobación visual local
+
+- Docker estaba detenido; se inició Docker Desktop y se reconstruyó solamente web con docker compose up -d --build --no-deps web. Compilación Docker/TypeScript aprobada, Next 16.3.6 según imagen. Backend y volumen de datos conservados.
+- Navegador con cuenta Operativo Demo: listado y detalle de PRUEBA Mesa 20261005-223953 (afa195b2-46fc-4e27-8474-2264f3008fb1). Se abrió Cuenta 2, mesa OCCUPIED versión 4; recargar conservó cuenta/estado. Cierre sin pedidos exitoso: CLEANING versión 5 y sin cuenta abierta. No se registraron pedidos ni cobros.
+- /operation/reservations carga correctamente y muestra cola vacía. No se validaron decisiones reales ni conflictos en navegador en esta sección; su evidencia sigue siendo la suite automatizada previa.
+- Hallazgo para Fernando: la navegación lateral de esta cuenta solo muestra Operacion; reservas fue accesible mediante URL directa. No se modificaron permisos ni navegación compartida.
+- Otro pendiente visible: detalle de mesa afirma que todas las acciones deshabilitadas requieren APIs inexistentes; el texto es demasiado general porque algunos contratos backend ya existen. Revisar redacción dentro del alcance de Barrera en siguiente sección.
+- Evidencia visual: C:/Users/tonys/.codex/visualizations/2026/10/02/01a0fec7-06db-7391-bac9-147ff251ecd9/mesa-prueba-cerrada.png.
+- Estado: apertura/persistencia/cierre sin pedidos validado con UI y backend local; reservas solo consulta vacía. No equivale a validación de PAID, concurrencia, cobro ni sistema completo. Sin commit, push o publicación remota.
+
+## 2026-10-08 — Barrera: rechazo de reserva desde navegador contra API local
+
+- Se creó mediante BFF una solicitud de prueba identificada como PRUEBA BARRERA 2026-10-08, para 2 personas el 12/10 a las 18:00 Guatemala. reservationId: 3908eeb5-5a6e-46e5-b154-216bd07abc58; requestId: f1a75279-a36a-4645-b40a-ea63818fa07a. Primer envío con offset horario fue rechazado 400 por el validador; el envío en formato UTC Z fue aceptado.
+- UI operativa real: solicitud visible, Rechazar solicitud deshabilitado sin motivo, envío con motivo de prueba, mensaje Solicitud rechazada y eliminación de pendientes. Recargar mantuvo la cola vacía.
+- Consulta autenticada del historial Cliente vía BFF confirmó reservationStatus=CANCELLED. Registro de prueba conservado para trazabilidad, sin reserva activa ni cobros.
+- Hallazgo para Chan/Antony: historial conserva decision=REQUIRES_HUMAN_APPROVAL y mensaje inicial de revisión junto a estado CANCELLED; revisar cómo se presenta para evitar contradicción. No se modificó contrato ni UI Cliente.
+- Evidencia: C:/Users/tonys/.codex/visualizations/2026/10/02/01a0fec7-06db-7391-bac9-147ff251ecd9/reserva-prueba-rechazada.png.
+- Estado: rechazo validado en navegador + BFF + API local y persistencia consultada desde historial. Confirmación y concurrencia no se probaron en navegador en esta sección. Sin cambios de código, commit, push ni despliegue.
+- Siguiente sección propuesta: preparar el alcance concreto de conexión de cuenta/pedidos con endpoints existentes y solicitar aprobación de las rutas BFF mínimas antes de implementarlas.
+
+## 2026-10-08 — Barrera: propuesta mínima de cuenta operativa
+
+- Revisados OperationalAccountController, OperationalOrderController, transporte BFF y NewOrderView/OrderSessionProvider. Cuenta/pedidos existen en backend; sus BFF no existen. Constructor actual usa fixtures y estado en memoria.
+- Propuesta concreta en docs/project/BARRERA_PROPUESTA_CUENTAS_PEDIDOS.md: primera entrega con un único GET BFF de cuenta y panel operativo dentro de detalle de mesa; conserva backend/transporte y excluye responsabilidades financieras de Beto.
+- Creación de pedidos queda como entrega posterior con POST orders y GET detalle; PATCH y cocina no se incluyen en la aprobación inicial.
+- Estado: propuesta lista para aprobación del usuario por restricción expresa de no crear rutas BFF. No implementado; sin pruebas nuevas, registros, commit, push ni despliegue.

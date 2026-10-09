@@ -42,3 +42,18 @@ describe("live table contract", () => {
     ).toBeNull();
   });
 });
+
+it("accepts paid accounts returned by the tables API without rejecting the whole list", () => {
+  const paidTable = {
+    ...table,
+    status: "OCCUPIED",
+    accountId: "22222222-2222-4222-8222-222222222222",
+    accountName: "Cuenta 1",
+    accountStatus: "PAID",
+  };
+  expect(isOperationalTables([table, paidTable])).toBe(true);
+  expect(isOperationalTable({ ...paidTable, accountStatus: "UNKNOWN" })).toBe(
+    false,
+  );
+  expect(isOperationalTable({ ...paidTable, accountId: null })).toBe(false);
+});

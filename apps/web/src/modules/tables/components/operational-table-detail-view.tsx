@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CircleAlert, RefreshCw } from "lucide-react";
 import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
 import {
@@ -32,13 +32,16 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
     "/bff/operational/tables",
     isOperationalTables,
   );
+  const inFlight = useRef(false);
   const [sending, setSending] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const table = resource.data?.find((item) => item.id === tableId);
 
   async function action(kind: "open" | "close") {
-    if (sending || !table) return;
+    if (inFlight.current || accessDenied || !table) return;
+    inFlight.current = true;
     setSending(true);
     setError("");
     setFeedback("");
@@ -53,12 +56,24 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
           setError(
             response.status === 404
               ? "La mesa ya no existe. Recargamos el listado."
-              : "El estado de la mesa cambió. Recargamos el listado.",
+              : `${message(body)} Recargamos el listado.`,
           );
           resource.reload();
           return;
         }
-        throw new Error(message(body));
+        if (response.status === 401 || response.status === 403) {
+          setAccessDenied(true);
+          setError(
+            response.status === 401
+              ? "Tu sesión venció. Inicia sesión nuevamente."
+              : "No tienes permiso para actualizar esta mesa.",
+          );
+          resource.reload();
+          return;
+        }
+        if (response.status >= 500) throw new Error("Resultado incierto");
+        setError(message(body));
+        return;
       }
       if (!isOperationalTable(body)) throw new Error("Respuesta inválida.");
       setFeedback(
@@ -67,13 +82,13 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
           : "Mesa cerrada y enviada a limpieza.",
       );
       resource.reload();
-    } catch (cause) {
+    } catch {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "No pudimos actualizar la mesa.",
+        "No pudimos confirmar el resultado. Actualizamos la mesa antes de que vuelvas a operar.",
       );
+      resource.reload();
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   }
@@ -103,7 +118,8 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
       </div>
     );
 
-  const openable = table.status === "FREE" || table.status === "CLEANING";
+  const openable =
+    table.active && (table.status === "FREE" || table.status === "CLEANING");
   const closable = table.status === "OCCUPIED";
   return (
     <div className="ops-dashboard">
@@ -151,7 +167,7 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
         <div className={styles.actions}>
           <button
             className="button button--primary"
-            disabled={sending || !openable}
+            disabled={sending || accessDenied || !openable}
             onClick={() => void action("open")}
             type="button"
           >
@@ -159,7 +175,7 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
           </button>
           <button
             className="button button--secondary"
-            disabled={sending || !closable}
+            disabled={sending || accessDenied || !closable}
             onClick={() => void action("close")}
             type="button"
           >
