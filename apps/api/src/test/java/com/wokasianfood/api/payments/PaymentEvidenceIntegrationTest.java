@@ -108,6 +108,22 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void rejectsOversizedEvidenceAsPayloadTooLargeWithoutPersistingPaymentOrFile() throws Exception {
+        var request = createTransferPickup();
+        UUID requestId = UUID.fromString(body(request).path("requestId").asText());
+        Set<String> filesBefore = storedFiles();
+
+        HttpResponse<String> oversized = upload(requestId, UUID.randomUUID(), requestClientToken, "image/png",
+                new byte[8 * 1024 * 1024 + 1]);
+
+        assertThat(oversized.statusCode()).isEqualTo(413);
+        assertThat(oversized.body()).contains("El archivo supera el tamaño máximo permitido.");
+        assertThat(count("SELECT count(*) FROM wok.payment_evidence WHERE order_request_id = ?", requestId)).isZero();
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id IN (SELECT account_id FROM wok.orders WHERE id = (SELECT order_id FROM wok.order_requests WHERE id = ?))", requestId)).isZero();
+        assertThat(storedFiles()).isEqualTo(filesBefore);
+    }
+
+    @Test
     void onlyAnOperationalVerificationOfAnAcceptedAndClosedPickupCapturesTheTransfer() throws Exception {
         var requestResponse = createTransferPickup();
         UUID requestId = UUID.fromString(body(requestResponse).path("requestId").asText());

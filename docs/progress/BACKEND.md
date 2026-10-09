@@ -755,3 +755,9 @@
 
 - El worker `PaymentIntentCreationWorker` conserva su intervalo de producción, pero el `PostgresIntegrationTest` común ahora lo configura a una hora, igual que los otros workers. Las pruebas que necesitan procesarlo lo invocan explícitamente; así se evita actividad asíncrona innecesaria entre casos.
 - Repetición completa con Testcontainers/PostgreSQL 18 y Flyway V1–V52: 71 suites / 310 pruebas, cero fallos, errores u omitidas. La falla anterior de 1240 s no volvió a aparecer con el worker pausado; esto apunta a interferencia del sondeo, aunque no se pudo capturar un lock específico durante aquella corrida.
+
+## 2026-10-08 — Respuesta 413 para archivos de comprobante grandes
+
+- `ApiErrorHandler` traduce `MaxUploadSizeExceededException` a HTTP 413 con un mensaje neutral; evita responder 500 cuando el multipart supera los 8 MB configurados. También se retiró un import duplicado de `HttpStatus`.
+- `PaymentEvidenceIntegrationTest` sube un PNG de 8 MiB + 1 byte y comprueba 413, cero filas de evidencia, cero pagos y ningún archivo almacenado. `ApiErrorHandlerTest` verifica la conversión/mensaje.
+- Suite completa Testcontainers/PostgreSQL 18 + Flyway V1–V52: 71 suites / 312 pruebas, cero fallos, errores u omitidas. `git diff --check` limpio.

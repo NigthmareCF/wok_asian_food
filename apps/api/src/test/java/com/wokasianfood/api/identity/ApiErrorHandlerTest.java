@@ -7,6 +7,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 class ApiErrorHandlerTest {
@@ -35,6 +36,14 @@ class ApiErrorHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).containsEntry("message", "No encontramos el recurso solicitado.");
+    }
+
+    @Test
+    void translatesOversizedUploadsToPayloadTooLarge() {
+        var response = handler.uploadTooLarge(new MaxUploadSizeExceededException(8L * 1024 * 1024));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+        assertThat(response.getBody()).containsEntry("message", "El archivo supera el tamaño máximo permitido.");
     }
 
     @Test
