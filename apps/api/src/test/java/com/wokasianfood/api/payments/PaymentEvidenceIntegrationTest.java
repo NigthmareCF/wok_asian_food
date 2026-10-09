@@ -216,6 +216,52 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void operationalVerificationOfAcceptedDeliveryTransferCapturesExactlyOnce() throws Exception {
+        var request = createTransferDelivery("TRANSFER_IN_ADVANCE");
+        UUID requestId = request.requestId();
+        UUID evidenceId = UUID.fromString(body(upload(requestId, UUID.randomUUID(), request.token(),
+                "image/png", uniquePng())).path("id").asText());
+        UUID operatorId = createUserWithRole("delivery-transfer-review-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        UUID accountId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID currencyId = jdbc.queryForObject("SELECT id FROM wok.currencies WHERE code = 'GTQ'", UUID.class);
+        jdbc.update("""
+                INSERT INTO wok.order_accounts(id, dining_table_id, name, status, opened_by, created_by, updated_by)
+                VALUES (?, NULL, 'Delivery transfer review', 'OPEN', ?, ?, ?)
+                """, accountId, operatorId, operatorId, operatorId);
+        jdbc.update("""
+                INSERT INTO wok.orders(id, code, account_id, dining_table_id, channel, status, subtotal, discount,
+                    total, currency_id, guest_count, opened_by, closed_at)
+                VALUES (?, ?, ?, NULL, 'DELIVERY', 'CLOSED', 25.00, 0, 25.00, ?, 1, ?, now())
+                """, orderId, "ORD-DELIVERY-EVIDENCE-" + UUID.randomUUID(), accountId, currencyId, operatorId);
+        jdbc.update("""
+                UPDATE wok.order_requests SET status = 'ACCEPTED', decided_by = ?, decided_at = now(),
+                    decision_reason = 'ACCEPTED', order_id = ? WHERE id = ?
+                """, operatorId, orderId, requestId);
+
+        UUID decisionKey = UUID.randomUUID();
+        String verificationBody = "{\"action\":\"VERIFY\",\"expectedVersion\":1,\"confirmedAmount\":25.00,\"reference\":\"DELIVERY-TRX-2026-01\"}";
+        String reviewer = tokenFor(operatorId);
+        Map<String, String> headers = Map.of("Idempotency-Key", decisionKey.toString());
+        HttpResponse<String> verified = post("/api/v1/operational/payment-evidence/" + evidenceId + "/decision",
+                reviewer, verificationBody, headers);
+
+        assertThat(verified.statusCode()).as("body %s", verified.body()).isEqualTo(200);
+        assertThat(body(verified).path("status").asText()).isEqualTo("VERIFIED");
+        UUID paymentId = jdbc.queryForObject("SELECT payment_id FROM wok.payment_evidence WHERE id = ?", UUID.class, evidenceId);
+        assertThat(jdbc.queryForObject("SELECT method FROM wok.payments WHERE id = ?", String.class, paymentId)).isEqualTo("TRANSFER");
+        assertThat(jdbc.queryForObject("SELECT amount FROM wok.payments WHERE id = ?", java.math.BigDecimal.class, paymentId))
+                .isEqualByComparingTo("25.00");
+
+        HttpResponse<String> replayed = post("/api/v1/operational/payment-evidence/" + evidenceId + "/decision",
+                reviewer, verificationBody, headers);
+        assertThat(replayed.statusCode()).isEqualTo(200);
+        assertThat(body(replayed).path("status").asText()).isEqualTo("VERIFIED");
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = ?", accountId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.payment_evidence_events WHERE payment_evidence_id = ? AND event_type = 'VERIFIED'", evidenceId)).isEqualTo(1);
+    }
+
+    @Test
     void removesStoredFileWhenEvidenceDatabaseTransactionRollsBack() throws Exception {
         var requestResponse = createTransferPickup();
         UUID requestId = UUID.fromString(body(requestResponse).path("requestId").asText());
