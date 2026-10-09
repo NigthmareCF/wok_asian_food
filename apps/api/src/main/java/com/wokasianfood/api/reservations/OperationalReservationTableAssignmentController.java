@@ -179,10 +179,10 @@ class ReservationTableAssignmentService {
 
         List<SelectedTable> selected = lockTables(tableIds);
         if (selected.size() != tableIds.size()) throw new AuthException(404, "No encontramos todas las mesas seleccionadas.");
-        if (selected.stream().anyMatch(table -> !table.active() || "UNAVAILABLE".equals(table.status())))
+        if (selected.stream().anyMatch(table -> !table.active()))
             throw new AuthException(409, "Una o más mesas están inactivas o no disponibles.");
-        if (selected.stream().anyMatch(table -> "OCCUPIED".equals(table.status())))
-            throw new AuthException(409, "Una mesa seleccionada está ocupada. Elige mesas libres para evitar asignar una mesa sin disponibilidad confirmada.");
+        if (selected.stream().anyMatch(table -> !"FREE".equals(table.status())))
+            throw new AuthException(409, "Una mesa seleccionada no está libre. Elige mesas con disponibilidad confirmada.");
         if (selected.stream().map(SelectedTable::zone).map(value -> value.toUpperCase(Locale.ROOT)).distinct().count() > 1)
             throw new AuthException(422, "Las mesas de una misma reserva deben pertenecer a la misma zona.");
         int capacity = selected.stream().mapToInt(SelectedTable::capacity).sum();

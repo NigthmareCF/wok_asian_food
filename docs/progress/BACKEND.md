@@ -925,3 +925,9 @@
 
 - Surefire ahora arranca con el JAR de Mockito como `-javaagent`, usando la versión y el repositorio local que Maven ya resuelve. Esto evita depender de auto-adjunción dinámica, que el sandbox y futuros JDKs pueden bloquear.
 - `bash ./mvnw test` pasa sin permisos ampliados: 345 pruebas reportadas, cero fallos/errores; 206 pruebas PostgreSQL/Testcontainers se omiten cuando el socket Docker no está disponible. En la ejecución previa con Docker habilitado, las 345 pruebas se ejecutaron sin omisiones sobre PostgreSQL 18/Flyway V1–V55.
+
+## 2026-10-09 — Asignación respeta todos los estados de mesa
+
+- El POST de asignación ahora acepta sólo mesas activas en estado `FREE`. Antes, la consulta GET las mostraba como no asignables cuando estaban `RESERVED` o `CLEANING`, pero el POST aún permitía insertarlas; ahora lectura y escritura aplican la misma regla transaccional.
+- `ReservationTableAssignmentIntegrationTest` pasa 8/8 con PostgreSQL 18 y Flyway V1–V55. La regresión comprueba que `RESERVED` y `CLEANING` devuelven 409 sin crear asignaciones, auditorías ni incrementar la versión de la reserva.
+- Suite completa posterior al cambio: 346 pruebas, cero fallos, errores u omitidas, con PostgreSQL 18/Testcontainers y Flyway V1–V55.

@@ -63,6 +63,29 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
     }
 
     @Test
+    void refusesTablesThatAreReservedOrBeingCleaned() throws Exception {
+        ReservationCase reservation = createConfirmedReservation(2);
+        UUID reservedTable = createTable("Mesa reservada " + UUID.randomUUID(), 4, "SALON");
+        UUID cleaningTable = createTable("Mesa en limpieza " + UUID.randomUUID(), 4, "SALON");
+        jdbc.update("UPDATE wok.dining_tables SET current_status = 'RESERVED' WHERE id = ?", reservedTable);
+        jdbc.update("UPDATE wok.dining_tables SET current_status = 'CLEANING' WHERE id = ?", cleaningTable);
+        try {
+            var reserved = assign(reservation, List.of(reservedTable), UUID.randomUUID());
+            var cleaning = assign(reservation, List.of(cleaningTable), UUID.randomUUID());
+            assertThat(reserved.statusCode()).as(reserved.body()).isEqualTo(409);
+            assertThat(cleaning.statusCode()).as(cleaning.body()).isEqualTo(409);
+            assertThat(count("SELECT count(*) FROM wok.reservation_table_assignments WHERE reservation_id = ?",
+                    reservation.id())).isZero();
+            assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'RESERVATION_TABLES_ASSIGNED'",
+                    reservation.id())).isZero();
+            assertThat(jdbc.queryForObject("SELECT row_version FROM wok.reservations WHERE id = ?", Integer.class,
+                    reservation.id())).isEqualTo(2);
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", reservation.hoursId());
+        }
+    }
+
+    @Test
     void databasePreventsOverlappingReservationsFromUsingTheSameTable() throws Exception {
         ReservationCase first = createConfirmedReservation(2);
         UUID tableId = createTable("Mesa exclusiva " + UUID.randomUUID(), 4, "SALON");
