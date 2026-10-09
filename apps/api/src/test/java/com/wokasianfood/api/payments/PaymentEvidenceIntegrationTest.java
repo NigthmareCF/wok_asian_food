@@ -89,16 +89,32 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
         assertThat(json.readTree(staffList.body()).findValuesAsText("id")).contains(evidenceId.toString());
 
         HttpResponse<String> cannotVerifyPendingRequest = post("/api/v1/operational/payment-evidence/" + evidenceId + "/decision",
-                tokenForRole("OPERATIONAL"), "{\"action\":\"VERIFY\",\"expectedVersion\":1,\"confirmedAmount\":10.00}");
+                tokenForRole("OPERATIONAL"), "{\"action\":\"VERIFY\",\"expectedVersion\":1,\"confirmedAmount\":10.00}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(cannotVerifyPendingRequest.statusCode()).isEqualTo(409);
         assertThat(jdbc.queryForObject("SELECT status FROM wok.payment_evidence WHERE id = ?", String.class, evidenceId)).isEqualTo("NEEDS_REVIEW");
         assertThat(count("SELECT count(*) FROM wok.payment_evidence WHERE id = ? AND payment_id IS NOT NULL", evidenceId)).isZero();
 
+        UUID decisionKey = UUID.randomUUID();
+        String reviewer = tokenForRole("OPERATIONAL");
+        String rejectionBody = "{\"action\":\"REJECT\",\"expectedVersion\":1,\"reason\":\"Referencia no coincide\"}";
         HttpResponse<String> rejected = post("/api/v1/operational/payment-evidence/" + evidenceId + "/decision",
-                tokenForRole("OPERATIONAL"), "{\"action\":\"REJECT\",\"expectedVersion\":1,\"reason\":\"Referencia no coincide\"}");
+                reviewer, rejectionBody,
+                Map.of("Idempotency-Key", decisionKey.toString()));
         assertThat(rejected.statusCode()).isEqualTo(200);
         assertThat(body(rejected).path("status").asText()).isEqualTo("REJECTED");
         assertThat(body(rejected).path("reviewReason").asText()).isEqualTo("Referencia no coincide");
+        HttpResponse<String> replayedRejection = post("/api/v1/operational/payment-evidence/" + evidenceId + "/decision",
+                reviewer, rejectionBody,
+                Map.of("Idempotency-Key", decisionKey.toString()));
+        assertThat(replayedRejection.statusCode()).isEqualTo(200);
+        assertThat(body(replayedRejection).path("status").asText()).isEqualTo("REJECTED");
+        assertThat(count("SELECT count(*) FROM wok.payment_evidence_events WHERE payment_evidence_id = ? AND event_type = 'REJECTED'", evidenceId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.idempotency_keys WHERE operation = 'PAYMENT_EVIDENCE_DECIDED' AND key = ?", decisionKey.toString())).isEqualTo(1);
+        HttpResponse<String> mismatchedReplay = post("/api/v1/operational/payment-evidence/" + evidenceId + "/decision",
+                reviewer, "{\"action\":\"REJECT\",\"expectedVersion\":1,\"reason\":\"Otro motivo distinto\"}",
+                Map.of("Idempotency-Key", decisionKey.toString()));
+        assertThat(mismatchedReplay.statusCode()).isEqualTo(409);
         HttpResponse<String> clientStatus = get("/api/v1/client/order-requests/" + requestId + "/payment-evidence", client);
         assertThat(body(clientStatus).get(0).path("reviewReason").asText()).isEqualTo("Referencia no coincide");
         HttpResponse<String> rejectedFileReplay = upload(requestId, UUID.randomUUID(), client, "image/png", PNG_1X1);
@@ -147,8 +163,11 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
                     decision_reason = 'ACCEPTED', order_id = ? WHERE id = ?
                 """, operatorId, orderId, requestId);
 
+        UUID decisionKey = UUID.randomUUID();
+        String verificationBody = "{\"action\":\"VERIFY\",\"expectedVersion\":1,\"confirmedAmount\":25.00,\"reference\":\"TRX-2026-01\"}";
         HttpResponse<String> verified = post("/api/v1/operational/payment-evidence/" + evidenceId + "/decision",
-                tokenFor(operatorId), "{\"action\":\"VERIFY\",\"expectedVersion\":1,\"confirmedAmount\":25.00,\"reference\":\"TRX-2026-01\"}");
+                tokenFor(operatorId), verificationBody,
+                Map.of("Idempotency-Key", decisionKey.toString()));
 
         assertThat(verified.statusCode()).as("body %s", verified.body()).isEqualTo(200);
         assertThat(body(verified).path("status").asText()).isEqualTo("VERIFIED");
@@ -156,6 +175,13 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT method FROM wok.payments WHERE id = ?", String.class, paymentId)).isEqualTo("TRANSFER");
         assertThat(jdbc.queryForObject("SELECT amount FROM wok.payments WHERE id = ?", java.math.BigDecimal.class, paymentId))
                 .isEqualByComparingTo("25.00");
+        HttpResponse<String> replayed = post("/api/v1/operational/payment-evidence/" + evidenceId + "/decision",
+                tokenFor(operatorId), verificationBody,
+                Map.of("Idempotency-Key", decisionKey.toString()));
+        assertThat(replayed.statusCode()).isEqualTo(200);
+        assertThat(body(replayed).path("status").asText()).isEqualTo("VERIFIED");
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = ?", accountId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.payment_evidence_events WHERE payment_evidence_id = ? AND event_type = 'VERIFIED'", evidenceId)).isEqualTo(1);
     }
 
     @Test

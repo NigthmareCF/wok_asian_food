@@ -1,6 +1,7 @@
 package com.wokasianfood.api.payments;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -101,8 +102,9 @@ class OperationalPaymentEvidenceController {
 
     @PostMapping("/{evidenceId}/decision")
     public PaymentEvidenceService.Receipt decide(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID evidenceId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @Valid @org.springframework.web.bind.annotation.RequestBody PaymentEvidenceService.DecisionRequest request) {
-        return evidence.decide(UUID.fromString(jwt.getSubject()), UUID.randomUUID(), evidenceId, request);
+        return evidence.decide(UUID.fromString(jwt.getSubject()), UUID.randomUUID(), evidenceId, idempotencyKey, request);
     }
 }
 
@@ -112,9 +114,11 @@ class PaymentEvidenceService {
     private final JdbcTemplate jdbc;
     private final PaymentEvidenceStorage storage;
     private final PaymentService payments;
+    private final IdempotencyStore idempotency;
 
-    PaymentEvidenceService(JdbcTemplate jdbc, PaymentEvidenceStorage storage, PaymentService payments) {
-        this.jdbc = jdbc; this.storage = storage; this.payments = payments;
+    PaymentEvidenceService(JdbcTemplate jdbc, PaymentEvidenceStorage storage, PaymentService payments,
+                           IdempotencyStore idempotency) {
+        this.jdbc = jdbc; this.storage = storage; this.payments = payments; this.idempotency = idempotency;
     }
 
     @Transactional
@@ -243,7 +247,14 @@ class PaymentEvidenceService {
     }
 
     @Transactional
-    Receipt decide(UUID actor, UUID requestId, UUID evidenceId, DecisionRequest decision) {
+    Receipt decide(UUID actor, UUID requestId, UUID evidenceId, UUID idempotencyKey, DecisionRequest decision) {
+        String fingerprint = fingerprint(evidenceId.toString(), decision.action().name(),
+                Integer.toString(decision.expectedVersion()), decision.confirmedAmount() == null ? null
+                        : decision.confirmedAmount().stripTrailingZeros().toPlainString(),
+                clean(decision.reference()), clean(decision.reason()));
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "PAYMENT_EVIDENCE_DECIDED",
+                idempotencyKey, fingerprint);
+        if (claim.replay()) return findReceipt(claim.resourceId());
         Evidence current = jdbc.query("""
             SELECT id, order_request_id, customer_user_id, status, row_version
             FROM wok.payment_evidence WHERE id = ? FOR UPDATE
@@ -252,6 +263,7 @@ class PaymentEvidenceService {
                 .stream().findFirst().orElseThrow(() -> new AuthException(404, "No encontramos ese comprobante."));
         if (!"NEEDS_REVIEW".equals(current.status())) {
             if (current.rowVersion() == decision.expectedVersion()) throw new AuthException(409, "El comprobante ya fue revisado.");
+            idempotency.complete(actor.toString(), "PAYMENT_EVIDENCE_DECIDED", idempotencyKey, evidenceId);
             return findReceipt(evidenceId);
         }
         if (current.rowVersion() != decision.expectedVersion()) throw new AuthException(409, "El comprobante cambió; actualiza la revisión.");
@@ -264,6 +276,7 @@ class PaymentEvidenceService {
                 """, decision.reason().trim(), actor, evidenceId, decision.expectedVersion());
             event(evidenceId, "REJECTED", actor, decision.reason().trim(), requestId);
             audit(actor, evidenceId, "PAYMENT_EVIDENCE_REJECTED", requestId);
+            idempotency.complete(actor.toString(), "PAYMENT_EVIDENCE_DECIDED", idempotencyKey, evidenceId);
             return findReceipt(evidenceId);
         }
         if (decision.confirmedAmount() == null || decision.confirmedAmount().signum() <= 0)
@@ -285,7 +298,22 @@ class PaymentEvidenceService {
             """, actor, captured.paymentId(), evidenceId, decision.expectedVersion());
         event(evidenceId, "VERIFIED", actor, null, requestId);
         audit(actor, evidenceId, "PAYMENT_EVIDENCE_VERIFIED", requestId);
+        idempotency.complete(actor.toString(), "PAYMENT_EVIDENCE_DECIDED", idempotencyKey, evidenceId);
         return findReceipt(evidenceId);
+    }
+
+    private static String fingerprint(String... values) {
+        StringBuilder canonical = new StringBuilder();
+        for (String value : values) {
+            if (value == null) {
+                canonical.append("-1:");
+                continue;
+            }
+            byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+            canonical.append(bytes.length).append(':').append(value);
+        }
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.toString().getBytes(StandardCharsets.UTF_8))); }
+        catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
 
     private RequestOwner request(UUID customerId, UUID requestId, boolean lock) {

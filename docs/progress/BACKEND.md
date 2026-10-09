@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Idempotencia explícita al revisar comprobantes
+
+- La decisión Operativa sobre una evidencia de transferencia ahora requiere `Idempotency-Key` y la registra en `wok.idempotency_keys`, con ámbito por actor y huella de recurso/acción/versión/datos de decisión. Repetir la misma solicitud devuelve el recibo original; reutilizar la clave con otra decisión responde conflicto.
+- La clave se completa dentro de la transacción que cambia el estado, registra auditoría y, al verificar, captura el pago. Un rollback revierte también el claim, por lo que un fallo no deja la operación atascada como completada.
+- `PaymentEvidenceIntegrationTest`: 4/4 con PostgreSQL 18/Testcontainers y Flyway V1–V52; cubre repetición de rechazo y verificación, ausencia de doble captura/evento y rechazo de payload distinto. `mvnw -DskipTests package` pasa. Suite completa: 71 suites / 312 pruebas, 0 fallos/errores/omitidas.
+
 ## 2026-10-08 — Aceptación Operativo concurrente de una solicitud
 
 - Dos usuarios Operativo aceptan simultáneamente la misma solicitud pickup. Ambos reciben `ACCEPTED` y el mismo `orderId`; exactamente una respuesta es la primera ejecución y la otra replay. PostgreSQL conserva una orden y un evento `ACCEPTED`.
