@@ -27,12 +27,14 @@ El backend emite un nonce criptográfico de un solo uso; la app lo pasa al SDK d
 `eas.json` define los perfiles `development` (development client) y `preview` (APK instalable, distribución interna). EAS Build no requiere Android SDK local, pero sí una cuenta Expo y un proyecto EAS vinculado. También se puede producir un APK local de preview sin Metro si Android SDK, Java y las dependencias nativas están instalados. Desde esta carpeta:
 
 ```bash
+export EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-DEL-BACKEND>:<PUERTO>
 npx expo prebuild --platform android --no-install
 cd android
-EXPO_PUBLIC_API_BASE_URL=http://<IP-LAN-DEL-BACKEND>:<PUERTO> \
-  ./gradlew --no-daemon --max-workers=4 \
+./gradlew --no-daemon --max-workers=4 \
   -PreactNativeArchitectures=arm64-v8a assembleRelease
 ```
+
+Define `EXPO_PUBLIC_API_BASE_URL` antes de `expo prebuild` y mantenla en el mismo entorno al compilar: el prebuild usa esta URL para configurar el permiso HTTP privado de Android y Gradle la incluye en el bundle JavaScript. Si cambias de host o esquema, vuelve a ejecutar ambos pasos.
 
 El APK queda en `android/app/build/outputs/apk/release/app-release.apk`. Gradle puede requerir más memoria en la primera compilación; si aparece `Java heap space`, reintenta con `-Dorg.gradle.jvmargs='-Xmx5g -XX:MaxMetaspaceSize=1g'`. Este perfil local es ARM64 y se firma con la clave de debug del proyecto para revisión interna: no es un artefacto de tienda ni de producción. Debe generarse de nuevo tras cambiar configuración o código.
 
