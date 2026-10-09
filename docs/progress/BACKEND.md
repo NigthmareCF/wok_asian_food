@@ -4,7 +4,7 @@
 
 - `POST /api/v1/operational/cash-sessions/{sessionId}/reconciliations` ahora requiere `Idempotency-Key`, calcula una huella de sesión/monto/notas normalizadas y completa el claim junto con el arqueo y su auditoría en la misma transacción.
 - El replay retorna el mismo arqueo aunque la caja ya se haya cerrado; reutilizar la clave con otro monto o notas devuelve 409. Esto evita duplicados por reintentos de red y preserva la bitácora financiera.
-- `CashSessionIntegrationTest`: 6/6 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V55; cubre replay, payload conflictivo y replay posterior al cierre. `git diff --check` limpio. No requiere migración.
+- `CashSessionIntegrationTest`: 7/7 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V55; cubre replay, payload conflictivo, replay posterior al cierre y dos requests concurrentes con una sola fila de arqueo/auditoría. `git diff --check` limpio. No requiere migración.
 
 ## 2026-10-08 — Solicitudes de cambio de modificadores en línea de pedido
 

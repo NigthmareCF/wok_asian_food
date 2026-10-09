@@ -7,7 +7,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -301,6 +304,53 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
                 tokenForRole("CLIENT"), """
                 {"countedCash":490.00}
                 """, Map.of("Idempotency-Key", UUID.randomUUID().toString())).statusCode()).isEqualTo(403);
+    }
+
+    @Test
+    void concurrentReplayOfTheSameIntermediateReconciliationCreatesOneRecord() throws Exception {
+        String token = tokenForRole("OPERATIONAL");
+        String code = uniqueCode("CAJA-RACE");
+        openRegister(code);
+        UUID sessionId = UUID.fromString(body(post("/api/v1/operational/cash-sessions", token, """
+                {"registerCode":"%s","openingFloat":125.00}
+                """.formatted(code), Map.of("Idempotency-Key", UUID.randomUUID().toString())))
+                .path("id").asText());
+        String path = "/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations";
+        String payload = """
+                {"countedCash":125.00,"notes":"Arqueo al cambio de turno"}
+                """;
+        String key = UUID.randomUUID().toString();
+        Map<String, String> headers = Map.of("Idempotency-Key", key);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, token, payload, headers);
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, token, payload, headers);
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            HttpResponse<String> firstResponse = first.get(15, TimeUnit.SECONDS);
+            HttpResponse<String> secondResponse = second.get(15, TimeUnit.SECONDS);
+            JsonNode firstReceipt = body(firstResponse);
+            JsonNode secondReceipt = body(secondResponse);
+
+            assertThat(List.of(firstResponse.statusCode(), secondResponse.statusCode()))
+                    .containsExactlyInAnyOrder(201, 201);
+            assertThat(firstReceipt.path("id").asText()).isEqualTo(secondReceipt.path("id").asText());
+            assertThat(count("SELECT count(*) FROM wok.cash_reconciliations WHERE cash_session_id = ? AND NOT is_final",
+                    sessionId)).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE action = 'CASH_RECONCILED' AND entity_id = ?",
+                    sessionId)).isEqualTo(1);
+        }
     }
 
     private void openRegister(String code) {
