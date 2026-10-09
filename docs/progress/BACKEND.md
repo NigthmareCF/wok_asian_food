@@ -937,3 +937,14 @@
 - El POST de asignación ahora acepta sólo mesas activas en estado `FREE`. Antes, la consulta GET las mostraba como no asignables cuando estaban `RESERVED` o `CLEANING`, pero el POST aún permitía insertarlas; ahora lectura y escritura aplican la misma regla transaccional.
 - `ReservationTableAssignmentIntegrationTest` pasa 8/8 con PostgreSQL 18 y Flyway V1–V55. La regresión comprueba que `RESERVED` y `CLEANING` devuelven 409 sin crear asignaciones, auditorías ni incrementar la versión de la reserva.
 - Suite completa posterior al cambio: 346 pruebas, cero fallos, errores u omitidas, con PostgreSQL 18/Testcontainers y Flyway V1–V55.
+
+## 2026-10-09 — Decisiones de reserva recuperables por clave idempotente
+
+- La decisión Operativa de reserva acepta `Idempotency-Key` opcional. Mismo actor/clave/payload devuelve el snapshot original incluso después de cambiar la reserva a `CONFIRMED` o `CANCELLED`; payload distinto con la misma clave responde 409. El identificador `X-Request-Id` puede cambiar entre reintentos sin repetir asignaciones, historial o auditoría.
+- No requiere migración: reutiliza `response_code` y `response_snapshot` de `wok.idempotency_keys`. La prueba HTTP con PostgreSQL cubre confirmación con mesa, pérdida/retry tras commit y divergencia de payload. Clientes Operativos aún pueden omitir la cabecera.
+- Pruebas focales: 15/15. Suite Maven completa: 350/350, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers aplicó Flyway V1–V55.
+
+## 2026-10-09 — Prueba adversarial de carga agregada entre productos
+
+- `ClientOrderQuoteIntegrationTest.distinctProductsSharingAPreparationStationUseOneAggregateEta` envía dos SKUs distintos de la misma estación; cada uno tarda 60 segundos y el horario solicitado deja margen para uno, pero no para ambos juntos. La API rechaza la cotización antes de persistirla, demostrando que no se puede repartir el carrito entre productos para evadir la ETA/capacidad agregada de estación.
+- Prueba focal `ClientOrderQuoteIntegrationTest`: 10/10; suite Maven completa: 351/351, cero fallos, errores u omitidas, PostgreSQL 18/Testcontainers y Flyway V1–V55.

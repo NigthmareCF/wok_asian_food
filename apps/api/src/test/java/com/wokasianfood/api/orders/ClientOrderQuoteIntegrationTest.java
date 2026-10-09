@@ -88,6 +88,28 @@ class ClientOrderQuoteIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void distinctProductsSharingAPreparationStationUseOneAggregateEta() {
+        UUID firstItem = seedMenuItem("Shared station item A", "10.00", "QUOTE_SHARED_CAPACITY", 60);
+        UUID secondItem = seedMenuItem("Shared station item B", "12.00", "QUOTE_SHARED_CAPACITY", 60);
+        UUID customerId = createUserWithRole("quote-shared-station-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        String client = tokenFor(customerId);
+        Instant requestedFor = Instant.now().plusSeconds(90);
+        String payload = """
+                {"fulfillmentType":"PICKUP","requestedFor":"%s","items":[
+                  {"menuItemId":"%s","quantity":1},
+                  {"menuItemId":"%s","quantity":1}
+                ]}
+                """.formatted(requestedFor, firstItem, secondItem);
+
+        HttpResponse<String> response = post("/api/v1/client/order-quotes", client, payload,
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(422);
+        assertThat(response.body()).contains("tiempo mínimo de preparación");
+        assertThat(count("SELECT count(*) FROM wok.order_quotes WHERE customer_user_id = ?", customerId)).isZero();
+    }
+
+    @Test
     void matchingQuoteIsConsumedWhenTheCustomerSubmitsAndStillCreatesOnlyPendingReview() throws Exception {
         UUID itemId = seedMenuItem("Accepted quote item", "22.00", "QUOTE_CONSUME_TEST", 30);
         String client = tokenForRole("CLIENT");
