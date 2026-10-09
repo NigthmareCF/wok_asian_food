@@ -1,4 +1,6 @@
 const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+export const API_REQUEST_TIMEOUT_MS = 30_000;
+const MULTIPART_REQUEST_TIMEOUT_MS = 90_000;
 
 export class ApiError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -20,31 +22,43 @@ async function trustedClientErrorMessage(response: Response): Promise<string | n
 export async function apiRequest<T>(path: string, options: RequestInit = {}, accessToken?: string): Promise<T> {
   if (!baseUrl) throw new ApiError("Configura EXPO_PUBLIC_API_BASE_URL para conectar con WOK.");
   let response: Response;
+  const controller = new AbortController();
+  const callerSignal = options.signal;
+  const forwardCallerAbort = () => controller.abort();
+  if (callerSignal?.aborted) forwardCallerAbort();
+  else callerSignal?.addEventListener("abort", forwardCallerAbort, { once: true });
+  const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const timeout = setTimeout(() => controller.abort(), isMultipart ? MULTIPART_REQUEST_TIMEOUT_MS : API_REQUEST_TIMEOUT_MS);
   try {
     response = await fetch(`${baseUrl}${path}`, {
       ...options,
+      signal: controller.signal,
       headers: {
         ...(typeof FormData !== "undefined" && options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...options.headers,
       },
     });
-  } catch {
+    if (!response.ok) {
+      const messages: Record<number, string> = {
+        401: "La sesión no es válida. Inicia sesión nuevamente.",
+        403: "Tu cuenta no tiene permiso para esta acción.",
+        409: "La información cambió. Revisa los datos e inténtalo de nuevo.",
+        422: "El restaurante no puede aceptar esta solicitud en ese horario.",
+        503: "Este servicio está temporalmente indisponible.",
+      };
+      const fallback = messages[response.status] ?? `No se pudo completar la solicitud (${response.status}).`;
+      throw new ApiError(await trustedClientErrorMessage(response) ?? fallback, response.status);
+    }
+    if (response.status === 204) return undefined as T;
+    return await response.json() as T;
+  } catch (cause) {
+    if (cause instanceof ApiError) throw cause;
     throw new ApiError("No pudimos confirmar la respuesta de WOK. Si estabas enviando una solicitud, revisa su estado antes de volver a intentarlo.");
+  } finally {
+    clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", forwardCallerAbort);
   }
-  if (!response.ok) {
-    const messages: Record<number, string> = {
-      401: "La sesión no es válida. Inicia sesión nuevamente.",
-      403: "Tu cuenta no tiene permiso para esta acción.",
-      409: "La información cambió. Revisa los datos e inténtalo de nuevo.",
-      422: "El restaurante no puede aceptar esta solicitud en ese horario.",
-      503: "Este servicio está temporalmente indisponible.",
-    };
-    const fallback = messages[response.status] ?? `No se pudo completar la solicitud (${response.status}).`;
-    throw new ApiError(await trustedClientErrorMessage(response) ?? fallback, response.status);
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
 }
 
 export type TokenPair = { accessToken: string; refreshToken: string; expiresInSeconds: number };
