@@ -90,7 +90,7 @@ describe("Client reservation session", () => {
     });
     const link = screen.getByRole("link", { name: "Sí" });
     link.addEventListener("click", (event) => event.preventDefault());
-    expect(link).toHaveAttribute("href", "/menu");
+    expect(link).toHaveAttribute("href", "/client/menu");
     fireEvent.click(link);
     view.unmount();
     mount();

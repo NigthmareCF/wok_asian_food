@@ -1,6 +1,7 @@
 package com.wokasianfood.api.orders;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.accounts.AccountFinancialTotalsService;
 import com.wokasianfood.api.inventory.InventoryReservationService;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import jakarta.validation.Valid;
@@ -129,13 +130,16 @@ class OrderService {
             rs.getInt("estimated_preparation_seconds"));
 
     private final JdbcTemplate jdbc;
+    private final AccountFinancialTotalsService financialTotals;
     private final IdempotencyStore idempotency;
     private final InventoryReservationService reservations;
 
-    OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency, InventoryReservationService reservations) {
+    OrderService(JdbcTemplate jdbc, IdempotencyStore idempotency, InventoryReservationService reservations,
+                 AccountFinancialTotalsService financialTotals) {
         this.jdbc = jdbc;
         this.idempotency = idempotency;
         this.reservations = reservations;
+        this.financialTotals = financialTotals;
     }
 
     public enum OrderStatus { SENT, PREPARING, READY, SERVED, CLOSED, CANCELLED }
@@ -278,11 +282,11 @@ class OrderService {
                 idempotencyKey, fingerprint);
         if (claim.replay()) return details(claim.resourceId());
 
+        Account account = lockOrderAccount(orderId);
         OrderRow order = lockOrder(orderId);
         if (order.status() == OrderStatus.SERVED || order.status() == OrderStatus.CLOSED
                 || order.status() == OrderStatus.CANCELLED)
             throw new AuthException(409, "El pedido ya no admite nuevos productos.");
-        Account account = lockAccount(order.accountId());
         if (!"OPEN".equals(account.status()))
             throw new AuthException(409, "La cuenta ya no admite productos nuevos.");
 
@@ -360,6 +364,7 @@ class OrderService {
     @Transactional
     public OrderSummary changeStatus(UUID actor, UUID requestId, UUID orderId,
                                      OperationalOrderController.StatusRequest request) {
+        Account account = lockOrderAccount(orderId);
         List<OrderStatus> rows = jdbc.query("""
             SELECT status FROM wok.orders WHERE id = ? FOR UPDATE
             """, (rs, row) -> OrderStatus.valueOf(rs.getString("status")), orderId);
@@ -369,6 +374,15 @@ class OrderService {
             throw new AuthException(409, "El pedido no puede pasar de " + current + " a " + request.status() + ".");
         if (request.expectedVersion() <= 0)
             throw new AuthException(422, "Revisa la versión del pedido.");
+        if (request.status() == OrderStatus.CLOSED) {
+            Integer pending = jdbc.queryForObject("""
+                SELECT count(*) FROM wok.orders
+                WHERE account_id = ? AND status NOT IN ('SERVED', 'CLOSED', 'CANCELLED')
+                """, Integer.class, account.id());
+            if (pending != null && pending > 0)
+                throw new AuthException(409, "La cuenta tiene pedidos todavía no servidos.");
+            financialTotals.totals(account.id()).requireSettled();
+        }
 
         int changed = jdbc.update("""
             UPDATE wok.orders
@@ -404,6 +418,14 @@ class OrderService {
                 request.expectedVersion() + 1, request.reason(), requestId);
 
         return summary(orderId);
+    }
+
+    // Account first: payments, new rounds and financial closing share this mutex.
+    private Account lockOrderAccount(UUID orderId) {
+        List<UUID> accounts = jdbc.query("SELECT account_id FROM wok.orders WHERE id = ?",
+                (rs, row) -> rs.getObject(1, UUID.class), orderId);
+        if (accounts.isEmpty()) throw new AuthException(404, "No encontramos el pedido.");
+        return lockAccount(accounts.getFirst());
     }
 
     private void reserveStock(UUID actor, UUID requestId, UUID orderId, List<NewLine> newLines) {

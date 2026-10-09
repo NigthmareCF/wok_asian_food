@@ -58,6 +58,11 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         assertThat(queue.get(0).path("estimatedReadyAt").isNull()).isFalse();
         assertThat(queue.get(0).path("diningTableName").asText()).isNotBlank();
         assertThat(queue.get(0).path("orderId").asText()).isEqualTo(orderId.toString());
+        assertThat(queue.get(0).path("items")).hasSize(1);
+        assertThat(queue.get(0).path("items").get(0).path("name").asText()).isEqualTo("Wok E2E");
+        assertThat(queue.get(0).path("items").get(0).path("quantity").asInt()).isEqualTo(2);
+        assertThat(queue.get(0).path("items").get(0).path("action").asText()).isEqualTo("NEW");
+        assertThat(queue.get(0).path("items").get(0).path("fulfillment").asText()).isEqualTo("DINE_IN");
 
         JsonNode claimed = body(post("/api/v1/operational/kitchen/tickets/" + ticketId + "/claim", token, null));
         assertThat(claimed.path("status").asText()).isEqualTo("PREPARING");
@@ -73,6 +78,14 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
 
         JsonNode served = changeOrderStatus(token, orderId, "SERVED");
         assertThat(served.path("status").asText()).isEqualTo("SERVED");
+        assertThat(patch("/api/v1/operational/orders/" + orderId + "/status", token,
+                """
+                {"status":"CLOSED","expectedVersion":%d}
+                """.formatted(served.path("rowVersion").asInt())).statusCode()).isEqualTo(409);
+        JsonNode paid = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                "{\"method\":\"TRANSFER\"}", Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(paid.path("amount").decimalValue()).isEqualByComparingTo("90.00");
+        assertThat(paid.path("balance").decimalValue()).isZero();
         JsonNode closedOrder = changeOrderStatus(token, orderId, "CLOSED");
         assertThat(closedOrder.path("status").asText()).isEqualTo("CLOSED");
         assertThat(closedOrder.path("closedAt").isNull()).isFalse();

@@ -1,6 +1,7 @@
 package com.wokasianfood.api.tables;
 
 import com.wokasianfood.api.identity.AuthException;
+import com.wokasianfood.api.accounts.AccountFinancialTotalsService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -79,8 +80,12 @@ public class OperationalTableController {
 @Service
 class TableService {
     private final JdbcTemplate jdbc;
+    private final AccountFinancialTotalsService financialTotals;
 
-    TableService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    TableService(JdbcTemplate jdbc, AccountFinancialTotalsService financialTotals) {
+        this.jdbc = jdbc;
+        this.financialTotals = financialTotals;
+    }
 
     List<TableView> list(String status, String zone, Boolean active) {
         String sql = """
@@ -148,6 +153,11 @@ class TableService {
         if (!"OCCUPIED".equals(current.status()))
             throw new AuthException(409, "La mesa no está ocupada.");
 
+        List<UUID> openAccounts = jdbc.query("""
+            SELECT id FROM wok.order_accounts
+            WHERE dining_table_id = ? AND status IN ('OPEN', 'IN_COBRO', 'PAID')
+            ORDER BY id FOR UPDATE
+            """, (rs, row) -> rs.getObject(1, UUID.class), tableId);
         Integer blocking = jdbc.queryForObject("""
             SELECT count(*) FROM wok.orders
             WHERE dining_table_id = ? AND status IN ('SENT', 'PREPARING', 'READY', 'SERVED')
@@ -155,12 +165,8 @@ class TableService {
         if (blocking != null && blocking > 0)
             throw new AuthException(409, "La mesa tiene pedidos que todavía no se han cerrado.");
 
-        List<UUID> openAccounts = jdbc.query("""
-            SELECT id FROM wok.order_accounts
-            WHERE dining_table_id = ? AND status IN ('OPEN', 'IN_COBRO', 'PAID')
-            FOR UPDATE
-            """, (rs, row) -> rs.getObject(1, UUID.class), tableId);
         for (UUID accountId : openAccounts) {
+            financialTotals.totals(accountId).requireSettled();
             jdbc.update("""
                 UPDATE wok.order_accounts
                 SET status = 'CLOSED', closed_at = now(), updated_at = now(), updated_by = ?, row_version = row_version + 1
@@ -176,7 +182,7 @@ class TableService {
         List<TableView> rows = jdbc.query("""
             SELECT t.id, t.name, t.capacity, t.zone, t.active, t.current_status, t.row_version, t.updated_at,
                    NULL::UUID AS account_id, NULL::TEXT AS account_name, NULL::TEXT AS account_status
-            FROM wok.dining_tables t WHERE t.id = ? FOR UPDATE
+            FROM wok.dining_tables t WHERE t.id = ? FOR NO KEY UPDATE
             """, (rs, row) -> new TableView(rs.getObject("id", UUID.class), rs.getString("name"),
                 rs.getInt("capacity"), rs.getString("zone"), rs.getBoolean("active"),
                 rs.getString("current_status"), rs.getInt("row_version"),

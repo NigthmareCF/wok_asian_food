@@ -1,11 +1,11 @@
-import { NewOrderView } from "@/modules/orders";
+import { OperationalOrderBuilder } from "@/modules/orders";
+import { requireContext } from "@/modules/auth/server/auth-session";
 
 type NewOrderPageProps = {
   searchParams: Promise<{
-    table?: string | string[];
-    tables?: string | string[];
     account?: string | string[];
     accountName?: string | string[];
+    orderId?: string | string[];
   }>;
 };
 
@@ -16,12 +16,14 @@ export default async function NewOrderPage({
   searchParams,
 }: NewOrderPageProps) {
   const params = await searchParams;
+  const user = await requireContext("operational");
   return (
-    <NewOrderView
-      initialJoinedTableNumbers={firstValue(params.tables)}
-      initialTableNumber={firstValue(params.table)}
-      initialAccountId={firstValue(params.account)}
-      initialAccountName={firstValue(params.accountName)}
+    <OperationalOrderBuilder
+      key={`${user.userId}:${firstValue(params.account)}:${firstValue(params.orderId) ?? "new"}`}
+      userId={user.userId}
+      accountId={firstValue(params.account)}
+      accountName={firstValue(params.accountName)}
+      orderId={firstValue(params.orderId)}
     />
   );
 }

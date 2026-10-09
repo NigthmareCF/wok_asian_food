@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
+import { useClientPickupResource } from "@/modules/client-order-tracking/use-client-pickup-resource";
 import {
   pickupStatusLabels,
   formatPickupMoney,
@@ -9,7 +9,7 @@ import { isDeliveryHistory, isDeliveryDetails } from "../client-contract";
 import { Button } from "@/shared/components/ui/button";
 import styles from "@/modules/checkout/components/checkout.module.css";
 export function ClientDeliveryHistory() {
-  const { data, error, reload } = usePickupResource(
+  const { data, error, reload } = useClientPickupResource(
     "/bff/delivery-requests",
     isDeliveryHistory,
   );
@@ -45,7 +45,7 @@ export function ClientDeliveryHistory() {
   );
 }
 export function ClientDeliveryDetail({ requestId }: { requestId: string }) {
-  const { data, error, reload } = usePickupResource(
+  const { data, error, reload } = useClientPickupResource(
     `/bff/delivery-requests/${requestId}`,
     isDeliveryDetails,
   );

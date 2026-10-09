@@ -6,6 +6,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createLiveCartStore, type LiveCartItem } from "./live-cart-storage";
+import { useClientIdentity } from "@/modules/clients/use-client-identity";
 
 type LiveCartContextValue = Pick<
   ReturnType<typeof createLiveCartStore>,
@@ -14,6 +15,7 @@ type LiveCartContextValue = Pick<
 const LiveCartContext = createContext<LiveCartContextValue | null>(null);
 
 export function LiveCartProvider({ children }: { children: React.ReactNode }) {
+  const { identity } = useClientIdentity();
   const [store] = useState(createLiveCartStore);
   const items = useSyncExternalStore(
     store.subscribe,
@@ -24,10 +26,11 @@ export function LiveCartProvider({ children }: { children: React.ReactNode }) {
     <LiveCartContext
       value={{
         items,
-        add: store.add,
-        setQuantity: store.setQuantity,
-        remove: store.remove,
-        complete: store.complete,
+        add: (product) => store.add(product, identity),
+        setQuantity: (id, quantity) =>
+          store.setQuantity(id, quantity, identity),
+        remove: (id) => store.remove(id, identity),
+        complete: (submitted) => store.complete(submitted, identity),
       }}
     >
       {children}
