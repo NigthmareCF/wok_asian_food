@@ -9,6 +9,8 @@ import java.math.BigDecimal;
 import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -124,6 +126,54 @@ class ClientPaymentIntentIntegrationTest extends PostgresIntegrationTest {
                 customer, "{}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(response.statusCode()).isEqualTo(409);
         assertThat(count("SELECT count(*) FROM wok.payment_intents WHERE order_id = ?", orderId)).isZero();
+    }
+
+    @Test
+    void concurrentIntentRequestsWithDifferentKeysReuseOnePendingIntent() throws Exception {
+        UUID menuItemId = seedMenuItem("Wok Concurrent Online Delivery", "42.00", "WOK_CONCURRENT_PAYMENT", 60);
+        String customer = tokenForRole("CLIENT");
+        String operator = tokenForRole("OPERATIONAL");
+        JsonNode request = body(post("/api/v1/client/delivery-requests", customer, """
+                {"requestedFor":"%s","address":"Zona 4, Ciudad de Guatemala",
+                 "contactPhone":"+502 5555-0199","paymentPreference":"ONLINE_PAYMENT_REQUESTED",
+                 "invoiceRequested":false,"items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(Instant.now().plusSeconds(1800), menuItemId),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID requestId = UUID.fromString(request.path("requestId").asText());
+        JsonNode accepted = body(post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
+                """
+                {"action":"ACCEPT"}
+                """));
+        UUID orderId = UUID.fromString(accepted.path("orderId").asText());
+        String path = "/api/v1/client/delivery-requests/" + requestId + "/payment-intents";
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, customer, "{}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post(path, customer, "{}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            var firstResponse = first.get(15, TimeUnit.SECONDS);
+            var secondResponse = second.get(15, TimeUnit.SECONDS);
+            assertThat(firstResponse.statusCode()).as(firstResponse.body()).isEqualTo(202);
+            assertThat(secondResponse.statusCode()).as(secondResponse.body()).isEqualTo(202);
+            assertThat(json.readTree(firstResponse.body()).path("intentId").asText())
+                    .isEqualTo(json.readTree(secondResponse.body()).path("intentId").asText());
+        }
+
+        assertThat(count("SELECT count(*) FROM wok.payment_intents WHERE order_id = ?", orderId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE event_type = 'PAYMENT_INTENT_CREATION_REQUESTED' AND aggregate_id = (SELECT id FROM wok.payment_intents WHERE order_id = ?) AND published_at IS NULL", orderId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id = (SELECT account_id FROM wok.orders WHERE id = ?)", orderId)).isZero();
     }
 
     private JsonNode body(HttpResponse<String> response) {

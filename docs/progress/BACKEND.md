@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-09 — Solicitudes concurrentes de intent de pago
+
+- Se agregó una prueba HTTP que inicia dos solicitudes de intent para la misma entrega aceptada, usando claves idempotentes distintas. PostgreSQL serializa por solicitud: ambas respuestas comparten el mismo intent, queda una sola fila y una sola tarea outbox.
+- La prueba también confirma que crear el intent no registra un pago ni cambia la cuenta a pagada. `ClientPaymentIntentIntegrationTest`: 3/3 pasó con PostgreSQL 18/Testcontainers y Flyway V1–V55; cero omitidas.
+- El primer intento dentro del sandbox omitió pruebas al no poder abrir Docker. La validación final se ejecutó con acceso al socket Docker y sí corrió la clase completa.
+
 ## 2026-10-09 — Apertura concurrente de hilo Cliente
 
 - La prueba HTTP `ClientMessagingHistoryIntegrationTest.concurrentOpenRequestsReturnTheSameActiveConversation` arranca dos `POST /api/v1/client/conversations` simultáneos para el mismo perfil. Ambas solicitudes devuelven el mismo ID y PostgreSQL conserva exactamente un hilo APP activo.
