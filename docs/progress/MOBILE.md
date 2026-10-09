@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Mensaje correcto ante respuesta de red incierta
+
+- El cliente API ya no afirma que una mutación “no se envió” cuando `fetch` falla: el corte puede ocurrir después de que Spring haya procesado la solicitud. Ahora informa que no se pudo confirmar la respuesta y recomienda consultar el estado antes de reintentar.
+- Se añadió regresión de red en `api.test.ts`. Verificación móvil: Vitest 27 archivos/121 pruebas, ESLint y TypeScript.
+- Esto corrige el mensaje común; la recuperación de operaciones concretas depende además de sus claves idempotentes/consultas de estado ya documentadas y no equivale a una E2E física.
+
 ## 2026-10-08 — Build Android ARM64 de tamaño reducido
 
 - Se generó un APK debug ARM64 para `com.anonymous.wokasianfood` (`/tmp/wok-client-arm64-debug.apk`), de 89 MiB, SHA-256 `11c12971eb3c3b21d41bb183a41145e710473a0cd14bdd6612834e8813054502`. El artefacto también está en `/tmp/wok-mobile-drop/` para servirlo localmente durante la revisión; no se agrega al repositorio.

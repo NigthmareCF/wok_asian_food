@@ -30,7 +30,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, acc
       },
     });
   } catch {
-    throw new ApiError("No pudimos conectar con WOK. Tu solicitud no se envió; intenta de nuevo cuando tengas conexión.");
+    throw new ApiError("No pudimos confirmar la respuesta de WOK. Si estabas enviando una solicitud, revisa su estado antes de volver a intentarlo.");
   }
   if (!response.ok) {
     const messages: Record<number, string> = {

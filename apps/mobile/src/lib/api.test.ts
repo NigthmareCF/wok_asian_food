@@ -57,6 +57,14 @@ describe("apiRequest error messages", () => {
     await expect(request).rejects.toMatchObject({ status: 401 });
   });
 
+  it("does not claim a mutation was not sent when the network response is uncertain", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("connection closed")));
+
+    await expect(apiRequest("/api/v1/client/order-requests", {
+      method: "POST", body: JSON.stringify({ items: [{ menuItemId: "item-1", quantity: 1 }] }),
+    })).rejects.toThrow("No pudimos confirmar la respuesta de WOK. Si estabas enviando una solicitud, revisa su estado antes de volver a intentarlo.");
+  });
+
   it("lets the browser set the multipart boundary when uploading evidence", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "evidence-1" }), {
       status: 201, headers: { "Content-Type": "application/json" },
