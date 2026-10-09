@@ -65,6 +65,7 @@ class CurrentUserAndCorsTest {
         assertTrue(configuration.getAllowedMethods().contains("POST"));
         assertTrue(configuration.getAllowedHeaders().contains("Authorization"));
         assertTrue(configuration.getAllowedHeaders().contains("Idempotency-Key"));
+        assertFalse(configuration.getAllowCredentials(), "Bearer-only API must not enable browser credentials/cookies across origins");
     }
 
     @Test

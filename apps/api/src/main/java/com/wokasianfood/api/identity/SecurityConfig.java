@@ -92,7 +92,7 @@ public class SecurityConfig {
         configuration.addAllowedMethod("PATCH");
         configuration.addAllowedMethod("DELETE");
         configuration.addAllowedMethod("OPTIONS");
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);

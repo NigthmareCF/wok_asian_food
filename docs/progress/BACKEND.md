@@ -827,3 +827,9 @@
 - La consulta sólo aplica a reservas `CONFIRMED` o `ARRIVED`, no bloquea ni asigna mesas y no sustituye la validación transaccional del POST; la constraint PostgreSQL sigue resolviendo carreras entre operadores. Mesas `OCCUPIED`, `CLEANING`, `RESERVED`, `UNAVAILABLE` o inactivas se explican con reason codes, salvo una asignación vigente de esa misma reserva.
 - `ReservationTableAssignmentIntegrationTest`: 7/7 pasó con PostgreSQL 18/Testcontainers y Flyway V1–V52. Comprueba mesa libre, traslape, estado ocupado, mesa inactiva, reserva pendiente, 404 y permiso. Suite completa: 75 suites / 327 pruebas, cero fallos, errores u omitidas; `git diff --check` limpio.
 - Revisión posterior: cuando ya existe una asignación vigente, la respuesta marca sus propias mesas y no sugiere sustituirlas con mesas libres; el flujo requiere usar primero la liberación explícita. La regresión y la suite completa se repitieron: 75 suites / 327 pruebas, cero fallos, errores u omitidas.
+
+## 2026-10-08 — CORS sin cookies cross-origin
+
+- La API es stateless y usa Bearer; el BFF de web conserva la sesión del navegador. Se desactivó `Access-Control-Allow-Credentials` en el backend para que los orígenes explícitos no reciban permiso para enviar cookies/credenciales del navegador a la API.
+- `CurrentUserAndCorsTest` verifica el allowlist, métodos/headers permitidos y que credenciales cross-origin permanezcan deshabilitadas. No cambia los flujos Bearer de app ni llamadas server-to-server del BFF.
+- `CurrentUserAndCorsTest`: 4/4. Suite completa: 75 suites / 327 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V52. `git diff --check` limpio.
