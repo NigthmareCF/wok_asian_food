@@ -37,4 +37,30 @@ class ClientSessionOwnershipIntegrationTest extends PostgresIntegrationTest {
                 + "WHERE session_id = ? AND event_type = 'CLIENT_SESSION_REVOKED'", Integer.class, foreignSession))
                 .isZero();
     }
+
+    @Test
+    void revokingCurrentSessionAlsoRevokesRefreshAndInvalidatesAccessToken() throws Exception {
+        UUID owner = createUserWithRole("session-self-revoke-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        String ownerToken = tokenFor(owner);
+        UUID currentSession = UUID.fromString(json.readTree(Base64.getUrlDecoder().decode(ownerToken.split("\\.")[1]))
+                .path("sid").asText());
+        UUID refreshId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO wok.refresh_tokens (id, session_id, token_hash, expires_at)
+            VALUES (?, ?, ?, now() + interval '1 day')
+            """, refreshId, currentSession, "a".repeat(64));
+
+        var revoke = send("DELETE", "/api/v1/client/sessions/" + currentSession, ownerToken, null,
+                java.util.Map.of());
+
+        assertThat(revoke.statusCode()).isEqualTo(204);
+        assertThat(jdbc.queryForObject("SELECT revoked_at FROM wok.auth_sessions WHERE id = ?",
+                java.sql.Timestamp.class, currentSession)).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT revoked_at FROM wok.refresh_tokens WHERE id = ?",
+                java.sql.Timestamp.class, refreshId)).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.security_events "
+                + "WHERE session_id = ? AND event_type = 'CLIENT_SESSION_REVOKED'", Integer.class, currentSession))
+                .isEqualTo(1);
+        assertThat(get("/api/v1/client/sessions", ownerToken).statusCode()).isEqualTo(401);
+    }
 }

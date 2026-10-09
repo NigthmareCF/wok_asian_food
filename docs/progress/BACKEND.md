@@ -812,4 +812,5 @@
 ## 2026-10-08 — Ownership HTTP de sesiones Cliente
 
 - `ClientSessionOwnershipIntegrationTest` comprueba con PostgreSQL que un cliente sólo liste su sesión propia y no pueda revocar la sesión de otro usuario (404); la sesión ajena y su auditoría de revocación permanecen intactas. No hubo cambios en lógica productiva ni en el esquema.
-- Prueba focal y suite completa aprobadas con PostgreSQL 18/Testcontainers y las 52 migraciones Flyway: 74 suites / 321 pruebas, cero fallos, errores u omitidas.
+- También verifica que revocar la sesión propia invalida inmediatamente el access token, revoca sus refresh tokens y registra un evento de seguridad.
+- Prueba focal 2/2 y suite completa aprobadas con PostgreSQL 18/Testcontainers y las 52 migraciones Flyway: 74 suites / 322 pruebas, cero fallos, errores u omitidas.
