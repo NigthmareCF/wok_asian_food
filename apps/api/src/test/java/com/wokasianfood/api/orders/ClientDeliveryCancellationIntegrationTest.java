@@ -47,6 +47,26 @@ class ClientDeliveryCancellationIntegrationTest extends PostgresIntegrationTest 
     }
 
     @Test
+    void deliveryHistoryAndDetailsAreRestrictedToTheAuthenticatedCustomer() throws Exception {
+        UUID ownerId = createUserWithRole("delivery-history-owner-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID otherId = createUserWithRole("delivery-history-other-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID ownedRequestId = createRequest(ownerId, "DELIVERY", "PENDING_REVIEW");
+        UUID foreignRequestId = createRequest(otherId, "DELIVERY", "PENDING_REVIEW");
+
+        JsonNode ownerHistory = body(get("/api/v1/client/delivery-requests", tokenFor(ownerId)).body());
+        JsonNode otherHistory = body(get("/api/v1/client/delivery-requests", tokenFor(otherId)).body());
+
+        assertThat(ownerHistory).hasSize(1);
+        assertThat(ownerHistory.get(0).path("requestId").asText()).isEqualTo(ownedRequestId.toString());
+        assertThat(otherHistory).hasSize(1);
+        assertThat(otherHistory.get(0).path("requestId").asText()).isEqualTo(foreignRequestId.toString());
+        assertThat(get("/api/v1/client/delivery-requests/" + ownedRequestId, tokenFor(otherId)).statusCode())
+                .isEqualTo(404);
+        assertThat(get("/api/v1/client/delivery-requests/" + foreignRequestId, tokenFor(ownerId)).statusCode())
+                .isEqualTo(404);
+    }
+
+    @Test
     void acceptedDeliveryCannotBeCancelledByCustomer() {
         UUID customerId = createUserWithRole("delivery-owner-" + UUID.randomUUID() + "@wok.test", "CLIENT");
         UUID requestId = createRequest(customerId, "DELIVERY", "ACCEPTED");

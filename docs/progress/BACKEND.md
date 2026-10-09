@@ -799,3 +799,8 @@
 
 - `ClientMessagingHistoryIntegrationTest` verifica por HTTP que el dueño ve su hilo y que otro CLIENT no ve ese hilo en su historial, no puede leer los mensajes ni enviar uno al hilo aunque conozca su UUID. Las solicitudes ajenas devuelven 404 y no crean filas de mensaje.
 - Prueba focal 2/2 con PostgreSQL 18/Testcontainers y Flyway V1–V52 desde esquema vacío; cero fallos, errores u omitidas. No cambió lógica productiva ni esquema.
+
+## 2026-10-08 — Ownership A/B en solicitudes delivery
+
+- `ClientDeliveryCancellationIntegrationTest` comprueba que los historiales de dos clientes sólo contengan sus propias solicitudes y que ninguno pueda abrir el detalle delivery del otro; el endpoint ajeno devuelve 404.
+- Prueba focal 5/5 con PostgreSQL 18/Testcontainers y Flyway V1–V52 desde esquema vacío; cero fallos, errores u omitidas. El backend ya filtraba por usuario; esta cobertura fija las consultas de lista y detalle.
