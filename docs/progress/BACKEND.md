@@ -4,7 +4,7 @@
 
 - La revisión Operativa puede consultar opciones mientras una solicitud está `REQUESTED`. Al confirmar, debe enviar explícitamente una o varias mesas elegidas; en una sola transacción el backend valida que estén activas/libres, en la misma zona, que alcancen la capacidad, que no exista otra asignación en el intervalo y que el horario siga vigente, y luego registra la asignación, transición de estado e historial/auditoría.
 - Si falta una mesa, cambió su estado o la restricción temporal detecta una carrera, la confirmación se revierte y la solicitud permanece pendiente. No se infiere un plano ni se asignan mesas automáticamente. El endpoint de asignación posterior sigue disponible para reservas confirmadas que requieran cambio explícito.
-- `ReservationTableAssignmentIntegrationTest` y `ReservationReviewScheduleIntegrationTest`: 11/11 pruebas focales aprobadas con PostgreSQL 18/Testcontainers y Flyway V1–V55. Suite completa: 346/346, cero fallos, errores u omitidas.
+- Dos confirmaciones HTTP simultáneas sobre la misma mesa dejan una reserva confirmada, una asignación activa y una sola auditoría; la segunda respuesta es conflicto y su solicitud permanece pendiente. `ReservationTableAssignmentIntegrationTest` y `ReservationReviewScheduleIntegrationTest`: 12/12 pruebas focales aprobadas con PostgreSQL 18/Testcontainers y Flyway V1–V55. Suite completa: 347/347, cero fallos, errores u omitidas.
 
 ## 2026-10-09 — Lease vencido de emisión FEL pasa a conciliación
 

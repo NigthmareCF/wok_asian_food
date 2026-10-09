@@ -112,6 +112,43 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
     }
 
     @Test
+    void concurrentConfirmationsForTheSameTableLeaveOnlyOneReservationConfirmed() throws Exception {
+        ReservationCase first = createPendingReservation(2);
+        ReservationCase second = createPendingReservation(2, first.startsAt());
+        UUID tableId = createTable("Mesa confirmación concurrente " + UUID.randomUUID(), 4, "SALON");
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var ready = new java.util.concurrent.CountDownLatch(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try {
+            var firstAttempt = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return confirm(first, List.of(tableId));
+            });
+            var secondAttempt = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return confirm(second, List.of(tableId));
+            });
+            assertThat(ready.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            var results = List.of(firstAttempt.get(), secondAttempt.get());
+            assertThat(results.stream().map(java.net.http.HttpResponse::statusCode).toList())
+                    .containsExactlyInAnyOrder(200, 409);
+            assertThat(count("SELECT count(*) FROM wok.reservations WHERE id IN (?, ?) AND status = 'CONFIRMED'",
+                    first.id(), second.id())).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.reservation_table_assignments WHERE table_id = ? AND released_at IS NULL",
+                    tableId)).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE action = 'RESERVATION_TABLES_ASSIGNED' "
+                    + "AND entity_id IN (?, ?)", first.id(), second.id())).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", first.hoursId());
+        }
+    }
+
+    @Test
     void releasesAssignmentsIdempotentlyAndMakesTheTableAvailableAgain() throws Exception {
         ReservationCase first = createPendingReservation(2);
         ReservationCase second = createPendingReservation(2, first.startsAt());
@@ -318,6 +355,10 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
 
     private int count(String sql, UUID value) {
         return jdbc.queryForObject(sql, Integer.class, value);
+    }
+
+    private int count(String sql, UUID first, UUID second) {
+        return jdbc.queryForObject(sql, Integer.class, first, second);
     }
 
     private record ReservationCase(UUID hoursId, UUID id, String staffToken, Instant startsAt, Instant endsAt) {}
