@@ -321,3 +321,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Propuesta concreta en docs/project/BARRERA_PROPUESTA_CUENTAS_PEDIDOS.md: primera entrega con un único GET BFF de cuenta y panel operativo dentro de detalle de mesa; conserva backend/transporte y excluye responsabilidades financieras de Beto.
 - Creación de pedidos queda como entrega posterior con POST orders y GET detalle; PATCH y cocina no se incluyen en la aprobación inicial.
 - Estado: propuesta lista para aprobación del usuario por restricción expresa de no crear rutas BFF. No implementado; sin pruebas nuevas, registros, commit, push ni despliegue.
+
+## 2026-10-08 — Corrección autorizada de dependencias para PR #39
+
+- Se reutilizó exclusivamente la actualización de dependencias de 6df0ed4: Next/eslint-config-next 16.3.8, sharp 0.35.5, shell-quote 1.12.0 y source-map-js 1.2.2 con su lockfile. No se incorporaron cambios funcionales de otra rama.
+- npm ci completado. Auditoría de producción aprobada: ninguna alerta alta/crítica fuera de las excepciones ya documentadas. No se ampliaron excepciones ni se cambió CI. En Windows se utilizó WOK_NPM_CLI_PATH, opción existente del script, por spawnSync npm.cmd EINVAL.
+- Validación: 6 pruebas del auditor, 412 pruebas web, lint web, build/TypeScript web, lint y typecheck móvil aprobados. No se ejecutaron nuevamente pruebas Java; el cambio es de dependencias JavaScript.
+- Cambio autorizado expresamente por el usuario para corregir y subir al mismo PR. Archivo generado next-env.d.ts preservado fuera del commit.
