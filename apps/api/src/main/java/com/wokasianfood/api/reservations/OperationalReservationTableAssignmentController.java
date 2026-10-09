@@ -113,6 +113,10 @@ class ReservationTableAssignmentService {
         List<TableOption> tables = jdbc.query("""
             SELECT t.id, t.name, t.capacity, t.zone, t.active, t.current_status,
                    EXISTS (
+                       SELECT 1 FROM wok.reservation_table_assignments current_assignment
+                       WHERE current_assignment.reservation_id = ? AND current_assignment.released_at IS NULL
+                   ) AS reservation_has_assignments,
+                   EXISTS (
                        SELECT 1 FROM wok.reservation_table_assignments a
                        WHERE a.table_id = t.id AND a.released_at IS NULL
                          AND a.reservation_id = ?
@@ -126,19 +130,21 @@ class ReservationTableAssignmentService {
             FROM wok.dining_tables t
             ORDER BY upper(t.zone), t.name, t.id
             """, (rs, row) -> {
+                boolean reservationHasAssignments = rs.getBoolean("reservation_has_assignments");
                 boolean assigned = rs.getBoolean("assigned_to_reservation");
                 boolean active = rs.getBoolean("active");
                 String status = rs.getString("current_status");
                 boolean conflict = rs.getBoolean("has_schedule_conflict");
                 String reason = !active ? "INACTIVE"
+                        : assigned ? "ALREADY_ASSIGNED_TO_RESERVATION"
+                        : reservationHasAssignments ? "RESERVATION_ALREADY_ASSIGNED"
                         : conflict ? "SCHEDULE_CONFLICT"
-                        : assigned ? null
                         : !"FREE".equals(status) ? "TABLE_NOT_FREE"
                         : null;
                 return new TableOption(
                         rs.getObject("id", UUID.class), rs.getString("name"), rs.getInt("capacity"),
                         rs.getString("zone"), status, assigned, reason == null, reason);
-            }, reservationId, reservationId, Timestamp.from(reservation.startsAt()), Timestamp.from(occupiedUntil));
+            }, reservationId, reservationId, reservationId, Timestamp.from(reservation.startsAt()), Timestamp.from(occupiedUntil));
         return new TableOptions(reservation.id(), reservation.status(),
                 reservation.version(), reservation.partySize(), reservation.startsAt(), occupiedUntil, tables);
     }

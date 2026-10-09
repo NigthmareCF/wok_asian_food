@@ -158,6 +158,12 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
             jdbc.update("UPDATE wok.dining_tables SET current_status = 'OCCUPIED' WHERE id = ?", occupiedTable);
             jdbc.update("UPDATE wok.dining_tables SET active = false WHERE id = ?", inactiveTable);
 
+            JsonNode existingAssignment = json.readTree(get("/api/v1/operational/reservations/" + first.id()
+                    + "/table-assignment-options", first.staffToken()).body());
+            assertThat(option(existingAssignment.path("tables"), conflictingTable).path("assignedToReservation").asBoolean()).isTrue();
+            assertThat(option(existingAssignment.path("tables"), freeTable).path("unavailableReason").asText())
+                    .isEqualTo("RESERVATION_ALREADY_ASSIGNED");
+
             String path = "/api/v1/operational/reservations/" + second.id() + "/table-assignment-options";
             var response = get(path, second.staffToken());
             assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
