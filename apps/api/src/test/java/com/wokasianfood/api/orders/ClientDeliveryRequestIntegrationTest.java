@@ -13,6 +13,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -105,6 +107,63 @@ class ClientDeliveryRequestIntegrationTest extends PostgresIntegrationTest {
         var conflictingReplay = post(path, token, payload.replace("5555 0101", "5555 0202"), headers);
         assertThat(conflictingReplay.statusCode()).isEqualTo(409);
         assertThat(count("SELECT count(*) FROM wok.order_requests WHERE customer_user_id = ?", customerId)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentDeliverySubmissionsWithSameKeyCreateOnlyOneRequest() throws Exception {
+        UUID itemId = seedMenuItem("Concurrent delivery item", "9.25", "DELIVERY_CONCURRENT_TEST", 30);
+        UUID customerId = createUserWithRole("delivery-concurrent-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        overrideActor = createUserWithRole("delivery-concurrent-staff-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        overrideDate = LocalDate.now(RESTAURANT_ZONE).plusDays(11);
+        Instant requestedFor = overrideDate.atTime(18, 0).atZone(RESTAURANT_ZONE).toInstant();
+        jdbc.update("""
+            INSERT INTO wok.business_hours_overrides
+                (service_type, service_date, is_open, opens_at, closes_at, timezone_name, reason, expires_at,
+                 created_by, updated_by)
+            VALUES ('DELIVERY', ?, true, ?, ?, 'America/Guatemala', 'Ventana de prueba concurrente', ?, ?, ?)
+            """, overrideDate, LocalTime.MIDNIGHT, LocalTime.of(23, 59, 59),
+                Timestamp.from(overrideDate.plusDays(1).atStartOfDay(RESTAURANT_ZONE).toInstant()),
+                overrideActor, overrideActor);
+
+        String token = tokenFor(customerId);
+        UUID key = UUID.randomUUID();
+        String payload = """
+            {"requestedFor":"%s","address":"Dirección de prueba","contactPhone":"5555 0101",
+             "paymentPreference":"CASH_ON_DELIVERY","invoiceRequested":false,
+             "items":[{"menuItemId":"%s","quantity":2}]}
+            """.formatted(requestedFor, itemId);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post("/api/v1/client/delivery-requests", token, payload,
+                        Map.of("Idempotency-Key", key.toString()));
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return post("/api/v1/client/delivery-requests", token, payload,
+                        Map.of("Idempotency-Key", key.toString()));
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            var firstResponse = first.get(10, TimeUnit.SECONDS);
+            var secondResponse = second.get(10, TimeUnit.SECONDS);
+            assertThat(firstResponse.statusCode()).as(firstResponse.body()).isEqualTo(202);
+            assertThat(secondResponse.statusCode()).as(secondResponse.body()).isEqualTo(202);
+
+            UUID firstId = UUID.fromString(json.readTree(firstResponse.body()).path("requestId").asText());
+            UUID secondId = UUID.fromString(json.readTree(secondResponse.body()).path("requestId").asText());
+            assertThat(firstId).isEqualTo(secondId);
+            assertThat(count("SELECT count(*) FROM wok.order_requests WHERE customer_user_id = ? AND idempotency_key = ?",
+                    customerId, key)).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.order_request_items WHERE order_request_id = ?", firstId)).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.order_request_events WHERE order_request_id = ? AND event_type = 'SUBMITTED'",
+                    firstId)).isEqualTo(1);
+        }
     }
 
     private UUID seedMenuItem(String name, String price, String stationCode, int preparationSeconds) {

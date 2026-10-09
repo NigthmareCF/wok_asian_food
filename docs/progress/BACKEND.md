@@ -3,7 +3,8 @@
 ## 2026-10-08 — Autoridad backend e idempotencia en solicitudes de delivery
 
 - `ClientDeliveryRequestIntegrationTest` verifica con PostgreSQL/Testcontainers que crear una solicitud `DELIVERY` derive del token el propietario, del catálogo el precio y mantenga el ciclo `PENDING_REVIEW`, aunque el payload intente falsificar propietario, modalidad, subtotal, estados de pago/pedido y un ID de orden.
-- La prueba confirma subtotal Q27.00 para dos unidades de Q13.50, que la solicitud no crea todavía una orden, y que repetir `Idempotency-Key` retorna el mismo recurso/evento. Reutilizar la clave con otro contacto devuelve 409 sin duplicar solicitud.
+- La prueba confirma subtotal Q27.00 para dos unidades de Q13.50, que la solicitud no crea todavía una orden, y que repetir `Idempotency-Key` retorna el mismo recurso/evento. Reutilizar la clave con otro contacto devuelve 409 sin duplicar solicitud. Dos requests HTTP simultáneos con la misma clave retornan el mismo ID y dejan una sola solicitud, línea y evento `SUBMITTED`.
+- Prueba focal: 2/2; suite completa: 76 suites / 336 pruebas, cero fallos, errores u omisiones con PostgreSQL 18/Testcontainers y Flyway V1–V55. `git diff --check` limpio.
 - Esto añade evidencia de integración para creación de delivery; no cambia código productivo ni resuelve todavía la evaluación completa de capacidad, pago o asignación real de reparto.
 
 ## 2026-10-08 — Idempotencia de arqueos intermedios de caja
