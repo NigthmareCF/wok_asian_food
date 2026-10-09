@@ -69,6 +69,50 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
     }
 
     @Test
+    void confirmationRequiresExplicitTablesButRejectionDoesNot() throws Exception {
+        ReservationCase reservation = createPendingReservation(2);
+        try {
+            var missingTables = send("PUT", "/api/v1/operational/reservations/" + reservation.id() + "/decision",
+                    reservation.staffToken(), """
+                        {"decision":"CONFIRM","reason":"Capacidad revisada","expectedVersion":1}
+                        """, Map.of());
+            assertThat(missingTables.statusCode()).as(missingTables.body()).isEqualTo(422);
+            assertThat(jdbc.queryForObject("SELECT status FROM wok.reservations WHERE id = ?", String.class,
+                    reservation.id())).isEqualTo("REQUESTED");
+            assertThat(count("SELECT count(*) FROM wok.reservation_table_assignments WHERE reservation_id = ?",
+                    reservation.id())).isZero();
+
+            var rejected = send("PUT", "/api/v1/operational/reservations/" + reservation.id() + "/decision",
+                    reservation.staffToken(), """
+                        {"decision":"REJECT","reason":"El cliente debe elegir otra hora","expectedVersion":1}
+                        """, Map.of());
+            assertThat(rejected.statusCode()).as(rejected.body()).isEqualTo(200);
+            assertThat(json.readTree(rejected.body()).path("status").asText()).isEqualTo("CANCELLED");
+            assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? "
+                    + "AND action = 'RESERVATION_TABLES_ASSIGNED'", reservation.id())).isZero();
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", reservation.hoursId());
+        }
+    }
+
+    @Test
+    void refusesConfirmingTablesFromDifferentZones() throws Exception {
+        ReservationCase reservation = createPendingReservation(3);
+        UUID firstTable = createTable("Mesa salón " + UUID.randomUUID(), 2, "SALON");
+        UUID secondTable = createTable("Mesa terraza " + UUID.randomUUID(), 2, "TERRAZA");
+        try {
+            var response = confirm(reservation, List.of(firstTable, secondTable));
+            assertThat(response.statusCode()).as(response.body()).isEqualTo(422);
+            assertThat(jdbc.queryForObject("SELECT status FROM wok.reservations WHERE id = ?", String.class,
+                    reservation.id())).isEqualTo("REQUESTED");
+            assertThat(count("SELECT count(*) FROM wok.reservation_table_assignments WHERE reservation_id = ?",
+                    reservation.id())).isZero();
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", reservation.hoursId());
+        }
+    }
+
+    @Test
     void refusesTablesThatAreReservedOrBeingCleaned() throws Exception {
         ReservationCase reservation = createPendingReservation(2);
         UUID reservedTable = createTable("Mesa reservada " + UUID.randomUUID(), 4, "SALON");
