@@ -246,7 +246,7 @@ export type DeliveryRequestBody = {
   address: string;
   reference?: string;
   contactPhone: string;
-  paymentPreference: "CASH_ON_DELIVERY" | "ONLINE_PAYMENT_REQUESTED";
+  paymentPreference: "CASH_ON_DELIVERY" | "TRANSFER_IN_ADVANCE" | "ONLINE_PAYMENT_REQUESTED";
   invoiceRequested: boolean;
   invoiceName?: string;
   invoiceTaxId?: string;

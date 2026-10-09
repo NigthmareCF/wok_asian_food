@@ -499,7 +499,9 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         <Button title={selectedAddress ? "Actualizar dirección guardada" : "Guardar dirección en mi cuenta"} secondary busy={savingAddress} disabled={!address.trim() || !isValidGuatemalaPhone(contactPhone)} onPress={() => void saveAddress()} />
       </View> : null}
       <Button title="Efectivo al recibir" secondary={paymentPreference !== "CASH_ON_DELIVERY"} onPress={() => setPaymentPreference("CASH_ON_DELIVERY")} />
+      <Button title="Transferencia anticipada" secondary={paymentPreference !== "TRANSFER_IN_ADVANCE"} onPress={() => setPaymentPreference("TRANSFER_IN_ADVANCE")} />
       <Button title="Solicitar pago en línea" secondary={paymentPreference !== "ONLINE_PAYMENT_REQUESTED"} onPress={() => setPaymentPreference("ONLINE_PAYMENT_REQUESTED")} />
+      {paymentPreference === "TRANSFER_IN_ADVANCE" ? <Notice>Después de enviar la solicitud, adjunta el comprobante desde Pedidos. El equipo debe revisar la transferencia; la imagen no confirma el pago.</Notice> : null}
       {paymentPreference === "ONLINE_PAYMENT_REQUESTED" ? <Notice>Esta opción sólo registra tu preferencia. El cobro en línea no está habilitado aquí.</Notice> : null}
       <Button title={invoiceRequested ? "Quitar solicitud de factura" : "Solicitar factura"} secondary={!invoiceRequested} onPress={() => setInvoiceRequested((current) => !current)} />
       {invoiceRequested ? <View style={ui.section}>
@@ -575,7 +577,9 @@ function formatMoney(value: number, currency: string) {
 }
 
 function paymentLabel(value: DeliveryRequestBody["paymentPreference"]) {
-  return value === "CASH_ON_DELIVERY" ? "efectivo al recibir" : "solicitud de pago en línea";
+  if (value === "CASH_ON_DELIVERY") return "efectivo al recibir";
+  if (value === "TRANSFER_IN_ADVANCE") return "transferencia anticipada";
+  return "solicitud de pago en línea";
 }
 
 function requestStatus(value: DeliveryRequestReceipt["status"]) {

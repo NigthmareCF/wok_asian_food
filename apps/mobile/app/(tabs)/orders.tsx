@@ -49,6 +49,7 @@ function pickupPaymentLabel(value: PickupRequestState["paymentPreference"]) {
   return value === "CASH_AT_PICKUP" ? "Efectivo al recoger" : "Sin preferencia registrada";
 }
 function deliveryPaymentLabel(value: DeliveryRequestReceipt["paymentPreference"]) {
+  if (value === "TRANSFER_IN_ADVANCE") return "Transferencia anticipada";
   return value === "ONLINE_PAYMENT_REQUESTED" ? "Cobro online solicitado" : "Efectivo contra entrega";
 }
 
@@ -405,6 +406,9 @@ function OrderHistory() {
             <Notice>La solicitud aún no es un pedido aceptado y no se ha cobrado.</Notice>
             <Button title="Cancelar solicitud" secondary busy={cancelling === item.requestId} disabled={Boolean(cancelling)} onPress={() => void cancel(item.requestId)} />
           </> : null}
+          {item.paymentPreference === "TRANSFER_IN_ADVANCE"
+            && (item.status === "PENDING_REVIEW" || item.status === "ACCEPTED")
+            ? <TransferEvidencePanel requestId={item.requestId} request={request} /> : null}
           <Link href="/delivery" style={ui.link}>Ver formulario y detalle de delivery</Link>
         </Card>)}
         <Button title="Actualizar delivery" secondary busy={deliveryLoading} onPress={() => void Promise.all([refreshDelivery(), refreshChangeRequests()])} />
