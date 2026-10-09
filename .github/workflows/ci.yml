@@ -44,6 +44,7 @@ jobs:
 
       - name: Revisar aplicacion movil
         run: |
+          npm run test --workspace mobile --if-present
           npm run lint --workspace mobile
           npm run typecheck --workspace mobile
 

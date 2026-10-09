@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-09 — Suite móvil incorporada al CI compartido
+
+- El job JavaScript de CI ahora ejecuta las pruebas Vitest de la app si el workspace ya incluye el script `test`, además de lint y typecheck. El uso de `--if-present` permite que ramas anteriores al arnés móvil sigan validándose sin fallar por un script ausente; al integrar la rama móvil, el job ejecutará su suite.
+- Se verificó el YAML del workflow y el mismo comando en el checkout backend (donde aún no existe el script móvil). En la rama móvil vigente, las 135 pruebas, lint y typecheck pasan; la evidencia está en `docs/progress/MOBILE.md`.
+
 ## 2026-10-09 — Confirmación de reserva y asignación atómica de mesas
 
 - La revisión Operativa puede consultar opciones mientras una solicitud está `REQUESTED`. Al confirmar, debe enviar explícitamente una o varias mesas elegidas; en una sola transacción el backend valida que estén activas/libres, en la misma zona, que alcancen la capacidad, que no exista otra asignación en el intervalo y que el horario siga vigente, y luego registra la asignación, transición de estado e historial/auditoría.
