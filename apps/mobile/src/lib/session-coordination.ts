@@ -31,6 +31,7 @@ export function createRefreshTokenCoordinator<T>(
     clear() {
       generation += 1;
       recent = null;
+      inFlight.clear();
     },
   };
 }

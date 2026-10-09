@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-09 — Aislamiento de refresh al cambiar de sesión
+
+- `clear()` del coordinador de refresh ahora vacía también las promesas en vuelo. Si una sesión se cierra y otra vuelve a usar el mismo token antes de que termine la llamada anterior, la nueva sesión inicia su propia rotación y no comparte la respuesta antigua.
+- Se agregó una prueba que resuelve ambas rotaciones en orden inverso y confirma que la respuesta de la sesión anterior no borra ni sustituye la rotación actual.
+- Verificación: Vitest pasó 136/136; ESLint, TypeScript y `git diff --check` finalizaron correctamente. El fetch remoto no pudo completarse: SSH rechaza permisos de su configuración del sistema y HTTPS no resuelve `github.com` en este entorno.
+
 ## 2026-10-09 — APK Android recompilado con selección de modificadores actualizada
 
 - `assembleRelease` ARM64 compiló el commit `680e8a0` correctamente con Gradle 9.3.1, Android SDK 36 y NDK 27.1. El APK local ignorado por Git mide 44,332,267 bytes; SHA-256 `cec0c17546508feb1c2debe871787c817268d5344c394bbd057e25fb03731fc4`. `apksigner verify` confirmó la firma.

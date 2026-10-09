@@ -60,6 +60,28 @@ describe("refresh token coordination", () => {
 
     expect(refresh).toHaveBeenCalledTimes(2);
   });
+
+  it("does not share an in-flight rotation with a session started after clear", async () => {
+    let resolvePrevious!: (value: string) => void;
+    let resolveCurrent!: (value: string) => void;
+    const refresh = vi.fn()
+      .mockImplementationOnce(() => new Promise<string>((resolve) => { resolvePrevious = resolve; }))
+      .mockImplementationOnce(() => new Promise<string>((resolve) => { resolveCurrent = resolve; }));
+    const coordinator = createRefreshTokenCoordinator(refresh);
+
+    const previousSessionRotation = coordinator.rotate("same-token");
+    coordinator.clear();
+    const currentSessionRotation = coordinator.rotate("same-token");
+
+    expect(refresh).toHaveBeenCalledTimes(2);
+    resolvePrevious("previous-session-token");
+    await expect(previousSessionRotation).resolves.toBe("previous-session-token");
+
+    resolveCurrent("current-session-token");
+    await expect(currentSessionRotation).resolves.toBe("current-session-token");
+    await expect(coordinator.rotate("same-token")).resolves.toBe("current-session-token");
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("secure storage write queue", () => {
