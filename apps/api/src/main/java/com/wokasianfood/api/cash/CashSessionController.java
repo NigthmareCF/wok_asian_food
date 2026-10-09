@@ -90,10 +90,11 @@ public class CashSessionController {
     @ResponseStatus(HttpStatus.CREATED)
     public CashSessionService.Reconciliation reconcile(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID sessionId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
             @Valid @RequestBody ReconciliationRequest request) {
         return cash.reconcile(sessionId, UUID.fromString(jwt.getSubject()),
-                requestId == null ? UUID.randomUUID() : requestId, request);
+                requestId == null ? UUID.randomUUID() : requestId, idempotencyKey, request);
     }
 
     public record OpenRequest(@NotBlank @Size(max = 32) String registerCode,
@@ -268,14 +269,20 @@ class CashSessionService {
     }
 
     @Transactional
-    public Reconciliation reconcile(UUID sessionId, UUID actor, UUID requestId,
+    public Reconciliation reconcile(UUID sessionId, UUID actor, UUID requestId, UUID idempotencyKey,
                                     CashSessionController.ReconciliationRequest request) {
         BigDecimal countedCash = money(request.countedCash(), "efectivo contado");
+        String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
+        String hash = fingerprint("CASH_RECONCILIATION", sessionId.toString(), countedCash.toPlainString(),
+                notes == null ? "" : notes);
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "CASH_RECONCILIATION",
+                idempotencyKey, hash);
+        if (claim.replay()) return reconciliation(claim.resourceId());
+
         SessionRow session = lock(sessionId);
         if (!"OPEN".equals(session.status()))
             throw new AuthException(409, "La caja ya está cerrada.");
         BigDecimal expected = money(expectedCash(sessionId), "saldo esperado de caja");
-        String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
         UUID reconciliationId = jdbc.queryForObject("""
             INSERT INTO wok.cash_reconciliations
                 (cash_session_id, expected_cash, counted_cash, counted_by, is_final, notes)
@@ -287,6 +294,7 @@ class CashSessionService {
             VALUES (?, 'CASH_RECONCILED', 'CASH_SESSION', ?,
                     jsonb_build_object('expectedCash', ?, 'countedCash', ?), 'SUCCESS', ?)
             """, actor, sessionId, expected, countedCash, requestId);
+        idempotency.complete(actor.toString(), "CASH_RECONCILIATION", idempotencyKey, reconciliationId);
         return reconciliation(reconciliationId);
     }
 

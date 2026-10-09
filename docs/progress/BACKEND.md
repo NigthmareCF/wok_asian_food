@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Idempotencia de arqueos intermedios de caja
+
+- `POST /api/v1/operational/cash-sessions/{sessionId}/reconciliations` ahora requiere `Idempotency-Key`, calcula una huella de sesión/monto/notas normalizadas y completa el claim junto con el arqueo y su auditoría en la misma transacción.
+- El replay retorna el mismo arqueo aunque la caja ya se haya cerrado; reutilizar la clave con otro monto o notas devuelve 409. Esto evita duplicados por reintentos de red y preserva la bitácora financiera.
+- `CashSessionIntegrationTest`: 6/6 pruebas con PostgreSQL 18/Testcontainers y Flyway V1–V55; cubre replay, payload conflictivo y replay posterior al cierre. `git diff --check` limpio. No requiere migración.
+
 ## 2026-10-08 — Solicitudes de cambio de modificadores en línea de pedido
 
 - Cliente puede proponer nuevos modificadores para una línea enviada sólo si conserva snapshots completos de sus impactos de inventario. `GET .../cancellable-items` devuelve selecciones actuales y opciones activas compatibles por producto; `POST .../items/{itemId}/modifiers` conserva snapshot/versiones y clave idempotente. Operativo aprueba o rechaza desde la misma bandeja existente.

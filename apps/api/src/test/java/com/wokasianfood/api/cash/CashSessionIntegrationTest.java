@@ -164,11 +164,11 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
         var roundedReconciliation = post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations",
                 token, """
                 {"countedCash":1.005}
-                """);
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         var oversizedReconciliation = post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations",
                 token, """
                 {"countedCash":1000000000000.00}
-                """);
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         var roundedClose = post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
                 {"countedCash":1.005,"expectedVersion":1}
                 """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
@@ -248,13 +248,26 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
                 {"type":"EXPENSE","amount":30.00,"reason":"Compra de insumos"}
                 """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
 
-        JsonNode counted = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations", token, """
+        String reconciliationPayload = """
                 {"countedCash":485.00,"notes":"Arqueo intermedio"}
-                """));
+                """;
+        String reconciliationKey = UUID.randomUUID().toString();
+        JsonNode counted = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations", token,
+                reconciliationPayload, Map.of("Idempotency-Key", reconciliationKey)));
+        UUID reconciliationId = UUID.fromString(counted.path("id").asText());
         assertThat(counted.path("expectedCash").decimalValue()).isEqualByComparingTo("490.00");
         assertThat(counted.path("countedCash").decimalValue()).isEqualByComparingTo("485.00");
         assertThat(counted.path("difference").decimalValue()).isEqualByComparingTo("-5.00");
         assertThat(counted.path("isFinal").asBoolean()).isFalse();
+
+        JsonNode replay = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations", token,
+                reconciliationPayload, Map.of("Idempotency-Key", reconciliationKey)));
+        assertThat(replay.path("id").asText()).isEqualTo(reconciliationId.toString());
+        var reusedWithDifferentPayload = post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations",
+                token, reconciliationPayload.replace("485.00", "480.00"), Map.of("Idempotency-Key", reconciliationKey));
+        assertThat(reusedWithDifferentPayload.statusCode()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.cash_reconciliations WHERE cash_session_id = ? AND NOT is_final",
+                sessionId)).isEqualTo(1);
 
         JsonNode current = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
         JsonNode breakdown = current.path("breakdown");
@@ -276,14 +289,18 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
                 SELECT count(*) FROM wok.audit_logs WHERE action = 'CASH_RECONCILED' AND entity_id = ?
                 """, sessionId)).isEqualTo(1);
 
+        JsonNode closedReplay = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations", token,
+                reconciliationPayload, Map.of("Idempotency-Key", reconciliationKey)));
+        assertThat(closedReplay.path("id").asText()).isEqualTo(reconciliationId.toString());
+
         var afterClose = post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations", token, """
                 {"countedCash":490.00}
-                """);
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(afterClose.statusCode()).isEqualTo(409);
         assertThat(post("/api/v1/operational/cash-sessions/" + sessionId + "/reconciliations",
                 tokenForRole("CLIENT"), """
                 {"countedCash":490.00}
-                """).statusCode()).isEqualTo(403);
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())).statusCode()).isEqualTo(403);
     }
 
     private void openRegister(String code) {
