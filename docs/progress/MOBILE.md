@@ -573,5 +573,5 @@
 ## 2026-10-08 — Transferencia anticipada en delivery
 
 - El formulario delivery permite elegir efectivo contra entrega, transferencia anticipada o solicitud de cobro online. La app identifica la transferencia como preferencia y explica que el comprobante se adjunta desde Mis pedidos y requiere revisión del restaurante.
-- Mis pedidos reutiliza el panel existente para enviar y consultar comprobantes de transferencias delivery en solicitudes pendientes o aceptadas. La carga no se presenta como pago confirmado; el backend registra el pago sólo tras revisión operativa.
+- Mis pedidos reutiliza el panel existente para enviar y consultar comprobantes de transferencias delivery en solicitudes pendientes o aceptadas. Mientras la revisión siga pendiente, el estado se actualiza cada 30 segundos con la pantalla enfocada y deja de consultar al resolverse. La carga no se presenta como pago confirmado; el backend registra el pago sólo tras revisión operativa.
 - Verificación: Vitest 123/123 en 27 archivos, ESLint, TypeScript `--noEmit` y `git diff --check`. No se reconstruyó ni instaló APK para este cambio.

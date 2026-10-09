@@ -534,6 +534,7 @@ function TransferEvidencePanel({ requestId, request }: {
   }
 
   const current = evidence[0];
+  useFocusedPolling(refresh, 30_000, loaded && current?.status === "NEEDS_REVIEW");
   const status = current?.status === "VERIFIED" ? "Pago revisado y registrado por el restaurante"
     : current?.status === "REJECTED" ? "Comprobante rechazado; contacta al restaurante para coordinar otro medio"
       : current?.status === "NEEDS_REVIEW" ? "Comprobante recibido, pendiente de revisión"
