@@ -545,3 +545,10 @@
 - La libreta de datos fiscales permite crear, editar con `expectedVersion`, marcar como predeterminado y eliminar perfiles mediante endpoints autenticados del Cliente. El NIT se enmascara en la lista. Tras una respuesta de alta potencialmente incierta (red/5xx), la app consulta la lista y sólo identifica un perfil coincidente con ID nuevo respecto al estado cargado; errores 4xx deterministas no se convierten en falso éxito.
 - Los perfiles privados se reinician al cambiar de cuenta. No se agregaron credenciales ni dependencias.
 - Verificación: Vitest 120/120, ESLint, TypeScript `--noEmit` y exports Expo Android/Web; las rutas Web incluyen `/invoices` y `/tax-profiles`. Estos exports no son pruebas E2E ni instalación física. La API todavía no entrega archivos fiscales; pasarela real, 3DS y FEL siguen pendientes de proveedor/integración.
+
+## 2026-10-08 — APK ARM64 actualizado para APP-06
+
+- `assembleRelease` generó un APK de revisión ARM64 autónomo en `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`; copia local compartible: `/tmp/wok-client-app06-arm64.apk` (43 MiB), SHA-256 `6468a8744298dc01003352f8354c3a0bf1fdeb29283340d5754ef140413dc235`. El bundle incluye las vistas actuales de facturas y perfiles fiscales; no requiere Metro.
+- Firma v2 verificada con el certificado Android Debug local. Es para revisión interna, no para tiendas ni producción.
+- Se compiló sin `EXPO_PUBLIC_API_BASE_URL`: las pantallas cargan, pero las llamadas API no funcionarán hasta reconstruir con una URL que el teléfono alcance. No se instaló en dispositivo ni se probó conexión real.
+- Build ejecutado con Gradle 9.3.1, Android SDK 36/NDK 27.1; `assembleRelease` terminó con éxito. El proyecto Android generado y el APK quedan locales/ignorados, no se añadieron al repositorio.
