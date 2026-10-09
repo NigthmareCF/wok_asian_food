@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-09 — Verificación Android y del artefacto de revisión
+
+- Volví a ejecutar Vitest (134/134), ESLint y TypeScript; los tres terminaron correctamente. `npx expo export --platform android` también generó el bundle Hermes Android. Este export valida el empaquetado JavaScript, no compila ni instala una aplicación nativa.
+- El APK de revisión ARM64 ya presente en el worktree coincide con la compilación documentada del 2026-10-09: 44,333,211 bytes, SHA-256 `1e18488863ed74aefe4c2f2ac679fa7b1e3751adfbc5aea65a9e5b55656e6f4d`. Sigue siendo un artefacto local/ignorado; esta sesión no lo instaló en teléfono ni verificó conexión móvil.
+- Se actualizó APP-08 para no dejar como pendiente una recompilación que ya está acreditada. E2E/contract tests amplios, instalación física Android/iOS y vínculo de EAS siguen pendientes.
+
 ## 2026-10-09 — Nueva cotización después de consumo o rechazo de capacidad
 
 - Pickup y delivery comparten el helper de cotizaciones. Si una clave devuelve una cotización `CONSUMED`, la app rota la clave y pide una cotización nueva. Si una cotización ya visible es terminal o no utilizable, la siguiente petición explícita también usa una clave nueva.
