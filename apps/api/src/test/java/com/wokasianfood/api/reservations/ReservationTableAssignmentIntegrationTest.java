@@ -96,6 +96,42 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
     }
 
     @Test
+    void reservationDecisionCanBeSafelyReplayedAfterTheStateHasChanged() throws Exception {
+        ReservationCase reservation = createPendingReservation(2);
+        UUID tableId = createTable("Mesa idempotente " + UUID.randomUUID(), 4, "SALON");
+        UUID key = UUID.randomUUID();
+        try {
+            String body = ("{\"decision\":\"CONFIRM\",\"reason\":\"Horario y capacidad revisados\","
+                    + "\"expectedVersion\":1,\"tableIds\":[\"%s\"]}").formatted(tableId);
+            String path = "/api/v1/operational/reservations/" + reservation.id() + "/decision";
+            var first = send("PUT", path, reservation.staffToken(), body,
+                    Map.of("Idempotency-Key", key.toString(), "X-Request-Id", UUID.randomUUID().toString()));
+            var retry = send("PUT", path, reservation.staffToken(), body,
+                    Map.of("Idempotency-Key", key.toString(), "X-Request-Id", UUID.randomUUID().toString()));
+
+            assertThat(first.statusCode()).as(first.body()).isEqualTo(200);
+            assertThat(retry.statusCode()).as(retry.body()).isEqualTo(200);
+            JsonNode firstResult = json.readTree(first.body());
+            JsonNode replayResult = json.readTree(retry.body());
+            assertThat(firstResult.path("status").asText()).isEqualTo("CONFIRMED");
+            assertThat(firstResult.path("idempotentReplay").asBoolean()).isFalse();
+            assertThat(replayResult.path("idempotentReplay").asBoolean()).isTrue();
+            assertThat(replayResult.path("tableIds").get(0).asText()).isEqualTo(tableId.toString());
+            assertThat(count("SELECT count(*) FROM wok.reservation_table_assignments WHERE reservation_id = ? AND released_at IS NULL",
+                    reservation.id())).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'RESERVATION_TABLES_ASSIGNED'",
+                    reservation.id())).isEqualTo(1);
+
+            String differentDecision = body.replace("CONFIRM", "REJECT");
+            var mismatch = send("PUT", path, reservation.staffToken(), differentDecision,
+                    Map.of("Idempotency-Key", key.toString()));
+            assertThat(mismatch.statusCode()).as(mismatch.body()).isEqualTo(409);
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", reservation.hoursId());
+        }
+    }
+
+    @Test
     void refusesConfirmingTablesFromDifferentZones() throws Exception {
         ReservationCase reservation = createPendingReservation(3);
         UUID firstTable = createTable("Mesa salón " + UUID.randomUUID(), 2, "SALON");

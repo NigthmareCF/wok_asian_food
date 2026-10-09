@@ -1,5 +1,12 @@
 # Progreso API de Reservas
 
+## 2026-10-09 — Replay idempotente de decisiones Operativas
+
+- `PUT /api/v1/operational/reservations/{reservationId}/decision` acepta `Idempotency-Key` opcional para clientes Operativos existentes y nuevos. Cuando se envía, el fingerprint cubre reserva, decisión, motivo, versión y mesas normalizadas, pero excluye `X-Request-Id`.
+- La clave, la asignación de mesas, transición de estado, historial, auditoría y snapshot HTTP se confirman dentro de la transacción PostgreSQL. Si el primer response se pierde, repetir la misma clave/payload devuelve el resultado original aunque la reserva ya no esté `REQUESTED`; una clave reutilizada con otro payload responde 409.
+- No se requiere migración: V1 ya define `response_code` y `response_snapshot` en `wok.idempotency_keys`. Sin la cabecera, se conserva el comportamiento previo.
+- Validación: integración PostgreSQL demuestra replay después de confirmar, una sola asignación/auditoría y rechazo de payload divergente. Suite Maven completa: 350 pruebas, 0 fallos/errores/omitidas; Flyway aplicó V1–V55 sobre PostgreSQL 18.
+
 ## 2026-10-05 — Solicitud de preorden desde Cliente y revisión Operativa
 
 - `POST /api/v1/client/reservations` admite hasta 20 productos con hasta 50 unidades por producto y los modificadores seleccionados. El backend valida que sigan activos/públicos, comprueba límites requeridos y calcula los precios desde catálogo; la clave idempotente incluye líneas y modificadores.

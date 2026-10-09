@@ -1,5 +1,8 @@
 package com.wokasianfood.api.reservations;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wokasianfood.api.platform.IdempotencyStore;
 import com.wokasianfood.api.service.ServiceHoursPolicy;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -11,6 +14,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -57,11 +64,12 @@ public class OperationalReservationController {
     public ReservationReviewService.DecisionResult decide(
             @PathVariable UUID reservationId,
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = "Idempotency-Key", required = false) UUID idempotencyKey,
             @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
             @Valid @RequestBody DecisionRequest request) {
         return reviews.decide(reservationId, UUID.fromString(jwt.getSubject()),
                 requestId == null ? UUID.randomUUID() : requestId,
-                request.decision(), request.reason().trim(), request.expectedVersion(), request.tableIds());
+                idempotencyKey, request.decision(), request.reason().trim(), request.expectedVersion(), request.tableIds());
     }
 
     public record DecisionRequest(@NotNull Decision decision, @NotBlank @Size(min = 3, max = 500) String reason,
@@ -76,12 +84,15 @@ class ReservationReviewService {
     private final JdbcTemplate jdbc;
     private final OperatingHoursProvider operatingHours;
     private final ReservationTableAssignmentService tableAssignments;
+    private final IdempotencyStore idempotency;
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     ReservationReviewService(JdbcTemplate jdbc, OperatingHoursProvider operatingHours,
-                             ReservationTableAssignmentService tableAssignments) {
+                             ReservationTableAssignmentService tableAssignments, IdempotencyStore idempotency) {
         this.jdbc = jdbc;
         this.operatingHours = operatingHours;
         this.tableAssignments = tableAssignments;
+        this.idempotency = idempotency;
     }
 
     public List<PendingReservation> pending() {
@@ -148,8 +159,26 @@ class ReservationReviewService {
 
     @Transactional
     public DecisionResult decide(UUID reservationId, UUID actor, UUID requestId,
+                                 UUID idempotencyKey,
                                  OperationalReservationController.Decision decision,
                                  String reason, int expectedVersion, List<UUID> requestedTableIds) {
+        String operation = "RESERVATION_REVIEW_DECIDED";
+        if (idempotencyKey != null) {
+            IdempotencyStore.Result claim = idempotency.claim(actor.toString(), operation, idempotencyKey,
+                    fingerprint(reservationId, decision, reason, expectedVersion, requestedTableIds));
+            if (claim.replay()) {
+                if (claim.responseSnapshot() == null)
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "La operación ya fue procesada, pero no tiene una respuesta recuperable.");
+                try {
+                    DecisionResult original = JSON.readValue(claim.responseSnapshot(), DecisionResult.class);
+                    return new DecisionResult(original.reservationId(), original.decision(), original.status(),
+                            original.rowVersion(), original.reason(), original.tableIds(), true);
+                } catch (JsonProcessingException error) {
+                    throw new IllegalStateException("Stored reservation decision response is invalid.", error);
+                }
+            }
+        }
         List<CurrentReservation> rows = jdbc.query("""
             SELECT id, status, row_version, reservation_at, ends_at, party_size
             FROM wok.reservations WHERE id = ? FOR UPDATE
@@ -195,7 +224,31 @@ class ReservationReviewService {
                     jsonb_build_object('status', 'REQUESTED', 'version', ?),
                     jsonb_build_object('status', ?, 'version', ?), ?, 'SUCCESS', ?)
             """, actor, reservationId, expectedVersion, nextStatus, expectedVersion + 1, reason, requestId);
-        return new DecisionResult(reservationId, decision, nextStatus, expectedVersion + 1, reason, confirmedTableIds);
+        DecisionResult result = new DecisionResult(reservationId, decision, nextStatus, expectedVersion + 1,
+                reason, confirmedTableIds, false);
+        if (idempotencyKey != null) {
+            try {
+                idempotency.completeWithSnapshot(actor.toString(), operation, idempotencyKey, reservationId, 200,
+                        JSON.writeValueAsString(result));
+            } catch (JsonProcessingException error) {
+                throw new IllegalStateException("Could not store reservation decision response.", error);
+            }
+        }
+        return result;
+    }
+
+    private String fingerprint(UUID reservationId, OperationalReservationController.Decision decision,
+                               String reason, int expectedVersion, List<UUID> requestedTableIds) {
+        List<String> sortedTables = requestedTableIds == null ? List.of()
+                : requestedTableIds.stream().map(UUID::toString).sorted().toList();
+        try {
+            String canonical = JSON.writeValueAsString(List.of(reservationId.toString(), decision.name(), reason,
+                    expectedVersion, sortedTables));
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (JsonProcessingException | NoSuchAlgorithmException error) {
+            throw new IllegalStateException("Could not fingerprint reservation decision.", error);
+        }
     }
 
     private void validateCurrentSchedule(CurrentReservation reservation) {
@@ -228,7 +281,8 @@ class ReservationReviewService {
                                      String notes, int rowVersion, String customerName, String email,
                                      List<OperationalReservationScheduleController.PreorderItem> preorderItems) {}
     public record DecisionResult(UUID reservationId, OperationalReservationController.Decision decision,
-                                 String status, int rowVersion, String reason, List<UUID> tableIds) {}
+                                 String status, int rowVersion, String reason, List<UUID> tableIds,
+                                 boolean idempotentReplay) {}
     private record PendingReservationRow(UUID id, int guests, Instant reservationAt, Instant estimatedEndAt,
                                          String notes, int rowVersion, String customerName, String email) {}
     private static final class PendingPreorderBuilder {

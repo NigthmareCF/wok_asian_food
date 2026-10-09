@@ -31,13 +31,14 @@ public class IdempotencyStore {
         if (inserted == 1) return new Result(null, false);
 
         List<Row> existing = jdbc.query("""
-            SELECT request_hash, status, resource_id, expires_at > now() AS active,
-                   locked_until <= now() AS lease_expired
+            SELECT request_hash, status, resource_id, response_code, response_snapshot::text AS response_snapshot,
+                   expires_at > now() AS active, locked_until <= now() AS lease_expired
             FROM wok.idempotency_keys
             WHERE principal_scope = ? AND operation = ? AND key = ? FOR UPDATE
             """, (rs, row) -> new Row(rs.getString("request_hash"), rs.getString("status"),
-                rs.getObject("resource_id", UUID.class), rs.getBoolean("active"),
-                rs.getBoolean("lease_expired")), principal, operation, key.toString());
+                rs.getObject("resource_id", UUID.class), (Integer) rs.getObject("response_code"),
+                rs.getString("response_snapshot"), rs.getBoolean("active"), rs.getBoolean("lease_expired")),
+                principal, operation, key.toString());
         if (existing.isEmpty())
             throw new AuthException(409, "No se pudo resolver la operación idempotente.");
         Row row = existing.getFirst();
@@ -54,7 +55,8 @@ public class IdempotencyStore {
         }
         if (!requestHash.equals(row.hash()))
             throw new AuthException(409, "La clave ya se usó con otros datos.");
-        if (COMPLETED.equals(row.status())) return new Result(row.resourceId(), true);
+        if (COMPLETED.equals(row.status()))
+            return new Result(row.resourceId(), true, row.responseCode(), row.responseSnapshot());
         if (IN_PROGRESS.equals(row.status()) && row.leaseExpired()) {
             int reclaimed = jdbc.update("""
                 UPDATE wok.idempotency_keys SET locked_until = now() + interval '30 seconds'
@@ -76,7 +78,24 @@ public class IdempotencyStore {
             """, resourceId, principal, operation, key.toString());
     }
 
-    public record Result(UUID resourceId, boolean replay) {}
+    public void completeWithSnapshot(String principal, String operation, UUID key, UUID resourceId,
+                                     int responseCode, String responseSnapshot) {
+        if (responseSnapshot == null || responseSnapshot.isBlank())
+            throw new IllegalArgumentException("A response snapshot is required for idempotent replay.");
+        int updated = jdbc.update("""
+            UPDATE wok.idempotency_keys
+            SET status = 'COMPLETED', resource_id = ?, response_code = ?, response_snapshot = ?::jsonb,
+                completed_at = now()
+            WHERE principal_scope = ? AND operation = ? AND key = ? AND status = 'IN_PROGRESS'
+            """, resourceId, responseCode, responseSnapshot, principal, operation, key.toString());
+        if (updated != 1)
+            throw new AuthException(409, "No se pudo guardar la respuesta de la operación idempotente.");
+    }
 
-    private record Row(String hash, String status, UUID resourceId, boolean active, boolean leaseExpired) {}
+    public record Result(UUID resourceId, boolean replay, Integer responseCode, String responseSnapshot) {
+        public Result(UUID resourceId, boolean replay) { this(resourceId, replay, null, null); }
+    }
+
+    private record Row(String hash, String status, UUID resourceId, Integer responseCode,
+                       String responseSnapshot, boolean active, boolean leaseExpired) {}
 }
