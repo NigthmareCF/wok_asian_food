@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Solicitudes de cambio de modificadores en línea de pedido
+
+- Cliente puede proponer nuevos modificadores para una línea enviada sólo si conserva snapshots completos de sus impactos de inventario. `GET .../cancellable-items` devuelve selecciones actuales y opciones activas compatibles por producto; `POST .../items/{itemId}/modifiers` conserva snapshot/versiones y clave idempotente. Operativo aprueba o rechaza desde la misma bandeja existente.
+- La aprobación revalida el catálogo actual contra el snapshot solicitado, confirma pedido `SENT`, ticket `QUEUED`, versiones, cuenta sin actividad financiera y autorización; aplica sólo el delta de recursos de modificadores, preserva la reserva base de receta, recalcula precio desde el delta de opciones y guarda evento/auditoría. El ajuste de cantidad también escala las contribuciones individuales de modificadores para que un cambio posterior use el snapshot correcto. Si stock o estado cambió, la transacción revierte y la solicitud permanece pendiente para revisión.
+- Flyway V55 agrega snapshots de impacto por modificador y tipos/eventos de cambio; V1–V55 se aplican desde cero en PostgreSQL 18. La suite backend completa ejecutó 333 pruebas, cero fallos, cero errores y cero omitidas. La suite focal de cambios de pedido ejecutó 10/10 con Testcontainers.
+- La app móvil incluye selector de opciones y reintento idempotente; el APK anterior no contiene este cambio y no fue reconstruido. Las opciones antiguas sin snapshot de inventario/preparación y los cambios después de iniciar producción requieren revisión manual.
+
 ## 2026-10-08 — Cambio de cantidad en línea de pedido aceptado
 
 - `POST /api/v1/client/order-requests/{requestId}/change-requests/items/{orderItemId}/quantity` crea una solicitud idempotente; no cambia cantidad, precio, stock ni estado hasta que Operativo la aprueba en la bandeja existente.

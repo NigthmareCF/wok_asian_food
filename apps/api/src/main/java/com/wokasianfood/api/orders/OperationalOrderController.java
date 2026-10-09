@@ -5,6 +5,7 @@ import com.wokasianfood.api.catalog.ModifierSelectionService;
 import com.wokasianfood.api.catalog.ModifierSelectionService.SelectedModifier;
 import com.wokasianfood.api.platform.RequestLimits;
 import com.wokasianfood.api.inventory.InventoryReservationService;
+import com.wokasianfood.api.inventory.InventoryReservationService.ModifierResourceContribution;
 import com.wokasianfood.api.platform.IdempotencyStore;
 import com.wokasianfood.api.service.ServiceHoursPolicy;
 import jakarta.validation.Valid;
@@ -136,6 +137,10 @@ public class OperationalOrderController {
                                          @NotBlank @Size(min = 3, max = 500) String reason) {}
     public record ModifyOrderItemQuantityRequest(@Positive int expectedOrderVersion, @Positive int expectedItemVersion,
             @Positive int quantity, @NotBlank @Size(min = 3, max = 500) String reason) {}
+    public record ModifyOrderItemModifiersRequest(@Positive int expectedOrderVersion,
+            @Positive int expectedItemVersion, @NotNull List<SelectedModifier> modifiers,
+            @NotNull List<ModifierResourceContribution> resourceContributions,
+            @NotBlank @Size(min = 3, max = 500) String reason) {}
 
     private String normalize(String value) {
         if (value == null || value.isBlank()) return null;
@@ -542,6 +547,10 @@ class OrderService {
             throw new AuthException(409, "Este producto no conserva una reserva verificable y requiere revisión manual.");
         if (!line.preparationSnapshotComplete())
             throw new AuthException(409, "Este pedido es anterior al snapshot operativo de preparación y requiere revisión manual.");
+        if (!Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT modifier_resource_snapshot_complete FROM wok.order_items WHERE id = ?
+                """, Boolean.class, orderItemId)))
+            throw new AuthException(409, "Este producto no conserva el detalle de recursos de sus opciones y requiere revisión manual.");
         if (line.quantity() == request.quantity()) throw new AuthException(422, "La cantidad solicitada no cambia la actual.");
 
         List<LineTicket> tickets = jdbc.query("""
@@ -638,6 +647,124 @@ class OrderService {
         return details(orderId);
     }
 
+    @Transactional
+    public OrderDetails modifyItemModifiers(UUID actor, UUID requestId, UUID orderId, UUID orderItemId,
+            UUID idempotencyKey, OperationalOrderController.ModifyOrderItemModifiersRequest request) {
+        String reason = request.reason().trim();
+        List<SelectedModifier> nextModifiers = request.modifiers().stream()
+                .sorted(Comparator.comparing(option -> option.id().toString())).toList();
+        String fingerprint = hashText(orderId + "|" + orderItemId + "|" + request.expectedOrderVersion()
+                + "|" + request.expectedItemVersion() + "|" + nextModifiers + "|" + reason);
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "ORDER_LINE_MODIFIERS_MODIFIED",
+                idempotencyKey, fingerprint);
+        if (claim.replay()) return details(claim.resourceId());
+        LineCancellationOrder order = lockLineChangeOrder(orderId);
+        if (order.status() != OrderStatus.SENT || order.rowVersion() != request.expectedOrderVersion())
+            throw new AuthException(409, "El pedido cambió o cocina ya inició; actualiza el detalle antes de modificarlo.");
+        Account account = lockAccount(order.accountId());
+        if (!"OPEN".equals(account.status())) throw new AuthException(409, "La cuenta ya no admite cambios.");
+        if (hasFinancialActivity(orderId, order.accountId()))
+            throw new AuthException(409, "Resuelve el cobro o la facturación antes de modificar productos.");
+
+        List<LineCancellationItem> lines = jdbc.query("""
+            SELECT id, quantity, unit_price, line_total, status, row_version, resource_snapshot_complete,
+                   preparation_snapshot_complete
+            FROM wok.order_items WHERE id = ? AND order_id = ? FOR UPDATE
+            """, (rs, row) -> new LineCancellationItem(rs.getObject("id", UUID.class), rs.getInt("quantity"),
+                rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"), rs.getString("status"),
+                rs.getInt("row_version"), rs.getBoolean("resource_snapshot_complete"),
+                rs.getBoolean("preparation_snapshot_complete")), orderItemId, orderId);
+        if (lines.isEmpty()) throw new AuthException(404, "No encontramos el producto en este pedido.");
+        LineCancellationItem line = lines.getFirst();
+        if (!"ACTIVE".equals(line.status()) || line.rowVersion() != request.expectedItemVersion())
+            throw new AuthException(409, "El producto cambió desde que se solicitaron las opciones.");
+        if (!line.resourceSnapshotComplete() || !line.preparationSnapshotComplete()
+                || !Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT modifier_resource_snapshot_complete FROM wok.order_items WHERE id = ?
+                """, Boolean.class, orderItemId)))
+            throw new AuthException(409, "Este producto no conserva snapshots de inventario y preparación compatibles; requiere revisión manual.");
+        List<LineTicket> tickets = jdbc.query("""
+            SELECT ti.id, ti.ticket_id, ti.quantity, ti.action, ticket.status, ticket.row_version
+            FROM wok.kitchen_ticket_items ti JOIN wok.kitchen_tickets ticket ON ticket.id = ti.ticket_id
+            WHERE ti.order_item_id = ? AND ti.action <> 'CANCELLED'
+            ORDER BY ticket.station_id, ticket.id FOR UPDATE OF ti, ticket
+            """, (rs, row) -> new LineTicket(rs.getObject("id", UUID.class), rs.getObject("ticket_id", UUID.class),
+                rs.getInt("quantity"), rs.getString("action"), rs.getString("status"), rs.getInt("row_version")), orderItemId);
+        if (tickets.size() != 1 || tickets.stream().anyMatch(ticket -> !"QUEUED".equals(ticket.status())))
+            throw new AuthException(409, "La comanda ya inició o no permite un ajuste seguro.");
+
+        List<PreviousModifier> previous = jdbc.query("""
+            SELECT selected.modifier_id, selected.group_name_snapshot, selected.modifier_name_snapshot,
+                   selected.price_delta, modifier.group_id
+            FROM wok.order_item_modifiers selected JOIN wok.modifiers modifier ON modifier.id = selected.modifier_id
+            WHERE selected.order_item_id = ? ORDER BY selected.modifier_id
+            """, (rs, row) -> new PreviousModifier(rs.getObject("modifier_id", UUID.class),
+                rs.getObject("group_id", UUID.class), rs.getString("group_name_snapshot"),
+                rs.getString("modifier_name_snapshot"), rs.getBigDecimal("price_delta")), orderItemId);
+        List<UUID> previousIds = previous.stream().map(PreviousModifier::modifierId).toList();
+        List<UUID> nextIds = nextModifiers.stream().map(SelectedModifier::id).toList();
+        if (previousIds.equals(nextIds)) throw new AuthException(422, "Las opciones seleccionadas no cambian el producto.");
+        BigDecimal oldDelta = previous.stream().map(PreviousModifier::priceDelta)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal nextDelta = nextModifiers.stream().map(SelectedModifier::priceDelta)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal basePrice = line.unitPrice().subtract(oldDelta);
+        BigDecimal nextUnitPrice = basePrice.add(nextDelta);
+        BigDecimal nextLineTotal = nextUnitPrice.multiply(BigDecimal.valueOf(line.quantity()));
+        if (nextUnitPrice.signum() < 0 || nextUnitPrice.scale() > 2 || nextUnitPrice.precision() > 14
+                || nextLineTotal.scale() > 2 || nextLineTotal.precision() > 14)
+            throw new AuthException(422, "El precio nuevo excede la precisión monetaria permitida.");
+        BigDecimal nextSubtotal = jdbc.queryForObject("""
+            SELECT COALESCE(sum(line_total), 0) + ? FROM wok.order_items
+            WHERE order_id = ? AND status = 'ACTIVE' AND id <> ?
+            """, BigDecimal.class, nextLineTotal, orderId, orderItemId);
+        if (nextSubtotal != null && nextSubtotal.precision() > 14)
+            throw new AuthException(422, "El total del pedido excede el máximo permitido.");
+
+        String previousResourceSnapshot = jdbc.queryForObject("""
+            SELECT COALESCE(jsonb_agg(jsonb_build_object('itemId', item_id, 'quantityDelta', quantity_delta)
+                ORDER BY item_id), '[]'::jsonb)::text
+            FROM wok.order_item_resource_reservations WHERE order_item_id = ?
+            """, String.class, orderItemId);
+        List<InventoryReservationService.ResourceDelta> resourceDeltas = reservations.replaceOrderItemModifierResources(
+                orderId, orderItemId, request.resourceContributions());
+        jdbc.update("DELETE FROM wok.order_item_modifiers WHERE order_item_id = ?", orderItemId);
+        for (SelectedModifier modifier : nextModifiers) jdbc.update("""
+            INSERT INTO wok.order_item_modifiers
+                (order_item_id, modifier_id, group_name_snapshot, modifier_name_snapshot, price_delta)
+            VALUES (?, ?, ?, ?, ?)
+            """, orderItemId, modifier.id(), modifier.groupName(), modifier.name(), modifier.priceDelta());
+        int updated = jdbc.update("""
+            UPDATE wok.order_items SET unit_price = ?, updated_at = now(), row_version = row_version + 1
+            WHERE id = ? AND row_version = ? AND status = 'ACTIVE'
+            """, nextUnitPrice, orderItemId, request.expectedItemVersion());
+        if (updated != 1) throw new AuthException(409, "El producto cambió durante el ajuste.");
+
+        jdbc.update("""
+            INSERT INTO wok.order_item_change_events
+                (order_id, order_item_id, change_type, previous_status, previous_quantity, previous_line_total,
+                 next_status, next_quantity, next_line_total, financial_delta, reason, actor_user_id,
+                 resource_delta_snapshot, modifier_snapshot, request_id)
+            VALUES (?, ?, 'MODIFY_LINE_MODIFIERS', 'ACTIVE', ?, ?, 'ACTIVE', ?, ?, ?, ?, ?,
+                ?::jsonb, ?::jsonb, ?)
+            """, orderId, orderItemId, line.quantity(), line.lineTotal(), line.quantity(), nextLineTotal,
+                nextLineTotal.subtract(line.lineTotal()), reason, actor,
+                jsonbResourceChangeSnapshot(previousResourceSnapshot, resourceDeltas),
+                jsonbModifierChangeSnapshot(previous, nextModifiers), requestId);
+        recalcTotals(orderId, actor);
+        jdbc.update("""
+            INSERT INTO wok.audit_logs (actor_user_id, action, entity_type, entity_id, before_data, after_data,
+                reason, result, request_id)
+            VALUES (?, 'ORDER_LINE_MODIFIERS_MODIFIED', 'ORDER_ITEM', ?,
+                jsonb_build_object('unitPrice', ?, 'lineTotal', ?, 'modifierIds', ?::jsonb),
+                jsonb_build_object('unitPrice', ?, 'lineTotal', ?, 'modifierIds', ?::jsonb,
+                    'resourceChanges', ?), ?, 'SUCCESS', ?)
+            """, actor, orderItemId, line.unitPrice(), line.lineTotal(), writeModifierIds(previousIds),
+                nextUnitPrice, nextLineTotal, writeModifierIds(nextIds), resourceDeltas.size(), reason, requestId);
+        idempotency.complete(actor.toString(), "ORDER_LINE_MODIFIERS_MODIFIED", idempotencyKey, orderId);
+        return details(orderId);
+    }
+
     private LineCancellationOrder lockLineChangeOrder(UUID orderId) {
         List<LineCancellationOrder> rows = jdbc.query("""
             SELECT id, account_id, status, row_version FROM wok.orders WHERE id = ? FOR UPDATE
@@ -666,6 +793,27 @@ class OrderService {
                             "quantityDelta", delta.quantityDelta())).toList()));
         } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
             throw new IllegalStateException("Could not serialize the resource change snapshot", error);
+        }
+    }
+
+    private String jsonbModifierChangeSnapshot(List<PreviousModifier> previous, List<SelectedModifier> next) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
+                    "previous", previous.stream().map(option -> Map.of("modifierId", option.modifierId(),
+                            "groupName", option.groupName(), "name", option.name(),
+                            "priceDelta", option.priceDelta())).toList(),
+                    "next", next.stream().map(option -> Map.of("modifierId", option.id(),
+                            "groupName", option.groupName(), "name", option.name(),
+                            "priceDelta", option.priceDelta())).toList()));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new IllegalStateException("Could not serialize modifier snapshots", error);
+        }
+    }
+
+    private String writeModifierIds(List<UUID> ids) {
+        try { return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(ids); }
+        catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new IllegalStateException("Could not serialize modifier identifiers", error);
         }
     }
 
@@ -1101,6 +1249,8 @@ class OrderService {
     private record LineCancellationItem(UUID id, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
                                         String status, int rowVersion, boolean resourceSnapshotComplete,
                                         boolean preparationSnapshotComplete) {}
+    private record PreviousModifier(UUID modifierId, UUID groupId, String groupName, String name,
+                                    BigDecimal priceDelta) {}
     private record LineTicket(UUID id, UUID ticketId, int quantity, String action, String status, int rowVersion) {}
 
     public record OrderSummary(UUID id, String code, String status, String channel, BigDecimal subtotal,

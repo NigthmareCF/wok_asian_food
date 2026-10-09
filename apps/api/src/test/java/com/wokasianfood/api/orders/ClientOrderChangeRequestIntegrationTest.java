@@ -247,6 +247,138 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void modifierChangeNeedsApprovalAndReplacesOnlyItsCapturedInventoryContribution() {
+        AcceptedOrder order = acceptedPickup(true);
+        UUID itemId = jdbc.queryForObject("SELECT id FROM wok.order_items WHERE order_id = ?", UUID.class, order.orderId());
+        UUID menuItemId = jdbc.queryForObject("SELECT menu_item_id FROM wok.order_items WHERE id = ?", UUID.class, itemId);
+        UUID ingredientId = jdbc.queryForObject("SELECT item_id FROM wok.order_item_resource_reservations WHERE order_item_id = ?",
+                UUID.class, itemId);
+        UUID groupId = jdbc.queryForObject("""
+                INSERT INTO wok.modifier_groups (name, min_selection, max_selection, required)
+                VALUES ('Salsa opcional cambio', 0, 1, false) RETURNING id
+                """, UUID.class);
+        UUID extra = jdbc.queryForObject("INSERT INTO wok.modifiers (group_id, name, price_delta) "
+                + "VALUES (?, 'Salsa extra', 5.00) RETURNING id", UUID.class, groupId);
+        jdbc.update("INSERT INTO wok.menu_item_modifier_groups (menu_item_id, group_id) VALUES (?, ?)", menuItemId, groupId);
+        jdbc.update("""
+                INSERT INTO wok.modifier_item_impacts (modifier_id, item_id, quantity_delta, affects_availability)
+                VALUES (?, ?, 0.250000, true)
+                """, extra, ingredientId);
+        JsonNode editableLine = body(get("/api/v1/client/order-requests/" + order.requestId()
+                + "/change-requests/cancellable-items", order.clientToken())).get(0);
+        assertThat(editableLine.path("modifierChangeSupported").asBoolean()).isTrue();
+        assertThat(editableLine.path("selectedModifierIds")).isEmpty();
+        assertThat(editableLine.path("modifierGroups").get(0).path("options").get(0).path("id").asText())
+                .isEqualTo(extra.toString());
+        assertThat(jdbc.queryForObject("SELECT modifier_resource_snapshot_complete FROM wok.order_items WHERE id = ?",
+                Boolean.class, itemId)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.order_items WHERE id = ?", BigDecimal.class, itemId))
+                .isEqualByComparingTo("25.00");
+
+        String path = "/api/v1/client/order-requests/" + order.requestId()
+                + "/change-requests/items/" + itemId + "/modifiers";
+        UUID submitKey = UUID.randomUUID();
+        String payload = "{\"modifierIds\":[\"" + extra + "\"],\"reason\":\"Agregar salsa adicional\"}";
+        JsonNode submitted = body(post(path, order.clientToken(), payload, Map.of("Idempotency-Key", submitKey.toString())));
+        UUID changeId = UUID.fromString(submitted.path("id").asText());
+        assertThat(submitted.path("requestType").asText()).isEqualTo("MODIFY_LINE_MODIFIERS");
+        assertThat(submitted.path("requestedModifiers").get(0).path("name").asText()).isEqualTo("Salsa extra");
+        assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.order_items WHERE id = ?", BigDecimal.class, itemId))
+                .isEqualByComparingTo("25.00");
+        assertThat(body(post(path, order.clientToken(), payload, Map.of("Idempotency-Key", submitKey.toString())))
+                .path("id").asText()).isEqualTo(changeId.toString());
+
+        JsonNode approved = body(patch("/api/v1/operational/order-change-requests/" + changeId,
+                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(approved.path("status").asText()).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.order_items WHERE id = ?", BigDecimal.class, itemId))
+                .isEqualByComparingTo("30.00");
+        assertThat(jdbc.queryForObject("SELECT quantity FROM wok.inventory_reservations WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE'",
+                BigDecimal.class, order.orderId(), ingredientId)).isEqualByComparingTo("0.750000");
+        assertThat(jdbc.queryForObject("SELECT quantity_delta FROM wok.order_item_resource_reservations WHERE order_item_id = ? AND item_id = ?",
+                BigDecimal.class, itemId, ingredientId)).isEqualByComparingTo("0.750000");
+        assertThat(jdbc.queryForObject("SELECT quantity_delta FROM wok.order_item_modifier_resource_reservations WHERE order_item_id = ? AND modifier_id = ?",
+                BigDecimal.class, itemId, extra)).isEqualByComparingTo("0.250000");
+        assertThat(jdbc.queryForObject("SELECT subtotal FROM wok.orders WHERE id = ?", BigDecimal.class, order.orderId()))
+                .isEqualByComparingTo("30.00");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_item_change_events WHERE order_item_id = ? AND change_type = 'MODIFY_LINE_MODIFIERS'",
+                Integer.class, itemId)).isEqualTo(1);
+
+        String quantityPath = "/api/v1/client/order-requests/" + order.requestId()
+                + "/change-requests/items/" + itemId + "/quantity";
+        JsonNode quantityChange = body(post(quantityPath, order.clientToken(),
+                "{\"quantity\":2,\"reason\":\"Necesito dos porciones\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        JsonNode quantityApproved = body(patch("/api/v1/operational/order-change-requests/" + quantityChange.path("id").asText(),
+                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(quantityApproved.path("status").asText()).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("SELECT quantity_delta FROM wok.order_item_modifier_resource_reservations WHERE order_item_id = ? AND modifier_id = ?",
+                BigDecimal.class, itemId, extra)).isEqualByComparingTo("0.500000");
+        assertThat(jdbc.queryForObject("SELECT quantity FROM wok.inventory_reservations WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE'",
+                BigDecimal.class, order.orderId(), ingredientId)).isEqualByComparingTo("1.500000");
+
+        JsonNode remove = body(post(path, order.clientToken(),
+                "{\"modifierIds\":[],\"reason\":\"Quitar salsa adicional\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        JsonNode removed = body(patch("/api/v1/operational/order-change-requests/" + remove.path("id").asText(),
+                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(removed.path("status").asText()).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.order_items WHERE id = ?", BigDecimal.class, itemId))
+                .isEqualByComparingTo("25.00");
+        assertThat(jdbc.queryForObject("SELECT quantity FROM wok.inventory_reservations WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE'",
+                BigDecimal.class, order.orderId(), ingredientId)).isEqualByComparingTo("1.000000");
+        assertThat(jdbc.queryForObject("SELECT quantity_delta FROM wok.order_item_resource_reservations WHERE order_item_id = ? AND item_id = ?",
+                BigDecimal.class, itemId, ingredientId)).isEqualByComparingTo("1.000000");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_item_modifier_resource_reservations WHERE order_item_id = ?",
+                Integer.class, itemId)).isZero();
+    }
+
+    @Test
+    void modifierChangeApprovalRollsBackWhenNewOptionWouldOverReserveStock() {
+        AcceptedOrder order = acceptedPickup(true);
+        UUID itemId = jdbc.queryForObject("SELECT id FROM wok.order_items WHERE order_id = ?", UUID.class, order.orderId());
+        UUID menuItemId = jdbc.queryForObject("SELECT menu_item_id FROM wok.order_items WHERE id = ?", UUID.class, itemId);
+        UUID ingredientId = jdbc.queryForObject("SELECT item_id FROM wok.order_item_resource_reservations WHERE order_item_id = ?",
+                UUID.class, itemId);
+        jdbc.update("UPDATE wok.inventory_balances SET quantity_on_hand = 0.500000 WHERE item_id = ?", ingredientId);
+        UUID groupId = jdbc.queryForObject("""
+                INSERT INTO wok.modifier_groups (name, min_selection, max_selection, required)
+                VALUES ('Opción sin saldo', 0, 1, false) RETURNING id
+                """, UUID.class);
+        UUID modifierId = jdbc.queryForObject("INSERT INTO wok.modifiers (group_id, name, price_delta) "
+                + "VALUES (?, 'Extra sin saldo', 0.00) RETURNING id", UUID.class, groupId);
+        jdbc.update("INSERT INTO wok.menu_item_modifier_groups (menu_item_id, group_id) VALUES (?, ?)", menuItemId, groupId);
+        jdbc.update("""
+                INSERT INTO wok.modifier_item_impacts (modifier_id, item_id, quantity_delta, affects_availability)
+                VALUES (?, ?, 0.250000, true)
+                """, modifierId, ingredientId);
+        JsonNode submitted = body(post("/api/v1/client/order-requests/" + order.requestId()
+                + "/change-requests/items/" + itemId + "/modifiers", order.clientToken(),
+                "{\"modifierIds\":[\"" + modifierId + "\"],\"reason\":\"Agregar opción\"}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID changeId = UUID.fromString(submitted.path("id").asText());
+
+        HttpResponse<String> approval = patch("/api/v1/operational/order-change-requests/" + changeId,
+                order.operatorToken(), "{\"decision\":\"APPROVE\",\"expectedVersion\":1}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+
+        assertThat(approval.statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_change_requests WHERE id = ?", String.class, changeId))
+                .isEqualTo("PENDING_REVIEW");
+        assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.order_items WHERE id = ?", BigDecimal.class, itemId))
+                .isEqualByComparingTo("25.00");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_item_modifiers WHERE order_item_id = ?", Integer.class, itemId))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT quantity FROM wok.inventory_reservations WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE'",
+                BigDecimal.class, order.orderId(), ingredientId)).isEqualByComparingTo("0.500000");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_item_change_events WHERE order_item_id = ? AND change_type = 'MODIFY_LINE_MODIFIERS'",
+                Integer.class, itemId)).isZero();
+    }
+
+    @Test
     void approvalIsBlockedUntilCapturedBalanceIsRefunded() {
         AcceptedOrder order = acceptedPickup();
         UUID key = UUID.randomUUID();
