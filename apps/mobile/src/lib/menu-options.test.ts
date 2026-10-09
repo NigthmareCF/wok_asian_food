@@ -16,10 +16,22 @@ const item: PublicMenuItem = {
 };
 
 describe("menu modifier choices", () => {
-  it("enforces each group's maximum and permits replacing a selected option", () => {
-    expect(toggleMenuModifier(groups, ["chicken"], "tofu")).toEqual(["chicken"]);
+  it("replaces the selected option in a single-choice group", () => {
+    expect(toggleMenuModifier(groups, ["chicken"], "tofu")).toEqual(["tofu"]);
     expect(toggleMenuModifier(groups, ["chicken"], "chicken")).toEqual([]);
     expect(toggleMenuModifier(groups, [], "tofu")).toEqual(["tofu"]);
+  });
+
+  it("does not exceed a multi-choice group's maximum", () => {
+    const multiChoice: MenuModifierGroup[] = [{
+      ...groups[0], minSelection: 0, maxSelection: 2,
+      options: [
+        ...groups[0].options,
+        { id: "beef", name: "Res", priceDelta: 0 },
+      ],
+    }];
+
+    expect(toggleMenuModifier(multiChoice, ["chicken", "tofu"], "beef")).toEqual(["chicken", "tofu"]);
   });
 
   it("requires configured minimum and maximum selection counts", () => {

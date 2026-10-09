@@ -9,7 +9,11 @@ export function toggleMenuModifier(
   const group = groups.find((item) => item.options.some((option) => option.id === modifierId));
   if (!group) return currentIds;
   const selectedInGroup = currentIds.filter((id) => group.options.some((option) => option.id === id)).length;
-  if (selectedInGroup >= group.maxSelection) return currentIds;
+  if (selectedInGroup >= group.maxSelection) {
+    if (group.maxSelection !== 1) return currentIds;
+    const groupOptionIds = new Set(group.options.map((option) => option.id));
+    return [...currentIds.filter((id) => !groupOptionIds.has(id)), modifierId];
+  }
   return [...currentIds, modifierId];
 }
 

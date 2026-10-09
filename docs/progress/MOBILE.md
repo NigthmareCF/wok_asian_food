@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-09 — Reemplazo directo de opciones de selección única
+
+- En grupos de modificadores con `maxSelection = 1`, tocar una opción distinta ahora reemplaza la anterior en el mismo grupo. Antes el botón nuevo no hacía nada hasta desmarcar manualmente la selección actual; esto afectaba bases, rellenos y sabores obligatorios.
+- Grupos de selección múltiple conservan el límite y requieren quitar una opción antes de agregar otra cuando ya están llenos.
+- Verificación: `npm test --workspace mobile` pasó 135/135; ESLint y TypeScript pasaron. La API conserva la autoridad para validar modificadores y calcular el precio.
+
 ## 2026-10-09 — Diagnóstico de Expo Go y acceso por QR
 
 - El README ahora separa el QR de Metro de la instalación del APK y documenta el error de Expo Go por discrepancia de SDK. Este checkout usa Expo SDK 57; para Android se puede instalar desde Expo el Expo Go compatible con SDK 57. En iOS se indica utilizar el development build cuando la versión de App Store no incluye ese SDK. Si Metro está en LAN pero el QR queda cargando, se documentan la Wi-Fi compartida, el aislamiento de clientes del router y `--tunnel` como prueba.
