@@ -1,480 +1,245 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
-import {
-  AlertTriangle,
-  Check,
-  CircleAlert,
-  ClipboardList,
+  ChevronLeft,
+  ChevronRight,
   LoaderCircle,
-  Plus,
   Search,
   ShieldCheck,
-  UserCog,
   X,
 } from "lucide-react";
 import {
-  dummyAdminRoles,
-  dummyAdminUsers,
-  initialUserAuditEntries,
-  userStatusLabels,
-  type AdminUser,
-  type AdminUserRole,
-  type UserAuditEntry,
-  type UserStatus,
-} from "@/data/fixtures/users";
+  isAdminUser,
+  isAdminUserList,
+  supportedAdminRoleCodes,
+  type AdminUserRecord,
+  type SupportedAdminRoleCode,
+} from "@/modules/users/admin-user-contract";
 import { Button } from "@/shared/components/ui/button";
-import { FormField } from "@/shared/components/ui/form-field";
 import { StatusBadge } from "@/shared/components/ui/status-badge";
 import styles from "./user-management.module.css";
 
-type StatusFilter = "all" | UserStatus;
-type ViewState = "normal" | "loading" | "empty" | "error";
-type FormMode = "create" | "edit";
-type UserOperation = "activate" | "suspend";
-
-type UserFormState = {
-  email: string;
-  name: string;
-  roleIds: string[];
+const PAGE_SIZE = 20;
+const roleLabels: Record<SupportedAdminRoleCode, string> = {
+  ADMIN: "Administrativo",
+  OPERATIONAL: "Operativo",
+};
+const statusLabels: Record<string, string> = {
+  ACTIVE: "Activo",
+  DISABLED: "Desactivado",
+  PENDING_VERIFICATION: "Verificación pendiente",
+  SUSPENDED: "Suspendido",
 };
 
-type UserFormErrors = {
-  email?: string;
-  name?: string;
-};
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+function statusLabel(value: string) {
+  return statusLabels[value] ?? value;
 }
 
-const statusOrder: UserStatus[] = [
-  "active",
-  "suspended",
-  "disabled",
-  "pending",
-];
-
-const viewStateLabels: Record<ViewState, string> = {
-  empty: "Vacío",
-  error: "Error",
-  loading: "Carga",
-  normal: "Normal",
-};
-
-const auditOperationLabels: Record<UserAuditEntry["operation"], string> = {
-  activate: "Activación",
-  create: "Creación",
-  edit: "Edición",
-  suspend: "Suspensión",
-};
-
-const emptyForm: UserFormState = {
-  email: "",
-  name: "",
-  roleIds: [dummyAdminRoles[0]?.id ?? ""].filter(Boolean),
-};
-
-function getEffectiveCapabilities(roles: AdminUserRole[]) {
-  return Array.from(new Set(roles.flatMap((role) => role.capabilities)));
+function statusClass(value: string) {
+  const normalized = value.toLowerCase();
+  return `${styles.statusBadge} ${styles[`status_${normalized}`] ?? ""}`;
 }
 
-function getStatusClass(status: UserStatus) {
-  return `${styles.statusBadge} ${styles[`status_${status}`]}`;
+async function responseMessage(response: Response) {
+  const body = (await response.json().catch(() => null)) as {
+    message?: unknown;
+  } | null;
+  return typeof body?.message === "string"
+    ? body.message
+    : "No se pudo completar la solicitud.";
 }
 
-function buildAuditEntry({
-  operation,
-  reason,
-  userId,
-}: {
-  operation: UserAuditEntry["operation"];
-  reason?: string;
-  userId: string;
-}): UserAuditEntry {
-  return {
-    actor: "Administración demo",
-    id: `AUD-${Date.now()}`,
-    operation,
-    performedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
-    reason: reason?.trim() || undefined,
-    userId,
-  };
+function requestError(status: number, message: string) {
+  if (status === 401) return "Tu sesión expiró. Inicia sesión nuevamente.";
+  if (status === 403)
+    return "Tu cuenta no tiene permiso para administrar usuarios.";
+  if (status === 404) return "No encontramos el usuario o rol solicitado.";
+  if (status === 409)
+    return "La cuenta cambió. Actualiza la lista antes de volver a intentarlo.";
+  return message;
 }
 
-function getFocusableElements(container: HTMLElement) {
-  return Array.from(
-    container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => !element.hasAttribute("aria-hidden"));
-}
-
-function handleDialogKeyDown(
-  event: KeyboardEvent<HTMLElement>,
-  onClose: () => void,
-) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    onClose();
-    return;
-  }
-
-  if (event.key !== "Tab") {
-    return;
-  }
-
-  const focusableElements = getFocusableElements(event.currentTarget);
-  const firstElement = focusableElements[0];
-  const lastElement = focusableElements[focusableElements.length - 1];
-
-  if (!firstElement || !lastElement) {
-    event.preventDefault();
-    return;
-  }
-
-  if (event.shiftKey && document.activeElement === firstElement) {
-    event.preventDefault();
-    lastElement.focus();
-  }
-
-  if (!event.shiftKey && document.activeElement === lastElement) {
-    event.preventDefault();
-    firstElement.focus();
-  }
-}
-
-function validateUserForm(formState: UserFormState): UserFormErrors {
-  const email = formState.email.trim();
-  return {
-    email: !email
-      ? "El correo es requerido."
-      : isValidEmail(email)
-        ? undefined
-        : "Ingresa un correo válido.",
-    name: formState.name.trim() ? undefined : "El nombre es requerido.",
-  };
-}
-
-function hasUserFormChanges(
-  formState: UserFormState,
-  initialFormState: UserFormState,
-) {
-  return (
-    formState.email !== initialFormState.email ||
-    formState.name !== initialFormState.name ||
-    [...formState.roleIds].sort().join(",") !==
-      [...initialFormState.roleIds].sort().join(",")
-  );
-}
-
-export function UserManagementView({
-  initialState = "normal",
-}: {
-  initialState?: ViewState;
-}) {
-  const [users, setUsers] = useState<AdminUser[]>(dummyAdminUsers);
-  const [auditEntries, setAuditEntries] = useState<UserAuditEntry[]>(
-    initialUserAuditEntries,
-  );
+export function UserManagementView() {
+  const [users, setUsers] = useState<AdminUserRecord[]>([]);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [viewState, setViewState] = useState<ViewState>(initialState);
-  const [expandedUserId, setExpandedUserId] = useState(users[0]?.id ?? "");
-  const [formMode, setFormMode] = useState<FormMode | null>(null);
-  const [editingUserId, setEditingUserId] = useState("");
-  const [formState, setFormState] = useState<UserFormState>(emptyForm);
-  const [initialFormState, setInitialFormState] =
-    useState<UserFormState>(emptyForm);
-  const [formErrors, setFormErrors] = useState<UserFormErrors>({});
-  const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
-  const [pendingOperation, setPendingOperation] = useState<{
-    operation: UserOperation;
-    userId: string;
-  } | null>(null);
-  const [operationReason, setOperationReason] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
-  const backgroundRef = useRef<HTMLDivElement>(null);
-  const focusReturnRef = useRef<HTMLElement | null>(null);
-  const discardFocusReturnRef = useRef<HTMLElement | null>(null);
-  const shouldRestoreFocusRef = useRef(false);
-
-  const hasPendingFormChanges = formMode
-    ? hasUserFormChanges(formState, initialFormState)
-    : false;
-  const isDialogOpen =
-    Boolean(formMode) || discardConfirmationOpen || Boolean(pendingOperation);
-
-  useEffect(() => {
-    const background = backgroundRef.current;
-    if (!background) return;
-
-    if (isDialogOpen) {
-      background.setAttribute("aria-hidden", "true");
-      background.setAttribute("inert", "");
-      return;
-    }
-
-    background.removeAttribute("aria-hidden");
-    background.removeAttribute("inert");
-
-    if (shouldRestoreFocusRef.current) {
-      shouldRestoreFocusRef.current = false;
-      focusReturnRef.current?.focus();
-      focusReturnRef.current = null;
-    }
-  }, [isDialogOpen]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [roleDialog, setRoleDialog] = useState<{
+    action: "GRANT" | "REVOKE";
+    roleCode: SupportedAdminRoleCode;
+    user: AdminUserRecord;
+  } | null>(null);
+  const [reason, setReason] = useState("");
+  const [dialogError, setDialogError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   useEffect(() => {
-    if (!hasPendingFormChanges) return;
-
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasPendingFormChanges]);
-
-  const visibleUsers = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase("es");
-    const baseUsers =
-      viewState === "empty"
-        ? []
-        : users.filter((user) => {
-            const matchesStatus =
-              statusFilter === "all" || user.status === statusFilter;
-            const matchesQuery =
-              !normalizedQuery ||
-              user.name.toLocaleLowerCase("es").includes(normalizedQuery) ||
-              user.email.toLocaleLowerCase("es").includes(normalizedQuery);
-            return matchesStatus && matchesQuery;
-          });
-    return baseUsers;
-  }, [query, statusFilter, users, viewState]);
-
-  const selectedUser =
-    visibleUsers.find((user) => user.id === expandedUserId) ?? visibleUsers[0];
-  const selectedCapabilities = selectedUser
-    ? getEffectiveCapabilities(selectedUser.roles)
-    : [];
-
-  const setFocusOrigin = (origin?: HTMLElement) => {
-    focusReturnRef.current =
-      origin ??
-      (document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null);
-  };
-
-  const openCreateForm = (origin?: HTMLElement) => {
-    setFocusOrigin(origin);
-    setFormMode("create");
-    setEditingUserId("");
-    setFormState(emptyForm);
-    setInitialFormState(emptyForm);
-    setFormErrors({});
-    setFeedback("");
-  };
-
-  const openEditForm = (user: AdminUser, origin?: HTMLElement) => {
-    setFocusOrigin(origin);
-    setFormMode("edit");
-    setEditingUserId(user.id);
-    const nextFormState = {
-      email: user.email,
-      name: user.name,
-      roleIds: user.roles.map((role) => role.id),
-    };
-    setFormState(nextFormState);
-    setInitialFormState(nextFormState);
-    setFormErrors({});
-    setFeedback("");
-  };
-
-  const closeForm = () => {
-    shouldRestoreFocusRef.current = true;
-    setDiscardConfirmationOpen(false);
-    setFormMode(null);
-    setEditingUserId("");
-    setFormState(emptyForm);
-    setInitialFormState(emptyForm);
-    setFormErrors({});
-  };
-
-  const requestCloseForm = () => {
-    if (!hasPendingFormChanges) {
-      closeForm();
-      return;
-    }
-
-    discardFocusReturnRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    setDiscardConfirmationOpen(true);
-  };
-
-  const cancelDiscard = () => {
-    setDiscardConfirmationOpen(false);
-    window.setTimeout(() => discardFocusReturnRef.current?.focus(), 0);
-  };
-
-  const openOperationConfirmation = (
-    operation: UserOperation,
-    userId: string,
-    origin?: HTMLElement,
-  ) => {
-    setFocusOrigin(origin);
-    setPendingOperation({ operation, userId });
-    setOperationReason("");
-  };
-
-  const closeOperationConfirmation = () => {
-    shouldRestoreFocusRef.current = true;
-    setPendingOperation(null);
-    setOperationReason("");
-  };
-
-  const updateRoleSelection = (roleId: string, checked: boolean) => {
-    setFormState((current) => {
-      const roleIds = checked
-        ? [...current.roleIds, roleId]
-        : current.roleIds.filter((id) => id !== roleId);
-      return { ...current, roleIds };
-    });
-  };
-
-  const updateFormState = (nextState: UserFormState) => {
-    setFormState(nextState);
-    setFormErrors((current) => ({
-      email:
-        nextState.email.trim() && isValidEmail(nextState.email.trim())
-          ? undefined
-          : current.email,
-      name: nextState.name.trim() ? undefined : current.name,
-    }));
-  };
-
-  const saveUser = () => {
-    const nextErrors = validateUserForm(formState);
-    const firstInvalidField = nextErrors.name
-      ? "admin-user-name"
-      : nextErrors.email
-        ? "admin-user-email"
-        : "";
-
-    if (firstInvalidField) {
-      setFormErrors(nextErrors);
-      const focusInvalidField = () => {
-        document.getElementById(firstInvalidField)?.focus();
-      };
-      if (window.requestAnimationFrame) {
-        window.requestAnimationFrame(focusInvalidField);
-      } else {
-        window.setTimeout(focusInvalidField, 0);
+    let active = true;
+    const controller = new AbortController();
+    void Promise.resolve().then(async () => {
+      if (!active) return;
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({
+          search: query.trim(),
+          limit: String(PAGE_SIZE),
+          offset: String(offset),
+        });
+        const response = await fetch(`/bff/admin/users?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(
+            requestError(response.status, await responseMessage(response)),
+          );
+        }
+        const body: unknown = await response.json();
+        if (!isAdminUserList(body))
+          throw new Error("La respuesta de usuarios no es válida.");
+        if (active) {
+          setUsers(body);
+          setSelectedUserId((current) =>
+            body.some((user) => user.id === current)
+              ? current
+              : (body[0]?.id ?? ""),
+          );
+        }
+      } catch (cause) {
+        if (
+          active &&
+          !(cause instanceof DOMException && cause.name === "AbortError")
+        ) {
+          setUsers([]);
+          setSelectedUserId("");
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "No se pudo cargar la lista de usuarios.",
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
       }
+    });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [offset, query, reloadVersion]);
+
+  const selectedUser = useMemo(
+    () => users.find((user) => user.id === selectedUserId) ?? users[0],
+    [selectedUserId, users],
+  );
+
+  const openRoleDialog = (
+    user: AdminUserRecord,
+    roleCode: SupportedAdminRoleCode,
+  ) => {
+    setRoleDialog({
+      action: user.roles.includes(roleCode) ? "REVOKE" : "GRANT",
+      roleCode,
+      user,
+    });
+    setReason("");
+    setDialogError("");
+  };
+
+  const closeRoleDialog = () => {
+    if (saving) return;
+    setRoleDialog(null);
+    setReason("");
+    setDialogError("");
+  };
+
+  const submitRoleChange = async () => {
+    if (!roleDialog || savingRef.current) return;
+    const trimmedReason = reason.trim();
+    if (trimmedReason.length < 3 || trimmedReason.length > 500) {
+      setDialogError("Indica un motivo de 3 a 500 caracteres.");
       return;
     }
-
-    const selectedRoles = dummyAdminRoles.filter((role) =>
-      formState.roleIds.includes(role.id),
-    );
-
-    if (formMode === "create") {
-      const nextUser: AdminUser = {
-        email: formState.email.trim(),
-        id: `USR-${users.length + 101}`,
-        name: formState.name.trim(),
-        roles: selectedRoles,
-        status: "pending",
-      };
-      setUsers((current) => [nextUser, ...current]);
-      setExpandedUserId(nextUser.id);
-      setAuditEntries((current) => [
-        buildAuditEntry({ operation: "create", userId: nextUser.id }),
-        ...current,
-      ]);
-      setFeedback("Usuario creado con datos simulados.");
-    }
-
-    if (formMode === "edit") {
-      setUsers((current) =>
-        current.map((user) =>
-          user.id === editingUserId
-            ? {
-                ...user,
-                email: formState.email.trim(),
-                name: formState.name.trim(),
-                roles: selectedRoles,
-              }
-            : user,
-        ),
+    savingRef.current = true;
+    setSaving(true);
+    setDialogError("");
+    try {
+      const response = await fetch(
+        `/bff/admin/users/${roleDialog.user.id}/roles/${roleDialog.roleCode}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: roleDialog.action,
+            reason: trimmedReason,
+            expectedVersion: roleDialog.user.rowVersion,
+          }),
+        },
       );
-      setAuditEntries((current) => [
-        buildAuditEntry({ operation: "edit", userId: editingUserId }),
-        ...current,
-      ]);
-      setFeedback("Usuario actualizado con datos simulados.");
+      if (!response.ok) {
+        const message = requestError(
+          response.status,
+          await responseMessage(response),
+        );
+        setError(message);
+        setRoleDialog(null);
+        if (response.status === 409) setReloadVersion((value) => value + 1);
+        return;
+      }
+      const body: unknown = await response.json();
+      if (!isAdminUser(body))
+        throw new Error("La respuesta actualizada no es válida.");
+      setUsers((current) =>
+        current.map((user) => (user.id === body.id ? body : user)),
+      );
+      setSelectedUserId(body.id);
+      setFeedback(
+        `${roleDialog.action === "GRANT" ? "Rol concedido" : "Rol revocado"}: ${roleLabels[roleDialog.roleCode]}.`,
+      );
+      setRoleDialog(null);
+      setReason("");
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "No se pudo actualizar el rol.",
+      );
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-
-    closeForm();
   };
-
-  const confirmOperation = () => {
-    if (!pendingOperation) return;
-    const nextStatus: UserStatus =
-      pendingOperation.operation === "activate" ? "active" : "suspended";
-    setUsers((current) =>
-      current.map((user) =>
-        user.id === pendingOperation.userId
-          ? { ...user, status: nextStatus }
-          : user,
-      ),
-    );
-    setAuditEntries((current) => [
-      buildAuditEntry({
-        operation: pendingOperation.operation,
-        reason: operationReason,
-        userId: pendingOperation.userId,
-      }),
-      ...current,
-    ]);
-    setFeedback(
-      pendingOperation.operation === "activate"
-        ? "Usuario activado con datos simulados."
-        : "Usuario suspendido con datos simulados.",
-    );
-    closeOperationConfirmation();
-  };
-
-  const pendingUser = pendingOperation
-    ? users.find((user) => user.id === pendingOperation.userId)
-    : undefined;
 
   return (
     <div className={styles.page}>
-      <div ref={backgroundRef} className={styles.backgroundContent}>
+      <div
+        className={styles.backgroundContent}
+        aria-hidden={roleDialog ? "true" : undefined}
+      >
         <header className={styles.header}>
           <div>
             <span className="ops-kicker">Canal administrativo</span>
             <h1>Gestión de usuarios</h1>
-            <p>Busca usuarios, consulta roles y registra cambios simulados.</p>
+            <p>
+              Consulta cuentas y administra únicamente roles soportados por el
+              backend.
+            </p>
           </div>
           <div className={styles.headerActions}>
-            <StatusBadge label="DATOS SIMULADOS" tone="info" />
+            <StatusBadge label="CONECTADO AL API" tone="success" />
             <Button
-              onClick={(event) => openCreateForm(event.currentTarget)}
               type="button"
+              disabled
+              title="El backend todavía no expone creación de usuarios."
             >
-              <Plus aria-hidden="true" size={18} /> Crear usuario
+              Crear usuario
             </Button>
           </div>
         </header>
@@ -482,14 +247,25 @@ export function UserManagementView({
         <section className={styles.notice}>
           <ShieldCheck aria-hidden="true" size={19} />
           <span>
-            Los permisos mostrados son únicamente visuales; no representan
-            autorización real del backend.
+            Crear, editar datos, activar y suspender usuarios están
+            deshabilitados porque todavía no tienen endpoint autorizado.
           </span>
         </section>
 
         {feedback ? (
           <div className={styles.feedback} role="status">
-            <Check aria-hidden="true" size={18} /> {feedback}
+            {feedback}
+          </div>
+        ) : null}
+        {error ? (
+          <div className={styles.feedback} role="alert">
+            {error}{" "}
+            <button
+              type="button"
+              onClick={() => setReloadVersion((value) => value + 1)}
+            >
+              Reintentar
+            </button>
           </div>
         ) : null}
 
@@ -498,58 +274,22 @@ export function UserManagementView({
             <Search aria-hidden="true" size={18} />
             <span className="sr-only">Buscar usuario por nombre o correo</span>
             <input
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar por nombre o correo"
               type="search"
               value={query}
+              placeholder="Buscar por nombre o correo"
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setOffset(0);
+              }}
             />
           </label>
-          <div className={styles.controlGroup}>
-            <span>Estado</span>
-            <div className={styles.segmented} aria-label="Filtrar por estado">
-              <button
-                aria-pressed={statusFilter === "all"}
-                onClick={() => setStatusFilter("all")}
-                type="button"
-              >
-                Todos
-              </button>
-              {statusOrder.map((status) => (
-                <button
-                  aria-pressed={statusFilter === status}
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  type="button"
-                >
-                  {userStatusLabels[status]}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className={styles.controlGroup}>
-            <span>Estado simulado</span>
-            <div
-              className={styles.segmented}
-              aria-label="Seleccionar estado de vista"
-            >
-              {(Object.keys(viewStateLabels) as ViewState[]).map((state) => (
-                <button
-                  aria-pressed={viewState === state}
-                  key={state}
-                  onClick={() => setViewState(state)}
-                  type="button"
-                >
-                  {viewStateLabels[state]}
-                </button>
-              ))}
-            </div>
-          </div>
         </section>
 
-        {viewState === "loading" ? <LoadingState /> : null}
-        {viewState === "error" ? <ErrorState /> : null}
-
-        {viewState === "normal" || viewState === "empty" ? (
+        {loading ? (
+          <div className={styles.statePanel} role="status">
+            <LoaderCircle aria-hidden="true" size={22} /> Cargando usuarios…
+          </div>
+        ) : users.length ? (
           <section
             className={styles.workspace}
             aria-label="Usuarios administrativos"
@@ -559,494 +299,212 @@ export function UserManagementView({
                 <div>
                   <h2>Usuarios</h2>
                   <span>
-                    {visibleUsers.length} resultados con datos simulados
+                    {users.length} resultados · página{" "}
+                    {Math.floor(offset / PAGE_SIZE) + 1}
                   </span>
                 </div>
               </header>
-
-              {visibleUsers.length ? (
-                <>
-                  <UserTable
-                    expandedUserId={expandedUserId}
-                    onActivate={(userId, origin) =>
-                      openOperationConfirmation("activate", userId, origin)
-                    }
-                    onEdit={openEditForm}
-                    onSelect={setExpandedUserId}
-                    onSuspend={(userId, origin) =>
-                      openOperationConfirmation("suspend", userId, origin)
-                    }
-                    users={visibleUsers}
-                  />
-                </>
-              ) : (
-                <EmptyState />
-              )}
+              <div className={styles.tableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Usuario</th>
+                      <th>Estado</th>
+                      <th>Roles</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((user) => (
+                      <tr key={user.id}>
+                        <td data-label="Usuario">
+                          <button
+                            type="button"
+                            className={styles.identityButton}
+                            aria-expanded={selectedUser?.id === user.id}
+                            onClick={() => setSelectedUserId(user.id)}
+                          >
+                            <strong>{user.displayName}</strong>
+                            <span>{user.email}</span>
+                          </button>
+                        </td>
+                        <td data-label="Estado">
+                          <span className={statusClass(user.status)}>
+                            {statusLabel(user.status)}
+                          </span>
+                        </td>
+                        <td data-label="Roles">
+                          {user.roles.length
+                            ? user.roles
+                                .map(
+                                  (role) =>
+                                    roleLabels[
+                                      role as SupportedAdminRoleCode
+                                    ] ?? role,
+                                )
+                                .join(", ")
+                            : "Sin roles"}
+                        </td>
+                        <td data-label="Acciones">
+                          <div className={styles.actions}>
+                            {supportedAdminRoleCodes.map((roleCode) => (
+                              <button
+                                key={roleCode}
+                                type="button"
+                                disabled={saving}
+                                onClick={() => openRoleDialog(user, roleCode)}
+                              >
+                                {user.roles.includes(roleCode)
+                                  ? "Revocar"
+                                  : "Conceder"}{" "}
+                                {roleLabels[roleCode]}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              disabled
+                              title="El backend todavía no expone edición de datos."
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              disabled
+                              title="El backend todavía no expone activación o suspensión."
+                            >
+                              Activar / suspender
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <nav
+                className={styles.actions}
+                aria-label="Paginación de usuarios"
+              >
+                <button
+                  type="button"
+                  disabled={offset === 0 || loading}
+                  onClick={() =>
+                    setOffset((value) => Math.max(0, value - PAGE_SIZE))
+                  }
+                >
+                  <ChevronLeft aria-hidden="true" size={17} /> Anterior
+                </button>
+                <button
+                  type="button"
+                  disabled={users.length < PAGE_SIZE || loading}
+                  onClick={() => setOffset((value) => value + PAGE_SIZE)}
+                >
+                  Siguiente <ChevronRight aria-hidden="true" size={17} />
+                </button>
+              </nav>
             </div>
-
-            <aside
-              className={styles.detailPanel}
-              id="admin-user-role-detail"
-              aria-label="Detalle de roles"
-            >
+            <aside className={styles.detailPanel} aria-label="Detalle de roles">
               {selectedUser ? (
                 <>
                   <header>
                     <span>Roles asignados</span>
-                    <h2>{selectedUser.name}</h2>
+                    <h2>{selectedUser.displayName}</h2>
                     <p>{selectedUser.email}</p>
                   </header>
                   <div className={styles.roleList}>
-                    {selectedUser.roles.map((role) => (
-                      <article key={role.id}>
-                        <strong>{role.name}</strong>
-                        <span>{role.capabilities.length} capacidades demo</span>
-                      </article>
-                    ))}
+                    {selectedUser.roles.length ? (
+                      selectedUser.roles.map((role) => (
+                        <article key={role}>
+                          <strong>
+                            {roleLabels[role as SupportedAdminRoleCode] ?? role}
+                          </strong>
+                          <span>{role}</span>
+                        </article>
+                      ))
+                    ) : (
+                      <p>Sin roles administrativos asignados.</p>
+                    )}
                   </div>
-                  <section
-                    className={styles.capabilities}
-                    aria-label="Capacidades efectivas"
-                  >
-                    <h3>Unión visual de capacidades</h3>
-                    <ul>
-                      {selectedCapabilities.map((capability) => (
-                        <li key={capability}>{capability}</li>
-                      ))}
-                    </ul>
-                  </section>
+                  <p className={styles.disclaimer}>
+                    La vista de permisos y edición de roles se implementará en
+                    una etapa posterior.
+                  </p>
                 </>
               ) : (
-                <div className={styles.detailEmpty}>
-                  <ClipboardList aria-hidden="true" size={22} />
-                  <strong>Selecciona un usuario</strong>
-                </div>
+                <p>Selecciona un usuario.</p>
               )}
             </aside>
           </section>
-        ) : null}
-
-        <section className={styles.auditPanel} aria-label="Bitácora simulada">
-          <header className={styles.sectionHeading}>
-            <div>
-              <h2>Registro simulado</h2>
-              <span>Actor, fecha, operación y motivo opcional.</span>
-            </div>
-          </header>
-          <ul>
-            {auditEntries.slice(0, 5).map((entry) => (
-              <li key={entry.id}>
-                <strong>{auditOperationLabels[entry.operation]}</strong>
-                <span>
-                  {entry.actor} · {entry.performedAt}
-                </span>
-                <small>
-                  Usuario {entry.userId}
-                  {entry.reason ? ` · Motivo: ${entry.reason}` : ""}
-                </small>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <p className={styles.disclaimer}>
-          Datos dummy para validar la experiencia. Los roles y capacidades no
-          son un catálogo definitivo. El registro público queda pendiente de
-          integración y nunca debe asignar roles operativos desde frontend.
-        </p>
+        ) : (
+          <div className={styles.statePanel} role="status">
+            <strong>No encontramos usuarios</strong>
+            <span>Ajusta la búsqueda o cambia de página.</span>
+          </div>
+        )}
       </div>
 
-      {formMode ? (
-        <UserFormPanel
-          errors={formErrors}
-          formMode={formMode}
-          formState={formState}
-          inert={discardConfirmationOpen}
-          onClose={requestCloseForm}
-          onRoleChange={updateRoleSelection}
-          onSave={saveUser}
-          onUpdate={updateFormState}
-        />
-      ) : null}
-
-      {discardConfirmationOpen ? (
-        <DiscardUserChangesDialog
-          onCancel={cancelDiscard}
-          onConfirm={closeForm}
-        />
-      ) : null}
-
-      {pendingOperation && pendingUser ? (
-        <ConfirmationDialog
-          onCancel={closeOperationConfirmation}
-          onConfirm={confirmOperation}
-          onReasonChange={setOperationReason}
-          operation={pendingOperation.operation}
-          reason={operationReason}
-          user={pendingUser}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function UserTable({
-  expandedUserId,
-  onActivate,
-  onEdit,
-  onSelect,
-  onSuspend,
-  users,
-}: {
-  expandedUserId: string;
-  onActivate: (userId: string, origin: HTMLElement) => void;
-  onEdit: (user: AdminUser, origin: HTMLElement) => void;
-  onSelect: (userId: string) => void;
-  onSuspend: (userId: string, origin: HTMLElement) => void;
-  users: AdminUser[];
-}) {
-  return (
-    <div className={styles.tableWrap}>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Usuario</th>
-            <th>Estado</th>
-            <th>Roles</th>
-            <th>Capacidades</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((user) => (
-            <tr key={user.id}>
-              <td data-label="Usuario">
-                <button
-                  aria-expanded={expandedUserId === user.id}
-                  aria-controls="admin-user-role-detail"
-                  className={styles.identityButton}
-                  onClick={() => onSelect(user.id)}
-                  type="button"
-                >
-                  <strong>{user.name}</strong>
-                  <span>{user.email}</span>
-                </button>
-              </td>
-              <td data-label="Estado">
-                <span className={getStatusClass(user.status)}>
-                  {userStatusLabels[user.status]}
-                </span>
-              </td>
-              <td data-label="Roles">
-                {user.roles.map((role) => role.name).join(", ")}
-              </td>
-              <td data-label="Capacidades">
-                {getEffectiveCapabilities(user.roles).length}
-              </td>
-              <td data-label="Acciones">
-                <UserActions
-                  onActivate={(origin) => onActivate(user.id, origin)}
-                  onEdit={(origin) => onEdit(user, origin)}
-                  onSuspend={(origin) => onSuspend(user.id, origin)}
-                  status={user.status}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function UserActions({
-  onActivate,
-  onEdit,
-  onSuspend,
-  status,
-}: {
-  onActivate: (origin: HTMLElement) => void;
-  onEdit: (origin: HTMLElement) => void;
-  onSuspend: (origin: HTMLElement) => void;
-  status: UserStatus;
-}) {
-  return (
-    <div className={styles.actions}>
-      <button onClick={(event) => onEdit(event.currentTarget)} type="button">
-        Editar
-      </button>
-      <button
-        disabled={status === "active"}
-        onClick={(event) => onActivate(event.currentTarget)}
-        type="button"
-      >
-        Activar
-      </button>
-      <button
-        disabled={status === "suspended"}
-        onClick={(event) => onSuspend(event.currentTarget)}
-        type="button"
-      >
-        Suspender
-      </button>
-    </div>
-  );
-}
-
-function UserFormPanel({
-  errors,
-  formMode,
-  formState,
-  inert,
-  onClose,
-  onRoleChange,
-  onSave,
-  onUpdate,
-}: {
-  errors: UserFormErrors;
-  formMode: FormMode;
-  formState: UserFormState;
-  inert: boolean;
-  onClose: () => void;
-  onRoleChange: (roleId: string, checked: boolean) => void;
-  onSave: () => void;
-  onUpdate: (state: UserFormState) => void;
-}) {
-  useEffect(() => {
-    document.getElementById("admin-user-name")?.focus();
-  }, []);
-
-  return (
-    <div className={styles.panelBackdrop} role="presentation">
-      <section
-        aria-hidden={inert ? "true" : undefined}
-        aria-labelledby="user-form-title"
-        aria-modal="true"
-        className={styles.sidePanel}
-        inert={inert ? true : undefined}
-        onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
-        role="dialog"
-      >
-        <button
-          aria-label="Cerrar formulario"
-          className={styles.iconButton}
-          onClick={onClose}
-          type="button"
-        >
-          <X aria-hidden="true" size={19} />
-        </button>
-        <header>
-          <span>Datos simulados</span>
-          <h2 id="user-form-title">
-            {formMode === "create" ? "Crear usuario" : "Editar usuario"}
-          </h2>
-          <p>
-            El estado no se edita desde este formulario. Las acciones
-            disponibles son activar o suspender.
-          </p>
-        </header>
-        <div className={styles.formGrid}>
-          <FormField
-            aria-invalid={Boolean(errors.name)}
-            help={errors.name}
-            id="admin-user-name"
-            label="Nombre"
-            onChange={(event) =>
-              onUpdate({ ...formState, name: event.target.value })
-            }
-            value={formState.name}
-          />
-          <FormField
-            aria-invalid={Boolean(errors.email)}
-            help={errors.email}
-            id="admin-user-email"
-            label="Correo"
-            onChange={(event) =>
-              onUpdate({ ...formState, email: event.target.value })
-            }
-            type="email"
-            value={formState.email}
-          />
-        </div>
-        <fieldset className={styles.roleFieldset}>
-          <legend>Roles asignados</legend>
-          {dummyAdminRoles.map((role) => (
-            <label key={role.id}>
-              <input
-                checked={formState.roleIds.includes(role.id)}
-                onChange={(event) =>
-                  onRoleChange(role.id, event.target.checked)
-                }
-                type="checkbox"
-              />
-              <span>
-                <strong>{role.name}</strong>
-                <small>{role.capabilities.join(", ")}</small>
+      {roleDialog ? (
+        <div className={styles.panelBackdrop} role="presentation">
+          <section
+            className={styles.sidePanel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-change-title"
+          >
+            <button
+              type="button"
+              className={styles.iconButton}
+              aria-label="Cerrar cambio de rol"
+              onClick={closeRoleDialog}
+              disabled={saving}
+            >
+              <X aria-hidden="true" size={19} />
+            </button>
+            <header>
+              <span>Cambio sensible</span>
+              <h2 id="role-change-title">
+                {roleDialog.action === "GRANT" ? "Conceder" : "Revocar"} rol
+              </h2>
+              <p>
+                {roleDialog.user.displayName} ·{" "}
+                {roleLabels[roleDialog.roleCode]}
+              </p>
+            </header>
+            <label htmlFor="admin-role-reason">Motivo (obligatorio)</label>
+            <textarea
+              id="admin-role-reason"
+              value={reason}
+              maxLength={500}
+              onChange={(event) => setReason(event.target.value)}
+              aria-invalid={Boolean(dialogError)}
+              aria-describedby={
+                dialogError ? "admin-role-reason-error" : undefined
+              }
+            />
+            {dialogError ? (
+              <span className={styles.fieldError} id="admin-role-reason-error">
+                {dialogError}
               </span>
-            </label>
-          ))}
-        </fieldset>
-        <div className={styles.panelActions}>
-          <Button onClick={onClose} type="button" variant="secondary">
-            Cancelar
-          </Button>
-          <Button onClick={onSave} type="button">
-            Guardar
-          </Button>
+            ) : null}
+            <p>
+              Se enviará la versión actual {roleDialog.user.rowVersion} para
+              evitar sobrescribir cambios.
+            </p>
+            <div className={styles.actions}>
+              <button type="button" onClick={closeRoleDialog} disabled={saving}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitRoleChange()}
+                disabled={saving}
+              >
+                {saving ? "Guardando…" : "Confirmar cambio"}
+              </button>
+            </div>
+          </section>
         </div>
-      </section>
-    </div>
-  );
-}
-
-function DiscardUserChangesDialog({
-  onCancel,
-  onConfirm,
-}: {
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  useEffect(() => {
-    document.getElementById("user-discard-cancel")?.focus();
-  }, []);
-
-  return (
-    <div className={styles.panelBackdrop} role="presentation">
-      <section
-        aria-labelledby="user-discard-title"
-        aria-modal="true"
-        className={styles.confirmDialog}
-        onKeyDown={(event) => handleDialogKeyDown(event, onCancel)}
-        role="dialog"
-      >
-        <span className={styles.confirmIcon}>
-          <CircleAlert aria-hidden="true" size={22} />
-        </span>
-        <h2 id="user-discard-title">Descartar cambios</h2>
-        <p>Los cambios pendientes del usuario simulado no se guardarán.</p>
-        <div className={styles.panelActions}>
-          <Button
-            id="user-discard-cancel"
-            onClick={onCancel}
-            type="button"
-            variant="secondary"
-          >
-            Cancelar
-          </Button>
-          <Button onClick={onConfirm} type="button">
-            Descartar cambios
-          </Button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function ConfirmationDialog({
-  onCancel,
-  onConfirm,
-  onReasonChange,
-  operation,
-  reason,
-  user,
-}: {
-  onCancel: () => void;
-  onConfirm: () => void;
-  onReasonChange: (reason: string) => void;
-  operation: UserOperation;
-  reason: string;
-  user: AdminUser;
-}) {
-  const title =
-    operation === "activate" ? "Activar usuario" : "Suspender usuario";
-  const confirmLabel =
-    operation === "activate" ? "Confirmar activación" : "Confirmar suspensión";
-
-  useEffect(() => {
-    document.getElementById("user-confirm-cancel")?.focus();
-  }, []);
-
-  return (
-    <div className={styles.panelBackdrop} role="presentation">
-      <section
-        aria-labelledby="user-confirm-title"
-        aria-modal="true"
-        className={styles.confirmDialog}
-        onKeyDown={(event) => handleDialogKeyDown(event, onCancel)}
-        role="dialog"
-      >
-        <button
-          aria-label="Cerrar confirmación"
-          className={styles.iconButton}
-          onClick={onCancel}
-          type="button"
-        >
-          <X aria-hidden="true" size={19} />
-        </button>
-        <span className={styles.confirmIcon}>
-          <CircleAlert aria-hidden="true" size={22} />
-        </span>
-        <h2 id="user-confirm-title">{title}</h2>
-        <p>
-          Esta acción actualizará el estado de {user.name} con datos simulados.
-        </p>
-        <label className={styles.reasonField}>
-          <span>Motivo opcional</span>
-          <textarea
-            onChange={(event) => onReasonChange(event.target.value)}
-            placeholder="Motivo simulado"
-            rows={3}
-            value={reason}
-          />
-        </label>
-        <div className={styles.panelActions}>
-          <Button
-            id="user-confirm-cancel"
-            onClick={onCancel}
-            type="button"
-            variant="secondary"
-          >
-            Cancelar
-          </Button>
-          <Button onClick={onConfirm} type="button">
-            {confirmLabel}
-          </Button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function LoadingState() {
-  return (
-    <section className={styles.statePanel} aria-live="polite">
-      <LoaderCircle aria-hidden="true" size={24} />
-      <div>
-        <strong>Cargando usuarios</strong>
-        <span>Preparando datos simulados del módulo administrativo.</span>
-      </div>
-    </section>
-  );
-}
-
-function ErrorState() {
-  return (
-    <section className={styles.statePanel} role="alert">
-      <AlertTriangle aria-hidden="true" size={24} />
-      <div>
-        <strong>No pudimos cargar usuarios</strong>
-        <span>Intenta nuevamente con los datos simulados.</span>
-      </div>
-    </section>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className={styles.emptyState}>
-      <UserCog aria-hidden="true" size={25} />
-      <strong>No encontramos usuarios</strong>
-      <span>Prueba otra búsqueda o cambia el filtro de estado.</span>
+      ) : null}
     </div>
   );
 }

@@ -98,3 +98,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Se agregó `GET/PUT /api/v1/client/profile`, protegido con rol `CLIENT` y sujeto tomado del JWT. La edición actualiza `users` y `customer_profiles` en una transacción, controla `expectedVersion` y audita los campos sin guardar el teléfono en el evento.
 - La prueba verifica rechazo por versión obsoleta sin escrituras y persistencia coordinada de ambas representaciones; la edición no permite cambiar correo ni acceder a otro perfil.
 - Validación en composición temporal con foundation + auth: Maven pasó 7/7 pruebas unitarias. El smoke HTTP/DB también pasó en PostgreSQL 18 temporal: login CLIENT, perfil GET/PUT, conflicto de versión, validación de teléfono y 403 para ADMIN; DB confirmó sincronización/auditoría. Falta integrar las ramas oficialmente y repetirlo en CI.
+
+## 2026-10-09 - E6.2 capacidades de servicio y bloqueos
+
+- La vista Admin de `/admin/settings` incorpora una seccion separada para capacidades persistidas. Consume el BFF Admin, conserva el DTO real y actualiza unicamente `status` y `reason` con `expectedVersion` y `X-Request-Id`.
+- La UI maneja carga, vacio, error 401/403/404/409, confirmacion, validacion, doble envio y recarga tras conflicto. No conecta las capacidades con el booleano local `deliveryEnabled` de Settings.
+- No se agrego superficie Web para `GET /api/v1/public/service-capabilities`: la Web no tiene una vista activa que la necesite y Mobile ya consume esa ruta directamente.
+- Permanecen bloqueados por falta de API contractual: CRUD completo de usuarios, editor de roles/permisos, personal y horarios, y settings persistentes del restaurante. E6.1 conserva listado real y GRANT/REVOKE de roles soportados.

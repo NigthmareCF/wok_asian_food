@@ -60,3 +60,15 @@ Las tablas incluyen búsqueda, filtros, orden y paginación cuando el volumen lo
 ## Entrega del canal
 
 El PR debe indicar los permisos representados, acciones sensibles, datos simulados y decisiones pendientes. Para Roles y permisos se usa el mockup identificado como referencia visual, pero el catálogo real de permisos debe confirmarse con backend antes de declararlo definitivo.
+
+## E6.1 - Usuarios conectados
+
+`/admin/users` consume el listado real mediante `GET /bff/admin/users` con `search`, `limit` y `offset`. Las unicas mutaciones habilitadas son `GRANT` y `REVOKE` de `ADMIN` u `OPERATIONAL` mediante `PUT /bff/admin/users/{userId}/roles/{roleCode}`, enviando el motivo obligatorio y `expectedVersion`. La autorizacion continua en backend con `ROLE_ADMIN`; los permisos visuales del shell no sustituyen esa comprobacion.
+
+Crear, editar datos, activar y suspender usuarios permanecen deshabilitados y explicados porque no existe un endpoint aprobado para esas acciones. El editor de roles/permisos, personal, horarios y capacidades queda fuera de esta etapa.
+
+## E6.2 - Capacidades de servicio
+
+La ruta `/admin/settings` conserva los ajustes locales de demostracion y agrega una seccion separada para `GET /bff/admin/service-capabilities` y `PUT /bff/admin/service-capabilities/{code}`. La seccion muestra el DTO real (`code`, `status`, `reason`, `rowVersion`, `policyVersion`, `effectiveFrom`, `effectiveUntil`) y solo permite editar `status` y `reason` con `expectedVersion` y `X-Request-Id`. No convierte capacidades en booleanos de `Settings`.
+
+Las capacidades publicas no se conectan en Web porque no existe una superficie Web activa que las consuma; Mobile ya tiene su consumidor directo. CRUD completo de usuarios, editor de roles/permisos, personal y horarios, y settings persistentes del restaurante permanecen bloqueados por falta de API contractual.
