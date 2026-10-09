@@ -132,6 +132,52 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
     }
 
     @Test
+    void concurrentRetryWithTheSameReservationDecisionKeyReturnsOneCommittedResult() throws Exception {
+        ReservationCase reservation = createPendingReservation(2);
+        UUID tableId = createTable("Mesa reintento simultáneo " + UUID.randomUUID(), 4, "SALON");
+        UUID key = UUID.randomUUID();
+        String path = "/api/v1/operational/reservations/" + reservation.id() + "/decision";
+        String body = ("{\"decision\":\"CONFIRM\",\"reason\":\"Horario y capacidad revisados\","
+                + "\"expectedVersion\":1,\"tableIds\":[\"%s\"]}").formatted(tableId);
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var ready = new java.util.concurrent.CountDownLatch(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try {
+            var first = executor.submit(() -> decideConcurrently(ready, start, path, reservation, key, body));
+            var second = executor.submit(() -> decideConcurrently(ready, start, path, reservation, key, body));
+            assertThat(ready.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            var results = List.of(first.get(), second.get());
+            assertThat(results.stream().map(java.net.http.HttpResponse::statusCode).toList())
+                    .containsExactly(200, 200);
+            assertThat(results.stream().map(result -> readReplayFlag(result.body())).toList())
+                    .containsExactlyInAnyOrder(false, true);
+            assertThat(count("SELECT count(*) FROM wok.reservation_table_assignments WHERE reservation_id = ? AND released_at IS NULL",
+                    reservation.id())).isEqualTo(1);
+            assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'RESERVATION_TABLES_ASSIGNED'",
+                    reservation.id())).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", reservation.hoursId());
+        }
+    }
+
+    private java.net.http.HttpResponse<String> decideConcurrently(java.util.concurrent.CountDownLatch ready,
+            java.util.concurrent.CountDownLatch start, String path, ReservationCase reservation, UUID key, String body)
+            throws InterruptedException {
+        ready.countDown();
+        start.await();
+        return send("PUT", path, reservation.staffToken(), body,
+                Map.of("Idempotency-Key", key.toString(), "X-Request-Id", UUID.randomUUID().toString()));
+    }
+
+    private boolean readReplayFlag(String responseBody) {
+        try { return json.readTree(responseBody).path("idempotentReplay").asBoolean(); }
+        catch (Exception failure) { throw new IllegalStateException(failure); }
+    }
+
+    @Test
     void refusesConfirmingTablesFromDifferentZones() throws Exception {
         ReservationCase reservation = createPendingReservation(3);
         UUID firstTable = createTable("Mesa salón " + UUID.randomUUID(), 2, "SALON");

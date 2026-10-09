@@ -940,9 +940,9 @@
 
 ## 2026-10-09 — Decisiones de reserva recuperables por clave idempotente
 
-- La decisión Operativa de reserva acepta `Idempotency-Key` opcional. Mismo actor/clave/payload devuelve el snapshot original incluso después de cambiar la reserva a `CONFIRMED` o `CANCELLED`; payload distinto con la misma clave responde 409. El identificador `X-Request-Id` puede cambiar entre reintentos sin repetir asignaciones, historial o auditoría.
+- La decisión Operativa de reserva acepta `Idempotency-Key` opcional. Mismo actor/clave/payload devuelve el snapshot original incluso después de cambiar la reserva a `CONFIRMED` o `CANCELLED`; payload distinto con la misma clave responde 409. El identificador `X-Request-Id` puede cambiar entre reintentos sin repetir asignaciones, historial o auditoría. Dos solicitudes HTTP simultáneas con la misma clave devuelven ambas 200, con un recibo inicial y un replay, y sólo un conjunto de efectos.
 - No requiere migración: reutiliza `response_code` y `response_snapshot` de `wok.idempotency_keys`. La prueba HTTP con PostgreSQL cubre confirmación con mesa, pérdida/retry tras commit y divergencia de payload. Clientes Operativos aún pueden omitir la cabecera.
-- Pruebas focales: 15/15. Suite Maven completa: 350/350, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers aplicó Flyway V1–V55.
+- Pruebas focales: 16/16 con el caso concurrente incluido. Suite Maven completa: 352/352, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers aplicó Flyway V1–V55.
 
 ## 2026-10-09 — Prueba adversarial de carga agregada entre productos
 
