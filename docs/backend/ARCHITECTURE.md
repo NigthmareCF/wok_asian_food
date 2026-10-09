@@ -20,6 +20,8 @@ Los horarios semanales se mantienen desde `GET /api/v1/admin/business-hours` y `
 
 Al confirmar una solicitud en `/api/v1/operational/reservations/{id}/decision`, Operaciones vuelve a validar que sigan quedando al menos tres horas y que el día/hora continúe dentro del horario semanal o override vigente y del último ingreso normal. Si la agenda cambió mientras esperaba revisión, la confirmación devuelve conflicto y conserva la solicitud pendiente para que el personal la rechace o coordine otro horario; no acepta una reserva contra política obsoleta.
 
+Para asignar mesas a una reserva ya confirmada o ARRIVED, `GET /api/v1/operational/reservations/{id}/table-assignment-options` muestra capacidad/zona, estado actual, asignación propia y conflictos con otros rangos reservados. Es una lectura orientativa, protegida por `tables:manage`: una mesa ocupada ahora o inactiva no aparece como asignable, salvo una asignación vigente de esa misma reserva. La consulta no bloquea ni reserva mesas; `POST .../{id}/table-assignments` vuelve a validar y la constraint de exclusión PostgreSQL decide conflictos concurrentes.
+
 `OccupancyEstimator` usa rangos iniciales configurables: 1 persona 75–105 min; 2, 90–120; 3–4, 105–150; 5–8, 120–180; 9–12, 150–210; 13+, cálculo especial. No multiplica el baseline por persona. Guarda estimado y duración real para calibración.
 
 ## Flujos y invariantes

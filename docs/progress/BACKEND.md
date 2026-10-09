@@ -820,3 +820,9 @@
 - `IdempotencyStore` ahora aplica la ventana de 24 horas que ya guardaba el esquema: durante el TTL mantiene replay/fingerprint; al vencer, reutilizar la clave inicia otra operación en vez de reproducir para siempre un recurso viejo. Un claim `IN_PROGRESS` con lease vencido se puede reclamar con el mismo contenido.
 - `IdempotencyKeyCleanupWorker` elimina hasta 500 filas vencidas por ejecución y omite claims con lease vigente; `FOR UPDATE SKIP LOCKED` mantiene la limpieza acotada sin bloquear operaciones activas.
 - `IdempotencyLifecycleIntegrationTest` valida replay, reutilización por vencimiento, recuperación de lease y borrado por lotes que preserva filas activas/bloqueadas. Suite completa con PostgreSQL 18/Testcontainers y Flyway V1–V52: 75 suites / 325 pruebas, cero fallos, errores u omitidas.
+
+## 2026-10-08 — Consulta de opciones de mesa para reserva confirmada
+
+- Operativo con `tables:manage` puede consultar `GET /api/v1/operational/reservations/{id}/table-assignment-options`. Devuelve mesas, capacidad/zona, estado, si ya pertenecen a la reserva y si son asignables según estado actual y traslapes temporales con otras reservas.
+- La consulta sólo aplica a reservas `CONFIRMED` o `ARRIVED`, no bloquea ni asigna mesas y no sustituye la validación transaccional del POST; la constraint PostgreSQL sigue resolviendo carreras entre operadores. Mesas `OCCUPIED`, `CLEANING`, `RESERVED`, `UNAVAILABLE` o inactivas se explican con reason codes, salvo una asignación vigente de esa misma reserva.
+- `ReservationTableAssignmentIntegrationTest`: 7/7 pasó con PostgreSQL 18/Testcontainers y Flyway V1–V52. Comprueba mesa libre, traslape, estado ocupado, mesa inactiva, reserva pendiente, 404 y permiso. Suite completa: 75 suites / 327 pruebas, cero fallos, errores u omitidas; `git diff --check` limpio.

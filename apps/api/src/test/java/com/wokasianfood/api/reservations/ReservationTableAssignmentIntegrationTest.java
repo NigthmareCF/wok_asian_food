@@ -145,6 +145,73 @@ class ReservationTableAssignmentIntegrationTest extends PostgresIntegrationTest 
         }
     }
 
+    @Test
+    void tableAssignmentOptionsReflectScheduleAndCurrentTableState() throws Exception {
+        ReservationCase first = createConfirmedReservation(2);
+        ReservationCase second = createConfirmedReservation(2, first.startsAt());
+        UUID conflictingTable = createTable("Mesa ocupada por reserva " + UUID.randomUUID(), 4, "SALON");
+        UUID freeTable = createTable("Mesa libre " + UUID.randomUUID(), 4, "SALON");
+        UUID occupiedTable = createTable("Mesa ocupada " + UUID.randomUUID(), 4, "SALON");
+        UUID inactiveTable = createTable("Mesa inactiva " + UUID.randomUUID(), 4, "SALON");
+        try {
+            assertThat(assign(first, List.of(conflictingTable), UUID.randomUUID()).statusCode()).isEqualTo(201);
+            jdbc.update("UPDATE wok.dining_tables SET current_status = 'OCCUPIED' WHERE id = ?", occupiedTable);
+            jdbc.update("UPDATE wok.dining_tables SET active = false WHERE id = ?", inactiveTable);
+
+            String path = "/api/v1/operational/reservations/" + second.id() + "/table-assignment-options";
+            var response = get(path, second.staffToken());
+            assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
+            JsonNode options = json.readTree(response.body());
+            assertThat(options.path("guests").asInt()).isEqualTo(2);
+            assertThat(options.path("occupiedUntil").asText()).isEqualTo(second.endsAt().plusSeconds(20 * 60).toString());
+
+            JsonNode tables = options.path("tables");
+            assertThat(option(tables, freeTable).path("assignable").asBoolean()).isTrue();
+            assertThat(option(tables, conflictingTable).path("unavailableReason").asText()).isEqualTo("SCHEDULE_CONFLICT");
+            assertThat(option(tables, occupiedTable).path("unavailableReason").asText()).isEqualTo("TABLE_NOT_FREE");
+            assertThat(option(tables, inactiveTable).path("unavailableReason").asText()).isEqualTo("INACTIVE");
+            assertThat(get(path, tokenForRole("CLIENT")).statusCode()).isEqualTo(403);
+            assertThat(get("/api/v1/operational/reservations/" + UUID.randomUUID() + "/table-assignment-options",
+                    second.staffToken()).statusCode()).isEqualTo(404);
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", first.hoursId());
+        }
+    }
+
+    @Test
+    void assignmentOptionsAreAvailableOnlyAfterStaffConfirmation() throws Exception {
+        LocalDate date = LocalDate.now(ZONE).plusDays(8);
+        Instant startsAt = date.atTime(LocalTime.of(16, 0)).atZone(ZONE).toInstant();
+        UUID hoursId = UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO wok.business_hours (id, service_type, weekday, opens_at, closes_at, timezone_name)
+            VALUES (?, 'DINE_IN', ?, '14:00', '22:00', 'America/Guatemala')
+            ON CONFLICT (service_type, weekday) DO NOTHING
+            """, hoursId, date.getDayOfWeek().getValue());
+        UUID configuredHoursId = jdbc.queryForObject("SELECT id FROM wok.business_hours WHERE service_type = 'DINE_IN' AND weekday = ?",
+                UUID.class, date.getDayOfWeek().getValue());
+        UUID client = createUserWithRole("table-options-pending-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        jdbc.update("INSERT INTO wok.customer_profiles (user_id, full_name) VALUES (?, 'Cliente pendiente')", client);
+        try {
+            var submitted = post("/api/v1/client/reservations", tokenFor(client),
+                    "{\"guests\":2,\"requestedAt\":\"%s\",\"preorder\":true}".formatted(startsAt),
+                    Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+            UUID reservationId = UUID.fromString(json.readTree(submitted.body()).path("reservationId").asText());
+            assertThat(submitted.statusCode()).isEqualTo(202);
+            var response = get("/api/v1/operational/reservations/" + reservationId + "/table-assignment-options",
+                    tokenForRole("OPERATIONAL"));
+            assertThat(response.statusCode()).isEqualTo(409);
+        } finally {
+            jdbc.update("DELETE FROM wok.business_hours WHERE id = ?", configuredHoursId);
+        }
+    }
+
+    private JsonNode option(JsonNode options, UUID tableId) {
+        return java.util.stream.StreamSupport.stream(options.spliterator(), false)
+                .filter(option -> tableId.toString().equals(option.path("id").asText()))
+                .findFirst().orElseThrow();
+    }
+
     private ReservationCase createConfirmedReservation(int guests) throws Exception {
         LocalDate date = LocalDate.now(ZONE).plusDays(8);
         Instant startsAt = date.atTime(LocalTime.of(16, 0)).atZone(ZONE).toInstant();

@@ -30,6 +30,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -46,6 +47,11 @@ public class OperationalReservationTableAssignmentController {
 
     public OperationalReservationTableAssignmentController(ReservationTableAssignmentService assignments) {
         this.assignments = assignments;
+    }
+
+    @GetMapping("/{reservationId}/table-assignment-options")
+    public ReservationTableAssignmentService.TableOptions options(@PathVariable UUID reservationId) {
+        return assignments.options(reservationId);
     }
 
     @PostMapping("/{reservationId}/table-assignments")
@@ -88,6 +94,53 @@ class ReservationTableAssignmentService {
     ReservationTableAssignmentService(JdbcTemplate jdbc, IdempotencyStore idempotency) {
         this.jdbc = jdbc;
         this.idempotency = idempotency;
+    }
+
+    @Transactional(readOnly = true)
+    TableOptions options(UUID reservationId) {
+        List<Reservation> reservations = jdbc.query("""
+            SELECT id, status, party_size, reservation_at, ends_at, row_version
+            FROM wok.reservations WHERE id = ?
+            """, (rs, row) -> new Reservation(rs.getObject("id", UUID.class), rs.getString("status"),
+                rs.getInt("party_size"), rs.getTimestamp("reservation_at").toInstant(),
+                rs.getTimestamp("ends_at").toInstant(), rs.getInt("row_version")), reservationId);
+        if (reservations.isEmpty()) throw new AuthException(404, "No encontramos la reserva.");
+        Reservation reservation = reservations.getFirst();
+        if (!Set.of("CONFIRMED", "ARRIVED").contains(reservation.status()))
+            throw new AuthException(409, "Sólo se pueden consultar mesas para una reserva confirmada o que ya llegó.");
+
+        Instant occupiedUntil = reservation.endsAt().plus(ARRIVAL_TOLERANCE);
+        List<TableOption> tables = jdbc.query("""
+            SELECT t.id, t.name, t.capacity, t.zone, t.active, t.current_status,
+                   EXISTS (
+                       SELECT 1 FROM wok.reservation_table_assignments a
+                       WHERE a.table_id = t.id AND a.released_at IS NULL
+                         AND a.reservation_id = ?
+                   ) AS assigned_to_reservation,
+                   EXISTS (
+                       SELECT 1 FROM wok.reservation_table_assignments a
+                       WHERE a.table_id = t.id AND a.released_at IS NULL
+                         AND a.reservation_id <> ?
+                         AND a.occupied_period && tstzrange(?, ?, '[)')
+                   ) AS has_schedule_conflict
+            FROM wok.dining_tables t
+            ORDER BY upper(t.zone), t.name, t.id
+            """, (rs, row) -> {
+                boolean assigned = rs.getBoolean("assigned_to_reservation");
+                boolean active = rs.getBoolean("active");
+                String status = rs.getString("current_status");
+                boolean conflict = rs.getBoolean("has_schedule_conflict");
+                String reason = !active ? "INACTIVE"
+                        : conflict ? "SCHEDULE_CONFLICT"
+                        : assigned ? null
+                        : !"FREE".equals(status) ? "TABLE_NOT_FREE"
+                        : null;
+                return new TableOption(
+                        rs.getObject("id", UUID.class), rs.getString("name"), rs.getInt("capacity"),
+                        rs.getString("zone"), status, assigned, reason == null, reason);
+            }, reservationId, reservationId, Timestamp.from(reservation.startsAt()), Timestamp.from(occupiedUntil));
+        return new TableOptions(reservation.id(), reservation.status(),
+                reservation.version(), reservation.partySize(), reservation.startsAt(), occupiedUntil, tables);
     }
 
     @Transactional
@@ -282,5 +335,9 @@ class ReservationTableAssignmentService {
     public record TableAssignment(UUID tableId, String name, int capacity, String zone) {}
     public record AssignmentReceipt(UUID reservationId, int rowVersion, Instant occupiedFrom, Instant occupiedUntil,
                                     List<TableAssignment> tables) {}
+    public record TableOption(UUID id, String name, int capacity, String zone, String currentStatus,
+                              boolean assignedToReservation, boolean assignable, String unavailableReason) {}
+    public record TableOptions(UUID reservationId, String reservationStatus, int rowVersion, int guests,
+                              Instant occupiedFrom, Instant occupiedUntil, List<TableOption> tables) {}
     public record ReleaseReceipt(UUID reservationId, int rowVersion, int releasedTableCount, boolean idempotentReplay) {}
 }
