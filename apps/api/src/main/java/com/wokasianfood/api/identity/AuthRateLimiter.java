@@ -1,10 +1,14 @@
 package com.wokasianfood.api.identity;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Sliding-window rate limiter for the unauthenticated auth endpoints.
@@ -37,10 +41,18 @@ public class AuthRateLimiter {
 
     public enum Action { REGISTER, LOGIN, VERIFY, RESEND, RESET_REQUEST, RESET_COMPLETE, GOOGLE_NONCE, GOOGLE_LOGIN }
 
+    @Transactional(noRollbackFor = AuthException.class)
     public void check(Action action, String identifier, String clientIp) {
         Policy policy = policies.get(action);
         String ip = ipSubject(clientIp);
         String normalizedIdentifier = identifier == null ? "" : identifier.trim().toLowerCase(java.util.Locale.ROOT);
+        List<String> lockKeys = new ArrayList<>(2);
+        if (policy.ipMax() > 0 && !ip.isEmpty()) lockKeys.add(lockKey(action, "IP", ip));
+        if (policy.identifierMax() > 0 && !normalizedIdentifier.isEmpty())
+            lockKeys.add(lockKey(action, "IDENTIFIER", normalizedIdentifier));
+        Collections.sort(lockKeys);
+        for (String lockKey : lockKeys) acquireWindowLock(lockKey);
+
         if (policy.ipMax() > 0) record(action, "IP", ip);
         if (policy.identifierMax() > 0) record(action, "IDENTIFIER", normalizedIdentifier);
         if (exceeds(action, "IP", ip, policy.ipMax(), policy.ipWindow())
@@ -53,6 +65,17 @@ public class AuthRateLimiter {
                 """, safeIp(clientIp), action.name());
             throw new AuthException(429, "Demasiados intentos. Intenta más tarde.");
         }
+    }
+
+    private String lockKey(Action action, String scope, String subject) {
+        return "wok:auth-rate-limit:" + action.name() + ":" + scope + ":" + subject;
+    }
+
+    private void acquireWindowLock(String lockKey) {
+        jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", resultSet -> {
+            while (resultSet.next()) { /* Consume the lock function result. */ }
+            return null;
+        }, lockKey);
     }
 
     private void record(Action action, String scope, String subject) {
