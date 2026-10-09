@@ -22,9 +22,9 @@ describe("public service hours API compatibility", () => {
     );
   });
 
-  it.each([404, 500])("adapts the integrated path response after route error %i", async (status) => {
+  it("adapts the path response after the canonical route is missing", async () => {
     const request = vi.fn()
-      .mockRejectedValueOnce(new ApiError("route unavailable", status))
+      .mockRejectedValueOnce(new ApiError("route unavailable", 404))
       .mockResolvedValueOnce([{ weekday: 4, opensAt: "14:00:00", closesAt: "22:00:00", timezone: "America/Guatemala" }]);
 
     await expect(fetchPublicServiceDay("PICKUP", "2026-10-08", request)).resolves.toEqual({
@@ -38,6 +38,15 @@ describe("public service hours API compatibility", () => {
     });
     expect(request).toHaveBeenCalledTimes(2);
     expect(request.mock.calls[1]?.[0]).toBe("/api/v1/public/service-hours/PICKUP/2026-10-08");
+  });
+
+  it("does not hide a server failure behind the compatibility route", async () => {
+    const request = vi.fn().mockRejectedValue(new ApiError("service-hours query failed", 500));
+
+    await expect(fetchPublicServiceDay("PICKUP", "2026-10-08", request)).rejects.toThrow("service-hours query failed");
+    expect(request).toHaveBeenCalledExactlyOnceWith(
+      "/api/v1/public/service-hours?serviceType=PICKUP&from=2026-10-08&to=2026-10-08",
+    );
   });
 
   it("represents a date with no configured legacy window as closed", async () => {

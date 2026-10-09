@@ -510,7 +510,7 @@
 - La regla se comparte con preórdenes mediante `canAddDistinctMenuLine` y queda cubierta al límite y por debajo de él en Vitest. Verificación: 59/59 pruebas, ESLint, TypeScript y export Expo Android completan correctamente; el export es un bundle, no un APK instalable.
 ## 2026-10-08 — Compatibilidad entre contratos de calendario publicados
 
-- `useServiceHours` consulta primero la ruta vigente por rango (`?serviceType&from&to`). Si el servidor responde 404 o 500 por una ruta no reconocida, intenta la ruta integrada por tipo/fecha (`/service-hours/{tipo}/{fecha}`) y adapta su lista de ventanas al DTO que consume Cliente. La adaptación sólo ocurre si la ruta alternativa devuelve datos válidos; 401/403/422 y fallos de ambas rutas se conservan como error.
+- `useServiceHours` consulta primero la ruta vigente por rango (`?serviceType&from&to`). Si el servidor responde 404 por una ruta no reconocida, intenta la ruta integrada por tipo/fecha (`/service-hours/{tipo}/{fecha}`) y adapta su lista de ventanas al DTO que consume Cliente. Un 500 ahora se conserva como fallo real del servidor y no se oculta con un fallback; 401/403/422 y fallos de ambas rutas también se conservan como error.
 - Esta compatibilidad cubre la divergencia observada entre `feature/backend-capacity-order-lifecycle` y el servidor integrado activo; no cambia la autoridad de horarios del backend ni confirma disponibilidad de pedidos.
 - Verificación: Vitest 73/73; ESLint, TypeScript y export Expo Android/Web pasan. Los exports no son APK instalable ni prueba física.
 
@@ -558,3 +558,8 @@
 - Firma v2 verificada con el certificado Android Debug local. Es para revisión interna, no para tiendas ni producción.
 - Se compiló sin `EXPO_PUBLIC_API_BASE_URL`: las pantallas cargan, pero las llamadas API no funcionarán hasta reconstruir con una URL que el teléfono alcance. No se instaló en dispositivo ni se probó conexión real.
 - Build ejecutado con Gradle 9.3.1, Android SDK 36/NDK 27.1; `assembleRelease` terminó con éxito. El proyecto Android generado y el APK quedan locales/ignorados, no se añadieron al repositorio.
+
+## 2026-10-08 — Errores de calendario no se confunden con rutas antiguas
+
+- La app sólo intenta el contrato legado de horarios al recibir HTTP 404; los HTTP 500 ahora se muestran como error de API en vez de ocultarse como una ruta antigua.
+- Verificación: Vitest 121/121, ESLint y TypeScript `--noEmit`. No se instaló la app en dispositivo para este cambio.
