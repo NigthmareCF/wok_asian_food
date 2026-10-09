@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import { ApiError, apiRequest, TokenPair } from "@/lib/api";
 import { completeGoogleSignIn } from "@/lib/google-auth";
 import { clearStoredSession as clearSessionRecord, readStoredSession, writeStoredSession } from "@/lib/secure-session-storage";
-import { createRefreshTokenCoordinator, createSerializedWriteQueue } from "@/lib/session-coordination";
+import { createAuthAttemptCoordinator, createRefreshTokenCoordinator, createSerializedWriteQueue } from "@/lib/session-coordination";
 
 type Session = { accessToken: string; email: string; offline: boolean };
 type SessionContextValue = {
@@ -70,6 +70,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const authGeneration = useRef(0);
+  const authAttempts = useRef(createAuthAttemptCoordinator());
 
   function saveTokens(tokens: TokenPair, email: string, generation: number) {
     return serializeSecureStoreWrite(async () => {
@@ -126,44 +127,60 @@ export function SessionProvider({ children }: PropsWithChildren) {
     ready,
     async login(email, password) {
       if (Platform.OS === "web") throw new ApiError("Inicia sesión desde la aplicación móvil para proteger tu sesión.");
-      const tokens = await apiRequest<TokenPair>("/api/v1/auth/login", {
-        method: "POST", body: JSON.stringify({ email, password, clientType: "MOBILE" }),
-      });
-      const normalizedEmail = email.trim().toLowerCase();
-      authGeneration.current += 1;
-      const generation = authGeneration.current;
-      const saved = await saveTokens(tokens, normalizedEmail, generation);
-      if (!saved || generation !== authGeneration.current) throw new ApiError("La sesión cambió antes de completar el acceso. Inicia sesión nuevamente.", 401);
-      refreshCoordinator.clear();
-      setSession({ accessToken: tokens.accessToken, email: normalizedEmail, offline: false });
+      const attempt = authAttempts.current.begin();
+      if (attempt === null) throw new ApiError("Ya hay un inicio de sesión en curso. Espera un momento.");
+      try {
+        const tokens = await apiRequest<TokenPair>("/api/v1/auth/login", {
+          method: "POST", body: JSON.stringify({ email, password, clientType: "MOBILE" }),
+        });
+        if (!authAttempts.current.isCurrent(attempt)) throw new ApiError("La sesión cambió antes de completar el acceso. Inicia sesión nuevamente.", 401);
+        const normalizedEmail = email.trim().toLowerCase();
+        authGeneration.current += 1;
+        const generation = authGeneration.current;
+        const saved = await saveTokens(tokens, normalizedEmail, generation);
+        if (!saved || !authAttempts.current.isCurrent(attempt) || generation !== authGeneration.current)
+          throw new ApiError("La sesión cambió antes de completar el acceso. Inicia sesión nuevamente.", 401);
+        refreshCoordinator.clear();
+        setSession({ accessToken: tokens.accessToken, email: normalizedEmail, offline: false });
+      } finally {
+        authAttempts.current.finish(attempt);
+      }
     },
     async loginWithGoogle() {
       const webClientId = getGoogleWebClientId();
-      const authenticated = await completeGoogleSignIn({
-        issueNonce: () => apiRequest("/api/v1/auth/google/nonce", { method: "POST" }),
-        getIdentity: (nonce) => getNativeGoogleIdentity(nonce, webClientId),
-        async exchange({ idToken }, nonce) {
-          try {
-            return await apiRequest<TokenPair>("/api/v1/auth/google", {
-              method: "POST",
-              body: JSON.stringify({ idToken, nonce, clientType: "MOBILE" }),
-            });
-          } catch (error) {
-            if (error instanceof ApiError && error.status === 409) {
-              throw new ApiError("Primero inicia sesión con tu cuenta WOK y vincula Google desde Mi cuenta.", 409);
+      const attempt = authAttempts.current.begin();
+      if (attempt === null) throw new ApiError("Ya hay un inicio de sesión en curso. Espera un momento.");
+      try {
+        const authenticated = await completeGoogleSignIn({
+          issueNonce: () => apiRequest("/api/v1/auth/google/nonce", { method: "POST" }),
+          getIdentity: (nonce) => getNativeGoogleIdentity(nonce, webClientId),
+          async exchange({ idToken }, nonce) {
+            try {
+              return await apiRequest<TokenPair>("/api/v1/auth/google", {
+                method: "POST",
+                body: JSON.stringify({ idToken, nonce, clientType: "MOBILE" }),
+              });
+            } catch (error) {
+              if (error instanceof ApiError && error.status === 409) {
+                throw new ApiError("Primero inicia sesión con tu cuenta WOK y vincula Google desde Mi cuenta.", 409);
+              }
+              throw error;
             }
-            throw error;
-          }
-        },
-      });
-      if (!authenticated) return;
-      const { value: tokens, email: normalizedEmail } = authenticated;
-      authGeneration.current += 1;
-      const generation = authGeneration.current;
-      const saved = await saveTokens(tokens, normalizedEmail, generation);
-      if (!saved || generation !== authGeneration.current) throw new ApiError("La sesión cambió antes de completar el acceso. Inicia sesión nuevamente.", 401);
-      refreshCoordinator.clear();
-      setSession({ accessToken: tokens.accessToken, email: normalizedEmail, offline: false });
+          },
+        });
+        if (!authenticated) return;
+        if (!authAttempts.current.isCurrent(attempt)) throw new ApiError("La sesión cambió antes de completar el acceso. Inicia sesión nuevamente.", 401);
+        const { value: tokens, email: normalizedEmail } = authenticated;
+        authGeneration.current += 1;
+        const generation = authGeneration.current;
+        const saved = await saveTokens(tokens, normalizedEmail, generation);
+        if (!saved || !authAttempts.current.isCurrent(attempt) || generation !== authGeneration.current)
+          throw new ApiError("La sesión cambió antes de completar el acceso. Inicia sesión nuevamente.", 401);
+        refreshCoordinator.clear();
+        setSession({ accessToken: tokens.accessToken, email: normalizedEmail, offline: false });
+      } finally {
+        authAttempts.current.finish(attempt);
+      }
     },
     async linkGoogle() {
       if (!session || session.offline) throw new ApiError("Conéctate con tu cuenta WOK para vincular Google.", 401);
@@ -308,6 +325,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       }
     },
     async logout() {
+      authAttempts.current.invalidate();
       authGeneration.current += 1;
       const logoutGeneration = authGeneration.current;
       refreshCoordinator.clear();

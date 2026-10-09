@@ -3,7 +3,7 @@
 ## 2026-10-08 — Mensaje correcto ante respuesta de red incierta
 
 - El cliente API ya no afirma que una mutación “no se envió” cuando `fetch` falla: el corte puede ocurrir después de que Spring haya procesado la solicitud. Ahora informa que no se pudo confirmar la respuesta y recomienda consultar el estado antes de reintentar.
-- Se añadió regresión de red en `api.test.ts`. Verificación móvil: Vitest 27 archivos/121 pruebas, ESLint y TypeScript.
+- Se añadió regresión de red en `api.test.ts`. La verificación móvil más reciente es Vitest 27 archivos/123 pruebas, ESLint y TypeScript.
 - Esto corrige el mensaje común; la recuperación de operaciones concretas depende además de sus claves idempotentes/consultas de estado ya documentadas y no equivale a una E2E física.
 
 ## 2026-10-08 — Build Android ARM64 de tamaño reducido
@@ -563,3 +563,9 @@
 
 - La app sólo intenta el contrato legado de horarios al recibir HTTP 404; los HTTP 500 ahora se muestran como error de API en vez de ocultarse como una ruta antigua.
 - Verificación: Vitest 121/121, ESLint y TypeScript `--noEmit`. No se instaló la app en dispositivo para este cambio.
+
+## 2026-10-08 — Serialización e invalidación de intentos de acceso
+
+- La app rechaza un segundo login simultáneo mientras el intercambio de credenciales está pendiente; un cierre de sesión invalida cualquier login WOK o Google todavía en curso. Las respuestas tardías no guardan tokens ni sustituyen la sesión posterior.
+- `session-coordination.test.ts` cubre exclusión de intentos, invalidación al cerrar sesión y preservación del intento nuevo frente al cierre tardío del anterior.
+- Verificación: Vitest 123/123 en 27 archivos, ESLint, TypeScript `--noEmit` y `git diff --check`. No se instaló en teléfono; la verificación cubre la coordinación de estado, no el flujo OAuth nativo real.

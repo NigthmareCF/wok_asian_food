@@ -1,5 +1,34 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRefreshTokenCoordinator, createSerializedWriteQueue } from "./session-coordination";
+import { createAuthAttemptCoordinator, createRefreshTokenCoordinator, createSerializedWriteQueue } from "./session-coordination";
+
+describe("authentication attempt coordination", () => {
+  it("allows only one credential exchange to commit at a time", () => {
+    const coordinator = createAuthAttemptCoordinator();
+    const first = coordinator.begin();
+
+    expect(first).not.toBeNull();
+    expect(coordinator.begin()).toBeNull();
+    expect(coordinator.isCurrent(first!)).toBe(true);
+    expect(coordinator.finish(first!)).toBe(true);
+
+    const next = coordinator.begin();
+    expect(next).not.toBe(first);
+    expect(coordinator.isCurrent(next!)).toBe(true);
+  });
+
+  it("invalidates an in-flight login when logout starts", () => {
+    const coordinator = createAuthAttemptCoordinator();
+    const pendingLogin = coordinator.begin();
+
+    coordinator.invalidate();
+
+    expect(coordinator.isCurrent(pendingLogin!)).toBe(false);
+    const nextLogin = coordinator.begin();
+    expect(nextLogin).not.toBeNull();
+    expect(coordinator.finish(pendingLogin!)).toBe(false);
+    expect(coordinator.isCurrent(nextLogin!)).toBe(true);
+  });
+});
 
 describe("refresh token coordination", () => {
   it("shares a single rotation only for concurrent use of the same token", async () => {

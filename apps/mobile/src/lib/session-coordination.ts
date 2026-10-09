@@ -43,3 +43,29 @@ export function createSerializedWriteQueue() {
     return result;
   };
 }
+
+export function createAuthAttemptCoordinator() {
+  let generation = 0;
+  let active = false;
+
+  return {
+    begin() {
+      if (active) return null;
+      active = true;
+      generation += 1;
+      return generation;
+    },
+    isCurrent(attempt: number) {
+      return active && generation === attempt;
+    },
+    finish(attempt: number) {
+      if (!this.isCurrent(attempt)) return false;
+      active = false;
+      return true;
+    },
+    invalidate() {
+      generation += 1;
+      active = false;
+    },
+  };
+}
