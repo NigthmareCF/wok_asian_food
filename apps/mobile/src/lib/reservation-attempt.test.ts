@@ -15,6 +15,17 @@ describe("pending reservation attempt", () => {
     expect(createKey).toHaveBeenCalledTimes(2);
   });
 
+  it("preserves a restored attempt across email casing and whitespace changes", () => {
+    const createKey = vi.fn(() => "fc29c91c-0d35-4a60-9e8b-13c95326b180");
+    const restored = { ...attempt, ownerEmail: " Client@Example.com " };
+
+    const resolved = resolvePendingReservationAttempt(restored, "client@example.com", attempt.body, createKey, now);
+
+    expect(resolved.key).toBe(key);
+    expect(resolved.ownerEmail).toBe("client@example.com");
+    expect(createKey).not.toHaveBeenCalled();
+  });
+
   it("accepts a valid stored attempt and rejects malformed, non-v4, or expired values", () => {
     expect(parsePendingReservationAttempt(JSON.stringify(attempt), now)).toEqual(attempt);
     expect(parsePendingReservationAttempt("not-json", now)).toBeNull();

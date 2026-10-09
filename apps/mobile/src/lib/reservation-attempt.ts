@@ -30,6 +30,11 @@ export function resolvePendingReservationAttempt(
   createKey: () => string,
   now = Date.now(),
 ): PendingReservationAttempt {
-  if (current?.ownerEmail === ownerEmail && current.body === body) return current;
-  return { ownerEmail, body, key: createKey(), savedAt: now };
+  const normalizedOwner = normalizeOwnerEmail(ownerEmail);
+  if (current && normalizeOwnerEmail(current.ownerEmail) === normalizedOwner && current.body === body) {
+    return current.ownerEmail === normalizedOwner ? current : { ...current, ownerEmail: normalizedOwner };
+  }
+  return { ownerEmail: normalizedOwner, body, key: createKey(), savedAt: now };
 }
+
+function normalizeOwnerEmail(value: string) { return value.trim().toLowerCase(); }

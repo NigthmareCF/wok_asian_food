@@ -609,3 +609,4 @@
 
 - La app normaliza el correo de la cuenta antes de derivar la clave de almacenamiento del intento pendiente de reserva y al validar su propietario. Se conserva el mismo intento idempotente si el cliente vuelve a entrar con diferente capitalización o espacios en el correo.
 - Los borradores e intentos nuevos guardan el correo normalizado. Prueba unitaria cubre capitalización/espacios; Vitest 127/127, ESLint y TypeScript `--noEmit` pasan. No se modificaron APIs ni dependencias y no se generó APK.
+- La revisión del resolvedor detectó que aún comparaba el correo original al reutilizar el intento restaurado. `resolvePendingReservationAttempt` ahora normaliza propietario al comparar y devuelve el mismo idempotency key con owner canonical; regresión adicional pasa y Vitest queda en 128/128, con ESLint y TypeScript `--noEmit` aprobados.
