@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Salud de core separada de integraciones externas
+
+- `GET /api/v1/admin/system/health` informa `coreStatus` con una consulta local `SELECT 1` y lista diagnósticos independientes para pagos, FEL, correo, IA y Meta. Identifica `MOCK`, `DISABLED`, `NOT_CONFIGURED` o `UNVERIFIED`; nunca afirma conectividad real sin una sonda y una integración degradada no altera `/actuator/health`.
+- El endpoint requiere rol ADMIN. Prueba PostgreSQL 18/Testcontainers + Flyway V1–V52: 2/2, con acceso ADMIN, denegación anónimo/Cliente/Operativo, core READY con externos DEGRADED y Actuator todavía 200. Suite completa: 72 suites/314 pruebas, cero fallos/errores/omitidas. No agrega migraciones ni hace llamadas a proveedores.
+
 ## 2026-10-08 — Idempotencia explícita al revisar comprobantes
 
 - La decisión Operativa sobre una evidencia de transferencia ahora requiere `Idempotency-Key` y la registra en `wok.idempotency_keys`, con ámbito por actor y huella de recurso/acción/versión/datos de decisión. Repetir la misma solicitud devuelve el recibo original; reutilizar la clave con otra decisión responde conflicto.
