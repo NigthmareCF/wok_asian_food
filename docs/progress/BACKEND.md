@@ -789,3 +789,8 @@
 
 - Backend expone `GET /api/v1/public/service-hours/{serviceType}/{serviceDate}` para clientes móviles antiguos que todavía consultan un día por ruta. El adaptador usa `ServiceHoursPolicy`, por lo que respeta el mismo horario semanal y los overrides diarios de la ruta por rango; devuelve una ventana para días abiertos y una lista vacía para días cerrados. No requiere migración.
 - La prueba de integración comprueba el cierre excepcional y un override abierto (horarios, weekday y zona `America/Guatemala`). Las rutas canónica y compatible también se prueban juntas: ambas rechazan fechas pasadas y permiten consultar una fecha futura individual, igual que permite hoy el contrato canónico. Prueba focal 4/4; suite completa 73 suites / 318 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V52 desde esquema vacío.
+
+## 2026-10-08 — Ownership de descargas de comprobantes
+
+- `PaymentEvidenceIntegrationTest` ahora comprueba que otro usuario CLIENT no pueda descargar la imagen privada de un comprobante aunque conozca tanto el UUID de la solicitud como el UUID del archivo; la respuesta es 404. El control de ownership ya estaba en la consulta; faltaba cubrirlo en la prueba HTTP.
+- Prueba focal `PaymentEvidenceIntegrationTest`: 4/4 con PostgreSQL 18/Testcontainers y Flyway V1–V52; cero fallos, errores u omitidas. La suite completa de backend había pasado 73 suites / 318 pruebas antes de añadir esta aserción.

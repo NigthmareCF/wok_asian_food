@@ -75,6 +75,9 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
 
         HttpResponse<String> otherCustomer = get("/api/v1/client/order-requests/" + requestId + "/payment-evidence", tokenForRole("CLIENT"));
         assertThat(otherCustomer.statusCode()).isEqualTo(404);
+        HttpResponse<String> otherCustomerFile = get("/api/v1/client/order-requests/" + requestId
+                + "/payment-evidence/" + evidenceId + "/content", tokenForRole("CLIENT"));
+        assertThat(otherCustomerFile.statusCode()).isEqualTo(404);
         HttpResponse<String> image = get("/api/v1/client/order-requests/" + requestId + "/payment-evidence/" + evidenceId + "/content", client);
         assertThat(image.statusCode()).isEqualTo(200);
         assertThat(image.headers().firstValue("X-Content-Type-Options")).contains("nosniff");
