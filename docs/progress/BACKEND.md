@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Autoridad backend e idempotencia en solicitudes de delivery
+
+- `ClientDeliveryRequestIntegrationTest` verifica con PostgreSQL/Testcontainers que crear una solicitud `DELIVERY` derive del token el propietario, del catálogo el precio y mantenga el ciclo `PENDING_REVIEW`, aunque el payload intente falsificar propietario, modalidad, subtotal, estados de pago/pedido y un ID de orden.
+- La prueba confirma subtotal Q27.00 para dos unidades de Q13.50, que la solicitud no crea todavía una orden, y que repetir `Idempotency-Key` retorna el mismo recurso/evento. Reutilizar la clave con otro contacto devuelve 409 sin duplicar solicitud.
+- Esto añade evidencia de integración para creación de delivery; no cambia código productivo ni resuelve todavía la evaluación completa de capacidad, pago o asignación real de reparto.
+
 ## 2026-10-08 — Idempotencia de arqueos intermedios de caja
 
 - `POST /api/v1/operational/cash-sessions/{sessionId}/reconciliations` ahora requiere `Idempotency-Key`, calcula una huella de sesión/monto/notas normalizadas y completa el claim junto con el arqueo y su auditoría en la misma transacción.
