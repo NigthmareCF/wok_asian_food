@@ -7,7 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class ReservationOwnershipIntegrationTest extends PostgresIntegrationTest {
@@ -59,5 +63,53 @@ class ReservationOwnershipIntegrationTest extends PostgresIntegrationTest {
         assertThat(result.path("status").asText()).isEqualTo("CANCELLED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.reservation_status_history WHERE reservation_id = ?",
                 Integer.class, reservation)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentClientCancellationIsIdempotentAndWritesOneHistoryEvent() throws Exception {
+        UUID owner = createUserWithRole("reservation-cancel-race-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID customerProfile = jdbc.queryForObject("""
+            INSERT INTO wok.customer_profiles(user_id, full_name) VALUES (?, 'Reservation Race Owner') RETURNING id
+            """, UUID.class, owner);
+        Instant reservationAt = Instant.now().plusSeconds(86400);
+        UUID reservation = jdbc.queryForObject("""
+            INSERT INTO wok.reservations(customer_id, party_size, reservation_at, ends_at, status, created_by)
+            VALUES (?, 2, ?, ?, 'REQUESTED', ?) RETURNING id
+            """, UUID.class, customerProfile, Timestamp.from(reservationAt),
+                Timestamp.from(reservationAt.plusSeconds(3600)), owner);
+        String token = tokenFor(owner);
+        String path = "/api/v1/client/reservations/" + reservation;
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return send("DELETE", path, token, null, Map.of());
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Concurrent test start timed out");
+                return send("DELETE", path, token, null, Map.of());
+            });
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            var firstResponse = first.get(15, TimeUnit.SECONDS);
+            var secondResponse = second.get(15, TimeUnit.SECONDS);
+            assertThat(List.of(firstResponse.statusCode(), secondResponse.statusCode()))
+                    .as(firstResponse.body() + " / " + secondResponse.body())
+                    .containsExactly(200, 200);
+            assertThat(json.readTree(firstResponse.body()).path("status").asText()).isEqualTo("CANCELLED");
+            assertThat(json.readTree(secondResponse.body()).path("status").asText()).isEqualTo("CANCELLED");
+        }
+
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.reservations WHERE id = ?", String.class, reservation))
+                .isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("""
+            SELECT count(*) FROM wok.reservation_status_history
+            WHERE reservation_id = ? AND to_status = 'CANCELLED' AND reason = 'CANCELLED_BY_CLIENT'
+            """, Integer.class, reservation)).isEqualTo(1);
     }
 }

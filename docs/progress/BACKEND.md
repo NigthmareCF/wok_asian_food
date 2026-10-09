@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Cancelación concurrente e idempotente de reserva
+
+- `ReservationOwnershipIntegrationTest.concurrentClientCancellationIsIdempotentAndWritesOneHistoryEvent` dispara dos DELETE simultáneos para la misma reserva pendiente con PostgreSQL 18/Testcontainers y Flyway V1–V55. Ambos reciben `200 CANCELLED`, queda una sola transición y una sola fila de historial `CANCELLED_BY_CLIENT`.
+- La implementación ya serializaba la transición con `SELECT ... FOR UPDATE`; esta prueba cierra la brecha de verificación y demuestra que un retry concurrente no duplica auditoría. La prueba focal pasó con Docker habilitado; la ejecución sin permisos Docker la omite y no se cuenta como evidencia.
+
 ## 2026-10-08 — Autoridad del servidor en solicitudes de reserva
 
 - La prueba HTTP `reservationCreationDerivesOwnerAndLifecycleFromAuthenticatedCustomer` envía campos falsificados para cliente, reserva, estado, decisión y creador. Con PostgreSQL confirma que la reserva se asocia al usuario/perfil del JWT, queda `REQUESTED` y sólo aparece en el historial de su propietario.
