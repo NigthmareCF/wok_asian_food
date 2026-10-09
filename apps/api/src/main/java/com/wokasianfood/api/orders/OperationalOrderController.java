@@ -739,6 +739,11 @@ class OrderService {
             WHERE id = ? AND row_version = ? AND status = 'ACTIVE'
             """, nextUnitPrice, orderItemId, request.expectedItemVersion());
         if (updated != 1) throw new AuthException(409, "El producto cambió durante el ajuste.");
+        int ticketUpdated = jdbc.update("""
+            UPDATE wok.kitchen_tickets SET updated_at = now(), row_version = row_version + 1
+            WHERE id = ? AND row_version = ? AND status = 'QUEUED'
+            """, tickets.getFirst().ticketId(), tickets.getFirst().rowVersion());
+        if (ticketUpdated != 1) throw new AuthException(409, "La comanda cambió durante el ajuste de opciones.");
 
         jdbc.update("""
             INSERT INTO wok.order_item_change_events

@@ -253,6 +253,11 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
         UUID menuItemId = jdbc.queryForObject("SELECT menu_item_id FROM wok.order_items WHERE id = ?", UUID.class, itemId);
         UUID ingredientId = jdbc.queryForObject("SELECT item_id FROM wok.order_item_resource_reservations WHERE order_item_id = ?",
                 UUID.class, itemId);
+        int kitchenVersionBeforeModifiers = jdbc.queryForObject("""
+                SELECT ticket.row_version FROM wok.kitchen_tickets ticket
+                JOIN wok.kitchen_ticket_items ticket_item ON ticket_item.ticket_id = ticket.id
+                WHERE ticket_item.order_item_id = ? AND ticket.status = 'QUEUED'
+                """, Integer.class, itemId);
         UUID groupId = jdbc.queryForObject("""
                 INSERT INTO wok.modifier_groups (name, min_selection, max_selection, required)
                 VALUES ('Salsa opcional cambio', 0, 1, false) RETURNING id
@@ -294,6 +299,11 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
         assertThat(approved.path("status").asText()).isEqualTo("APPROVED");
         assertThat(jdbc.queryForObject("SELECT unit_price FROM wok.order_items WHERE id = ?", BigDecimal.class, itemId))
                 .isEqualByComparingTo("30.00");
+        assertThat(jdbc.queryForObject("""
+                SELECT ticket.row_version FROM wok.kitchen_tickets ticket
+                JOIN wok.kitchen_ticket_items ticket_item ON ticket_item.ticket_id = ticket.id
+                WHERE ticket_item.order_item_id = ? AND ticket.status = 'QUEUED'
+                """, Integer.class, itemId)).isEqualTo(kitchenVersionBeforeModifiers + 1);
         assertThat(jdbc.queryForObject("SELECT quantity FROM wok.inventory_reservations WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE'",
                 BigDecimal.class, order.orderId(), ingredientId)).isEqualByComparingTo("0.750000");
         assertThat(jdbc.queryForObject("SELECT quantity_delta FROM wok.order_item_resource_reservations WHERE order_item_id = ? AND item_id = ?",
