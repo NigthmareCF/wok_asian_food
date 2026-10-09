@@ -920,3 +920,8 @@
 - Se ejecutó `bash ./mvnw test` en `apps/api` sobre `feature/backend-capacity-order-lifecycle`. PostgreSQL 18/Testcontainers aplicó Flyway V1–V55 desde esquema vacío; el resultado final fue 345 pruebas, cero fallos, errores u omitidas.
 - La ejecución requiere permitir el agente de Mockito y acceso a Docker. Bajo el sandbox restringido las pruebas unitarias fallaron antes de ejecutar lógica porque Byte Buddy no pudo auto-adjuntarse; al correr con esos recursos habilitados, la suite completa terminó correctamente.
 - Esta verificación confirma el checkout backend actual; no prueba todavía el despliegue conjunto de app y API ni los proveedores externos marcados como pendientes.
+
+## 2026-10-09 — Mockito configurado como agente de pruebas
+
+- Surefire ahora arranca con el JAR de Mockito como `-javaagent`, usando la versión y el repositorio local que Maven ya resuelve. Esto evita depender de auto-adjunción dinámica, que el sandbox y futuros JDKs pueden bloquear.
+- `bash ./mvnw test` pasa sin permisos ampliados: 345 pruebas reportadas, cero fallos/errores; 206 pruebas PostgreSQL/Testcontainers se omiten cuando el socket Docker no está disponible. En la ejecución previa con Docker habilitado, las 345 pruebas se ejecutaron sin omisiones sobre PostgreSQL 18/Flyway V1–V55.
