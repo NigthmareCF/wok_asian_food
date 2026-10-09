@@ -814,3 +814,9 @@
 - `ClientSessionOwnershipIntegrationTest` comprueba con PostgreSQL que un cliente sólo liste su sesión propia y no pueda revocar la sesión de otro usuario (404); la sesión ajena y su auditoría de revocación permanecen intactas. No hubo cambios en lógica productiva ni en el esquema.
 - También verifica que revocar la sesión propia invalida inmediatamente el access token, revoca sus refresh tokens y registra un evento de seguridad.
 - Prueba focal 2/2 y suite completa aprobadas con PostgreSQL 18/Testcontainers y las 52 migraciones Flyway: 74 suites / 322 pruebas, cero fallos, errores u omitidas.
+
+## 2026-10-08 — TTL efectivo y limpieza de claves idempotentes
+
+- `IdempotencyStore` ahora aplica la ventana de 24 horas que ya guardaba el esquema: durante el TTL mantiene replay/fingerprint; al vencer, reutilizar la clave inicia otra operación en vez de reproducir para siempre un recurso viejo. Un claim `IN_PROGRESS` con lease vencido se puede reclamar con el mismo contenido.
+- `IdempotencyKeyCleanupWorker` elimina hasta 500 filas vencidas por ejecución y omite claims con lease vigente; `FOR UPDATE SKIP LOCKED` mantiene la limpieza acotada sin bloquear operaciones activas.
+- `IdempotencyLifecycleIntegrationTest` valida replay, reutilización por vencimiento, recuperación de lease y borrado por lotes que preserva filas activas/bloqueadas. Suite completa con PostgreSQL 18/Testcontainers y Flyway V1–V52: 75 suites / 325 pruebas, cero fallos, errores u omitidas.

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Idempotencia común sobre {@code wok.idempotency_keys}. El "claim" y el trabajo se ejecutan en la
@@ -19,6 +20,7 @@ public class IdempotencyStore {
 
     public IdempotencyStore(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
+    @Transactional
     public Result claim(String principal, String operation, UUID key, String requestHash) {
         int inserted = jdbc.update("""
             INSERT INTO wok.idempotency_keys
@@ -29,16 +31,38 @@ public class IdempotencyStore {
         if (inserted == 1) return new Result(null, false);
 
         List<Row> existing = jdbc.query("""
-            SELECT request_hash, status, resource_id FROM wok.idempotency_keys
+            SELECT request_hash, status, resource_id, expires_at > now() AS active,
+                   locked_until <= now() AS lease_expired
+            FROM wok.idempotency_keys
             WHERE principal_scope = ? AND operation = ? AND key = ? FOR UPDATE
             """, (rs, row) -> new Row(rs.getString("request_hash"), rs.getString("status"),
-                rs.getObject("resource_id", UUID.class)), principal, operation, key.toString());
+                rs.getObject("resource_id", UUID.class), rs.getBoolean("active"),
+                rs.getBoolean("lease_expired")), principal, operation, key.toString());
         if (existing.isEmpty())
             throw new AuthException(409, "No se pudo resolver la operación idempotente.");
         Row row = existing.getFirst();
+        if (!row.active()) {
+            int reset = jdbc.update("""
+                UPDATE wok.idempotency_keys
+                SET request_hash = ?, status = 'IN_PROGRESS', resource_type = NULL, resource_id = NULL,
+                    response_code = NULL, response_snapshot = NULL, locked_until = now() + interval '30 seconds',
+                    expires_at = now() + interval '1 day', completed_at = NULL, request_id = NULL, created_at = now()
+                WHERE principal_scope = ? AND operation = ? AND key = ?
+                """, requestHash, principal, operation, key.toString());
+            if (reset == 1) return new Result(null, false);
+            throw new AuthException(409, "No se pudo reclamar la clave idempotente vencida.");
+        }
         if (!requestHash.equals(row.hash()))
             throw new AuthException(409, "La clave ya se usó con otros datos.");
         if (COMPLETED.equals(row.status())) return new Result(row.resourceId(), true);
+        if (IN_PROGRESS.equals(row.status()) && row.leaseExpired()) {
+            int reclaimed = jdbc.update("""
+                UPDATE wok.idempotency_keys SET locked_until = now() + interval '30 seconds'
+                WHERE principal_scope = ? AND operation = ? AND key = ? AND status = 'IN_PROGRESS'
+                  AND expires_at > now() AND locked_until <= now()
+                """, principal, operation, key.toString());
+            if (reclaimed == 1) return new Result(null, false);
+        }
         if (IN_PROGRESS.equals(row.status()))
             throw new AuthException(409, "La operación todavía se está procesando.");
         throw new AuthException(409, "La operación no se pudo completar; inténtalo de nuevo.");
@@ -54,5 +78,5 @@ public class IdempotencyStore {
 
     public record Result(UUID resourceId, boolean replay) {}
 
-    private record Row(String hash, String status, UUID resourceId) {}
+    private record Row(String hash, String status, UUID resourceId, boolean active, boolean leaseExpired) {}
 }
