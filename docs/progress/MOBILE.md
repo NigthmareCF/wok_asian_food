@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-09 — Diagnóstico de Expo Go y acceso por QR
+
+- El README ahora separa el QR de Metro de la instalación del APK y documenta el error de Expo Go por discrepancia de SDK. Este checkout usa Expo SDK 57; para Android se puede instalar desde Expo el Expo Go compatible con SDK 57. En iOS se indica utilizar el development build cuando la versión de App Store no incluye ese SDK. Si Metro está en LAN pero el QR queda cargando, se documentan la Wi-Fi compartida, el aislamiento de clientes del router y `--tunnel` como prueba.
+- El Google Sign-In del proyecto usa un módulo nativo, por lo que requiere el perfil development; README distingue ese build de Expo Go y del APK preview. Las llamadas API además necesitan un `EXPO_PUBLIC_API_BASE_URL` alcanzable desde el teléfono.
+- Expo SDK 57 fija Node mínimo 22.13 según la guía oficial; el entorno actual tiene Node 26.8.1. `npm test`: 134/134, ESLint, TypeScript y `npx expo export --platform android` pasan. El export valida el bundle, no QR, instalación ni conexión física. No se instaló la app en un teléfono.
+
 ## 2026-10-09 — Verificación Android y del artefacto de revisión
 
 - Volví a ejecutar Vitest (134/134), ESLint y TypeScript; los tres terminaron correctamente. `npx expo export --platform android` también generó el bundle Hermes Android. Este export valida el empaquetado JavaScript, no compila ni instala una aplicación nativa.

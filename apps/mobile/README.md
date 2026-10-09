@@ -8,6 +8,14 @@ Aplicación React Native con Expo SDK 57 y Expo Router. Las rutas viven en `app/
 2. Copia `.env.example` como `.env` y configura `EXPO_PUBLIC_API_BASE_URL` con una dirección alcanzable desde el teléfono. No uses `localhost` en un dispositivo físico.
 3. `npm run start --workspace mobile`, luego escanea el QR con Expo Go para las funciones normales de Cliente. El comando fuerza Expo Go incluso con `expo-dev-client` instalado.
 
+### Si el QR de Expo Go no abre el proyecto
+
+Esta app usa Expo SDK 57. Expo Go sólo carga proyectos compatibles con el SDK que incluye la app instalada. Si aparece `Project is incompatible with this version of Expo Go`, `requires a newer version` o un aviso de SDK faltante, vuelve a instalar Expo Go para SDK 57 desde [expo.dev/go](https://expo.dev/go) en Android; escanear el mismo QR otra vez no resuelve una diferencia de SDK. En iPhone/iPad, usa el development build de WOK si la versión de Expo Go disponible en App Store no soporta el SDK del proyecto.
+
+Si el SDK sí coincide pero el teléfono se queda cargando, confirma que computadora y teléfono estén en la misma Wi-Fi y que el router no tenga aislamiento de clientes; como diagnóstico alterno inicia `npm run start --workspace mobile -- --tunnel`. El QR sólo descarga el bundle de desarrollo: no instala el APK ni configura la dirección de la API. Para que la app hable con el backend, `EXPO_PUBLIC_API_BASE_URL` debe contener una dirección alcanzable por el teléfono, no `localhost`.
+
+El acceso con Google usa código nativo que Expo Go no incluye. Para probarlo se necesita instalar el perfil EAS `development` (o compilar el development build localmente) y usar `npm run start:dev-client --workspace mobile`; Expo Go y el APK del perfil `preview` no sustituyen ese development build. Consulta [Expo Go y diferencias de versión](https://docs.expo.dev/troubleshooting/expo-go-version-mismatch/) y [development builds](https://docs.expo.dev/develop/development-builds/introduction/).
+
 ## Google Sign-In nativo
 
 Google usa `react-native-nitro-google-signin` con Android Credential Manager e iOS Google Sign-In. Expo Go no incluye estos módulos nativos; crea un development build para probar este acceso. Configura `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` (OAuth client de tipo Web, también configurado como audiencia del backend) y `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME` (reversed iOS client ID) en el entorno local o EAS. Son identificadores públicos, no secretos. Para Android registra el package y SHA-1 del certificado de debug/EAS en Google Cloud. Sin esa configuración el resto de la app sigue funcionando y la acción muestra un aviso.
