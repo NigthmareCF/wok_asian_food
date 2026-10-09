@@ -794,3 +794,8 @@
 
 - `PaymentEvidenceIntegrationTest` ahora comprueba que otro usuario CLIENT no pueda descargar la imagen privada de un comprobante aunque conozca tanto el UUID de la solicitud como el UUID del archivo; la respuesta es 404. El control de ownership ya estaba en la consulta; faltaba cubrirlo en la prueba HTTP.
 - Prueba focal `PaymentEvidenceIntegrationTest`: 4/4 con PostgreSQL 18/Testcontainers y Flyway V1–V52; cero fallos, errores u omitidas. La suite completa de backend había pasado 73 suites / 318 pruebas antes de añadir esta aserción.
+
+## 2026-10-08 — Ownership A/B en conversaciones Cliente
+
+- `ClientMessagingHistoryIntegrationTest` verifica por HTTP que el dueño ve su hilo y que otro CLIENT no ve ese hilo en su historial, no puede leer los mensajes ni enviar uno al hilo aunque conozca su UUID. Las solicitudes ajenas devuelven 404 y no crean filas de mensaje.
+- Prueba focal 2/2 con PostgreSQL 18/Testcontainers y Flyway V1–V52 desde esquema vacío; cero fallos, errores u omitidas. No cambió lógica productiva ni esquema.

@@ -36,6 +36,27 @@ class ClientMessagingHistoryIntegrationTest extends PostgresIntegrationTest {
         assertThat(history.get(0).path("lastMessageAt").isNull()).isFalse();
     }
 
+    @Test
+    void customerCannotReadOrWriteAnotherCustomersConversation() {
+        UUID owner = createUserWithRole("messages-owner-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID otherCustomer = createUserWithRole("messages-outsider-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        jdbc.update("INSERT INTO wok.customer_profiles(user_id, full_name) VALUES (?, 'Dueño del hilo')", owner);
+        jdbc.update("INSERT INTO wok.customer_profiles(user_id, full_name) VALUES (?, 'Otro cliente')", otherCustomer);
+        String ownerToken = tokenFor(owner);
+        String otherToken = tokenFor(otherCustomer);
+
+        JsonNode opened = body(post("/api/v1/client/conversations", ownerToken, null));
+        UUID conversationId = UUID.fromString(opened.path("conversationId").asText());
+        String messagePath = "/api/v1/client/conversations/" + conversationId + "/messages";
+
+        assertThat(body(get("/api/v1/client/conversations", otherToken))).isEmpty();
+        assertThat(get(messagePath, otherToken).statusCode()).isEqualTo(404);
+        assertThat(post(messagePath, otherToken, "{\"body\":\"Mensaje no autorizado\"}",
+                java.util.Map.of("Idempotency-Key", UUID.randomUUID().toString())).statusCode()).isEqualTo(404);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.messages WHERE conversation_id = ?",
+                Integer.class, conversationId)).isZero();
+    }
+
     private JsonNode body(java.net.http.HttpResponse<String> response) {
         assertThat(response.statusCode()).as("body %s", response.body()).isBetween(200, 299);
         try { return json.readTree(response.body()); }
