@@ -47,6 +47,9 @@ class BusinessHoursOverrideIntegrationTest extends PostgresIntegrationTest {
         JsonNode publicDay = json.readTree(schedule.body()).get(0);
         assertThat(publicDay.path("open").asBoolean()).isFalse();
         assertThat(publicDay.path("source").asText()).isEqualTo("OVERRIDE");
+        var legacyClosed = get("/api/v1/public/service-hours/PICKUP/" + date, null);
+        assertThat(legacyClosed.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(legacyClosed.body())).isEmpty();
 
         var opened = send("PUT", endpoint, admin, """
             {"isOpen":true,"opensAt":"15:00:00","closesAt":"19:30:00",
@@ -54,6 +57,13 @@ class BusinessHoursOverrideIntegrationTest extends PostgresIntegrationTest {
             """, Map.of());
         assertThat(opened.statusCode()).as(opened.body()).isEqualTo(200);
         assertThat(json.readTree(opened.body()).path("rowVersion").asInt()).isEqualTo(2);
+        var legacyOpened = get("/api/v1/public/service-hours/PICKUP/" + date, null);
+        assertThat(legacyOpened.statusCode()).isEqualTo(200);
+        JsonNode legacyWindow = json.readTree(legacyOpened.body()).get(0);
+        assertThat(legacyWindow.path("weekday").asInt()).isEqualTo(date.getDayOfWeek().getValue());
+        assertThat(legacyWindow.path("opensAt").asText()).isEqualTo("15:00");
+        assertThat(legacyWindow.path("closesAt").asText()).isEqualTo("19:30");
+        assertThat(legacyWindow.path("timezone").asText()).isEqualTo("America/Guatemala");
 
         var stale = send("PUT", endpoint, admin, """
             {"isOpen":false,"opensAt":null,"closesAt":null,"timezoneName":"America/Guatemala",

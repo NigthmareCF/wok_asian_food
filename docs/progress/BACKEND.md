@@ -784,3 +784,8 @@
 - `ApiErrorHandler` traduce `MaxUploadSizeExceededException` a HTTP 413 con un mensaje neutral; evita responder 500 cuando el multipart supera los 8 MB configurados. También se retiró un import duplicado de `HttpStatus`.
 - `PaymentEvidenceIntegrationTest` sube un PNG de 8 MiB + 1 byte y comprueba 413, cero filas de evidencia, cero pagos y ningún archivo almacenado. `ApiErrorHandlerTest` verifica la conversión/mensaje.
 - Suite completa Testcontainers/PostgreSQL 18 + Flyway V1–V52: 71 suites / 312 pruebas, cero fallos, errores u omitidas. `git diff --check` limpio.
+
+## 2026-10-08 — Adaptador de compatibilidad para horarios públicos
+
+- Backend expone `GET /api/v1/public/service-hours/{serviceType}/{serviceDate}` para clientes móviles antiguos que todavía consultan un día por ruta. El adaptador usa `ServiceHoursPolicy`, por lo que respeta el mismo horario semanal y los overrides diarios de la ruta por rango; devuelve una ventana para días abiertos y una lista vacía para días cerrados. No requiere migración.
+- La prueba de integración comprueba el cierre excepcional y un override abierto (horarios, weekday y zona `America/Guatemala`). Prueba focal 3/3; suite completa 73 suites / 317 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V52 desde esquema vacío.
