@@ -382,7 +382,7 @@ public class ClientOrderChangeController {
             if (sourceRows.isEmpty()) throw new AuthException(404, "No encontramos un pedido aceptado de tu cuenta.");
             SourceOrder source = sourceRows.getFirst();
             validateLineCancellable(source);
-            return jdbc.query("""
+            List<EditableLine> lines = jdbc.query("""
                 SELECT item.id, item.menu_item_id, item.name_snapshot, item.quantity, item.row_version,
                        item.preparation_snapshot_complete, item.modifier_resource_snapshot_complete
                 FROM wok.order_items item
@@ -398,33 +398,46 @@ public class ClientOrderChangeController {
                     WHERE ti.order_item_id = item.id AND ti.action <> 'CANCELLED' AND ticket.status <> 'QUEUED'
                   )
                 ORDER BY item.created_at, item.id
-                """, (rs, row) -> {
-                    UUID itemId = rs.getObject("id", UUID.class);
-                    UUID menuItemId = rs.getObject("menu_item_id", UUID.class);
-                    boolean modifiersSupported = rs.getBoolean("modifier_resource_snapshot_complete");
-                    boolean preparationSupported = rs.getBoolean("preparation_snapshot_complete");
-                    List<UUID> selectedModifierIds = jdbc.queryForList("""
-                        SELECT modifier_id FROM wok.order_item_modifiers WHERE order_item_id = ? ORDER BY modifier_id
-                        """, UUID.class, itemId);
-                    List<RequestedModifier> selectedModifiers = jdbc.query("""
-                        SELECT modifier.id AS modifier_id, modifier.group_id, selected.group_name_snapshot,
-                               selected.modifier_name_snapshot, selected.price_delta
-                        FROM wok.order_item_modifiers selected
-                        JOIN wok.modifiers modifier ON modifier.id = selected.modifier_id
-                        WHERE selected.order_item_id = ? ORDER BY modifier.id
-                        """, (modifierRs, modifierRow) -> new RequestedModifier(
-                            modifierRs.getObject("modifier_id", UUID.class),
-                            modifierRs.getObject("group_id", UUID.class),
-                            modifierRs.getString("group_name_snapshot"),
-                            modifierRs.getString("modifier_name_snapshot"),
-                            modifierRs.getBigDecimal("price_delta")), itemId);
-                    List<ModifierSelectionService.ModifierGroup> groups = modifiers.groups(menuItemId);
-                    return new ChangeableOrderItem(itemId, rs.getString("name_snapshot"), rs.getInt("quantity"),
-                            rs.getInt("row_version"), source.version(), rs.getBoolean("preparation_snapshot_complete"),
-                            modifiersSupported && preparationSupported && !groups.isEmpty(), selectedModifierIds,
-                            selectedModifiers, groups);
-                },
+                """, (rs, row) -> new EditableLine(rs.getObject("id", UUID.class),
+                    rs.getObject("menu_item_id", UUID.class), rs.getString("name_snapshot"), rs.getInt("quantity"),
+                    rs.getInt("row_version"), rs.getBoolean("preparation_snapshot_complete"),
+                    rs.getBoolean("modifier_resource_snapshot_complete")),
                     source.orderId());
+            if (lines.isEmpty()) return List.of();
+
+            List<UUID> lineIds = lines.stream().map(EditableLine::id).toList();
+            String placeholders = String.join(",", java.util.Collections.nCopies(lineIds.size(), "?"));
+            List<UUID> menuItemIds = lines.stream().map(EditableLine::menuItemId).distinct().toList();
+            Map<UUID, List<ModifierSelectionService.ModifierGroup>> groupsByMenuItem =
+                    modifiers.groupsForMenuItems(menuItemIds);
+            Map<UUID, List<UUID>> selectedIdsByLine = new LinkedHashMap<>();
+            Map<UUID, List<RequestedModifier>> selectedByLine = new LinkedHashMap<>();
+            jdbc.query("""
+                SELECT selected.order_item_id, modifier.id AS modifier_id, modifier.group_id,
+                       selected.group_name_snapshot, selected.modifier_name_snapshot, selected.price_delta
+                FROM wok.order_item_modifiers selected
+                JOIN wok.modifiers modifier ON modifier.id = selected.modifier_id
+                WHERE selected.order_item_id IN (%s) ORDER BY selected.order_item_id, modifier.id
+                """.formatted(placeholders), (rs, row) -> new SelectedOrderModifier(
+                    rs.getObject("order_item_id", UUID.class), rs.getObject("modifier_id", UUID.class),
+                    rs.getObject("group_id", UUID.class), rs.getString("group_name_snapshot"),
+                    rs.getString("modifier_name_snapshot"), rs.getBigDecimal("price_delta")), lineIds.toArray())
+                    .forEach(selected -> {
+                        selectedIdsByLine.computeIfAbsent(selected.orderItemId(), ignored -> new ArrayList<>())
+                                .add(selected.modifierId());
+                        selectedByLine.computeIfAbsent(selected.orderItemId(), ignored -> new ArrayList<>())
+                                .add(new RequestedModifier(selected.modifierId(), selected.groupId(), selected.groupName(),
+                                        selected.name(), selected.priceDelta()));
+                    });
+            return lines.stream().map(line -> {
+                List<ModifierSelectionService.ModifierGroup> groups = groupsByMenuItem
+                        .getOrDefault(line.menuItemId(), List.of());
+                return new ChangeableOrderItem(line.id(), line.name(), line.quantity(), line.version(), source.version(),
+                        line.preparationSnapshotComplete(), line.modifierSnapshotComplete()
+                                && line.preparationSnapshotComplete() && !groups.isEmpty(),
+                        selectedIdsByLine.getOrDefault(line.id(), List.of()),
+                        selectedByLine.getOrDefault(line.id(), List.of()), groups);
+            }).toList();
         }
 
         private Integer lockAndValidateLine(UUID orderId, UUID orderItemId) {
@@ -659,7 +672,7 @@ public class ClientOrderChangeController {
                 List<ModifierImpactSnapshot> impacts = jdbc.query("""
                     SELECT item_id, quantity_delta FROM wok.modifier_item_impacts
                     WHERE modifier_id = ? AND affects_availability = true
-                    ORDER BY item_id
+                    ORDER BY item_id FOR SHARE
                     """, (rs, row) -> new ModifierImpactSnapshot(rs.getObject("item_id", UUID.class),
                         rs.getBigDecimal("quantity_delta")), modifier.id());
                 result.add(new ModifierSnapshotEntry(modifier.id(), modifier.groupId(), modifier.groupName(),
@@ -771,6 +784,10 @@ public class ClientOrderChangeController {
 
         private record SourceOrder(UUID orderId, String code, String status, String channel, int version,
                                    UUID accountId, String fulfillmentType, String dispatchStatus) {}
+        private record EditableLine(UUID id, UUID menuItemId, String name, int quantity, int version,
+                boolean preparationSnapshotComplete, boolean modifierSnapshotComplete) {}
+        private record SelectedOrderModifier(UUID orderItemId, UUID modifierId, UUID groupId,
+                String groupName, String name, BigDecimal priceDelta) {}
         private record ModifierLine(UUID id, UUID menuItemId, int quantity, BigDecimal unitPrice,
                 BigDecimal lineTotal, int version, boolean resourceSnapshotComplete, boolean preparationSnapshotComplete,
                 boolean modifierResourceSnapshotComplete) {}

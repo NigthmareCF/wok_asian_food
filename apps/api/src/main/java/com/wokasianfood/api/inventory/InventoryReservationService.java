@@ -4,6 +4,7 @@ import com.wokasianfood.api.identity.AuthException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -267,7 +268,7 @@ public class InventoryReservationService {
     }
 
     private void applyModifierAdjustments(UUID orderId, List<Adjustment> adjustments) {
-        for (Adjustment adjustment : adjustments) {
+        for (Adjustment adjustment : adjustments.stream().sorted(Comparator.comparing(Adjustment::itemId)).toList()) {
             jdbc.update("""
                 INSERT INTO wok.inventory_balances (item_id) VALUES (?)
                 ON CONFLICT (item_id) DO NOTHING
