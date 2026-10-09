@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — APK ARM64 recompilado con solicitudes de cambio de cantidad
+
+- Expo prebuild y `assembleRelease` terminaron correctamente con Expo SDK 57, Android SDK 36 y NDK 27.1; el APK contiene el bundle JavaScript y no necesita Metro. Artefacto local ignorado por Git: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk` (43 MiB), SHA-256 `963137e4f553c84858942217aa176632c224e41f4a90071a99006076eb551009`.
+- `apksigner verify` confirmó firma APK v2; se usa el certificado debug local y sólo es apto para revisión interna. El build no recibió `EXPO_PUBLIC_API_BASE_URL`, por lo que permite revisar las vistas pero no conectará a la API. No se instaló en un teléfono ni se probó en red física.
+- Verificación posterior al build: Vitest 124/124. ESLint y TypeScript también terminaron sin errores. El build produce ARM64; Google Sign-In requiere configurar OAuth y un development build, y el APK preview no demuestra ese flujo.
+
 ## 2026-10-08 — Solicitud de cambio de cantidad del pedido
 
 - En Mis pedidos, cada línea que conserve snapshots compatibles permite proponer una nueva cantidad y motivo. La app envía una solicitud idempotente y muestra que el pedido mantiene su cantidad actual hasta la aprobación Operativa.

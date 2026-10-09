@@ -60,6 +60,7 @@ La URL y los flags `EXPO_PUBLIC_*` son visibles en el paquete de la app y nunca 
 - Solicitud real de reserva en `/api/v1/client/reservations`, con clave idempotente reusada tras errores de transporte, límite local de 3 horas y texto explícito de revisión humana.
 - Catálogo público con opciones configurables por grupos y límites; pickup y delivery conservan carrito/opciones en SecureStore, muestran un subtotal estimado y envían las elecciones dentro de solicitudes idempotentes.
 - Historial/detalle de pickup y delivery muestra snapshots de opciones del servidor junto con cantidades y precios; las solicitudes pendientes pueden cancelarse y no se presentan como pedidos aceptados.
+- En pedidos pickup/delivery aceptados que aún están `SENT` y tienen comanda en cola, el Cliente puede pedir cambiar la cantidad de una línea con un motivo. La cantidad visible no cambia hasta la decisión Operativa; las claves idempotentes distinguen línea/cantidad y sobreviven reinicios.
 - Solicitud de delivery con dirección, teléfono GT validado, preferencia de pago, historial/detalle/cancelación y libreta de direcciones propia; mensajería autenticada de la app.
 - Errores de conexión no confirman ni reenvían solicitudes automáticamente.
 
