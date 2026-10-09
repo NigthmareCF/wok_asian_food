@@ -26,16 +26,22 @@ public class PublicServiceHoursController {
     public List<ServiceHoursPolicy.ServiceDay> list(@RequestParam String serviceType,
             @RequestParam LocalDate from, @RequestParam LocalDate to) {
         String normalized = normalizeServiceType(serviceType);
+        validateScheduleRange(from, to);
+        return hours.list(normalized, from, to);
+    }
+
+    private void validateScheduleRange(LocalDate from, LocalDate to) {
         LocalDate today = LocalDate.now(ZoneId.of("America/Guatemala"));
         if (from.isBefore(today) || to.isBefore(from) || ChronoUnit.DAYS.between(from, to) > 30)
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Consulta un rango futuro de hasta 31 días.");
-        return hours.list(normalized, from, to);
     }
 
     /** Compatibility adapter for mobile builds that still request one date by path. */
     @GetMapping("/{serviceType}/{serviceDate}")
     public List<LegacyServiceWindow> legacyDay(@PathVariable String serviceType, @PathVariable LocalDate serviceDate) {
-        ServiceHoursPolicy.ServiceDay day = hours.list(normalizeServiceType(serviceType), serviceDate, serviceDate).getFirst();
+        String normalized = normalizeServiceType(serviceType);
+        validateScheduleRange(serviceDate, serviceDate);
+        ServiceHoursPolicy.ServiceDay day = hours.list(normalized, serviceDate, serviceDate).getFirst();
         if (!day.open()) return List.of();
         return List.of(new LegacyServiceWindow(day.serviceDate().getDayOfWeek().getValue(),
                 day.opensAt().toString(), day.closesAt().toString(), day.timezoneName()));

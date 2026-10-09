@@ -125,6 +125,20 @@ class BusinessHoursOverrideIntegrationTest extends PostgresIntegrationTest {
         assertThat(past.statusCode()).isEqualTo(422);
     }
 
+    @Test
+    void publicCalendarRoutesRejectPastDatesAndAllowSingleFutureDates() {
+        LocalDate today = LocalDate.now(ZONE);
+        LocalDate past = today.minusDays(1);
+        LocalDate futureDate = today.plusDays(32);
+
+        assertThat(get("/api/v1/public/service-hours?serviceType=PICKUP&from=" + past + "&to=" + past, null)
+                .statusCode()).isEqualTo(422);
+        assertThat(get("/api/v1/public/service-hours/PICKUP/" + past, null).statusCode()).isEqualTo(422);
+        assertThat(get("/api/v1/public/service-hours?serviceType=PICKUP&from=" + futureDate + "&to=" + futureDate, null)
+                .statusCode()).isEqualTo(200);
+        assertThat(get("/api/v1/public/service-hours/PICKUP/" + futureDate, null).statusCode()).isEqualTo(200);
+    }
+
     private LocalDate nextWednesday() {
         return LocalDate.now(ZONE).with(TemporalAdjusters.next(DayOfWeek.WEDNESDAY));
     }
