@@ -1,5 +1,10 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Intentos de cambio aislados por cuenta
+
+- Los intentos idempotentes de cancelar/cambiar cantidad/opciones de pedido ahora se guardan en SecureStore bajo una clave derivada del hash de la cuenta. Cada cuenta lee y reescribe únicamente sus propios intentos; una migración de lectura recupera los intentos válidos de la clave global anterior sin exponerlos a otra sesión.
+- Se añadieron pruebas para la clave account-scoped y para filtrar correctamente los intentos heredados, incluido correo con mayúsculas y sesión sin propietario. Verificación: Vitest 126/126, ESLint, TypeScript y export Expo Web de 17 rutas.
+
 ## 2026-10-08 — Verificación actual y bloqueo de compilación Android
 
 - En `feature/mobile-shell`, `npm test -- --run` pasa 27 archivos / 125 pruebas; `npm run lint` y `npm run typecheck` terminan sin errores. El checkout estaba limpio y no se modificó código funcional en esta revisión.

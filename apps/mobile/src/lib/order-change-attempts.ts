@@ -39,6 +39,12 @@ export function parseOrderChangeAttempts(raw: string, now = Date.now()): OrderCh
   }
 }
 
+export function orderChangeAttemptsForOwner(attempts: OrderChangeAttempt[], ownerEmail: string): OrderChangeAttempt[] {
+  const normalizedOwner = ownerEmail.trim().toLowerCase();
+  if (!normalizedOwner) return [];
+  return attempts.filter((attempt) => attempt.ownerEmail.trim().toLowerCase() === normalizedOwner);
+}
+
 export function resolveOrderChangeAttempt(
   attempts: OrderChangeAttempt[],
   ownerEmail: string,

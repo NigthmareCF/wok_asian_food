@@ -9,6 +9,9 @@ describe("commerce storage scopes", () => {
 
     expect(new Set([pickup.cart, delivery.cart, anotherAccount.cart]).size).toBe(3);
     expect(pickup.pending).toContain("account-hash-a");
+    expect(pickup.orderChangeAttempts).toBe("wok.client.order-change-attempts.v2.account-hash-a");
+    expect(pickup.orderChangeAttempts).toBe(delivery.orderChangeAttempts);
+    expect(pickup.orderChangeAttempts).not.toBe(anotherAccount.orderChangeAttempts);
     expect(JSON.stringify(pickup)).not.toContain("@");
   });
 

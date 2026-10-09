@@ -8,12 +8,13 @@ import { CancellableOrderItem, DeliveryRequestReceipt, OrderChangeRequestReceipt
 import { useSession } from "@/providers/session-provider";
 import { recoverCurrentPaymentIntents } from "@/lib/payment-intents";
 import { useFocusedPolling } from "@/lib/use-focused-polling";
-import { OrderChangeAttempt, parseOrderChangeAttempts, removeOrderChangeAttempt, resolveOrderChangeAttempt } from "@/lib/order-change-attempts";
+import { OrderChangeAttempt, orderChangeAttemptsForOwner, parseOrderChangeAttempts, removeOrderChangeAttempt, resolveOrderChangeAttempt } from "@/lib/order-change-attempts";
 import { deleteSecurePayload, readSecurePayload, saveSecurePayload } from "@/lib/reservation-attempt-storage";
 import { canSubmitPaymentEvidence, PaymentEvidenceStatus } from "@/lib/payment-evidence-policy";
 import { menuModifiersAreValid, toggleMenuModifier } from "@/lib/menu-options";
+import { resolveCommerceStorageKeys } from "@/lib/commerce-storage";
 
-const orderChangeAttemptsKey = "wok.client.order-change-attempts.v1";
+const legacyOrderChangeAttemptsKey = "wok.client.order-change-attempts.v1";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
   PENDING_REVIEW: "Pendiente de revisión", ACCEPTED: "Aceptada por el restaurante",
@@ -61,6 +62,7 @@ export default function PickupRequestsScreen() {
 
 function OrderHistory() {
   const { session, request } = useSession();
+  const sessionEmail = session?.email;
   const [requests, setRequests] = useState<PickupRequestState[]>([]);
   const [deliveryRequests, setDeliveryRequests] = useState<DeliveryRequestReceipt[]>([]);
   const [deliveryLoading, setDeliveryLoading] = useState(false);
@@ -82,6 +84,7 @@ function OrderHistory() {
   const [loadingCancellableItems, setLoadingCancellableItems] = useState<string | null>(null);
   const changeRequestsRef = useRef<OrderChangeRequestReceipt[]>([]);
   const cancellationAttempts = useRef<OrderChangeAttempt[]>([]);
+  const cancellationAttemptsStorageKey = useRef<string | null>(null);
   const [cancellationAttemptsReady, setCancellationAttemptsReady] = useState(false);
   const [cancellationStorageError, setCancellationStorageError] = useState("");
   const [changeReason, setChangeReason] = useState("");
@@ -93,8 +96,9 @@ function OrderHistory() {
   const [submittingChange, setSubmittingChange] = useState<string | null>(null);
 
   const restoreCancellationAttempts = useCallback(async () => {
-    if (!session?.email || Platform.OS === "web") {
+    if (!sessionEmail || Platform.OS === "web") {
       cancellationAttempts.current = [];
+      cancellationAttemptsStorageKey.current = null;
       setCancellationAttemptsReady(true);
       setCancellationStorageError("");
       return;
@@ -102,18 +106,31 @@ function OrderHistory() {
     setCancellationAttemptsReady(false);
     setCancellationStorageError("");
     try {
-      const raw = await readSecurePayload(orderChangeAttemptsKey);
-      const parsed = raw ? parseOrderChangeAttempts(raw) : [];
+      const ownerEmail = sessionEmail.trim().toLowerCase();
+      const storageKeys = await resolveCommerceStorageKeys("pickup", ownerEmail);
+      cancellationAttemptsStorageKey.current = storageKeys.orderChangeAttempts;
+      let raw = await readSecurePayload(storageKeys.orderChangeAttempts);
+      if (!raw) {
+        const legacy = await readSecurePayload(legacyOrderChangeAttemptsKey);
+        const ownedLegacy = legacy
+          ? orderChangeAttemptsForOwner(parseOrderChangeAttempts(legacy), ownerEmail) : [];
+        if (ownedLegacy.length) {
+          raw = JSON.stringify(ownedLegacy);
+          await saveSecurePayload(storageKeys.orderChangeAttempts, raw);
+        }
+      }
+      const parsed = raw
+        ? orderChangeAttemptsForOwner(parseOrderChangeAttempts(raw), ownerEmail) : [];
       cancellationAttempts.current = parsed;
       if (raw && JSON.stringify(parsed) !== raw) {
-        if (parsed.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(parsed));
-        else await deleteSecurePayload(orderChangeAttemptsKey);
+        if (parsed.length) await saveSecurePayload(storageKeys.orderChangeAttempts, JSON.stringify(parsed));
+        else await deleteSecurePayload(storageKeys.orderChangeAttempts);
       }
       setCancellationAttemptsReady(true);
     } catch {
       setCancellationStorageError("No pudimos recuperar de forma segura el estado de tus solicitudes. Reintenta antes de enviar otra cancelación.");
     }
-  }, [session?.email]);
+  }, [sessionEmail]);
 
   useEffect(() => { void Promise.resolve().then(restoreCancellationAttempts); }, [restoreCancellationAttempts]);
 
@@ -267,7 +284,7 @@ function OrderHistory() {
       item.ownerEmail.trim().toLowerCase() === (session?.email ?? "").trim().toLowerCase());
     if (!attempt) { setSubmittingChange(null); setError("No pudimos preparar una solicitud segura. Inténtalo de nuevo."); return; }
     try {
-      if (Platform.OS !== "web") await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(nextAttempts));
+      await persistCancellationAttempts(nextAttempts);
       cancellationAttempts.current = nextAttempts;
       const receipt = await request<OrderChangeRequestReceipt>(
         orderItemId
@@ -316,7 +333,7 @@ function OrderHistory() {
       item.ownerEmail.trim().toLowerCase() === (session?.email ?? "").trim().toLowerCase());
     if (!attempt) { setSubmittingChange(null); setError("No pudimos preparar una solicitud segura. Inténtalo de nuevo."); return; }
     try {
-      if (Platform.OS !== "web") await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(nextAttempts));
+      await persistCancellationAttempts(nextAttempts);
       cancellationAttempts.current = nextAttempts;
       const receipt = await request<OrderChangeRequestReceipt>(
         `/api/v1/client/order-requests/${orderRequestId}/change-requests/items/${line.orderItemId}/quantity`,
@@ -330,10 +347,7 @@ function OrderHistory() {
       const remaining = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "",
         orderRequestId, line.orderItemId, "MODIFY_QUANTITY", quantity);
       cancellationAttempts.current = remaining;
-      if (Platform.OS !== "web") {
-        if (remaining.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(remaining));
-        else await deleteSecurePayload(orderChangeAttemptsKey);
-      }
+      await persistCancellationAttempts(remaining);
       setSelectedQuantityChange(null); setRequestedQuantity(""); setChangeReason("");
       setNotice("Enviamos el cambio de cantidad al equipo. La cantidad del pedido se mantiene hasta que lo aprueben.");
     } catch (cause) {
@@ -345,10 +359,7 @@ function OrderHistory() {
         const remaining = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "",
           orderRequestId, line.orderItemId, "MODIFY_QUANTITY", quantity);
         cancellationAttempts.current = remaining;
-        if (Platform.OS !== "web") {
-          if (remaining.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(remaining));
-          else await deleteSecurePayload(orderChangeAttemptsKey);
-        }
+        await persistCancellationAttempts(remaining);
         setSelectedQuantityChange(null); setRequestedQuantity(""); setChangeReason("");
         setNotice(recovered.status === "PENDING_REVIEW" ? "El cambio quedó pendiente; el pedido conserva su cantidad actual." :
           `Recuperamos la solicitud: ${recovered.status === "APPROVED" ? "cambio aprobado" : "cambio rechazado"}.`);
@@ -376,7 +387,7 @@ function OrderHistory() {
       && item.ownerEmail.trim().toLowerCase() === (session?.email ?? "").trim().toLowerCase());
     if (!attempt) { setSubmittingChange(null); setError("No pudimos preparar una solicitud segura. Inténtalo de nuevo."); return; }
     try {
-      if (Platform.OS !== "web") await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(nextAttempts));
+      await persistCancellationAttempts(nextAttempts);
       cancellationAttempts.current = nextAttempts;
       const receipt = await request<OrderChangeRequestReceipt>(
         `/api/v1/client/order-requests/${orderRequestId}/change-requests/items/${line.orderItemId}/modifiers`,
@@ -390,10 +401,7 @@ function OrderHistory() {
       const remaining = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "",
         orderRequestId, line.orderItemId, "MODIFY_MODIFIERS", undefined, modifierIds);
       cancellationAttempts.current = remaining;
-      if (Platform.OS !== "web") {
-        if (remaining.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(remaining));
-        else await deleteSecurePayload(orderChangeAttemptsKey);
-      }
+      await persistCancellationAttempts(remaining);
       setSelectedModifierChange(null); setRequestedModifierIds([]); setChangeReason("");
       setNotice("Enviamos las opciones al equipo. El pedido conserva las opciones actuales hasta que las aprueben.");
     } catch (cause) {
@@ -405,10 +413,7 @@ function OrderHistory() {
         const remaining = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "",
           orderRequestId, line.orderItemId, "MODIFY_MODIFIERS", undefined, modifierIds);
         cancellationAttempts.current = remaining;
-        if (Platform.OS !== "web") {
-          if (remaining.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(remaining));
-          else await deleteSecurePayload(orderChangeAttemptsKey);
-        }
+        await persistCancellationAttempts(remaining);
         setSelectedModifierChange(null); setRequestedModifierIds([]); setChangeReason("");
         setNotice(recovered.status === "PENDING_REVIEW" ? "El cambio quedó pendiente; el pedido conserva sus opciones actuales." :
           `Recuperamos la solicitud: ${recovered.status === "APPROVED" ? "cambio aprobado" : "cambio rechazado"}.`);
@@ -419,13 +424,19 @@ function OrderHistory() {
   async function clearCancellationAttempt(orderRequestId: string, orderItemId: string | null = null) {
     const next = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "", orderRequestId, orderItemId);
     cancellationAttempts.current = next;
-    if (Platform.OS === "web") return;
     try {
-      if (next.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(next));
-      else await deleteSecurePayload(orderChangeAttemptsKey);
+      await persistCancellationAttempts(next);
     } catch {
       // Keeping a completed idempotency key is safe; the next retry will replay the same server result.
     }
+  }
+
+  async function persistCancellationAttempts(attempts: OrderChangeAttempt[]) {
+    if (Platform.OS === "web") return;
+    const key = cancellationAttemptsStorageKey.current;
+    if (!key) return;
+    if (attempts.length) await saveSecurePayload(key, JSON.stringify(attempts));
+    else await deleteSecurePayload(key);
   }
 
   function cancellationControls(orderRequestId: string, orderItemId: string | null = null) {

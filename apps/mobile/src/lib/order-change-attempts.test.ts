@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseOrderChangeAttempts, removeOrderChangeAttempt, resolveOrderChangeAttempt } from "./order-change-attempts";
+import { orderChangeAttemptsForOwner, parseOrderChangeAttempts, removeOrderChangeAttempt, resolveOrderChangeAttempt } from "./order-change-attempts";
 
 const owner = "edgar@example.com";
 const orderRequestId = "11111111-1111-4111-8111-111111111111";
@@ -24,6 +24,15 @@ describe("order change idempotency attempts", () => {
     expect(changed).toHaveLength(2);
     expect(changed.find((attempt) => attempt.ownerEmail === owner)?.key).toBe(secondKey);
     expect(changed.find((attempt) => attempt.ownerEmail === "other@example.com")?.key).toBe(firstKey);
+  });
+
+  it("migrates only the signed-in account's legacy attempts to its scoped store", () => {
+    const own = resolveOrderChangeAttempt([], owner, orderRequestId, "No puedo llegar", () => firstKey, 1000);
+    const other = resolveOrderChangeAttempt([], "another@example.com", orderRequestId, "Estoy fuera", () => secondKey, 1000);
+    const legacy = parseOrderChangeAttempts(JSON.stringify([...own, ...other]), 2000);
+
+    expect(orderChangeAttemptsForOwner(legacy, owner.toUpperCase())).toEqual(own);
+    expect(orderChangeAttemptsForOwner(legacy, " ")).toEqual([]);
   });
 
   it("discards malformed and expired attempts and removes only the matching account order", () => {
