@@ -1,39 +1,7 @@
-const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+import { createApiRequest } from "./api-client";
+export { ApiError } from "./api-client";
 
-export class ApiError extends Error {
-  constructor(message: string, readonly status?: number) {
-    super(message);
-  }
-}
-
-export async function apiRequest<T>(path: string, options: RequestInit = {}, accessToken?: string): Promise<T> {
-  if (!baseUrl) throw new ApiError("Configura EXPO_PUBLIC_API_BASE_URL para conectar con WOK.");
-  let response: Response;
-  try {
-    response = await fetch(`${baseUrl}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...options.headers,
-      },
-    });
-  } catch {
-    throw new ApiError("No pudimos conectar con WOK. Tu solicitud no se envió; intenta de nuevo cuando tengas conexión.");
-  }
-  if (!response.ok) {
-    const messages: Record<number, string> = {
-      401: "La sesión no es válida. Inicia sesión nuevamente.",
-      403: "Tu cuenta no tiene permiso para esta acción.",
-      409: "La información cambió. Revisa los datos e inténtalo de nuevo.",
-      422: "El restaurante no puede aceptar esta solicitud en ese horario.",
-      503: "Este servicio está temporalmente indisponible.",
-    };
-    throw new ApiError(messages[response.status] ?? `No se pudo completar la solicitud (${response.status}).`, response.status);
-  }
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
-}
+export const apiRequest = createApiRequest(process.env.EXPO_PUBLIC_API_BASE_URL, __DEV__);
 
 export type TokenPair = { accessToken: string; refreshToken: string; expiresInSeconds: number };
 export type ClientProfile = { userId: string; email: string; displayName: string; phone?: string | null; version: number };

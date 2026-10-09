@@ -57,7 +57,7 @@ describe("ReservationFormView", () => {
 
     expect(screen.getByRole("link", { name: "Sí" })).toHaveAttribute(
       "href",
-      "/menu",
+      "/client/menu",
     );
     expect(
       screen.getByText(/podrás seleccionar platillos en el menú/),
@@ -131,7 +131,7 @@ describe("ReservationFormView", () => {
     expect(screen.getByLabelText("HORA")).toHaveValue("21:15");
     expect(screen.getByRole("link", { name: "Sí" })).toHaveAttribute(
       "href",
-      "/menu",
+      "/client/menu",
     );
     expect(
       screen.queryByText(/Solicitud tardía: después de las/),

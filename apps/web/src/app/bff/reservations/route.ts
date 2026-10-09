@@ -10,6 +10,7 @@ export const GET = (request: NextRequest) =>
     path: "client/reservations",
     method: "GET",
     validate: isReservationHistory,
+    bindClientPrincipal: true,
   });
 export const POST = (request: NextRequest) =>
   endpoint(request, {
@@ -18,4 +19,5 @@ export const POST = (request: NextRequest) =>
     parse: parseReservation,
     validate: isReservationResult,
     idempotent: true,
+    bindClientPrincipal: true,
   });

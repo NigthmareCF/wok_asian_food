@@ -5,6 +5,7 @@ import { ScrollView, Text, View } from "react-native";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { ApiError, apiRequest, CustomerAddress, DeliveryRequestBody, DeliveryRequestDetails, DeliveryRequestReceipt, PublicMenu, PublicMenuItem } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
+import { formatGuatemalaPhoneInput, isGuatemalaPhone } from "@/lib/identity";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const pendingKey = "wok.delivery.pending.v1";
@@ -116,7 +117,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   async function submit(attempt?: PendingAttempt) {
     if (!session) { setError("Inicia sesión para enviar una solicitud de delivery."); return; }
-    if (!attempt && (!selected.length || !address.trim() || !contactPhone.trim() || !requestedFor)) {
+    if (!attempt && (!selected.length || !address.trim() || !isGuatemalaPhone(contactPhone) || !requestedFor)) {
       setError("Completa productos, dirección, teléfono y horario solicitado."); return;
     }
     let activeAttempt: PendingAttempt;
@@ -177,8 +178,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
 
   async function saveAddress() {
     if (!session) { setAddressError("Inicia sesión para guardar una dirección."); return; }
-    if (!addressLabel.trim() || address.trim().length < 5 || !contactPhone.trim()) {
-      setAddressError("Completa un nombre, dirección y teléfono válidos antes de guardar."); return;
+    if (!addressLabel.trim() || address.trim().length < 5 || !isGuatemalaPhone(contactPhone)) {
+      setAddressError("Completa un nombre, dirección y teléfono de Guatemala válido (8 dígitos)."); return;
     }
     setSavingAddress(true); setAddressError(""); setAddressNotice("");
     try {
@@ -238,12 +239,12 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         <Text style={{ color: palette.ink, fontWeight: "800" }}>Usar una dirección guardada</Text>
         {savedAddresses.map((item) => <Button key={item.addressId} title={`${item.label}${item.isDefault ? " · Predeterminada" : ""}`} secondary={selectedAddress?.addressId !== item.addressId} onPress={() => {
           setSelectedAddress(item); setAddressLabel(item.label); setAddress(item.address); setReference(item.reference ?? "");
-          setContactPhone(item.contactPhone); setSaveAsDefault(item.isDefault);
+          setContactPhone(formatGuatemalaPhoneInput(item.contactPhone)); setSaveAsDefault(item.isDefault);
         }} />)}
       </View> : null}
       <Field label="Dirección completa" value={address} onChangeText={setAddress} multiline maxLength={500} placeholder="Zona, calle/avenida, número o referencias de ubicación" />
       <Field label="Referencia para encontrar el lugar (opcional)" value={reference} onChangeText={setReference} maxLength={300} placeholder="Color de portón, nivel, local…" />
-      <Field label="Teléfono de contacto" value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" maxLength={32} placeholder="+502 0000-0000" />
+      <Field label="Teléfono de contacto" value={contactPhone} onChangeText={(value) => setContactPhone(formatGuatemalaPhoneInput(value))} keyboardType="phone-pad" maxLength={9} placeholder="1234 5678" />
       {session ? <View style={ui.section}>
         <Field label="Nombre para guardar la dirección" value={addressLabel} onChangeText={setAddressLabel} maxLength={80} />
         <Button title={saveAsDefault ? "Predeterminada para delivery · Cambiar" : "Usar como dirección predeterminada"} secondary onPress={() => setSaveAsDefault((current) => !current)} />

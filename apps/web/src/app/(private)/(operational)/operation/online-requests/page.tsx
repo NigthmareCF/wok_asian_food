@@ -1,5 +1,5 @@
-import { OnlineRequestsView } from "@/modules/messaging";
+import { OperationalOrderRequestsView } from "@/modules/orders";
 
 export default function OnlineRequestsPage() {
-  return <OnlineRequestsView />;
+  return <OperationalOrderRequestsView />;
 }

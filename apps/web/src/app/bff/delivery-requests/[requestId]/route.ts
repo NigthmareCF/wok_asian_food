@@ -15,6 +15,7 @@ export async function GET(
   return endpoint(request, {
     path: `client/delivery-requests/${requestId}`,
     method: "GET",
+    bindClientPrincipal: true,
     validate: (v) => isDeliveryDetails(v) && v.requestId === requestId,
   });
 }

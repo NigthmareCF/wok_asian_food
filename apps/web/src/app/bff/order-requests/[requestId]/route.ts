@@ -3,10 +3,15 @@ import { readAccessToken } from "@/modules/auth/server/auth-cookies";
 import { isSameOrigin } from "@/modules/auth/server/request-origin";
 import { isUuid } from "@/modules/checkout/pickup-contract";
 import { readOrCancelPickup } from "@/modules/client-order-tracking/server/pickup-requests";
+import { checkExpectedClientPrincipal } from "@/modules/clients/server/expected-client-principal";
 
 type Context = { params: Promise<{ requestId: string }> };
 const headers = { "Cache-Control": "no-store" };
-async function forward(context: Context, method: "GET" | "DELETE") {
+async function forward(
+  request: NextRequest,
+  context: Context,
+  method: "GET" | "DELETE",
+) {
   const token = await readAccessToken();
   if (!token)
     return NextResponse.json(
@@ -20,6 +25,12 @@ async function forward(context: Context, method: "GET" | "DELETE") {
       { status: 404, headers },
     );
   try {
+    const principal = await checkExpectedClientPrincipal(token, request);
+    if (!principal.ok)
+      return NextResponse.json(principal.body, {
+        status: principal.status,
+        headers,
+      });
     const result = await readOrCancelPickup(token, requestId, method);
     return NextResponse.json(result.body, { status: result.status, headers });
   } catch {
@@ -32,8 +43,8 @@ async function forward(context: Context, method: "GET" | "DELETE") {
     );
   }
 }
-export async function GET(_request: NextRequest, context: Context) {
-  return forward(context, "GET");
+export async function GET(request: NextRequest, context: Context) {
+  return forward(request, context, "GET");
 }
 export async function DELETE(request: NextRequest, context: Context) {
   if (!request.headers.get("origin") || !isSameOrigin(request))
@@ -41,5 +52,5 @@ export async function DELETE(request: NextRequest, context: Context) {
       { message: "Origen no permitido." },
       { status: 403, headers },
     );
-  return forward(context, "DELETE");
+  return forward(request, context, "DELETE");
 }

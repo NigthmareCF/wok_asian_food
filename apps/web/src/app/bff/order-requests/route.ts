@@ -4,9 +4,10 @@ import { isSameOrigin } from "@/modules/auth/server/request-origin";
 import { isUuid, parsePickupRequest } from "@/modules/checkout/pickup-contract";
 import { submitPickup } from "@/modules/checkout/server/submit-pickup";
 import { readOrCancelPickup } from "@/modules/client-order-tracking/server/pickup-requests";
+import { checkExpectedClientPrincipal } from "@/modules/clients/server/expected-client-principal";
 
 const headers = { "Cache-Control": "no-store" };
-export async function GET() {
+export async function GET(request: NextRequest) {
   const token = await readAccessToken();
   if (!token)
     return NextResponse.json(
@@ -14,6 +15,12 @@ export async function GET() {
       { status: 401, headers },
     );
   try {
+    const principal = await checkExpectedClientPrincipal(token, request);
+    if (!principal.ok)
+      return NextResponse.json(principal.body, {
+        status: principal.status,
+        headers,
+      });
     const result = await readOrCancelPickup(token);
     return NextResponse.json(result.body, { status: result.status, headers });
   } catch {
@@ -43,6 +50,12 @@ export async function POST(request: NextRequest) {
       { status: 400, headers },
     );
   try {
+    const principal = await checkExpectedClientPrincipal(token, request);
+    if (!principal.ok)
+      return NextResponse.json(principal.body, {
+        status: principal.status,
+        headers,
+      });
     const result = await submitPickup(token, key, payload);
     return NextResponse.json(result.body, { status: result.status, headers });
   } catch {

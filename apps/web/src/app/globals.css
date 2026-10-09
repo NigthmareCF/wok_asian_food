@@ -3011,7 +3011,17 @@ a {
     display: none;
   }
   .sidebar__session {
+    display: flex;
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding: 0.25rem;
+  }
+  .sidebar__session div {
     display: none;
+  }
+  .sidebar__session button {
+    min-width: 44px;
+    min-height: 44px;
   }
   .ops-dashboard {
     gap: 1.5rem;
@@ -3322,5 +3332,9 @@ a {
     padding: 0.25rem;
     font-size: 0.75rem;
     text-align: center;
+  }
+  .app-shell--client .navigation a:not([data-mobile-primary="true"]),
+  .app-shell--client .navigation button {
+    display: none;
   }
 }

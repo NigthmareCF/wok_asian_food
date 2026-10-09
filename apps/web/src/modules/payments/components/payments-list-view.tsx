@@ -1,235 +1,293 @@
 "use client";
-
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
+import { isAccountBalances, formatMoney, object } from "../live-contract";
+import { useFinancialAttempts } from "../financial-attempt-provider";
 import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  Clock3,
-  CreditCard,
-  MinusCircle,
-  Plus,
-  Search,
-  Utensils,
-} from "lucide-react";
-import {
-  paymentMethods,
-  paymentStatusMeta,
-  paymentsRecords,
-  paymentSummary,
-  formatGTQ,
-  getPaymentTotal,
-  getPaymentRemaining,
-  type PaymentStatus,
-} from "@/data/fixtures/payments";
-import { usePaymentsSession } from "../payments-session-provider";
-
-type StatusFilter = "active" | PaymentStatus;
-
-const statusFilterOptions: { value: StatusFilter; label: string }[] = [
-  { value: "active", label: "Activas" },
-  { value: "pending", label: "Pendientes" },
-  { value: "partial", label: "Parciales" },
-  { value: "paid", label: "Pagadas" },
-  { value: "difference", label: "Diferencias" },
-];
-
-const channelMeta = {
-  table: { label: "Mesa", Icon: Utensils },
-  delivery: { label: "Delivery", Icon: Search },
-  pickup: { label: "Recoger", Icon: Plus },
-} as const;
-
-export function PaymentsListView() {
-  const { records } = usePaymentsSession();
-  const [filter, setFilter] = useState<StatusFilter>("active");
-  const [query, setQuery] = useState("");
-
-  const visibleRecords = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase("es");
-    return records.filter((record) => {
-      const matchesStatus =
-        filter === "active"
-          ? record.status !== "paid"
-          : record.status === filter;
-      const matchesQuery =
-        !normalizedQuery ||
-        record.id.toLocaleLowerCase("es").includes(normalizedQuery) ||
-        record.source.toLocaleLowerCase("es").includes(normalizedQuery) ||
-        record.items.some((item) =>
-          item.name.toLocaleLowerCase("es").includes(normalizedQuery),
+  isAttemptHistory,
+  isResolutionQueue,
+  type DurableAttempt,
+  type ResolutionQueueItem,
+} from "../attempt-contract";
+export function PaymentsListView({
+  administrativeOnly = false,
+}: {
+  administrativeOnly?: boolean;
+}) {
+  const owner = useFinancialAttempts(),
+    identity = owner.identity,
+    valid = owner.valid,
+    ensure = owner.ensureSession;
+  const [accountVersion, setAccountVersion] = useState(0);
+  const [own, setOwn] = useState<DurableAttempt[]>([]),
+    [queue, setQueue] = useState<ResolutionQueueItem[]>([]),
+    [cursor, setCursor] = useState<string | null>(null),
+    [reviewCursor, setReviewCursor] = useState<string | null>(null),
+    [error, setError] = useState("");
+  const mounted = useRef(true),
+    sequence = useRef(0);
+  const canManage = owner.permissions.includes("payments:manage"),
+    canReview = canManage && owner.permissions.includes("payments:resolve");
+  const load = useCallback(
+    async (kind: "own" | "review", after?: string) => {
+      const ticket = identity(),
+        seq = sequence.current;
+      const check = () =>
+        mounted.current && valid(ticket) && sequence.current === seq;
+      try {
+        await ensure(
+          kind === "review"
+            ? ["payments:manage", "payments:resolve"]
+            : ["payments:manage"],
         );
-      return matchesStatus && matchesQuery;
-    });
-  }, [filter, records, query]);
-
-  const getCount = (value: StatusFilter) =>
-    records.filter((record) =>
-      value === "active" ? record.status !== "paid" : record.status === value,
-    ).length;
-
+        if (!check()) return;
+        const response = await fetch(
+          "/bff/operational/" +
+            (kind === "own"
+              ? "payment-attempts"
+              : "payment-attempt-resolutions") +
+            (after ? "?cursor=" + encodeURIComponent(after) : ""),
+          {
+            cache: "no-store",
+            headers: { "X-Financial-Actor": ticket.userId },
+          },
+        );
+        if (!check()) return;
+        const body: unknown = await response.json().catch(() => null);
+        if (!check()) return;
+        if (!response.ok)
+          throw Error(
+            object(body) && typeof body.message === "string"
+              ? body.message
+              : "Consulta no disponible.",
+          );
+        if (kind === "own" && isAttemptHistory(body)) {
+          setOwn((old) =>
+            after
+              ? [
+                  ...old,
+                  ...body.items.filter(
+                    (i) => !old.some((j) => j.attemptId === i.attemptId),
+                  ),
+                ]
+              : body.items,
+          );
+          setCursor(body.nextCursor ?? null);
+        } else if (kind === "review" && isResolutionQueue(body)) {
+          setQueue((old) =>
+            after
+              ? [
+                  ...old,
+                  ...body.items.filter(
+                    (i) => !old.some((j) => j.attemptId === i.attemptId),
+                  ),
+                ]
+              : body.items,
+          );
+          setReviewCursor(body.nextCursor ?? null);
+        } else
+          throw Error("Respuesta de intentos inválida; no autoriza acciones.");
+        setError("");
+      } catch (cause) {
+        if (check())
+          setError(
+            cause instanceof Error ? cause.message : "No se pudo consultar.",
+          );
+      }
+    },
+    [identity, valid, ensure],
+  );
+  const cancelReads = useCallback(() => {
+    mounted.current = false;
+    sequence.current++;
+  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    const refresh = () => {
+      if (canManage && !administrativeOnly) void load("own");
+      if (canReview) void load("review");
+    };
+    const timer = setTimeout(refresh, 0);
+    const logout = () => {
+      sequence.current++;
+      setOwn([]);
+      setQueue([]);
+      setCursor(null);
+      setReviewCursor(null);
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("wok:logout", logout);
+    return () => {
+      cancelReads();
+      clearTimeout(timer);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("wok:logout", logout);
+    };
+  }, [canManage, canReview, load, cancelReads, administrativeOnly]);
   return (
     <div className="payments-page">
-      <header className="ops-page-header payments-page__header">
+      <header className="ops-page-header">
         <div>
-          <span className="ops-kicker">Módulo operativo</span>
-          <h1>Pagos</h1>
-          <p>Controla cobros, divisiones y diferencias de cada comanda.</p>
+          {administrativeOnly ? (
+            <Link className="text-action" href="/admin">
+              Volver a administración
+            </Link>
+          ) : null}
+          <span className="ops-kicker">Cobro presencial</span>
+          <h1>
+            {administrativeOnly
+              ? "Revisión de intentos presenciales"
+              : "Cuentas y pagos"}
+          </h1>
+          <p>
+            {administrativeOnly
+              ? "Consulta y resolución excepcional; no registra cobros como otro operador."
+              : "Cuentas abiertas, parcialmente pagadas y pagadas pendientes de finalización."}
+          </p>
         </div>
-        <div className="ops-header-actions">
-          <span className="payments-summary-counter">
-            <CreditCard aria-hidden="true" size={18} />{" "}
-            {paymentSummary.pendingAmount > 0
-              ? `${formatGTQ(paymentSummary.pendingAmount)} pendientes`
-              : "Todo cobrado"}
-          </span>
-        </div>
+        <button
+          className="button button--secondary"
+          onClick={() => {
+            setAccountVersion((v) => v + 1);
+            if (canManage) void load("own");
+            if (canReview) void load("review");
+          }}
+        >
+          Actualizar
+        </button>
       </header>
-
-      <section className="payments-summary" aria-label="Resumen de pagos">
-        <div>
-          <span>Total</span>
-          <strong>{paymentSummary.total}</strong>
-        </div>
-        <div>
-          <span>Pendientes</span>
-          <strong>{paymentSummary.pending}</strong>
-        </div>
-        <div>
-          <span>Parciales</span>
-          <strong>{paymentSummary.partial}</strong>
-        </div>
-        <div className="payments-summary__danger">
-          <span>Diferencias</span>
-          <strong>{paymentSummary.difference}</strong>
-        </div>
-        <div>
-          <span>Pendiente cobrar</span>
-          <strong className="text-warning">{formatGTQ(paymentSummary.pendingAmount)}</strong>
-        </div>
-      </section>
-
-      <section
-        className="payments-workspace"
-        aria-labelledby="active-payments-title"
-      >
-        <div className="payments-toolbar">
-          <div className="payments-filter" aria-label="Filtrar pagos">
-            {statusFilterOptions.map((item) => (
-              <button
-                aria-pressed={filter === item.value}
-                key={item.value}
-                onClick={() => setFilter(item.value)}
-                type="button"
-              >
-                {item.label} <span>{getCount(item.value)}</span>
-              </button>
-            ))}
-          </div>
-          <label className="payments-search">
-            <Search aria-hidden="true" size={18} />
-            <span className="sr-only">Buscar pagos</span>
-            <input
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Comanda, mesa, cliente o producto"
-              type="search"
-              value={query}
-            />
-          </label>
-        </div>
-
-        <div className="ops-section-heading payments-list-heading">
-          <div>
-            <h2 id="active-payments-title">
-              {statusFilterOptions.find((item) => item.value === filter)?.label}
-            </h2>
-            <p>{visibleRecords.length} resultados con datos simulados</p>
-          </div>
-        </div>
-
-        <div className="payments-list">
-          {visibleRecords.map((record) => {
-            const status = paymentStatusMeta[record.status];
-            const paidAmount = getPaymentTotal(record);
-            const remaining = getPaymentRemaining(record);
-            const channel = channelMeta[record.channel];
-            const ChannelIcon = channel.Icon;
-
-            return (
+      {error ? <p role="alert">{error}</p> : null}
+      {!administrativeOnly ? (
+        <OperationalPaymentAccounts key={accountVersion} />
+      ) : null}
+      {canManage && !administrativeOnly ? (
+        <section className="ops-work-panel">
+          <h2>Mis intentos</h2>
+          <p>
+            Disponibles aunque la cuenta ya no aparezca en la lista. Abrir solo
+            consulta; confirmar captura es una acción separada.
+          </p>
+          {own.length ? (
+            own.map((i) => (
+              <p key={i.attemptId}>
+                {i.status} · {formatMoney(i.amount, i.currency)} ·{" "}
+                <Link
+                  href={
+                    "/operation/payments/" +
+                    i.accountId +
+                    "?selectedAttempt=" +
+                    i.attemptId
+                  }
+                  onClick={() => owner.select(i.accountId, i.attemptId)}
+                >
+                  Consultar intento {i.attemptId}
+                </Link>
+              </p>
+            ))
+          ) : (
+            <p>Sin intentos propios en esta página.</p>
+          )}
+          {cursor ? (
+            <button
+              className="button button--secondary"
+              onClick={() => void load("own", cursor)}
+            >
+              Más intentos propios
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+      {canReview ? (
+        <section className="ops-work-panel">
+          <h2>Intentos que requieren revisión</h2>
+          <p>
+            Consulta excepcional separada. No autoriza capturar como otro
+            operador ni resolver un intento creado por ti.
+          </p>
+          {queue.map((i) => (
+            <p key={i.attemptId}>
+              {i.status} · Cuenta {i.accountId} · Versión {i.version} ·{" "}
               <Link
-                aria-label={`Abrir pago ${record.id}, ${status.label}`}
-                className={`payment-row payment-row--${status.tone}`}
-                href={`/operation/payments/${record.id}`}
-                key={record.id}
+                href={
+                  "/admin/payment-attempts/" +
+                  i.accountId +
+                  "?reviewAttempt=" +
+                  i.attemptId
+                }
               >
-                <div className="payment-row__identity">
-                  <span className="payment-channel-icon">
-                    <ChannelIcon aria-hidden="true" size={18} />
-                  </span>
-                  <div>
-                    <strong>#{record.id}</strong>
-                    <span>{record.source}</span>
-                  </div>
-                </div>
-                <div className="payment-row__items">
-                  <strong>
-                    {record.items.map((item) => item.name).join(" · ")}
-                  </strong>
-                  <span>{record.items.length} productos</span>
-                </div>
-                <div className="payment-row__amounts">
-                  <div className="payment-row__paid">
-                    <span>Cobrado</span>
-                    <strong>{formatGTQ(paidAmount)}</strong>
-                  </div>
-                  <div className="payment-row__total">
-                    <span>Total</span>
-                    <strong>{formatGTQ(record.total)}</strong>
-                  </div>
-                  {remaining > 0 && (
-                    <div className="payment-row__remaining">
-                      <span>Falta</span>
-                      <strong className="text-warning">{formatGTQ(remaining)}</strong>
-                    </div>
-                  )}
-                </div>
-                <div className="payment-row__methods">
-                  {record.payments.map((p) => (
-                    <span key={p.id} className="payment-method-badge">
-                      {paymentMethods.find((m) => m.value === p.method)?.label ?? p.method}
-                    </span>
-                  ))}
-                  {record.payments.length === 0 && (
-                    <span className="payment-method-badge payment-method-badge--none">
-                      Sin pagos
-                    </span>
-                  )}
-                </div>
-                <span className={`payment-status payment-status--${status.tone}`}>
-                  {status.label}
-                </span>
-                <ArrowRight
-                  aria-hidden="true"
-                  className="payment-row__arrow"
-                  size={18}
-                />
+                Revisar intento {i.attemptId}
               </Link>
-            );
-          })}
-        </div>
-
-        {visibleRecords.length === 0 ? (
-          <div className="ops-empty-state">
-            <strong>No encontramos pagos</strong>
-            <span>Prueba otro estado o cambia la búsqueda.</span>
-          </div>
-        ) : null}
-      </section>
-
-      <p className="mock-disclaimer">
-        Los pagos y montos son simulados; se reinician al recargar.
-      </p>
+            </p>
+          ))}
+          {!queue.length ? (
+            <p>Sin intentos activos para revisión en esta página.</p>
+          ) : null}
+          {reviewCursor ? (
+            <button
+              className="button button--secondary"
+              onClick={() => void load("review", reviewCursor)}
+            >
+              Más revisiones
+            </button>
+          ) : null}
+        </section>
+      ) : null}
     </div>
+  );
+}
+
+function OperationalPaymentAccounts() {
+  const r = usePickupResource("/bff/operational/accounts", isAccountBalances);
+  return (
+    <>
+      {r.error ? <p role="alert">{r.error.message}</p> : null}
+      {!r.data && !r.error ? <p role="status">Cargando cuentas…</p> : null}
+      {r.data?.length === 0 ? (
+        <div className="ops-empty-state">
+          No hay cuentas presenciales pendientes.
+        </div>
+      ) : null}
+      <div className="payments-list">
+        {r.data?.map((a) => (
+          <section className="ops-work-panel" key={a.account.id}>
+            <h2>
+              {a.account.diningTableName} · {a.account.name}
+            </h2>
+            <p>
+              {a.account.status} · {a.pendingOrderCount} pedidos pendientes ·{" "}
+              {a.unfinalizedOrderCount} sin finalizar
+            </p>
+            {a.currencyTotals.map((t) => (
+              <p key={t.currency}>
+                Total: {formatMoney(t.total, t.currency)} · Pagado:{" "}
+                {formatMoney(t.paid, t.currency)} · Saldo:{" "}
+                <strong>{formatMoney(t.balance, t.currency)}</strong>
+              </p>
+            ))}
+            {a.currencies.length > 1 ? (
+              <p role="alert">
+                Distintas monedas: requiere revisión; no se pueden sumar ni
+                cobrar juntas.
+              </p>
+            ) : null}
+            <Link
+              className="button button--primary"
+              href={"/operation/payments/" + a.account.id}
+            >
+              Consultar cuenta
+            </Link>{" "}
+            <Link
+              className="button button--secondary"
+              href={"/operation/payments/" + a.account.id + "/prebill"}
+            >
+              Precuenta
+            </Link>
+          </section>
+        ))}
+      </div>
+    </>
   );
 }

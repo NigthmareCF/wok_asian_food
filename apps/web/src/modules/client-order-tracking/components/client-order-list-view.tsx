@@ -58,7 +58,7 @@ export function ClientOrderListView() {
             Aquí aparecerán las solicitudes locales que confirmes desde el
             carrito.
           </p>
-          <Link className="button button--primary" href="/menu">
+          <Link className="button button--primary" href="/client/menu">
             Ver menú
           </Link>
         </section>

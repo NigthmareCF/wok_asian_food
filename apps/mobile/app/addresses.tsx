@@ -3,6 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import { ApiError, CustomerAddress } from "@/lib/api";
 import { Button, Card, Field, Heading, Notice, Page, palette, ui } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
+import { formatGuatemalaPhoneInput, isGuatemalaPhone } from "@/lib/identity";
 
 type AddressDraft = { label: string; address: string; reference: string; contactPhone: string; isDefault: boolean };
 const emptyDraft: AddressDraft = { label: "", address: "", reference: "", contactPhone: "", isDefault: false };
@@ -38,7 +39,7 @@ function AddressBook({ session, request }: AddressBookProps) {
     setCreating(false);
     setEditingId(address.addressId);
     setDeleteId(null);
-    setDraft({ label: address.label, address: address.address, reference: address.reference ?? "", contactPhone: address.contactPhone, isDefault: address.isDefault });
+    setDraft({ label: address.label, address: address.address, reference: address.reference ?? "", contactPhone: formatGuatemalaPhoneInput(address.contactPhone), isDefault: address.isDefault });
     setError(""); setNotice("");
   }
 
@@ -48,8 +49,8 @@ function AddressBook({ session, request }: AddressBookProps) {
   }
 
   async function save() {
-    if (!draft.label.trim() || draft.address.trim().length < 5 || !/^[0-9+() .-]{7,32}$/.test(draft.contactPhone.trim())) {
-      setError("Revisa el nombre, la dirección y un teléfono válido (7 a 32 caracteres)."); return;
+    if (!draft.label.trim() || draft.address.trim().length < 5 || !isGuatemalaPhone(draft.contactPhone)) {
+      setError("Revisa el nombre, la dirección y el teléfono de Guatemala (8 dígitos en grupos de cuatro)."); return;
     }
     setSaving(true); setError(""); setNotice("");
     try {
@@ -106,7 +107,7 @@ function AddressBook({ session, request }: AddressBookProps) {
       <Field label="Nombre" value={draft.label} onChangeText={(label) => setDraft((current) => ({ ...current, label }))} maxLength={80} placeholder="Casa, trabajo…" />
       <Field label="Dirección completa" value={draft.address} onChangeText={(address) => setDraft((current) => ({ ...current, address }))} multiline maxLength={500} placeholder="Zona, calle/avenida, número" />
       <Field label="Referencia (opcional)" value={draft.reference} onChangeText={(reference) => setDraft((current) => ({ ...current, reference }))} maxLength={300} />
-      <Field label="Teléfono de contacto" value={draft.contactPhone} onChangeText={(contactPhone) => setDraft((current) => ({ ...current, contactPhone }))} keyboardType="phone-pad" maxLength={32} />
+      <Field label="Teléfono de contacto" value={draft.contactPhone} onChangeText={(value) => setDraft((current) => ({ ...current, contactPhone: formatGuatemalaPhoneInput(value) }))} keyboardType="phone-pad" maxLength={9} placeholder="1234 5678" />
       <Button title={draft.isDefault ? "Dirección predeterminada ✓" : "Usar como predeterminada"} secondary onPress={() => setDraft((current) => ({ ...current, isDefault: !current.isDefault }))} />
       <Button title="Guardar dirección" busy={saving} onPress={() => void save()} />
     </Card> : null}

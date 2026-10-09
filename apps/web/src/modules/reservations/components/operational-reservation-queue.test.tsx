@@ -1,3 +1,4 @@
+import { installPrivateSession } from "@/test/private-session-fixture";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -16,8 +17,10 @@ const pendingReservation = {
   email: "ana@example.com",
 };
 
+const transport = vi.fn<typeof fetch>();
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn());
+  transport.mockReset();
+  installPrivateSession(transport);
   vi.stubGlobal("crypto", { randomUUID: () => requestId });
 });
 
@@ -29,7 +32,7 @@ afterEach(() => {
 
 it("loads pending reservations and sends a versioned confirmation", async () => {
   const user = userEvent.setup();
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockResolvedValueOnce(
       Response.json({
@@ -57,7 +60,7 @@ it("loads pending reservations and sends a versioned confirmation", async () => 
       "Solicitud confirmada.",
     ),
   );
-  expect(fetch).toHaveBeenNthCalledWith(
+  expect(transport).toHaveBeenNthCalledWith(
     2,
     `/bff/operational/reservations/${reservationId}/decision`,
     expect.objectContaining({
@@ -79,7 +82,7 @@ it("loads pending reservations and sends a versioned confirmation", async () => 
 
 it("reloads the queue after a 409 without overwriting another decision", async () => {
   const user = userEvent.setup();
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockResolvedValueOnce(
       Response.json({ message: "El estado cambió." }, { status: 409 }),
@@ -101,12 +104,12 @@ it("reloads the queue after a 409 without overwriting another decision", async (
       screen.getByText("No hay solicitudes pendientes"),
     ).toBeInTheDocument(),
   );
-  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(transport).toHaveBeenCalledTimes(3);
 });
 
 it("shows an error state and allows reloading the pending queue", async () => {
   const user = userEvent.setup();
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(
       Response.json({ message: "Sin permiso." }, { status: 403 }),
     )
@@ -134,9 +137,9 @@ async function prepareConfirmation() {
 it.each(["network", "invalid", "server", "wrong-reservation"])(
   "reconciles %s without claiming success or resending",
   async (failure) => {
-    const mocked = vi
-      .mocked(fetch)
-      .mockResolvedValueOnce(Response.json([pendingReservation]));
+    const mocked = transport.mockResolvedValueOnce(
+      Response.json([pendingReservation]),
+    );
     if (failure === "network")
       mocked.mockRejectedValueOnce(new TypeError("Network"));
     else
@@ -169,14 +172,14 @@ it.each(["network", "invalid", "server", "wrong-reservation"])(
     expect(
       screen.queryByLabelText("Motivo de la decisión"),
     ).not.toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(transport).toHaveBeenCalledTimes(3);
   },
 );
 
 it.each([401, 403])(
   "disables decisions after HTTP %s even if the queue can still be read",
   async (status) => {
-    vi.mocked(fetch)
+    transport
       .mockResolvedValueOnce(Response.json([pendingReservation]))
       .mockResolvedValueOnce(Response.json({}, { status }))
       .mockResolvedValueOnce(Response.json([pendingReservation]));
@@ -193,7 +196,7 @@ it.each([401, 403])(
 );
 
 it("preserves the reason on a validation rejection and clears the stale draft on manual refresh", async () => {
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockResolvedValueOnce(
       Response.json({ message: "Revisa el motivo." }, { status: 400 }),
@@ -221,7 +224,7 @@ it("preserves the reason on a validation rejection and clears the stale draft on
 });
 
 it("rejects a reservation with the server cancellation result", async () => {
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockResolvedValueOnce(
       Response.json({
@@ -246,7 +249,7 @@ it("rejects a reservation with the server cancellation result", async () => {
   );
   expect(await screen.findByText("Solicitud rechazada.")).toBeInTheDocument();
   await screen.findByText("No hay solicitudes pendientes");
-  expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body))).toEqual({
+  expect(JSON.parse(String(transport.mock.calls[1][1]?.body))).toEqual({
     decision: "REJECT",
     reason: "Sin cupo",
     expectedVersion: 1,
@@ -254,7 +257,7 @@ it("rejects a reservation with the server cancellation result", async () => {
 });
 
 it("requires a new decision after a conflict and submits the refreshed version", async () => {
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockResolvedValueOnce(Response.json({}, { status: 409 }))
     .mockResolvedValueOnce(
@@ -279,7 +282,7 @@ it("requires a new decision after a conflict and submits the refreshed version",
   expect(
     screen.queryByLabelText("Motivo de la decisión"),
   ).not.toBeInTheDocument();
-  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(transport).toHaveBeenCalledTimes(3);
   await userEvent.click(screen.getByRole("button", { name: "Confirmar" }));
   await userEvent.type(
     screen.getByLabelText("Motivo de la decisión"),
@@ -289,7 +292,7 @@ it("requires a new decision after a conflict and submits the refreshed version",
     screen.getByRole("button", { name: "Confirmar solicitud" }),
   );
   await screen.findByText("Solicitud confirmada.");
-  expect(JSON.parse(String(vi.mocked(fetch).mock.calls[3][1]?.body))).toEqual({
+  expect(JSON.parse(String(transport.mock.calls[3][1]?.body))).toEqual({
     decision: "CONFIRM",
     reason: "Revisado nuevamente",
     expectedVersion: 4,
@@ -297,7 +300,7 @@ it("requires a new decision after a conflict and submits the refreshed version",
 });
 
 it("retries only the query when reconciliation fails after a lost decision response", async () => {
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockRejectedValueOnce(new TypeError("Connection lost"))
     .mockRejectedValueOnce(new TypeError("Server unreachable"))
@@ -306,7 +309,7 @@ it("retries only the query when reconciliation fails after a lost decision respo
   await userEvent.click(
     screen.getByRole("button", { name: "Confirmar solicitud" }),
   );
-  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+  await waitFor(() => expect(transport).toHaveBeenCalledTimes(3));
   await waitFor(() =>
     expect(
       screen.queryByText("Cargando solicitudes pendientes…"),
@@ -321,15 +324,13 @@ it("retries only the query when reconciliation fails after a lost decision respo
   );
   await screen.findByText("No hay solicitudes pendientes");
   expect(
-    vi
-      .mocked(fetch)
-      .mock.calls.filter(([, options]) => options?.method === "PUT"),
+    transport.mock.calls.filter(([, options]) => options?.method === "PUT"),
   ).toHaveLength(1);
 });
 
 it("sends one decision when the confirmation is double clicked", async () => {
   let resolveDecision!: (response: Response) => void;
-  vi.mocked(fetch)
+  transport
     .mockResolvedValueOnce(Response.json([pendingReservation]))
     .mockReturnValueOnce(
       new Promise<Response>((resolve) => {
@@ -341,7 +342,7 @@ it("sends one decision when the confirmation is double clicked", async () => {
   await userEvent.dblClick(
     screen.getByRole("button", { name: "Confirmar solicitud" }),
   );
-  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(transport).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("button", { name: "Guardando…" })).toBeDisabled();
   resolveDecision(
     Response.json({
@@ -354,8 +355,6 @@ it("sends one decision when the confirmation is double clicked", async () => {
   );
   await screen.findByText("Solicitud confirmada.");
   expect(
-    vi
-      .mocked(fetch)
-      .mock.calls.filter(([, options]) => options?.method === "PUT"),
+    transport.mock.calls.filter(([, options]) => options?.method === "PUT"),
   ).toHaveLength(1);
 });

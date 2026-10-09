@@ -1,166 +1,115 @@
+import { installPrivateSession } from "@/test/private-session-fixture";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { FinancialAttemptProvider } from "@/modules/payments/financial-attempt-provider";
 import { OperationalTableDetailView } from "./operational-table-detail-view";
-
+const id = "20000000-0000-4000-8000-000000000001",
+  other = "30000000-0000-4000-8000-000000000001";
 const table = {
-  id: "11111111-1111-4111-8111-111111111111",
-  name: "Mesa prueba",
+  id,
+  name: "Mesa real",
   capacity: 4,
-  zone: "PRUEBAS",
+  zone: "Principal",
   active: true,
-  status: "FREE",
+  status: "OCCUPIED",
   rowVersion: 1,
-  updatedAt: "2026-10-08T10:00:00Z",
-  accountId: null,
-  accountName: null,
-  accountStatus: null,
+  updatedAt: "2026-10-06T00:00:00Z",
+  accountId: id,
+  accountName: "Primera",
+  accountStatus: "PAID",
 };
-const occupied = { ...table, status: "OCCUPIED", rowVersion: 2 };
+const balance = (accountId: string, n: number, unfinished = 0) => ({
+  account: {
+    id: accountId,
+    name: accountId === id ? "Primera" : "Segunda",
+    status: n > 0 ? "OPEN" : "PAID",
+    diningTableId: id,
+    diningTableName: "Mesa real",
+    rowVersion: 1,
+  },
+  total: 20,
+  paid: 20 - n,
+  balance: n,
+  tips: 0,
+  currencies: ["GTQ"],
+  currencyTotals: [
+    { currency: "GTQ", total: 20, paid: 20 - n, balance: n, tips: 0 },
+  ],
+  pendingOrderCount: 0,
+  unfinalizedOrderCount: unfinished,
+});
+let accounts = [balance(id, 0), balance(other, 20)],
+  writes: number;
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn());
+  sessionStorage.clear();
+  writes = 0;
+  accounts = [balance(id, 0), balance(other, 20)];
+  installPrivateSession(
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "POST") {
+        writes++;
+        return Response.json({
+          ...table,
+          status: "CLEANING",
+          accountId: null,
+          accountName: null,
+          accountStatus: null,
+        });
+      }
+      return Response.json(url.includes("/accounts?") ? accounts : [table]);
+    }),
+    () => other,
+  );
 });
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
-
-it("confirms opening and loads the current table without repeating the mutation", async () => {
-  vi.mocked(fetch)
-    .mockResolvedValueOnce(Response.json([table]))
-    .mockResolvedValueOnce(Response.json(occupied))
-    .mockResolvedValueOnce(Response.json([occupied]));
-  render(<OperationalTableDetailView tableId={table.id} />);
-  await userEvent.click(
-    await screen.findByRole("button", { name: "Abrir mesa" }),
+const show = (permissions = ["accounts:manage"]) =>
+  render(
+    <FinancialAttemptProvider userId={other} permissions={permissions}>
+      <OperationalTableDetailView tableId={id} />
+    </FinancialAttemptProvider>,
   );
-  expect(await screen.findByText("Mesa abierta.")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Abrir mesa" })).toBeDisabled();
-  expect(fetch).toHaveBeenNthCalledWith(
-    2,
-    `/bff/operational/tables/${table.id}/open`,
-    expect.objectContaining({
-      method: "POST",
-      headers: { "X-Request-Id": expect.any(String) },
-    }),
-  );
-});
-
-it.each(["network", "invalid", "server"])(
-  "reconciles an uncertain %s result before allowing another operation",
-  async (failure) => {
-    const mocked = vi
-      .mocked(fetch)
-      .mockResolvedValueOnce(Response.json([table]));
-    if (failure === "network")
-      mocked.mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    else
-      mocked.mockResolvedValueOnce(
-        Response.json({}, { status: failure === "server" ? 503 : 200 }),
-      );
-    mocked.mockResolvedValueOnce(Response.json([occupied]));
-    render(<OperationalTableDetailView tableId={table.id} />);
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Abrir mesa" }),
-    );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "No pudimos confirmar el resultado",
-    );
-    expect(screen.getByText("Ocupada")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abrir mesa" })).toBeDisabled();
-    expect(screen.queryByText("Mesa abierta.")).not.toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledTimes(3);
-  },
-);
-
-it("preserves the reason for a rejected close and refreshes the table", async () => {
-  vi.mocked(fetch)
-    .mockResolvedValueOnce(Response.json([occupied]))
-    .mockResolvedValueOnce(
-      Response.json(
-        { message: "La mesa tiene pedidos que todavía no se han cerrado." },
-        { status: 409 },
-      ),
-    )
-    .mockResolvedValueOnce(Response.json([occupied]));
-  render(<OperationalTableDetailView tableId={table.id} />);
-  await userEvent.click(
-    await screen.findByRole("button", { name: "Cerrar mesa" }),
-  );
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "pedidos que todavía no se han cerrado",
-  );
-  expect(fetch).toHaveBeenCalledTimes(3);
-});
-
-it.each([401, 403])(
-  "blocks mutations after HTTP %s even if reading is still allowed",
-  async (status) => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(Response.json([table]))
-      .mockResolvedValueOnce(Response.json({}, { status }))
-      .mockResolvedValueOnce(Response.json([table]));
-    render(<OperationalTableDetailView tableId={table.id} />);
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Abrir mesa" }),
-    );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      status === 401 ? "sesión venció" : "No tienes permiso",
-    );
-    expect(screen.getByRole("button", { name: "Abrir mesa" })).toBeDisabled();
-  },
-);
-
-it("does not offer mutations when reconciliation fails and allows retrying only the read", async () => {
-  vi.mocked(fetch)
-    .mockResolvedValueOnce(Response.json([table]))
-    .mockRejectedValueOnce(new TypeError("Network"))
-    .mockRejectedValueOnce(new TypeError("Network"))
-    .mockResolvedValueOnce(Response.json([occupied]));
-  render(<OperationalTableDetailView tableId={table.id} />);
-  await userEvent.click(
-    await screen.findByRole("button", { name: "Abrir mesa" }),
-  );
-  await screen.findByRole("alert");
+it("does not release a table while any of its accounts has debt or an unfinished order", async () => {
+  const u = userEvent.setup();
+  show();
+  await screen.findByText("Todas las cuentas de la mesa");
+  await screen.findByText("Segunda · Abierta");
+  expect(writes).toBe(0);
   expect(
-    screen.queryByRole("button", { name: "Abrir mesa" }),
-  ).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Actualizar" }));
-  expect(await screen.findByText("Ocupada")).toBeInTheDocument();
-  expect(
-    vi
-      .mocked(fetch)
-      .mock.calls.filter(([, options]) => options?.method === "POST"),
-  ).toHaveLength(1);
-});
-
-it("prevents duplicate clicks while a mutation is pending", async () => {
-  let resolveAction!: (value: Response) => void;
-  vi.mocked(fetch)
-    .mockResolvedValueOnce(Response.json([table]))
-    .mockReturnValueOnce(
-      new Promise<Response>((resolve) => {
-        resolveAction = resolve;
-      }),
-    )
-    .mockResolvedValueOnce(Response.json([occupied]));
-  render(<OperationalTableDetailView tableId={table.id} />);
-  await userEvent.dblClick(
-    await screen.findByRole("button", { name: "Abrir mesa" }),
-  );
-  expect(fetch).toHaveBeenCalledTimes(2);
-  resolveAction(Response.json(occupied));
-  await waitFor(() =>
-    expect(screen.getByText("Mesa abierta.")).toBeInTheDocument(),
-  );
-});
-
-it("does not allow opening an inactive table", async () => {
-  vi.mocked(fetch).mockResolvedValue(
-    Response.json([{ ...table, active: false }]),
-  );
-  render(<OperationalTableDetailView tableId={table.id} />);
-  expect(
-    await screen.findByRole("button", { name: "Abrir mesa" }),
+    screen.getByRole("button", { name: "Finalizar cuentas y liberar mesa" }),
   ).toBeDisabled();
+  accounts = [balance(id, 0), balance(other, 0, 1)];
+  await u.click(screen.getByRole("button", { name: "Actualizar cuentas" }));
+  await screen.findByText("1 pedidos sin finalizar");
+  expect(writes).toBe(0);
+  expect(
+    screen.getByRole("button", { name: "Finalizar cuentas y liberar mesa" }),
+  ).toBeDisabled();
+  accounts = [balance(id, 0), balance(other, 0)];
+  await u.click(screen.getByRole("button", { name: "Actualizar cuentas" }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Finalizar cuentas y liberar mesa" }),
+    ).toBeEnabled(),
+  );
+  await u.click(
+    screen.getByRole("button", { name: "Finalizar cuentas y liberar mesa" }),
+  );
+  expect(writes).toBe(0);
+  await u.click(screen.getByRole("button", { name: "Confirmar liberación" }));
+  await waitFor(() => expect(writes).toBe(1));
+  await screen.findByText("Mesa cerrada y enviada a limpieza.");
+});
+it("financial permission alone allows consultation but does not grant release", async () => {
+  accounts = [balance(id, 0), balance(other, 0)];
+  show(["payments:manage"]);
+  await screen.findByText("Todas las cuentas de la mesa");
+  expect(
+    screen.getByRole("button", { name: "Finalizar cuentas y liberar mesa" }),
+  ).toBeDisabled();
+  expect(writes).toBe(0);
 });

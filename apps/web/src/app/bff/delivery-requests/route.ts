@@ -10,6 +10,7 @@ export const GET = (request: NextRequest) =>
     path: "client/delivery-requests",
     method: "GET",
     validate: isDeliveryHistory,
+    bindClientPrincipal: true,
   });
 export const POST = (request: NextRequest) =>
   endpoint(request, {
@@ -18,4 +19,5 @@ export const POST = (request: NextRequest) =>
     parse: parseDeliveryRequest,
     validate: isDeliveryReceipt,
     idempotent: true,
+    bindClientPrincipal: true,
   });

@@ -1,4 +1,4 @@
-import { OrderDetailView } from "@/modules/orders";
+import { OperationalOrderDetailView } from "@/modules/orders";
 
 export default async function OrderDetailPage({
   params,
@@ -6,5 +6,5 @@ export default async function OrderDetailPage({
   params: Promise<{ orderId: string }>;
 }) {
   const { orderId } = await params;
-  return <OrderDetailView orderId={orderId} />;
+  return <OperationalOrderDetailView orderId={orderId} />;
 }

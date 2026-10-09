@@ -22,6 +22,7 @@ function formatReservationDate(value: string) {
   return new Intl.DateTimeFormat("es-GT", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "America/Guatemala",
   }).format(new Date(value));
 }
 
@@ -29,6 +30,7 @@ export function OperationalReservationQueue() {
   const queue = usePickupResource(
     "/bff/operational/reservations/pending",
     isOperationalPendingReservations,
+    10_000,
   );
   const [draft, setDraft] = useState<DecisionDraft | null>(null);
   const inFlight = useRef(false);
@@ -68,6 +70,7 @@ export function OperationalReservationQueue() {
         `/bff/operational/reservations/${draft.reservationId}/decision`,
         {
           method: "PUT",
+          signal: AbortSignal.timeout(15000),
           headers: {
             "Content-Type": "application/json",
             "X-Request-Id": crypto.randomUUID(),
