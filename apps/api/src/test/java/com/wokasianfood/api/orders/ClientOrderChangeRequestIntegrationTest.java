@@ -64,6 +64,15 @@ class ClientOrderChangeRequestIntegrationTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM wok.order_change_request_events WHERE order_change_request_id = ?",
                 Integer.class, changeId)).isEqualTo(1);
 
+        JsonNode ownerChanges = body(get("/api/v1/client/order-requests/change-requests", order.clientToken()));
+        JsonNode otherChanges = body(get("/api/v1/client/order-requests/change-requests", tokenForRole("CLIENT")));
+        assertThat(ownerChanges.findValuesAsText("id")).contains(changeId.toString());
+        assertThat(otherChanges).isEmpty();
+        assertThat(get("/api/v1/client/order-requests/" + order.requestId() + "/change-requests/current",
+                order.clientToken()).statusCode()).isEqualTo(200);
+        assertThat(get("/api/v1/client/order-requests/" + order.requestId() + "/change-requests/current",
+                tokenForRole("CLIENT")).statusCode()).isEqualTo(404);
+
         HttpResponse<String> otherClient = post(path, tokenForRole("CLIENT"),
                 "{\"reason\":\"Quiero cancelarlo\"}", Map.of("Idempotency-Key", UUID.randomUUID().toString()));
         assertThat(otherClient.statusCode()).isEqualTo(404);

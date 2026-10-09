@@ -893,3 +893,8 @@
 
 - `OrderRequestDecisionIntegrationTest` verifica que un Cliente sólo vea su propio historial y detalle pickup; otro CLIENT recibe historial vacío y 404 al leer/cancelar la solicitud ajena. La solicitud conserva estado `PENDING_REVIEW` y un único evento al intentar la cancelación cruzada.
 - Prueba focal con PostgreSQL 18/Testcontainers y Flyway V1–V55: 1/1. Suite completa: 78 suites / 341 pruebas, cero fallos, errores u omitidas.
+
+## 2026-10-08 — Ownership A/B de solicitudes de cambio de pedido
+
+- El flujo de cancelación ahora comprueba por HTTP que el listado de cambios sólo devuelve registros propios y que `/change-requests/current` sólo resuelve solicitudes del dueño; la cuenta ajena recibe lista vacía y 404. Se mantiene el resto del ciclo de revisión/aprobación y replay idempotente.
+- Prueba focal con PostgreSQL 18/Testcontainers: `cancellationNeedsOperationalApprovalAndApprovalUsesOrderLifecycle` pasa. Suite completa: 78 suites / 341 pruebas, cero fallos, errores u omitidas; `git diff --check` limpio.
