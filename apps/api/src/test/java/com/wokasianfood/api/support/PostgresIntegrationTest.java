@@ -80,25 +80,34 @@ public abstract class PostgresIntegrationTest {
         return userId;
     }
 
-    /** Opens today's remote-service window for tests whose purpose is unrelated to the schedule. */
+    /** Opens today's and tomorrow's remote-service windows for schedule-independent tests. */
     protected void allowRemoteRequestsAtAnyTimeToday() {
-        setTodayHours("PICKUP", LocalTime.MIDNIGHT, LocalTime.of(23, 59, 59));
-        setTodayHours("DELIVERY", LocalTime.MIDNIGHT, LocalTime.of(23, 59, 59));
+        LocalDate today = LocalDate.now(RESTAURANT_ZONE);
+        for (LocalDate date = today; !date.isAfter(today.plusDays(1)); date = date.plusDays(1)) {
+            setHours("PICKUP", date.getDayOfWeek().getValue(), LocalTime.MIDNIGHT, LocalTime.of(23, 59, 59));
+            setHours("DELIVERY", date.getDayOfWeek().getValue(), LocalTime.MIDNIGHT, LocalTime.of(23, 59, 59));
+        }
     }
 
     /** Restores the configured baseline for today after a schedule-independent test. */
     protected void restoreBaselineRemoteHoursToday() {
-        int weekday = LocalDate.now(RESTAURANT_ZONE).getDayOfWeek().getValue();
-        if (weekday == 1) {
-            jdbc.update("DELETE FROM wok.business_hours WHERE weekday = ? AND service_type IN ('PICKUP', 'DELIVERY')", weekday);
-            return;
+        LocalDate today = LocalDate.now(RESTAURANT_ZONE);
+        for (LocalDate date = today; !date.isAfter(today.plusDays(1)); date = date.plusDays(1)) {
+            int weekday = date.getDayOfWeek().getValue();
+            if (weekday == 1) {
+                jdbc.update("DELETE FROM wok.business_hours WHERE weekday = ? AND service_type IN ('PICKUP', 'DELIVERY')", weekday);
+            } else {
+                setHours("PICKUP", weekday, LocalTime.of(14, 0), LocalTime.of(21, 30));
+                setHours("DELIVERY", weekday, LocalTime.of(14, 0), LocalTime.of(21, 0));
+            }
         }
-        setTodayHours("PICKUP", LocalTime.of(14, 0), LocalTime.of(21, 30));
-        setTodayHours("DELIVERY", LocalTime.of(14, 0), LocalTime.of(21, 0));
     }
 
     private void setTodayHours(String serviceType, LocalTime opensAt, LocalTime closesAt) {
-        int weekday = LocalDate.now(RESTAURANT_ZONE).getDayOfWeek().getValue();
+        setHours(serviceType, LocalDate.now(RESTAURANT_ZONE).getDayOfWeek().getValue(), opensAt, closesAt);
+    }
+
+    private void setHours(String serviceType, int weekday, LocalTime opensAt, LocalTime closesAt) {
         jdbc.update("""
             INSERT INTO wok.business_hours (service_type, weekday, opens_at, closes_at, timezone_name, active)
             VALUES (?, ?, ?, ?, 'America/Guatemala', true)

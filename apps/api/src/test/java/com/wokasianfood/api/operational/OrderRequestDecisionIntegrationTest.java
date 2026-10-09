@@ -791,7 +791,7 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 {"requestedFor":"%s","paymentPreference":"CARD_AT_PICKUP","invoiceRequested":true,
                  "invoiceName":"Cliente WOK","invoiceTaxId":"1234567",
                  "items":[{"menuItemId":"%s","quantity":1}]}
-                """.formatted(Instant.now().plusSeconds(3600), menuItemId),
+                """.formatted(nextRestaurantServiceSlot(), menuItemId),
                 Map.of("Idempotency-Key", UUID.randomUUID().toString()))).path("requestId").asText());
 
         var ownDetails = body(get("/api/v1/client/order-requests/" + requestId, client));
@@ -837,7 +837,7 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                  "paymentPreference":"ONLINE_PAYMENT_REQUESTED","invoiceRequested":true,
                  "invoiceName":"Cliente Delivery","invoiceTaxId":"7654321",
                  "items":[{"menuItemId":"%s","quantity":1}]}
-                """.formatted(Instant.now().plusSeconds(3600), menuItemId),
+                """.formatted(nextRestaurantServiceSlot(), menuItemId),
                 Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         UUID requestId = UUID.fromString(submitted.path("requestId").asText());
 
@@ -950,5 +950,12 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                      visibility, status, estimated_preparation_seconds)
                 VALUES (?, ?, ?, ?, ?, ?, 'PUBLIC', 'ACTIVE', ?) RETURNING id
                 """, UUID.class, itemId, categoryId, areaId, name, new BigDecimal(price), currencyId, preparationSeconds);
+    }
+
+    private Instant nextRestaurantServiceSlot() {
+        ZoneId zone = ZoneId.of("America/Guatemala");
+        LocalDate date = LocalDate.now(zone).plusDays(1);
+        while (date.getDayOfWeek() == java.time.DayOfWeek.MONDAY) date = date.plusDays(1);
+        return date.atTime(18, 0).atZone(zone).toInstant();
     }
 }

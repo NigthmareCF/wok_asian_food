@@ -13,7 +13,9 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import com.wokasianfood.api.catalog.ModifierSelectionService;
@@ -152,7 +154,8 @@ class ClientDeliveryRequestControllerTest {
             return List.of(mapper.mapRow(rs, 0));
         }).when(jdbc).query(org.mockito.ArgumentMatchers.anyString(), any(RowMapper.class), any(Object[].class));
 
-        Instant requestedFor = Instant.now().plusSeconds(3600);
+        Instant requestedFor = LocalDate.now(ZoneId.of("America/Guatemala")).plusDays(1)
+                .atTime(18, 0).atZone(ZoneId.of("America/Guatemala")).toInstant();
         var request = new ClientDeliveryRequestController.DeliveryRequest(requestedFor, "Sin cubiertos",
                 "Zona 10, Ciudad de Guatemala", "Casa con portón negro", "+502 5555-1234",
                 ClientDeliveryRequestController.PaymentPreference.TRANSFER_IN_ADVANCE,

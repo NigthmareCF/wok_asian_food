@@ -1,5 +1,10 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Aislamiento HTTP del perfil Cliente
+
+- `ClientProfileOwnershipIntegrationTest` usa PostgreSQL/Testcontainers para comprobar que los perfiles A y B sólo exponen su propio ID/correo y que editar A no altera B. El payload intenta además fijar el ID de B, cambiar el correo y elevar roles; la API deriva al usuario del JWT e ignora esos campos.
+- La actualización verifica versión, teléfono regional, versión incrementada y auditoría asociada al perfil de A. Se estabilizaron además fixtures de solicitudes remotas: abren hoy y mañana para que los casos con horizonte de 1–2 horas no fallen al cruzar medianoche. Suite completa: 77 suites / 337 pruebas, cero fallos, errores u omisiones con PostgreSQL 18/Testcontainers y Flyway V1–V55.
+
 ## 2026-10-08 — Autoridad backend e idempotencia en solicitudes de delivery
 
 - `ClientDeliveryRequestIntegrationTest` verifica con PostgreSQL/Testcontainers que crear una solicitud `DELIVERY` derive del token el propietario, del catálogo el precio y mantenga el ciclo `PENDING_REVIEW`, aunque el payload intente falsificar propietario, modalidad, subtotal, estados de pago/pedido y un ID de orden.
