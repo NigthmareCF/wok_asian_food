@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-09 — APK Android recompilado con selección de modificadores actualizada
+
+- `assembleRelease` ARM64 compiló el commit `680e8a0` correctamente con Gradle 9.3.1, Android SDK 36 y NDK 27.1. El APK local ignorado por Git mide 44,332,267 bytes; SHA-256 `cec0c17546508feb1c2debe871787c817268d5344c394bbd057e25fb03731fc4`. `apksigner verify` confirmó la firma.
+- El bundle Android se generó desde el código que permite reemplazar una opción única directamente. La compilación tomó 7 min 35 s. El host API lo determina la configuración `.env` local; no queda acreditado aquí qué IP quedó embebida.
+- `adb` no está disponible en PATH y no se conectó un teléfono: faltan instalación y recorrido físico Android. No se afirma que el APK haya sido probado en dispositivo.
+
 ## 2026-10-09 — Reemplazo directo de opciones de selección única
 
 - En grupos de modificadores con `maxSelection = 1`, tocar una opción distinta ahora reemplaza la anterior en el mismo grupo. Antes el botón nuevo no hacía nada hasta desmarcar manualmente la selección actual; esto afectaba bases, rellenos y sabores obligatorios.
