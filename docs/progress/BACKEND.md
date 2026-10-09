@@ -1,5 +1,12 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Cambio de cantidad en línea de pedido aceptado
+
+- `POST /api/v1/client/order-requests/{requestId}/change-requests/items/{orderItemId}/quantity` crea una solicitud idempotente; no cambia cantidad, precio, stock ni estado hasta que Operativo la aprueba en la bandeja existente.
+- La aprobación sólo procede mientras el pedido está `SENT`, la comanda sigue `QUEUED`, las versiones coinciden, la cuenta no tiene actividad financiera y los snapshots de recursos/preparación están completos. En una transacción actualiza cantidad, total derivado, reserva proporcional según snapshot, ticket/ETA, evento de cambio y auditoría. No relee recetas cambiantes ni cambia opciones del producto.
+- Flyway V54 añade el tipo de solicitud y eventos de modificación sin alterar migraciones aplicadas; marca los snapshots históricos de preparación como incompletos para que requieran revisión manual. El cliente puede ver esa limitación antes de solicitar el cambio.
+- `ClientOrderChangeRequestIntegrationTest`: 8/8 con PostgreSQL 18; las pruebas nuevas cubren revisión/idempotencia, aumento de reserva 0.5→1.0 según snapshot, comanda/cantidad y total, además de rollback cuando la ETA recalculada no cabe en el horario solicitado. Suite completa: 75 suites / 331 pruebas, cero fallos, errores u omisiones; Flyway V1–V54 se aplicó desde esquema vacío. Opciones de línea, cambios después de producción y reembolsos automáticos siguen pendientes.
+
 ## 2026-10-08 — Bandeja Operativa de conciliación de pagos inciertos
 
 - Se añadió `GET /api/v1/operational/payment-intents/reconciliation`, paginado y protegido con `payments:manage`. Expone sólo intentos `UNKNOWN` de delivery con ID de pedido/solicitud, referencia del proveedor cuando existe, monto, moneda y fechas; no cambia estado ni registra pago.

@@ -60,8 +60,8 @@ class OrderServiceTest {
         verify(jdbc).update(contains("SET subtotal = totals.subtotal"), eq(actor), eq(insertedOrderId),
                 eq(insertedOrderId));
         verify(jdbc).queryForObject(contains("INSERT INTO wok.order_items"), eq(UUID.class), eq(insertedOrderId),
-                eq(menuItemId), eq("Pad Thai"), eq(2), eq(new BigDecimal("10.25")), eq(stationId), eq("DINE_IN"),
-                eq(null));
+                eq(menuItemId), eq("Pad Thai"), eq(2), eq(new BigDecimal("10.25")), eq(stationId), eq(300),
+                eq("DINE_IN"), eq(null));
         verify(jdbc).update(contains("SET subtotal = totals.subtotal"), eq(actor), eq(insertedOrderId),
                 eq(insertedOrderId));
         verify(jdbc).update(contains("INSERT INTO wok.kitchen_tickets"), any(UUID.class), eq(insertedOrderId), eq(1),
@@ -308,8 +308,8 @@ class OrderServiceTest {
         verify(jdbc, times(1)).query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor),
                 eq(idempotencyKey), any(String.class));
         verify(jdbc).queryForObject(contains("INSERT INTO wok.order_items"), eq(UUID.class), eq(insertedOrderId),
-                eq(menuItemId), eq("Pad Thai"), eq(1), eq(new BigDecimal("10.25")), eq(stationId), eq("DINE_IN"),
-                eq(null));
+                eq(menuItemId), eq("Pad Thai"), eq(1), eq(new BigDecimal("10.25")), eq(stationId), eq(300),
+                eq("DINE_IN"), eq(null));
         verify(jdbc).update(contains("SET subtotal = totals.subtotal"), eq(actor), eq(insertedOrderId),
                 eq(insertedOrderId));
         verify(jdbc).update(contains("INSERT INTO wok.kitchen_tickets"), any(UUID.class), eq(insertedOrderId), eq(1),
@@ -345,7 +345,7 @@ class OrderServiceTest {
             return 1;
         });
         when(jdbc.queryForObject(contains("INSERT INTO wok.order_items"), eq(UUID.class), any(), eq(menuItemId),
-                eq("Pad Thai"), any(), any(), eq(stationId), any(), any())).thenReturn(UUID.randomUUID());
+                eq("Pad Thai"), any(), any(), eq(stationId), any(), any(), any())).thenReturn(UUID.randomUUID());
         when(jdbc.update(contains("SET subtotal = totals.subtotal"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("INSERT INTO wok.kitchen_tickets"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("INSERT INTO wok.kitchen_ticket_items"), any(Object[].class))).thenReturn(1);

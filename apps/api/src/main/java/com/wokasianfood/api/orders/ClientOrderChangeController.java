@@ -64,6 +64,18 @@ public class ClientOrderChangeController {
                 orderRequestId, orderItemId, idempotencyKey, request);
     }
 
+    @PostMapping("/{orderRequestId}/change-requests/items/{orderItemId}/quantity")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderChangeReceipt submitQuantityChange(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID orderRequestId, @PathVariable UUID orderItemId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestHeader(value = "X-Request-Id", required = false) UUID requestId,
+            @Valid @RequestBody QuantityChangeRequest request) {
+        return changes.submitQuantityChange(UUID.fromString(jwt.getSubject()),
+                requestId == null ? UUID.randomUUID() : requestId, orderRequestId, orderItemId,
+                idempotencyKey, request);
+    }
+
     @GetMapping("/{orderRequestId}/change-requests/cancellable-items")
     public List<ChangeableOrderItem> cancellableItems(@AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID orderRequestId) {
@@ -104,15 +116,17 @@ public class ClientOrderChangeController {
     }
 
     public record CancellationRequest(@NotBlank @Size(min = 3, max = 500) String reason) {}
+    public record QuantityChangeRequest(@Positive int quantity, @NotBlank @Size(min = 3, max = 500) String reason) {}
     public record DecisionRequest(@NotNull Decision decision, @Positive int expectedVersion,
                                   @Size(min = 3, max = 500) String reason) {}
     public enum Decision { APPROVE, REJECT }
     public record OrderChangeReceipt(UUID id, UUID orderRequestId, String orderCode, String requestType,
-            UUID orderItemId, Integer expectedItemVersion, String status, String reason, String decisionReason,
+            UUID orderItemId, Integer expectedItemVersion, Integer requestedQuantity,
+            String status, String reason, String decisionReason,
             int expectedOrderVersion, int version,
             Instant requestedAt, Instant decidedAt) {}
     public record ChangeableOrderItem(UUID orderItemId, String name, int quantity, int itemVersion,
-            int orderVersion) {}
+            int orderVersion, boolean quantityChangeSupported) {}
 
     @Service
     static class OrderChangeRequestService {
@@ -122,6 +136,66 @@ public class ClientOrderChangeController {
 
         OrderChangeRequestService(JdbcTemplate jdbc, IdempotencyStore idempotency, OrderService orders) {
             this.jdbc = jdbc; this.idempotency = idempotency; this.orders = orders;
+        }
+
+        @Transactional
+        OrderChangeReceipt submitQuantityChange(UUID customerId, UUID requestId, UUID orderRequestId,
+                UUID orderItemId, UUID idempotencyKey, QuantityChangeRequest request) {
+            String reason = request.reason().trim();
+            String fingerprint = fingerprint(orderRequestId + "|MODIFY_LINE_QUANTITY|" + orderItemId
+                    + "|" + request.quantity() + "|" + reason);
+            IdempotencyStore.Result claim = idempotency.claim(customerId.toString(), "ORDER_CHANGE_REQUEST",
+                    idempotencyKey, fingerprint);
+            if (claim.replay()) return getOwned(customerId, claim.resourceId());
+            List<SourceOrder> sourceRows = jdbc.query("""
+                SELECT o.id AS order_id, o.code, o.status, o.channel, o.row_version, o.account_id,
+                       source.status AS request_status, source.fulfillment_type,
+                       dispatch.status AS dispatch_status
+                FROM wok.order_requests source JOIN wok.orders o ON o.id = source.order_id
+                LEFT JOIN wok.delivery_dispatches dispatch ON dispatch.order_id = o.id
+                WHERE source.id = ? AND source.customer_user_id = ?
+                  AND source.status = 'ACCEPTED' AND source.order_id IS NOT NULL
+                FOR UPDATE OF source, o
+                """, sourceOrderMapper(), orderRequestId, customerId);
+            if (sourceRows.isEmpty()) throw new AuthException(404, "No encontramos un pedido aceptado de tu cuenta.");
+            SourceOrder source = sourceRows.getFirst();
+            validateLineCancellable(source);
+            if (Boolean.TRUE.equals(jdbc.queryForObject("""
+                    SELECT EXISTS (SELECT 1 FROM wok.order_change_requests
+                        WHERE order_id = ? AND status = 'PENDING_REVIEW')
+                    """, Boolean.class, source.orderId())))
+                throw new AuthException(409, "Ya hay una solicitud de cambio pendiente para este pedido.");
+            Integer itemVersion = lockAndValidateLine(source.orderId(), orderItemId);
+            Integer currentQuantity = jdbc.queryForObject("SELECT quantity FROM wok.order_items WHERE id = ?",
+                    Integer.class, orderItemId);
+            if (currentQuantity == null || currentQuantity == request.quantity())
+                throw new AuthException(422, "Indica una cantidad distinta a la actual.");
+            Boolean prepSnapshotReady = jdbc.queryForObject("""
+                    SELECT preparation_snapshot_complete FROM wok.order_items WHERE id = ?
+                    """, Boolean.class, orderItemId);
+            if (!Boolean.TRUE.equals(prepSnapshotReady))
+                throw new AuthException(409, "Este pedido requiere que el equipo revise manualmente su preparación.");
+            UUID id = UUID.randomUUID();
+            jdbc.update("""
+                INSERT INTO wok.order_change_requests
+                    (id, order_id, order_request_id, customer_user_id, request_type, reason,
+                     expected_order_version, order_item_id, expected_item_version, requested_quantity, request_id)
+                VALUES (?, ?, ?, ?, 'MODIFY_LINE_QUANTITY', ?, ?, ?, ?, ?, ?)
+                """, id, source.orderId(), orderRequestId, customerId, reason, source.version(), orderItemId,
+                    itemVersion, request.quantity(), requestId);
+            jdbc.update("""
+                INSERT INTO wok.order_change_request_events
+                    (order_change_request_id, event_type, actor_user_id, reason, request_id)
+                VALUES (?, 'SUBMITTED', ?, ?, ?)
+                """, id, customerId, reason, requestId);
+            jdbc.update("""
+                INSERT INTO wok.audit_logs (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+                VALUES (?, 'ORDER_LINE_QUANTITY_CHANGE_REQUESTED', 'ORDER', ?,
+                    jsonb_build_object('changeRequestId', ?, 'orderItemId', ?, 'quantity', ?, 'orderVersion', ?),
+                    'SUCCESS', ?)
+                """, customerId, source.orderId(), id, orderItemId, request.quantity(), source.version(), requestId);
+            idempotency.complete(customerId.toString(), "ORDER_CHANGE_REQUEST", idempotencyKey, id);
+            return receipt(id);
         }
 
         @Transactional
@@ -209,9 +283,10 @@ public class ClientOrderChangeController {
             SourceOrder source = sourceRows.getFirst();
             validateLineCancellable(source);
             return jdbc.query("""
-                SELECT item.id, item.name_snapshot, item.quantity, item.row_version
+                SELECT item.id, item.name_snapshot, item.quantity, item.row_version,
+                       item.preparation_snapshot_complete
                 FROM wok.order_items item
-                WHERE item.order_id = ? AND item.status = 'ACTIVE'
+                WHERE item.order_id = ? AND item.status = 'ACTIVE' AND item.resource_snapshot_complete = true
                   AND EXISTS (
                     SELECT 1 FROM wok.kitchen_ticket_items ti
                     JOIN wok.kitchen_tickets ticket ON ticket.id = ti.ticket_id
@@ -224,7 +299,8 @@ public class ClientOrderChangeController {
                   )
                 ORDER BY item.created_at, item.id
                 """, (rs, row) -> new ChangeableOrderItem(rs.getObject("id", UUID.class),
-                    rs.getString("name_snapshot"), rs.getInt("quantity"), rs.getInt("row_version"), source.version()),
+                    rs.getString("name_snapshot"), rs.getInt("quantity"), rs.getInt("row_version"), source.version(),
+                    rs.getBoolean("preparation_snapshot_complete")),
                     source.orderId());
         }
 
@@ -253,6 +329,7 @@ public class ClientOrderChangeController {
         List<OrderChangeReceipt> listForCustomer(UUID customerId) {
             return jdbc.query("""
                 SELECT c.id, c.order_request_id, o.code, c.request_type, c.order_item_id, c.expected_item_version,
+                       c.requested_quantity,
                        c.status, c.reason, c.decision_reason, c.expected_order_version, c.row_version,
                        c.created_at, c.decided_at
                 FROM wok.order_change_requests c JOIN wok.orders o ON o.id = c.order_id
@@ -263,6 +340,7 @@ public class ClientOrderChangeController {
         OrderChangeReceipt currentForCustomer(UUID customerId, UUID orderRequestId) {
             List<OrderChangeReceipt> rows = jdbc.query("""
                 SELECT c.id, c.order_request_id, o.code, c.request_type, c.order_item_id, c.expected_item_version,
+                       c.requested_quantity,
                        c.status, c.reason, c.decision_reason, c.expected_order_version, c.row_version,
                        c.created_at, c.decided_at
                 FROM wok.order_change_requests c JOIN wok.orders o ON o.id = c.order_id
@@ -279,6 +357,7 @@ public class ClientOrderChangeController {
                 throw new AuthException(422, "Estado de solicitud de cambio inválido.");
             return jdbc.query("""
                 SELECT c.id, c.order_request_id, o.code, c.request_type, c.order_item_id, c.expected_item_version,
+                       c.requested_quantity,
                        c.status, c.reason, c.decision_reason, c.expected_order_version, c.row_version,
                        c.created_at, c.decided_at
                 FROM wok.order_change_requests c JOIN wok.orders o ON o.id = c.order_id
@@ -297,12 +376,13 @@ public class ClientOrderChangeController {
             if (claim.replay()) return receipt(claim.resourceId());
             List<PendingChange> rows = jdbc.query("""
                 SELECT id, order_id, status, expected_order_version, row_version, request_type,
-                       order_item_id, expected_item_version, reason
+                       order_item_id, expected_item_version, requested_quantity, reason
                 FROM wok.order_change_requests WHERE id = ? FOR UPDATE
                 """, (rs, row) -> new PendingChange(rs.getObject("id", UUID.class),
                     rs.getObject("order_id", UUID.class), rs.getString("status"),
                     rs.getInt("expected_order_version"), rs.getInt("row_version"), rs.getString("request_type"),
                     rs.getObject("order_item_id", UUID.class), (Integer) rs.getObject("expected_item_version"),
+                    (Integer) rs.getObject("requested_quantity"),
                     rs.getString("reason")), changeRequestId);
             if (rows.isEmpty()) throw new AuthException(404, "No encontramos la solicitud de cambio.");
             PendingChange change = rows.getFirst();
@@ -317,6 +397,8 @@ public class ClientOrderChangeController {
                     cancelOrder(actor, requestId, change.orderId(), change.expectedOrderVersion());
                 } else if ("CANCEL_LINE".equals(change.requestType())) {
                     cancelLine(actor, requestId, change);
+                } else if ("MODIFY_LINE_QUANTITY".equals(change.requestType())) {
+                    modifyLineQuantity(actor, requestId, change);
                 } else {
                     throw new AuthException(409, "El tipo de solicitud de cambio no es compatible.");
                 }
@@ -338,7 +420,8 @@ public class ClientOrderChangeController {
                     jsonb_build_object('status', 'PENDING_REVIEW', 'version', ?, 'requestType', ?, 'orderItemId', ?::uuid),
                     jsonb_build_object('status', ?, 'version', ?), ?, 'SUCCESS', ?)
                 """, actor, "CANCEL_ORDER".equals(change.requestType())
-                        ? "ORDER_CANCELLATION_DECIDED" : "ORDER_LINE_CANCELLATION_DECIDED",
+                        ? "ORDER_CANCELLATION_DECIDED" : "MODIFY_LINE_QUANTITY".equals(change.requestType())
+                                ? "ORDER_LINE_QUANTITY_CHANGE_DECIDED" : "ORDER_LINE_CANCELLATION_DECIDED",
                     changeRequestId, change.version(), change.requestType(), change.orderItemId(),
                     nextStatus, change.version() + 1, decisionReason, requestId);
             idempotency.complete(actor.toString(), "ORDER_CHANGE_DECIDED", idempotencyKey, changeRequestId);
@@ -382,9 +465,20 @@ public class ClientOrderChangeController {
                             change.expectedItemVersion(), change.reason()));
         }
 
+        private void modifyLineQuantity(UUID actor, UUID requestId, PendingChange change) {
+            if (change.orderItemId() == null || change.expectedItemVersion() == null || change.requestedQuantity() == null)
+                throw new AuthException(409, "La solicitud no conserva la cantidad y versión del producto.");
+            UUID operationKey = UUID.nameUUIDFromBytes(("customer-line-quantity:" + change.id())
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            orders.modifyItemQuantity(actor, requestId, change.orderId(), change.orderItemId(), operationKey,
+                    new OperationalOrderController.ModifyOrderItemQuantityRequest(change.expectedOrderVersion(),
+                            change.expectedItemVersion(), change.requestedQuantity(), change.reason()));
+        }
+
         private OrderChangeReceipt getOwned(UUID customerId, UUID id) {
             List<OrderChangeReceipt> found = jdbc.query("""
                 SELECT c.id, c.order_request_id, o.code, c.request_type, c.order_item_id, c.expected_item_version,
+                       c.requested_quantity,
                        c.status, c.reason, c.decision_reason, c.expected_order_version, c.row_version,
                        c.created_at, c.decided_at
                 FROM wok.order_change_requests c JOIN wok.orders o ON o.id = c.order_id
@@ -397,6 +491,7 @@ public class ClientOrderChangeController {
         private OrderChangeReceipt receipt(UUID id) {
             List<OrderChangeReceipt> found = jdbc.query("""
                 SELECT c.id, c.order_request_id, o.code, c.request_type, c.order_item_id, c.expected_item_version,
+                       c.requested_quantity,
                        c.status, c.reason, c.decision_reason, c.expected_order_version, c.row_version,
                        c.created_at, c.decided_at
                 FROM wok.order_change_requests c JOIN wok.orders o ON o.id = c.order_id WHERE c.id = ?
@@ -408,7 +503,8 @@ public class ClientOrderChangeController {
         private static OrderChangeReceipt map(java.sql.ResultSet rs, int row) throws java.sql.SQLException {
             return new OrderChangeReceipt(rs.getObject("id", UUID.class), rs.getObject("order_request_id", UUID.class),
                     rs.getString("code"), rs.getString("request_type"), rs.getObject("order_item_id", UUID.class),
-                    (Integer) rs.getObject("expected_item_version"), rs.getString("status"), rs.getString("reason"),
+                    (Integer) rs.getObject("expected_item_version"), (Integer) rs.getObject("requested_quantity"),
+                    rs.getString("status"), rs.getString("reason"),
                     rs.getString("decision_reason"), rs.getInt("expected_order_version"), rs.getInt("row_version"),
                     rs.getTimestamp("created_at").toInstant(), rs.getTimestamp("decided_at") == null
                             ? null : rs.getTimestamp("decided_at").toInstant());
@@ -450,7 +546,7 @@ public class ClientOrderChangeController {
                                    UUID accountId, String fulfillmentType, String dispatchStatus) {}
         private record PendingChange(UUID id, UUID orderId, String status, int expectedOrderVersion,
                                      int version, String requestType, UUID orderItemId,
-                                     Integer expectedItemVersion, String reason) {}
+                                     Integer expectedItemVersion, Integer requestedQuantity, String reason) {}
         private record CancellationOrder(UUID id, UUID accountId, String status, int version) {}
         private record BigDecimalBalance(java.math.BigDecimal amount) {}
     }

@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Solicitud de cambio de cantidad del pedido
+
+- En Mis pedidos, cada línea que conserve snapshots compatibles permite proponer una nueva cantidad y motivo. La app envía una solicitud idempotente y muestra que el pedido mantiene su cantidad actual hasta la aprobación Operativa.
+- La app distingue solicitudes de cancelación de cantidad y conserva claves idempotentes separadas por línea, acción y cantidad en SecureStore; si la respuesta se pierde, recupera el resultado desde el historial del backend. Los pedidos históricos sin snapshot de preparación quedan marcados para revisión manual.
+- Verificación: 124 pruebas Vitest, ESLint y TypeScript pasan. No se hizo build de instalación ni prueba física de Android/iOS.
+
 ## 2026-10-05 — Preorden de productos en solicitud de reserva
 
 - La pantalla de reservas carga el menú público al activar preorden, permite seleccionar productos y opciones requeridas, conserva el borrador en SecureStore y envía líneas con cantidad/modificadores bajo la misma clave idempotente de reserva. El historial muestra los snapshots pedidos y sus opciones.

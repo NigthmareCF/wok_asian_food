@@ -134,6 +134,8 @@ public class OperationalOrderController {
 
     public record CancelOrderItemRequest(@Positive int expectedOrderVersion, @Positive int expectedItemVersion,
                                          @NotBlank @Size(min = 3, max = 500) String reason) {}
+    public record ModifyOrderItemQuantityRequest(@Positive int expectedOrderVersion, @Positive int expectedItemVersion,
+            @Positive int quantity, @NotBlank @Size(min = 3, max = 500) String reason) {}
 
     private String normalize(String value) {
         if (value == null || value.isBlank()) return null;
@@ -412,11 +414,13 @@ class OrderService {
             throw new AuthException(409, "Hay un pago pendiente de confirmación para este pedido.");
 
         List<LineCancellationItem> lineRows = jdbc.query("""
-            SELECT id, quantity, unit_price, line_total, status, row_version, resource_snapshot_complete
+            SELECT id, quantity, unit_price, line_total, status, row_version, resource_snapshot_complete,
+                   preparation_snapshot_complete
             FROM wok.order_items WHERE id = ? AND order_id = ? FOR UPDATE
             """, (rs, row) -> new LineCancellationItem(rs.getObject("id", UUID.class), rs.getInt("quantity"),
                 rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"), rs.getString("status"),
-                rs.getInt("row_version"), rs.getBoolean("resource_snapshot_complete")), orderItemId, orderId);
+                rs.getInt("row_version"), rs.getBoolean("resource_snapshot_complete"),
+                rs.getBoolean("preparation_snapshot_complete")), orderItemId, orderId);
         if (lineRows.isEmpty()) throw new AuthException(404, "No encontramos el producto en este pedido.");
         LineCancellationItem item = lineRows.getFirst();
         if (!"ACTIVE".equals(item.status())) throw new AuthException(409, "El producto ya fue cancelado.");
@@ -503,6 +507,166 @@ class OrderService {
             """, actor, orderItemId, item.quantity(), item.lineTotal(), resourceDeltas.size(), reason, requestId);
         idempotency.complete(actor.toString(), "ORDER_LINE_CANCELLED", idempotencyKey, orderId);
         return details(orderId);
+    }
+
+    @Transactional
+    public OrderDetails modifyItemQuantity(UUID actor, UUID requestId, UUID orderId, UUID orderItemId,
+            UUID idempotencyKey, OperationalOrderController.ModifyOrderItemQuantityRequest request) {
+        String reason = request.reason().trim();
+        String fingerprint = hashText(orderId + "|" + orderItemId + "|" + request.expectedOrderVersion()
+                + "|" + request.expectedItemVersion() + "|" + request.quantity() + "|" + reason);
+        IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "ORDER_LINE_QUANTITY_MODIFIED",
+                idempotencyKey, fingerprint);
+        if (claim.replay()) return details(claim.resourceId());
+        LineCancellationOrder order = lockLineChangeOrder(orderId);
+        if (order.status() != OrderStatus.SENT || order.rowVersion() != request.expectedOrderVersion())
+            throw new AuthException(409, "El pedido cambió o cocina ya inició; actualiza el detalle antes de modificarlo.");
+        Account account = lockAccount(order.accountId());
+        if (!"OPEN".equals(account.status())) throw new AuthException(409, "La cuenta ya no admite cambios.");
+        if (hasFinancialActivity(orderId, order.accountId()))
+            throw new AuthException(409, "Resuelve el cobro o la facturación antes de modificar productos.");
+
+        List<LineCancellationItem> lines = jdbc.query("""
+            SELECT id, quantity, unit_price, line_total, status, row_version, resource_snapshot_complete,
+                   preparation_snapshot_complete
+            FROM wok.order_items WHERE id = ? AND order_id = ? FOR UPDATE
+            """, (rs, row) -> new LineCancellationItem(rs.getObject("id", UUID.class), rs.getInt("quantity"),
+                rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"), rs.getString("status"),
+                rs.getInt("row_version"), rs.getBoolean("resource_snapshot_complete"),
+                rs.getBoolean("preparation_snapshot_complete")), orderItemId, orderId);
+        if (lines.isEmpty()) throw new AuthException(404, "No encontramos el producto en este pedido.");
+        LineCancellationItem line = lines.getFirst();
+        if (!"ACTIVE".equals(line.status()) || line.rowVersion() != request.expectedItemVersion())
+            throw new AuthException(409, "El producto cambió desde que se solicitó el ajuste.");
+        if (!line.resourceSnapshotComplete())
+            throw new AuthException(409, "Este producto no conserva una reserva verificable y requiere revisión manual.");
+        if (!line.preparationSnapshotComplete())
+            throw new AuthException(409, "Este pedido es anterior al snapshot operativo de preparación y requiere revisión manual.");
+        if (line.quantity() == request.quantity()) throw new AuthException(422, "La cantidad solicitada no cambia la actual.");
+
+        List<LineTicket> tickets = jdbc.query("""
+            SELECT ti.id, ti.ticket_id, ti.quantity, ti.action, ticket.status, ticket.row_version
+            FROM wok.kitchen_ticket_items ti JOIN wok.kitchen_tickets ticket ON ticket.id = ti.ticket_id
+            WHERE ti.order_item_id = ? AND ti.action <> 'CANCELLED'
+            ORDER BY ticket.station_id, ticket.id FOR UPDATE OF ti, ticket
+            """, (rs, row) -> new LineTicket(rs.getObject("id", UUID.class), rs.getObject("ticket_id", UUID.class),
+                rs.getInt("quantity"), rs.getString("action"), rs.getString("status"), rs.getInt("row_version")), orderItemId);
+        if (tickets.size() != 1 || tickets.stream().anyMatch(ticket -> !"QUEUED".equals(ticket.status())))
+            throw new AuthException(409, "La comanda ya inició o no permite un ajuste seguro.");
+        LineTicket target = tickets.getFirst();
+        UUID stationId = jdbc.queryForObject("SELECT station_id FROM wok.kitchen_tickets WHERE id = ?", UUID.class, target.ticketId());
+        List<Instant> previousEtaRows = jdbc.query("SELECT estimated_ready_at FROM wok.kitchen_tickets WHERE id = ?",
+                (rs, row) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(), target.ticketId());
+        Instant previousEta = previousEtaRows.isEmpty() ? null : previousEtaRows.getFirst();
+        String resourcesBefore = jdbc.queryForObject("""
+            SELECT COALESCE(jsonb_agg(jsonb_build_object('itemId', item_id, 'quantityDelta', quantity_delta)
+                ORDER BY item_id), '[]'::jsonb)::text
+            FROM wok.order_item_resource_reservations WHERE order_item_id = ?
+            """, String.class, orderItemId);
+
+        List<InventoryReservationService.ResourceDelta> resources = reservations.adjustOrderItemQuantity(
+                orderId, orderItemId, line.quantity(), request.quantity());
+        List<UUID> activeStations = jdbc.query("""
+            SELECT id FROM wok.preparation_areas WHERE id = ? AND active = true FOR UPDATE
+            """, (rs, row) -> rs.getObject(1, UUID.class), stationId);
+        if (activeStations.isEmpty()) throw new AuthException(409, "El área de preparación ya no está disponible.");
+        int changed = jdbc.update("""
+            UPDATE wok.order_items SET quantity = ?, updated_at = now(), row_version = row_version + 1
+            WHERE id = ? AND row_version = ? AND status = 'ACTIVE'
+            """, request.quantity(), orderItemId, request.expectedItemVersion());
+        if (changed != 1) throw new AuthException(409, "El producto cambió durante el ajuste.");
+        jdbc.update("UPDATE wok.kitchen_ticket_items SET quantity = ? WHERE id = ?", request.quantity(), target.id());
+
+        Long ticketPreparation = jdbc.queryForObject("""
+            SELECT COALESCE(sum(ti.quantity::bigint * item.preparation_seconds_per_unit_snapshot), 0)::bigint
+            FROM wok.kitchen_ticket_items ti JOIN wok.order_items item ON item.id = ti.order_item_id
+            WHERE ti.ticket_id = ? AND ti.action <> 'CANCELLED'
+            """, Long.class, target.ticketId());
+        Long queueDelay = jdbc.queryForObject("""
+            SELECT GREATEST(0, COALESCE(ceil(extract(epoch FROM (max(estimated_ready_at) - now())))::bigint, 0))
+            FROM wok.kitchen_tickets WHERE station_id = ? AND status IN ('QUEUED', 'PREPARING') AND id <> ?
+            """, Long.class, stationId, target.ticketId());
+        long seconds = Math.addExact(ticketPreparation == null ? 0 : ticketPreparation,
+                queueDelay == null ? 0 : queueDelay);
+        if (seconds > 86_400) throw new AuthException(422, "La nueva preparación excede el tiempo operativo permitido.");
+        List<Instant> requestedRows = jdbc.query("SELECT requested_for FROM wok.order_requests WHERE order_id = ?",
+                (rs, row) -> rs.getTimestamp(1).toInstant(), orderId);
+        if (!requestedRows.isEmpty() && !requestedRows.getFirst().isAfter(Instant.now().plusSeconds(seconds)))
+            throw new AuthException(422, "La nueva cantidad ya no cabe en el horario solicitado.");
+        jdbc.update("""
+            UPDATE wok.kitchen_tickets SET estimated_ready_at = now() + make_interval(secs => ?),
+                updated_at = now(), row_version = row_version + 1
+            WHERE id = ? AND status = 'QUEUED'
+            """, Math.toIntExact(seconds), target.ticketId());
+
+        BigDecimal nextLineTotal = line.unitPrice().multiply(BigDecimal.valueOf(request.quantity()));
+        if (nextLineTotal.precision() > 14 || nextLineTotal.scale() > 2)
+            throw new AuthException(422, "El total de la línea excede el máximo permitido.");
+        BigDecimal nextSubtotal = jdbc.queryForObject("""
+            SELECT COALESCE(sum(line_total), 0) + ?
+            FROM wok.order_items WHERE order_id = ? AND status = 'ACTIVE' AND id <> ?
+            """, BigDecimal.class, nextLineTotal, orderId, orderItemId);
+        if (nextSubtotal != null && nextSubtotal.precision() > 14)
+            throw new AuthException(422, "El total del pedido excede el máximo permitido.");
+        jdbc.update("""
+            INSERT INTO wok.order_item_change_events
+                (order_id, order_item_id, change_type, previous_status, previous_quantity, previous_line_total,
+                 next_status, next_quantity, next_line_total, financial_delta, reason, actor_user_id,
+                 resource_delta_snapshot, kitchen_ticket_snapshot, request_id)
+            VALUES (?, ?, 'MODIFY_LINE_QUANTITY', 'ACTIVE', ?, ?, 'ACTIVE', ?, ?, ?, ?, ?,
+                ?::jsonb, jsonb_build_array(jsonb_build_object('ticketId', ?, 'ticketItemId', ?,
+                    'oldQuantity', ?, 'newQuantity', ?,
+                    'previousEstimatedReadyAt', ?::timestamptz,
+                    'nextEstimatedReadyAt', (SELECT estimated_ready_at FROM wok.kitchen_tickets WHERE id = ?))), ?)
+            """, orderId, orderItemId, line.quantity(), line.lineTotal(), request.quantity(), nextLineTotal,
+                nextLineTotal.subtract(line.lineTotal()), reason, actor,
+                jsonbResourceChangeSnapshot(resourcesBefore, resources), target.ticketId(), target.id(),
+                target.quantity(), request.quantity(), previousEta == null ? null
+                        : java.sql.Timestamp.from(previousEta),
+                target.ticketId(), requestId);
+        recalcTotals(orderId, actor);
+        jdbc.update("""
+            INSERT INTO wok.audit_logs (actor_user_id, action, entity_type, entity_id, before_data, after_data,
+                reason, result, request_id)
+            VALUES (?, 'ORDER_LINE_QUANTITY_MODIFIED', 'ORDER_ITEM', ?,
+                jsonb_build_object('quantity', ?, 'lineTotal', ?),
+                jsonb_build_object('quantity', ?, 'lineTotal', ?, 'estimatedPreparationSeconds', ?),
+                ?, 'SUCCESS', ?)
+            """, actor, orderItemId, line.quantity(), line.lineTotal(), request.quantity(), nextLineTotal,
+                seconds, reason, requestId);
+        idempotency.complete(actor.toString(), "ORDER_LINE_QUANTITY_MODIFIED", idempotencyKey, orderId);
+        return details(orderId);
+    }
+
+    private LineCancellationOrder lockLineChangeOrder(UUID orderId) {
+        List<LineCancellationOrder> rows = jdbc.query("""
+            SELECT id, account_id, status, row_version FROM wok.orders WHERE id = ? FOR UPDATE
+            """, (rs, row) -> new LineCancellationOrder(rs.getObject("id", UUID.class),
+                rs.getObject("account_id", UUID.class), OrderStatus.valueOf(rs.getString("status")),
+                rs.getInt("row_version")), orderId);
+        if (rows.isEmpty()) throw new AuthException(404, "No encontramos el pedido.");
+        return rows.getFirst();
+    }
+
+    private boolean hasFinancialActivity(UUID orderId, UUID accountId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+            SELECT EXISTS (SELECT 1 FROM wok.payments WHERE account_id = ? AND status = 'CAPTURED')
+                OR EXISTS (SELECT 1 FROM wok.invoices WHERE account_id = ? AND status IN ('DRAFT','QUEUED','ISSUED','UNKNOWN'))
+                OR EXISTS (SELECT 1 FROM wok.payment_intents WHERE order_id = ? AND status IN
+                    ('CREATED','PENDING','REQUIRES_ACTION','AUTHORIZED','UNKNOWN'))
+            """, Boolean.class, accountId, accountId, orderId));
+    }
+
+    private String jsonbResourceChangeSnapshot(String previous,
+            List<InventoryReservationService.ResourceDelta> next) {
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
+                    "previous", new com.fasterxml.jackson.databind.ObjectMapper().readTree(previous),
+                    "next", next.stream().map(delta -> Map.of("itemId", delta.itemId(),
+                            "quantityDelta", delta.quantityDelta())).toList()));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new IllegalStateException("Could not serialize the resource change snapshot", error);
+        }
     }
 
     @Transactional
@@ -692,10 +856,11 @@ class OrderService {
         UUID orderItemId = jdbc.queryForObject("""
             INSERT INTO wok.order_items
                 (order_id, menu_item_id, name_snapshot, quantity, unit_price, preparation_area_id,
+                 preparation_seconds_per_unit_snapshot, preparation_snapshot_complete,
                  fulfillment, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+            VALUES (?, ?, ?, ?, ?, ?, ?, true, ?, ?) RETURNING id
             """, UUID.class, orderId, product.id(), product.name(), line.quantity(), unitPrice,
-                product.preparationAreaId(), line.fulfillment() == null ? "DINE_IN"
+                product.preparationAreaId(), product.preparationSeconds(), line.fulfillment() == null ? "DINE_IN"
                     : line.fulfillment().trim().toUpperCase(),
                 line.notes() == null || line.notes().isBlank() ? null : line.notes().trim());
         for (SelectedModifier modifier : selected) jdbc.update("""
@@ -934,7 +1099,8 @@ class OrderService {
     private record OrderModifierRow(UUID orderItemId, OrderModifier modifier) {}
     private record LineCancellationOrder(UUID id, UUID accountId, OrderStatus status, int rowVersion) {}
     private record LineCancellationItem(UUID id, int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
-                                        String status, int rowVersion, boolean resourceSnapshotComplete) {}
+                                        String status, int rowVersion, boolean resourceSnapshotComplete,
+                                        boolean preparationSnapshotComplete) {}
     private record LineTicket(UUID id, UUID ticketId, int quantity, String action, String status, int rowVersion) {}
 
     public record OrderSummary(UUID id, String code, String status, String channel, BigDecimal subtotal,

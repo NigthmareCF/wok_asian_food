@@ -140,6 +140,63 @@ public class InventoryReservationService {
         return deltas;
     }
 
+    /** Adjusts the captured per-line resource snapshot proportionally, without re-reading mutable recipes. */
+    @Transactional
+    public List<ResourceDelta> adjustOrderItemQuantity(UUID orderId, UUID orderItemId, int previousQuantity,
+            int nextQuantity) {
+        if (previousQuantity <= 0 || nextQuantity <= 0 || previousQuantity == nextQuantity)
+            throw new AuthException(422, "La cantidad solicitada no es válida.");
+        List<ResourceDelta> current = jdbc.query("""
+            SELECT item_id, quantity_delta FROM wok.order_item_resource_reservations
+            WHERE order_item_id = ? ORDER BY item_id
+            """, (rs, row) -> new ResourceDelta(rs.getObject("item_id", UUID.class), rs.getBigDecimal("quantity_delta")),
+            orderItemId);
+        List<ResourceDelta> adjusted = current.stream().map(delta -> new ResourceDelta(delta.itemId(),
+                delta.quantityDelta().multiply(BigDecimal.valueOf(nextQuantity))
+                        .divide(BigDecimal.valueOf(previousQuantity), 6, java.math.RoundingMode.HALF_UP))).toList();
+        for (ResourceDelta delta : adjusted) lockBalance(delta.itemId());
+        for (int index = 0; index < current.size(); index++) {
+            ResourceDelta before = current.get(index);
+            BigDecimal after = adjusted.get(index).quantityDelta();
+            BigDecimal change = after.subtract(before.quantityDelta());
+            if (change.signum() == 0) continue;
+            List<BigDecimal> rows = jdbc.query("""
+                SELECT quantity FROM wok.inventory_reservations
+                WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE' FOR UPDATE
+                """, (rs, row) -> rs.getBigDecimal(1), orderId, before.itemId());
+            BigDecimal reserved = rows.isEmpty() ? BigDecimal.ZERO : rows.getFirst();
+            BigDecimal nextReserved = reserved.add(change);
+            if (nextReserved.signum() < 0)
+                throw new AuthException(409, "La reserva de inventario ya no coincide con la línea del pedido.");
+            if (change.signum() > 0) {
+                BigDecimal onHand = lockBalance(before.itemId());
+                BigDecimal reservedAcrossOrders = jdbc.queryForObject("""
+                    SELECT COALESCE(sum(quantity), 0) FROM wok.inventory_reservations
+                    WHERE item_id = ? AND status = 'ACTIVE'
+                    """, BigDecimal.class, before.itemId());
+                if (onHand.subtract(reservedAcrossOrders == null ? BigDecimal.ZERO : reservedAcrossOrders).compareTo(change) < 0)
+                    throw new AuthException(409, "No hay stock suficiente para " + itemName(before.itemId()) + ".");
+            }
+            if (rows.isEmpty() && nextReserved.signum() > 0) {
+                jdbc.update("""
+                    INSERT INTO wok.inventory_reservations(order_id, item_id, quantity) VALUES (?, ?, ?)
+                    """, orderId, before.itemId(), nextReserved);
+            } else if (!rows.isEmpty()) {
+                jdbc.update("""
+                    UPDATE wok.inventory_reservations SET quantity = ?,
+                        status = CASE WHEN ? = 0 THEN 'RELEASED' ELSE 'ACTIVE' END, updated_at = now()
+                    WHERE order_id = ? AND item_id = ? AND status = 'ACTIVE'
+                    """,
+                    nextReserved, nextReserved, orderId, before.itemId());
+            }
+            jdbc.update("""
+                UPDATE wok.order_item_resource_reservations SET quantity_delta = ?
+                WHERE order_item_id = ? AND item_id = ?
+                """, after, orderItemId, before.itemId());
+        }
+        return adjusted;
+    }
+
     private void applyModifierAdjustments(UUID orderId, List<Adjustment> adjustments) {
         for (Adjustment adjustment : adjustments) {
             jdbc.update("""

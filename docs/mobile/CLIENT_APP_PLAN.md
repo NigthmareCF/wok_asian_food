@@ -119,6 +119,8 @@ Todas las rutas son propuestas bajo `/api/v1`, no endpoints existentes confirmad
 | `POST /order-requests`                                               | Líneas con IDs/cantidades/opciones, modalidad y clave idempotente  | Guardar ID de solicitud; `202` significa pendiente           |
 | `GET /order-requests/{id}`                                           | Estado y `orderId` sólo si fue aceptada                            | Seguir solicitud antes de existir pedido                     |
 | `GET /orders?scope=mine`, `/orders/{id}`                             | Lista/detalle propio, estado operativo, pago separado y ETA        | El backend limita propiedad; el parámetro no concede acceso  |
+| `POST /client/order-requests/{id}/change-requests/items/{itemId}/quantity` | Cantidad positiva + motivo; dueño, versiones y estado de cocina validados | Mantener la cantidad actual hasta decisión del personal; repetir con la misma clave recupera el mismo resultado |
+| `GET /client/order-requests/change-requests` + `PATCH /operational/order-change-requests/{id}` | Estado, cantidad solicitada, decisión Operativa versionada | Refrescar al aprobar/rechazar; no asumir un cambio mientras siga pendiente |
 | Consulta/reintento de operación                                      | Misma clave, hash y resultado estable                              | Resolver timeout sin crear un segundo envío                  |
 
 Si el backend permite cancelar una solicitud pendiente, agregar un comando explícito con control concurrente frente a aceptación. No ofrecer “Cancelar pedido confirmado” sin reglas y endpoint implementados.
