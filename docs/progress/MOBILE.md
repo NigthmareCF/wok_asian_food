@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Build reproducible con configuración LAN aplicada desde prebuild
+
+- Se corrigió `apps/mobile/README.md`: `EXPO_PUBLIC_API_BASE_URL` ahora se exporta antes de `expo prebuild` y permanece en el entorno durante `assembleRelease`. Así `app.config.js` ve el mismo host al definir cleartext de Android y Metro lo incluye en el bundle.
+- Repetí prebuild y release ARM64 con `http://192.168.1.109:8088`. Gradle finalizó `BUILD SUCCESSFUL`; el bundle contiene esa URL y el manifiesto combinado declara `usesCleartextTraffic="true"` para esta dirección privada. El APK es de 43 MiB, paquete `com.anonymous.wokasianfood` v1.0.0, SHA-256 `14130a69df1acc05634462799e7bacbb9f54fd90619120d48a5d906b04856b5f`; `apksigner verify` confirma firma v2.
+- El artefacto es local e ignorado por Git. La firma debug y la URL DHCP privada sólo sirven para revisión interna; no está instalado ni probado desde un teléfono. El intento anterior de publicarlo por Wi-Fi fue rechazado por el revisor automático y requiere aprobación específica antes de compartirlo.
+
 ## 2026-10-08 — APK Android release recompilado
 
 - El SDK Android está en `/home/fer-cachy/.cache/wok-build/android-sdk` aunque `ANDROID_HOME` no está exportado. Con Android SDK 36 / NDK 27.1 se completó `assembleRelease` para `arm64-v8a` desde el checkout actual. El APK multi-ABI anterior sin API URL fue reemplazado.
