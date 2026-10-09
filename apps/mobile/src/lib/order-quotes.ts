@@ -27,13 +27,13 @@ export async function requestFreshOrderQuote<T extends OrderQuoteState>(
   persistKey: (key: string, pending: boolean) => Promise<void>,
   now = Date.now,
 ): Promise<{ quote: T; idempotencyKey: string }> {
-  let idempotencyKey = isOrderQuoteExpired(currentQuote, now()) && !requestPending
+  let idempotencyKey = currentQuote && !isOrderQuoteUsable(currentQuote, now()) && !requestPending
     ? createKey()
     : initialQuoteKey ?? createKey();
   await persistKey(idempotencyKey, true);
   let quote = await request(idempotencyKey);
 
-  if (isOrderQuoteExpired(quote, now())) {
+  if (isOrderQuoteExpired(quote, now()) || quote.status === "CONSUMED") {
     idempotencyKey = createKey();
     await persistKey(idempotencyKey, true);
     quote = await request(idempotencyKey);

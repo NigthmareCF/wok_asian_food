@@ -59,6 +59,34 @@ describe("expired quote retry", () => {
     expect(persistKey).toHaveBeenCalledWith("fresh-quote-key", true);
   });
 
+  it("rotates the key and requests a new quote when the previous quote was consumed", async () => {
+    const consumed = { ...active, status: "CONSUMED" as const, usable: false };
+    const request = vi.fn()
+      .mockResolvedValueOnce(consumed)
+      .mockResolvedValueOnce(active);
+    const persistKey = vi.fn().mockResolvedValue(undefined);
+
+    const result = await requestFreshOrderQuote(request, "consumed-quote-key", false, null,
+      () => "fresh-quote-key", persistKey, () => now);
+
+    expect(result).toEqual({ quote: active, idempotencyKey: "fresh-quote-key" });
+    expect(request.mock.calls).toEqual([["consumed-quote-key"], ["fresh-quote-key"]]);
+    expect(persistKey.mock.calls).toEqual([["consumed-quote-key", true], ["fresh-quote-key", true]]);
+  });
+
+  it("rotates a definitive unusable quote key on the next explicit quote request", async () => {
+    const request = vi.fn().mockResolvedValue(active);
+    const persistKey = vi.fn().mockResolvedValue(undefined);
+    const unavailable = { ...active, usable: false };
+
+    const result = await requestFreshOrderQuote(request, "unavailable-quote-key", false, unavailable,
+      () => "fresh-quote-key", persistKey, () => now);
+
+    expect(result.idempotencyKey).toBe("fresh-quote-key");
+    expect(request).toHaveBeenCalledExactlyOnceWith("fresh-quote-key");
+    expect(persistKey).toHaveBeenCalledExactlyOnceWith("fresh-quote-key", true);
+  });
+
   it("preserves a persisted in-flight key when the previous request had an uncertain result", async () => {
     const request = vi.fn().mockResolvedValue(active);
     const persistKey = vi.fn().mockResolvedValue(undefined);
