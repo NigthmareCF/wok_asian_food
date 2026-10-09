@@ -520,6 +520,8 @@ function OrderHistory() {
       {lines?.length === 0 ? <Notice>No hay productos que se puedan ajustar desde la app. Contacta al equipo si necesitas ayuda.</Notice> : null}
       {lines?.map((line) => <View key={line.orderItemId} style={ui.section}>
         <Text style={ui.body}>{line.quantity} × {line.name}</Text>
+        {line.selectedModifiers.length ? <Text style={ui.body}>Opciones actuales: {line.selectedModifiers
+          .map((modifier) => `${modifier.groupName}: ${modifier.name}`).join(", ")}</Text> : null}
         {quantityChangeControls(orderRequestId, line)}
         {modifierChangeControls(orderRequestId, line)}
         {cancellationControls(orderRequestId, line.orderItemId)}
