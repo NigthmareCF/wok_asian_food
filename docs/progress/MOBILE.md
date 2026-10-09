@@ -3,8 +3,8 @@
 ## 2026-10-09 — Límite de tiempo para solicitudes de API
 
 - `apiRequest` ahora cancela solicitudes que quedan pendientes: 30 segundos para requests normales y 90 segundos para cargas multipart. El límite también cubre la lectura del cuerpo JSON y respeta una cancelación iniciada por quien llama.
-- Si vence el límite o se pierde la conexión, la app conserva el mensaje de respuesta incierta para mutaciones: no afirma que el servidor no recibió la operación. Se añadieron pruebas para timeout de fetch, lectura del cuerpo y cancelación explícita.
-- Verificación: Vitest 131/131, ESLint y TypeScript pasan. `assembleRelease` ARM64 terminó `BUILD SUCCESSFUL`; el primer intento había agotado el heap D8 al combinar DEX, por lo que se reconstruyó con heap Gradle de 5 GB y dos workers.
+- Si vence el límite o se pierde la conexión, la app conserva el mensaje de respuesta incierta para mutaciones: no afirma que el servidor no recibió la operación. Las pruebas verifican el timeout de fetch, lectura del cuerpo, cancelación explícita y el plazo extendido para cargas, que no aborta al vencer el límite normal.
+- Verificación: Vitest 132/132, ESLint y TypeScript pasan. `assembleRelease` ARM64 terminó `BUILD SUCCESSFUL`; el primer intento había agotado el heap D8 al combinar DEX, por lo que se reconstruyó con heap Gradle de 5 GB y dos workers. El cambio de este registro sólo expone la constante multipart para probar su plazo; no cambia el comportamiento incluido en el APK anterior.
 - APK local ignorado por Git: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, 44,333,099 bytes, SHA-256 `ac6a1188f31daaa62a3e30ac0ca687702b880ec4d0596fbed88efa3b5a658108`. `apksigner verify` confirma firma v2. El bundle contiene `http://192.168.1.109:8088` y el manifiesto permite HTTP para este host privado de desarrollo. No se instaló en teléfono; la firma debug y la IP DHCP sólo sirven para revisión interna.
 
 ## 2026-10-08 — Build reproducible con configuración LAN aplicada desde prebuild

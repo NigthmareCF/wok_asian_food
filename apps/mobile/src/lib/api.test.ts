@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 describe("apiRequest error messages", () => {
   let apiRequest: typeof import("./api").apiRequest;
   let requestTimeoutMs: typeof import("./api").API_REQUEST_TIMEOUT_MS;
+  let multipartTimeoutMs: typeof import("./api").MULTIPART_REQUEST_TIMEOUT_MS;
 
   beforeEach(async () => {
     vi.stubEnv("EXPO_PUBLIC_API_BASE_URL", "https://api.wok.test");
     vi.resetModules();
-    ({ apiRequest, API_REQUEST_TIMEOUT_MS: requestTimeoutMs } = await import("./api"));
+    ({ apiRequest, API_REQUEST_TIMEOUT_MS: requestTimeoutMs,
+      MULTIPART_REQUEST_TIMEOUT_MS: multipartTimeoutMs } = await import("./api"));
   });
 
   afterEach(() => {
@@ -104,6 +106,28 @@ describe("apiRequest error messages", () => {
 
     await rejected;
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).signal?.aborted).toBe(true);
+  });
+
+  it("allows longer multipart uploads and aborts them at their own deadline", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const form = new FormData();
+    form.append("file", new Blob(["image-bytes"], { type: "image/png" }), "receipt.png");
+
+    const pending = apiRequest("/api/v1/client/order-requests/order-1/payment-evidence", {
+      method: "POST", body: form,
+    });
+    const rejected = expect(pending).rejects.toThrow("No pudimos confirmar la respuesta de WOK.");
+    const signal = (fetchMock.mock.calls[0]?.[1] as RequestInit).signal;
+    await vi.advanceTimersByTimeAsync(requestTimeoutMs);
+    expect(signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(multipartTimeoutMs - requestTimeoutMs);
+
+    await rejected;
+    expect(signal?.aborted).toBe(true);
   });
 
   it("forwards an explicit caller cancellation to fetch", async () => {

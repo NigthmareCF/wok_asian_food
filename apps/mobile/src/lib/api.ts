@@ -1,6 +1,6 @@
 const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
 export const API_REQUEST_TIMEOUT_MS = 30_000;
-const MULTIPART_REQUEST_TIMEOUT_MS = 90_000;
+export const MULTIPART_REQUEST_TIMEOUT_MS = 90_000;
 
 export class ApiError extends Error {
   constructor(message: string, readonly status?: number) {
