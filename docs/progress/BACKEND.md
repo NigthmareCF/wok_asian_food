@@ -833,3 +833,10 @@
 - La API es stateless y usa Bearer; el BFF de web conserva la sesión del navegador. Se desactivó `Access-Control-Allow-Credentials` en el backend para que los orígenes explícitos no reciban permiso para enviar cookies/credenciales del navegador a la API.
 - `CurrentUserAndCorsTest` verifica el allowlist, métodos/headers permitidos y que credenciales cross-origin permanezcan deshabilitadas. No cambia los flujos Bearer de app ni llamadas server-to-server del BFF.
 - `CurrentUserAndCorsTest`: 4/4. Suite completa: 75 suites / 327 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers y Flyway V1–V52. `git diff --check` limpio.
+
+## 2026-10-08 — Comprobante de transferencia anticipada para delivery
+
+- `TRANSFER_IN_ADVANCE` se admite únicamente en solicitudes DELIVERY mediante Flyway V53; las opciones vigentes de pickup y pago online se conservan.
+- El endpoint compartido de evidencias acepta transferencia anticipada delivery o transferencia pickup; efectivo contra entrega y preferencia online no habilitan adjuntar comprobante. La carga queda `NEEDS_REVIEW` y no crea un pago. Sólo Operativo puede registrar el importe transferido luego de aceptar la solicitud.
+- La cola de revisión informa modalidad y preferencia de pago para distinguir comprobantes delivery. `PaymentEvidenceIntegrationTest` cubre carga sin cobro, metadatos de cola y rechazo para efectivo.
+- Pruebas focales: `PaymentEvidenceIntegrationTest` 5/5 y `ClientDeliveryRequestControllerTest` 5/5. Suite completa: 75 suites / 328 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers aplicó Flyway V1–V53 desde esquema vacío. `git diff --check` limpio.

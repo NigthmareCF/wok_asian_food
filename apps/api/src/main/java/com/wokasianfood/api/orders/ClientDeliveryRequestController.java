@@ -395,7 +395,7 @@ public class ClientDeliveryRequestController {
     public record ModifierSnapshot(String group, String name, BigDecimal priceDelta) {}
     private record PersistedRequestLine(UUID id, String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
     public record DeliveryCancellationReceipt(UUID requestId, String status) {}
-    public enum PaymentPreference { CASH_ON_DELIVERY, ONLINE_PAYMENT_REQUESTED }
+    public enum PaymentPreference { CASH_ON_DELIVERY, TRANSFER_IN_ADVANCE, ONLINE_PAYMENT_REQUESTED }
     private record InvoiceRequest(boolean requested, String name, String taxId) {}
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currency, int preparationSeconds) {}
 }

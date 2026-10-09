@@ -147,8 +147,12 @@ class PaymentEvidenceService {
             return replay.getFirst();
         }
         RequestOwner request = request(customerId, requestId, true);
-        if (!"PICKUP".equals(request.fulfillmentType()) || !"TRANSFER_AT_PICKUP".equals(request.paymentPreference()))
-            throw new AuthException(409, "Este pedido no tiene transferencia como forma de pago.");
+        boolean transferSelected = ("PICKUP".equals(request.fulfillmentType())
+                && "TRANSFER_AT_PICKUP".equals(request.paymentPreference()))
+                || ("DELIVERY".equals(request.fulfillmentType())
+                && "TRANSFER_IN_ADVANCE".equals(request.paymentPreference()));
+        if (!transferSelected)
+            throw new AuthException(409, "Esta solicitud no tiene transferencia como forma de pago.");
         if (!List.of("PENDING_REVIEW", "ACCEPTED").contains(request.status()))
             throw new AuthException(409, "Este pedido ya no admite comprobantes.");
         List<Receipt> sameEvidence = jdbc.query("""
@@ -227,7 +231,7 @@ class PaymentEvidenceService {
         return jdbc.query("""
             SELECT e.id, e.order_request_id, e.status, e.content_type, e.byte_size, e.created_at,
                    e.row_version, COALESCE(cp.full_name, u.display_name) AS customer_name,
-                   r.subtotal AS request_subtotal, c.code AS currency
+                   r.fulfillment_type, r.payment_preference, r.subtotal AS request_subtotal, c.code AS currency
             FROM wok.payment_evidence e JOIN wok.order_requests r ON r.id = e.order_request_id
             JOIN wok.users u ON u.id = e.customer_user_id LEFT JOIN wok.customer_profiles cp ON cp.user_id = u.id
             JOIN wok.currencies c ON c.id = r.currency_id
@@ -235,6 +239,7 @@ class PaymentEvidenceService {
             """, (rs, row) -> new QueueReceipt(rs.getObject("id", UUID.class), rs.getObject("order_request_id", UUID.class),
                 rs.getString("status"), rs.getString("content_type"), rs.getLong("byte_size"),
                 rs.getTimestamp("created_at").toInstant(), rs.getInt("row_version"), rs.getString("customer_name"),
+                rs.getString("fulfillment_type"), rs.getString("payment_preference"),
                 rs.getBigDecimal("request_subtotal"), rs.getString("currency")), status);
     }
 
@@ -405,7 +410,8 @@ class PaymentEvidenceService {
     record Receipt(UUID id, UUID orderRequestId, String status, String contentType, long byteSize,
                    Instant createdAt, int version, String reviewReason) {}
     record QueueReceipt(UUID id, UUID orderRequestId, String status, String contentType, long byteSize,
-                        Instant createdAt, int version, String customerName, BigDecimal amount, String currency) {}
+                        Instant createdAt, int version, String customerName, String fulfillmentType,
+                        String paymentPreference, BigDecimal amount, String currency) {}
     record FileReceipt(String contentType, byte[] contents) {}
     private record FileMetadata(String contentType) {}
     private record RequestOwner(UUID id, UUID customerUserId, String status, String fulfillmentType,

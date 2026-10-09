@@ -155,7 +155,7 @@ class ClientDeliveryRequestControllerTest {
         Instant requestedFor = Instant.now().plusSeconds(3600);
         var request = new ClientDeliveryRequestController.DeliveryRequest(requestedFor, "Sin cubiertos",
                 "Zona 10, Ciudad de Guatemala", "Casa con portón negro", "+502 5555-1234",
-                ClientDeliveryRequestController.PaymentPreference.ONLINE_PAYMENT_REQUESTED,
+                ClientDeliveryRequestController.PaymentPreference.TRANSFER_IN_ADVANCE,
                 List.of(new ClientDeliveryRequestController.RequestedItem(menuItemId, 2)));
         var receipt = new ClientDeliveryRequestController(jdbc, modifiers).submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request);
 
@@ -163,7 +163,7 @@ class ClientDeliveryRequestControllerTest {
         assertEquals("DELIVERY", receipt.fulfillmentType());
         assertEquals("PENDING_REVIEW", receipt.status());
         assertEquals(new BigDecimal("96.00"), receipt.subtotal());
-        assertEquals(ClientDeliveryRequestController.PaymentPreference.ONLINE_PAYMENT_REQUESTED, receipt.paymentPreference());
+        assertEquals(ClientDeliveryRequestController.PaymentPreference.TRANSFER_IN_ADVANCE, receipt.paymentPreference());
         verify(jdbc).query(contains("INSERT INTO wok.order_request_items"), any(RowMapper.class), any(Object[].class));
         verify(jdbc).update(contains("INSERT INTO wok.order_request_events"), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.any());
     }

@@ -2,6 +2,8 @@
 
 **Corte:** 2026-10-08. Este documento describe evidencia revisada en esta fecha; no declara terminado el sistema integrado.
 
+**Trabajo posterior al corte:** `feature/backend-capacity-order-lifecycle` añade transferencia anticipada para delivery (Flyway V53), carga de comprobante sujeta a revisión Operativa y modalidad/preferencia en la cola de evidencias. Suite completa verificada: 75 suites / 328 pruebas con PostgreSQL 18 y Flyway V1–V53. Publicación de las ramas especializadas aún pendiente.
+
 ## Ramas y revisión
 
 - Backend: `feature/backend-capacity-order-lifecycle` (`114a5c5`). Incluye cuenta/roles, sesiones, autenticación, reservas/capacidad, catálogo, solicitudes/cotizaciones, pagos/caja, FEL mock, mensajería/IA mock e inventario/producción parcial. Suite completa verificada: **75 suites / 327 pruebas**, cero fallos, errores u omitidas, en PostgreSQL 18/Testcontainers con Flyway V1–V52. Se probaron ownership HTTP de sesiones, el ciclo de claves idempotentes, opciones informativas de mesas para reservas confirmadas y CORS sin credenciales/cookies cross-origin.

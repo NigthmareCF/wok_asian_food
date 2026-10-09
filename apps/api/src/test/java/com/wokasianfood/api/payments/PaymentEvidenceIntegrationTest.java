@@ -127,6 +127,34 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void deliveryTransferEvidenceIsAcceptedButCashOnDeliveryCannotSubmitTransferEvidence() throws Exception {
+        var request = createTransferDelivery("TRANSFER_IN_ADVANCE");
+        UUID requestId = request.requestId();
+
+        HttpResponse<String> submitted = upload(requestId, UUID.randomUUID(), request.token(), "image/png", uniquePng());
+
+        assertThat(submitted.statusCode()).as("body %s", submitted.body()).isEqualTo(200);
+        assertThat(body(submitted).path("status").asText()).isEqualTo("NEEDS_REVIEW");
+        assertThat(count("SELECT count(*) FROM wok.payment_evidence WHERE order_request_id = ?", requestId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.payments WHERE account_id IN (SELECT account_id FROM wok.orders WHERE id = (SELECT order_id FROM wok.order_requests WHERE id = ?))", requestId)).isZero();
+        JsonNode queue = json.readTree(get("/api/v1/operational/payment-evidence", tokenForRole("OPERATIONAL")).body());
+        JsonNode deliveryEntry = null;
+        for (JsonNode entry : queue) {
+            if (requestId.toString().equals(entry.path("orderRequestId").asText())) deliveryEntry = entry;
+        }
+        assertThat(deliveryEntry).isNotNull();
+        assertThat(deliveryEntry.path("fulfillmentType").asText()).isEqualTo("DELIVERY");
+        assertThat(deliveryEntry.path("paymentPreference").asText()).isEqualTo("TRANSFER_IN_ADVANCE");
+
+        var cashRequest = createTransferDelivery("CASH_ON_DELIVERY");
+        UUID cashRequestId = cashRequest.requestId();
+        HttpResponse<String> rejected = upload(cashRequestId, UUID.randomUUID(), cashRequest.token(), "image/png", uniquePng());
+        assertThat(rejected.statusCode()).isEqualTo(409);
+        assertThat(rejected.body()).contains("no tiene transferencia");
+        assertThat(count("SELECT count(*) FROM wok.payment_evidence WHERE order_request_id = ?", cashRequestId)).isZero();
+    }
+
+    @Test
     void rejectsOversizedEvidenceAsPayloadTooLargeWithoutPersistingPaymentOrFile() throws Exception {
         var request = createTransferPickup();
         UUID requestId = UUID.fromString(body(request).path("requestId").asText());
@@ -254,6 +282,23 @@ class PaymentEvidenceIntegrationTest extends PostgresIntegrationTest {
                 """.formatted(Instant.now().plusSeconds(600), product),
                 Map.of("Idempotency-Key", UUID.randomUUID().toString()));
     }
+
+    private DeliveryRequestFixture createTransferDelivery(String preference) {
+        UUID customer = createUserWithRole("transfer-delivery-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        requestClientToken = tokenFor(customer);
+        UUID currencyId = jdbc.queryForObject("SELECT id FROM wok.currencies WHERE code = 'GTQ'", UUID.class);
+        UUID requestId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wok.order_requests(id, customer_user_id, fulfillment_type, idempotency_key,
+                    request_fingerprint, requested_for, subtotal, currency_id, delivery_address, contact_phone,
+                    payment_preference)
+                VALUES (?, ?, 'DELIVERY', ?, ?, ?, 25.00, ?, 'Zona 10, Ciudad de Guatemala', '+502 5555-1234', ?)
+                """, requestId, customer, UUID.randomUUID(), "d".repeat(64),
+                java.sql.Timestamp.from(Instant.now().plusSeconds(600)), currencyId, preference);
+        return new DeliveryRequestFixture(requestId, requestClientToken);
+    }
+
+    private record DeliveryRequestFixture(UUID requestId, String token) {}
 
     private UUID seedMenuItem(String name, String price, String codePrefix, int prepSeconds) {
         String suffix = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
