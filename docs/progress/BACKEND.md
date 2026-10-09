@@ -914,3 +914,9 @@
 
 - El flujo de cancelación ahora comprueba por HTTP que el listado de cambios sólo devuelve registros propios y que `/change-requests/current` sólo resuelve solicitudes del dueño; la cuenta ajena recibe lista vacía y 404. Se mantiene el resto del ciclo de revisión/aprobación y replay idempotente.
 - Prueba focal con PostgreSQL 18/Testcontainers: `cancellationNeedsOperationalApprovalAndApprovalUsesOrderLifecycle` pasa. Suite completa: 78 suites / 341 pruebas, cero fallos, errores u omitidas; `git diff --check` limpio.
+
+## 2026-10-09 — Regresión completa posterior a V55
+
+- Se ejecutó `bash ./mvnw test` en `apps/api` sobre `feature/backend-capacity-order-lifecycle`. PostgreSQL 18/Testcontainers aplicó Flyway V1–V55 desde esquema vacío; el resultado final fue 345 pruebas, cero fallos, errores u omitidas.
+- La ejecución requiere permitir el agente de Mockito y acceso a Docker. Bajo el sandbox restringido las pruebas unitarias fallaron antes de ejecutar lógica porque Byte Buddy no pudo auto-adjuntarse; al correr con esos recursos habilitados, la suite completa terminó correctamente.
+- Esta verificación confirma el checkout backend actual; no prueba todavía el despliegue conjunto de app y API ni los proveedores externos marcados como pendientes.
