@@ -137,6 +137,46 @@ class ClientOrderQuoteIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void clientCannotMassAssignOrderOwnerPriceOrLifecycleState() throws Exception {
+        UUID itemId = seedMenuItem("Mass assignment guard item", "13.50", "MASS_ASSIGNMENT_TEST", 30);
+        UUID customerId = createUserWithRole("mass-assignment-owner-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        UUID attackerSuppliedOwner = createUserWithRole("mass-assignment-other-" + UUID.randomUUID() + "@wok.test", "CLIENT");
+        String client = tokenFor(customerId);
+        Instant requestedFor = Instant.now().plusSeconds(3600);
+        JsonNode quote = body(post("/api/v1/client/order-quotes", client,
+                quotePayload("PICKUP", requestedFor, itemId, 2),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+
+        HttpResponse<String> submitted = post("/api/v1/client/order-requests", client, """
+                {
+                  "requestedFor":"%s",
+                  "paymentPreference":"CASH_AT_PICKUP",
+                  "items":[{"menuItemId":"%s","quantity":2}],
+                  "customerUserId":"%s",
+                  "status":"PAID",
+                  "orderStatus":"READY",
+                  "subtotal":0,
+                  "paymentStatus":"CAPTURED"
+                }
+                """.formatted(requestedFor, itemId, attackerSuppliedOwner),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString(),
+                        "X-Order-Quote-Id", quote.path("quoteId").asText()));
+
+        JsonNode request = body(submitted);
+        UUID requestId = UUID.fromString(request.path("requestId").asText());
+        assertThat(request.path("status").asText()).isEqualTo("PENDING_REVIEW");
+        assertThat(request.path("subtotal").decimalValue()).isEqualByComparingTo("27.00");
+        assertThat(jdbc.queryForObject("SELECT customer_user_id FROM wok.order_requests WHERE id = ?", UUID.class, requestId))
+                .isEqualTo(customerId);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, requestId))
+                .isEqualTo("PENDING_REVIEW");
+        assertThat(count("SELECT count(*) FROM wok.orders WHERE id = (SELECT order_id FROM wok.order_requests WHERE id = ?)",
+                requestId)).isZero();
+        assertThat(count("SELECT count(*) FROM wok.order_quotes WHERE id = ? AND status = 'CONSUMED' AND consumed_order_request_id = ?",
+                UUID.fromString(quote.path("quoteId").asText()), requestId)).isEqualTo(1);
+    }
+
+    @Test
     void quoteCannotBeReadByAnotherCustomer() throws Exception {
         UUID itemId = seedMenuItem("Private quote item", "11.00", "QUOTE_OWNERSHIP_TEST", 30);
         String client = tokenForRole("CLIENT");

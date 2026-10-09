@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Defensa contra asignación masiva en solicitudes Cliente
+
+- `ClientOrderQuoteIntegrationTest.clientCannotMassAssignOrderOwnerPriceOrLifecycleState` envía durante la creación de una solicitud pickup campos manipulados para dueño, subtotal, estado de pago y estado de pedido (`PAID`, `CAPTURED`, `READY`). La respuesta conserva `PENDING_REVIEW`, el servidor calcula Q27.00 desde el precio del catálogo y registra como dueño al usuario autenticado; no se crea orden ni pago.
+- La prueba pasa contra PostgreSQL 18 con Flyway V1–V52 desde un esquema vacío. Suite focal `ClientOrderQuoteIntegrationTest`: 9/9, sin fallos, errores ni skips. Suite completa: 72 suites/315 pruebas, cero fallos, errores u omitidas.
+- Alcance de la evidencia: confirma que los campos de autoridad del payload Cliente no alteran el estado en este endpoint de solicitud pickup; no sustituye la revisión de mass assignment de todos los endpoints.
+
 ## 2026-10-08 — Salud de core separada de integraciones externas
 
 - `GET /api/v1/admin/system/health` informa `coreStatus` con una consulta local `SELECT 1` y lista diagnósticos independientes para pagos, FEL, correo, IA y Meta. Identifica `MOCK`, `DISABLED`, `NOT_CONFIGURED` o `UNVERIFIED`; nunca afirma conectividad real sin una sonda y una integración degradada no altera `/actuator/health`.
