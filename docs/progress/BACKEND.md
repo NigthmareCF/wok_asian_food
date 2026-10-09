@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-08 — Bandeja Operativa de conciliación de pagos inciertos
+
+- Se añadió `GET /api/v1/operational/payment-intents/reconciliation`, paginado y protegido con `payments:manage`. Expone sólo intentos `UNKNOWN` de delivery con ID de pedido/solicitud, referencia del proveedor cuando existe, monto, moneda y fechas; no cambia estado ni registra pago.
+- `PaymentReconciliationIntegrationTest` fuerza un intento a `UNKNOWN` y contrasta uno `PENDING`: la respuesta contiene únicamente el incierto, Operativo autorizado accede, Cliente recibe 403, anónimo 401 y no se crea cobro. Prueba focal: 1/1 en PostgreSQL 18 + Flyway V1–V52. Suite completa: 73 suites/316 pruebas, cero fallos, errores u omitidas.
+- Esto permite localizar resultados inciertos para conciliación humana; la consulta automática al proveedor y la resolución de estados siguen pendientes hasta que exista un gateway real aprobado. No se presenta el mock como conciliación productiva.
+
 ## 2026-10-08 — Defensa contra asignación masiva en solicitudes Cliente
 
 - `ClientOrderQuoteIntegrationTest.clientCannotMassAssignOrderOwnerPriceOrLifecycleState` envía durante la creación de una solicitud pickup campos manipulados para dueño, subtotal, estado de pago y estado de pedido (`PAID`, `CAPTURED`, `READY`). La respuesta conserva `PENDING_REVIEW`, el servidor calcula Q27.00 desde el precio del catálogo y registra como dueño al usuario autenticado; no se crea orden ni pago.
