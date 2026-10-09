@@ -804,3 +804,7 @@
 
 - `ClientDeliveryCancellationIntegrationTest` comprueba que los historiales de dos clientes sólo contengan sus propias solicitudes y que ninguno pueda abrir el detalle delivery del otro; el endpoint ajeno devuelve 404.
 - Prueba focal 5/5 con PostgreSQL 18/Testcontainers y Flyway V1–V52 desde esquema vacío; cero fallos, errores u omitidas. El backend ya filtraba por usuario; esta cobertura fija las consultas de lista y detalle.
+
+## 2026-10-08 — Regresión general tras pruebas de ownership
+
+- Suite completa: 73 suites / 320 pruebas, cero fallos, errores u omitidas. PostgreSQL 18/Testcontainers aplicó las 52 migraciones Flyway desde esquema vacío. Incluye las nuevas verificaciones de acceso cruzado para conversaciones y solicitudes delivery.
