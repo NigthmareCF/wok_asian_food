@@ -176,7 +176,7 @@ describe("AppShell", () => {
       window.removeEventListener("wok:logout", onLogout);
     }
   });
-  it("preserves client links and demo dialogs when the sidebar is collapsed", async () => {
+  it("preserves client links and exposes Perfil as a real route when the sidebar is collapsed", async () => {
     const user = userEvent.setup();
     const { container } = render(
       <AppShell context="client" currentUser={currentUserFor("client")}>
@@ -211,11 +211,11 @@ describe("AppShell", () => {
       "/client/orders",
     );
     expectNavigationRoutes("client");
-    await user.click(screen.getByRole("button", { name: "Perfil" }));
-    expect(screen.getByRole("dialog", { name: "Perfil" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Entendido" }));
+    const profileLink = screen.getByRole("link", { name: "Perfil" });
+    expect(profileLink).toHaveAttribute("href", "/client/profile");
+    await user.click(profileLink);
     expect(dialog).not.toHaveAttribute("open");
-    expect(showModal).toHaveBeenCalledTimes(1);
+    expect(showModal).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Expandir menú" }));
     expect(container.firstChild).not.toHaveClass(
       "app-shell--sidebar-collapsed",
