@@ -838,5 +838,6 @@
 
 - `TRANSFER_IN_ADVANCE` se admite únicamente en solicitudes DELIVERY mediante Flyway V53; las opciones vigentes de pickup y pago online se conservan.
 - El endpoint compartido de evidencias acepta transferencia anticipada delivery o transferencia pickup; efectivo contra entrega y preferencia online no habilitan adjuntar comprobante. La carga queda `NEEDS_REVIEW` y no crea un pago. Sólo Operativo puede registrar el importe transferido luego de aceptar la solicitud.
-- La cola de revisión informa modalidad y preferencia de pago para distinguir comprobantes delivery. `PaymentEvidenceIntegrationTest` cubre carga sin cobro, metadatos de cola y rechazo para efectivo.
-- Pruebas focales: `PaymentEvidenceIntegrationTest` 5/5 y `ClientDeliveryRequestControllerTest` 5/5. Suite completa: 75 suites / 328 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers aplicó Flyway V1–V53 desde esquema vacío. `git diff --check` limpio.
+- La cola de revisión informa modalidad y preferencia de pago para distinguir comprobantes delivery. `PaymentEvidenceIntegrationTest` cubre carga sin cobro, metadatos de cola, rechazo para efectivo y verificación operativa de delivery aceptado.
+- Pruebas focales: `PaymentEvidenceIntegrationTest` 6/6 y `ClientDeliveryRequestControllerTest` 5/5. La verificación de delivery confirma que Operativo captura la transferencia sólo tras aceptar el pedido y que repetir la misma decisión no duplica el pago ni el evento.
+- Suite completa: 75 suites / 329 pruebas, cero fallos, errores u omitidas; PostgreSQL 18/Testcontainers aplicó Flyway V1–V53 desde esquema vacío. `git diff --check` limpio.
