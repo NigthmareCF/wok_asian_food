@@ -888,3 +888,8 @@
 
 - `AuthRateLimiter.check` ahora adquiere locks advisory transaccionales de PostgreSQL para las claves de ventana IP/identificador en orden estable antes de registrar y contar intentos. Las respuestas 429 mantienen commit explícito para que también persistan los intentos y el evento de seguridad.
 - `AuthRateLimiterConcurrencyIntegrationTest` inicia 32 solicitudes simultáneas de login desde el mismo IP y verifica exactamente 20 permitidas, 12 con 429, los 32 intentos persistidos y los 12 eventos de bloqueo. Prueba focal con PostgreSQL 18/Testcontainers y Flyway V1–V55; `AuthHardeningTest` 8/8. Suite completa: 78 suites / 340 pruebas, cero fallos, errores u omitidas.
+
+## 2026-10-08 — Ownership A/B de solicitudes pickup
+
+- `OrderRequestDecisionIntegrationTest` verifica que un Cliente sólo vea su propio historial y detalle pickup; otro CLIENT recibe historial vacío y 404 al leer/cancelar la solicitud ajena. La solicitud conserva estado `PENDING_REVIEW` y un único evento al intentar la cancelación cruzada.
+- Prueba focal con PostgreSQL 18/Testcontainers y Flyway V1–V55: 1/1. Suite completa: 78 suites / 341 pruebas, cero fallos, errores u omitidas.

@@ -28,6 +28,27 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
+    void pickupHistoryDetailsAndCancellationAreRestrictedToTheOwner() {
+        UUID menuItemId = seedMenuItem("Wok Pickup Ownership", "25.00", "WOK_PICKUP_OWNER", 60);
+        String ownerToken = tokenForRole("CLIENT");
+        String otherCustomerToken = tokenForRole("CLIENT");
+        JsonNode submitted = submit(ownerToken, menuItemId, 1, Instant.now().plusSeconds(3_600).toString());
+        UUID requestId = UUID.fromString(submitted.path("requestId").asText());
+
+        JsonNode ownerHistory = body(get("/api/v1/client/order-requests", ownerToken));
+        JsonNode otherHistory = body(get("/api/v1/client/order-requests", otherCustomerToken));
+        assertThat(ownerHistory.findValuesAsText("requestId")).containsExactly(requestId.toString());
+        assertThat(otherHistory).isEmpty();
+        assertThat(get("/api/v1/client/order-requests/" + requestId, ownerToken).statusCode()).isEqualTo(200);
+        assertThat(get("/api/v1/client/order-requests/" + requestId, otherCustomerToken).statusCode()).isEqualTo(404);
+        assertThat(send("DELETE", "/api/v1/client/order-requests/" + requestId,
+                otherCustomerToken, null, Map.of()).statusCode()).isEqualTo(404);
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, requestId))
+                .isEqualTo("PENDING_REVIEW");
+        assertThat(count("SELECT count(*) FROM wok.order_request_events WHERE order_request_id = ?", requestId)).isEqualTo(1);
+    }
+
+    @Test
     void acceptsPickupAndDeliveryRequestsWithMoreThanTwentyDistinctProducts() {
         var menuItems = IntStream.range(0, 21)
                 .mapToObj(index -> seedMenuItem("Wok many line " + index, "1.00", "WOK_MANY_LINES", 1))
