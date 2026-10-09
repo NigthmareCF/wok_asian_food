@@ -1,5 +1,11 @@
 # Progreso de planificación backend
 
+## 2026-10-09 — Lease vencido de emisión FEL pasa a conciliación
+
+- El worker FEL ya no vuelve a llamar automáticamente al certificador cuando recupera una tarea con lease vencido. Una caída del proceso pudo ocurrir después de que el proveedor certificó y antes de guardar la respuesta; el documento pasa a `UNKNOWN`, la tarea se cierra y se registra auditoría para conciliación humana.
+- `InvoiceUnknownOutcomeIntegrationTest` fuerza un claim vencido en PostgreSQL y también simula una respuesta tardía durante la carrera con el worker que recuperó el lease; verifica que no haya una segunda llamada al proveedor y que quede una única auditoría `UNKNOWN`.
+- Prueba focal: 4/4 con PostgreSQL 18/Testcontainers y Flyway V1–V55; suite completa: 345/345, cero fallos, errores u omitidas.
+
 ## 2026-10-08 — Revocación concurrente de sesión con auditoría única
 
 - `ClientSessionOwnershipIntegrationTest.concurrentRevocationOfOwnedSessionWritesOneAuditEvent` envía dos DELETE HTTP simultáneos para la misma sesión propia. PostgreSQL serializa las actualizaciones: una devuelve 204 y la otra 404; la sesión y refresh token quedan revocados y se registra exactamente un evento `CLIENT_SESSION_REVOKED`.

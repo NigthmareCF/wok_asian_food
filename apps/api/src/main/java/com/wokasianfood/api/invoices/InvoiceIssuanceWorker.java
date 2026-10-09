@@ -41,6 +41,13 @@ public class InvoiceIssuanceWorker {
         QueuedEvent event = transactions.execute(status -> claimNext());
         if (event == null) return false;
 
+        if (event.expiredClaim()) {
+            // The process may have died after the provider accepted the DTE but before we persisted its reply.
+            // Never issue the same invoice automatically after an abandoned provider call.
+            transactions.executeWithoutResult(status -> recordExpiredClaim(event));
+            return true;
+        }
+
         Invoice invoice = transactions.execute(status -> loadInvoice(event.invoiceId()));
         if (invoice == null || "ISSUED".equals(invoice.status())) {
             transactions.executeWithoutResult(status -> publish(event.eventId()));
@@ -67,20 +74,46 @@ public class InvoiceIssuanceWorker {
 
     private QueuedEvent claimNext() {
         List<QueuedEvent> claimed = jdbc.query("""
-            UPDATE wok.outbox_events
+            WITH candidate AS (
+              SELECT id, aggregate_id, (claimed_until IS NOT NULL) AS expired_claim
+              FROM wok.outbox_events
+              WHERE event_type = 'INVOICE_ISSUANCE_REQUESTED'
+                AND published_at IS NULL
+                AND next_attempt_at <= now()
+                AND (claimed_until IS NULL OR claimed_until <= now())
+              ORDER BY occurred_at, id
+              LIMIT 1
+              FOR UPDATE SKIP LOCKED
+            )
+            UPDATE wok.outbox_events e
             SET attempt_count = attempt_count + 1,
                 next_attempt_at = now() + interval '5 minutes',
                 claimed_until = now() + interval '5 minutes',
                 claimed_by = 'invoice-issuance-worker'
-            WHERE id = (
-              SELECT id FROM wok.outbox_events
-              WHERE event_type = 'INVOICE_ISSUANCE_REQUESTED' AND published_at IS NULL AND next_attempt_at <= now()
-              ORDER BY occurred_at, id LIMIT 1 FOR UPDATE SKIP LOCKED
-            )
-            RETURNING id, aggregate_id, attempt_count
+            FROM candidate c
+            WHERE e.id = c.id
+            RETURNING e.id, e.aggregate_id, e.attempt_count, c.expired_claim
             """, (rs, row) -> new QueuedEvent(rs.getObject("id", UUID.class),
-                rs.getObject("aggregate_id", UUID.class), rs.getInt("attempt_count")));
+                rs.getObject("aggregate_id", UUID.class), rs.getInt("attempt_count"), rs.getBoolean("expired_claim")));
         return claimed.isEmpty() ? null : claimed.getFirst();
+    }
+
+    private void recordExpiredClaim(QueuedEvent event) {
+        int markedUnknown = jdbc.update("""
+            UPDATE wok.invoices
+            SET status = 'UNKNOWN', error = 'Resultado fiscal incierto: el worker perdió su lease durante la emisión',
+                updated_at = now(), row_version = row_version + 1
+            WHERE id = ? AND status = 'QUEUED'
+            """, event.invoiceId());
+        publish(event.eventId());
+        if (markedUnknown == 0) return;
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
+            SELECT created_by, 'INVOICE_OUTCOME_UNKNOWN', 'INVOICE', id,
+                   jsonb_build_object('status', 'UNKNOWN', 'reason', 'WORKER_LEASE_EXPIRED'), 'SUCCESS', request_id
+            FROM wok.invoices WHERE id = ?
+            """, event.invoiceId());
     }
 
     private void complete(QueuedEvent event, Invoice invoice, FiscalProvider.Certification certification) {
@@ -147,7 +180,7 @@ public class InvoiceIssuanceWorker {
     }
 
     private void recordUnknown(QueuedEvent event, Invoice invoice, RuntimeException error) {
-        jdbc.update("""
+        int markedUnknown = jdbc.update("""
             UPDATE wok.invoices
             SET status = 'UNKNOWN', error = ?, updated_at = now(), row_version = row_version + 1
             WHERE id = ? AND status = 'QUEUED'
@@ -157,6 +190,7 @@ public class InvoiceIssuanceWorker {
                 claimed_until = NULL, claimed_by = NULL
             WHERE id = ?
             """, error.getClass().getSimpleName(), event.eventId());
+        if (markedUnknown == 0) return;
         jdbc.update("""
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
@@ -194,7 +228,7 @@ public class InvoiceIssuanceWorker {
                 invoice.accountName(), lines);
     }
 
-    private record QueuedEvent(UUID eventId, UUID invoiceId, int attemptCount) {}
+    private record QueuedEvent(UUID eventId, UUID invoiceId, int attemptCount, boolean expiredClaim) {}
 
     private record Invoice(UUID id, String status, BigDecimal total, BigDecimal taxTotal, String customerName,
                            String customerTaxId, UUID createdBy, UUID requestId, String accountName,

@@ -4,9 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,6 +19,8 @@ import java.math.BigDecimal;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -89,6 +92,85 @@ class InvoiceUnknownOutcomeIntegrationTest extends PostgresIntegrationTest {
         assertThat(invoiceStatus(token, invoiceId)).isEqualTo("ISSUED");
         verify(provider, times(1)).certify(argThat(request -> request != null && invoiceId.equals(request.invoiceId())));
         assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE aggregate_id = ?", invoiceId)).isEqualTo(2);
+    }
+
+    @Test
+    void expiredIssuanceLeaseRequiresReconciliationWithoutCallingProviderAgain() {
+        UUID actor = createUserWithRole("fel-lease-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta lease vencido");
+        MenuItemSeed menu = seedMenuItem("Cuenta lease", "55.00");
+        closedOrderWithItem(accountId, actor, menu, "Cuenta lease", "55.00");
+        UUID invoiceId = draft(token, accountId);
+        body(post(issuePath(invoiceId), token, null, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID eventId = jdbc.queryForObject("""
+                SELECT id FROM wok.outbox_events
+                WHERE aggregate_id = ? AND event_type = 'INVOICE_ISSUANCE_REQUESTED'
+                """, UUID.class, invoiceId);
+
+        jdbc.update("""
+                UPDATE wok.outbox_events
+                SET next_attempt_at = now() - interval '1 minute',
+                    claimed_until = now() - interval '1 minute', claimed_by = 'worker-that-crashed'
+                WHERE id = ?
+                """, eventId);
+
+        worker.issueNext();
+
+        assertThat(invoiceStatus(token, invoiceId)).isEqualTo("UNKNOWN");
+        assertThat(count("SELECT count(*) FROM wok.outbox_events WHERE id = ? AND published_at IS NOT NULL", eventId))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE action = 'INVOICE_OUTCOME_UNKNOWN' AND entity_id = ?",
+                invoiceId)).isEqualTo(1);
+        verify(provider, never()).certify(argThat(request -> request != null && invoiceId.equals(request.invoiceId())));
+
+        worker.issueNext();
+        verify(provider, never()).certify(argThat(request -> request != null && invoiceId.equals(request.invoiceId())));
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE action = 'INVOICE_OUTCOME_UNKNOWN' AND entity_id = ?",
+                invoiceId)).isEqualTo(1);
+    }
+
+    @Test
+    void lateProviderResponseAfterLeaseExpiryDoesNotCertifyTwiceOrDuplicateAudit() throws Exception {
+        UUID actor = createUserWithRole("fel-slow-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String token = tokenFor(actor);
+        UUID accountId = createAccount(actor, "Cuenta proveedor lento");
+        MenuItemSeed menu = seedMenuItem("Cuenta proveedor lento", "65.00");
+        closedOrderWithItem(accountId, actor, menu, "Cuenta proveedor lento", "65.00");
+        UUID invoiceId = draft(token, accountId);
+        body(post(issuePath(invoiceId), token, null, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        UUID eventId = jdbc.queryForObject("""
+                SELECT id FROM wok.outbox_events
+                WHERE aggregate_id = ? AND event_type = 'INVOICE_ISSUANCE_REQUESTED'
+                """, UUID.class, invoiceId);
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch finishProvider = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            providerStarted.countDown();
+            if (!finishProvider.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("Test timed out");
+            return new FiscalProvider.Certification("LATE-" + invoiceId,
+                    UUID.nameUUIDFromBytes(invoiceId.toString().getBytes()), "LATE-PROVIDER");
+        }).when(provider).certify(any());
+
+        Thread originalWorker = new Thread(worker::issueNext);
+        originalWorker.start();
+        assertThat(providerStarted.await(10, TimeUnit.SECONDS)).isTrue();
+        jdbc.update("""
+                UPDATE wok.outbox_events
+                SET next_attempt_at = now() - interval '1 minute',
+                    claimed_until = now() - interval '1 minute'
+                WHERE id = ?
+                """, eventId);
+
+        worker.issueNext();
+        finishProvider.countDown();
+        originalWorker.join(10_000);
+
+        assertThat(originalWorker.isAlive()).isFalse();
+        assertThat(invoiceStatus(token, invoiceId)).isEqualTo("UNKNOWN");
+        verify(provider, times(1)).certify(argThat(request -> request != null && invoiceId.equals(request.invoiceId())));
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE action = 'INVOICE_OUTCOME_UNKNOWN' AND entity_id = ?",
+                invoiceId)).isEqualTo(1);
     }
 
     @Test
