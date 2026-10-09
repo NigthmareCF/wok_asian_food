@@ -882,4 +882,4 @@
 ## 2026-10-08 — Preflight CORS de la API
 
 - `SecurityCompositionIntegrationTest` envía preflight HTTP real a Spring Security y comprueba que `http://localhost:3000` reciba permiso para `POST` y `Idempotency-Key`, que no se habiliten credenciales/cookies cross-origin y que `https://hostile.example` no reciba `Access-Control-Allow-Origin`.
-- Prueba focal: 6/6 con PostgreSQL 18/Testcontainers y Flyway V1–V55 desde esquema vacío; cero fallos, errores u omitidas. No cambió lógica productiva ni esquema.
+- Prueba focal: 6/6; suite completa: 77 suites / 339 pruebas, cero fallos, errores u omitidas, con PostgreSQL 18/Testcontainers y Flyway V1–V55 desde esquema vacío. No cambió lógica productiva ni esquema.
