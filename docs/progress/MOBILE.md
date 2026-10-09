@@ -2,9 +2,9 @@
 
 ## 2026-10-08 — APK Android release recompilado
 
-- El SDK Android está en `/home/fer-cachy/.cache/wok-build/android-sdk` aunque `ANDROID_HOME` no está exportado. Con Android SDK 36 / NDK 27.1 se completó `assembleRelease` desde el checkout actual en seis minutos.
-- Artefacto local ignorado por Git: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, 102 MiB, multi-ABI; paquete `com.anonymous.wokasianfood` v1.0.0. SHA-256 `d0bb69356241de227055fc474af309cd22852552557d76db6754b9b3c835af90`. `apksigner verify` confirmó firma APK v2.
-- El release usa el certificado debug local y no se configuró `EXPO_PUBLIC_API_BASE_URL`; sirve para revisar pantallas instaladas, pero las llamadas API no conectarán. No se instaló ni ejecutó en un teléfono. No es una publicación de tienda ni APK de producción.
+- El SDK Android está en `/home/fer-cachy/.cache/wok-build/android-sdk` aunque `ANDROID_HOME` no está exportado. Con Android SDK 36 / NDK 27.1 se completó `assembleRelease` para `arm64-v8a` desde el checkout actual. El APK multi-ABI anterior sin API URL fue reemplazado.
+- Artefacto local ignorado por Git: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, 43 MiB, paquete `com.anonymous.wokasianfood` v1.0.0. SHA-256 `ffdd3c2514882e360023c6f097c554e4b96c43dbb7dbba75ae8c43c2a33632b3`. `apksigner verify` confirmó firma APK v2.
+- El bundle apunta a `http://192.168.1.109:8088`; manifiesto permite HTTP sólo porque esa URL es IPv4 privada. Se verificó desde la interfaz LAN que Nginx entrega las cuatro categorías y 28 productos. El release usa la clave debug local y no es una publicación de tienda ni APK de producción. ADB no ve un dispositivo; falta instalarlo y validar el recorrido desde un teléfono. La IP depende de la red/DHCP y deberá regenerarse si cambia.
 
 ## 2026-10-08 — Intentos de cambio aislados por cuenta
 
