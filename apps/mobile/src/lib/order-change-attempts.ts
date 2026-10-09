@@ -5,6 +5,8 @@ export type OrderChangeAttempt = {
   reason: string;
   key: string;
   savedAt: number;
+  action?: "CANCEL" | "MODIFY_QUANTITY";
+  quantity?: number;
 };
 
 const maxAttemptsAgeMs = 30 * 24 * 60 * 60 * 1000;
@@ -25,6 +27,8 @@ export function parseOrderChangeAttempts(raw: string, now = Date.now()): OrderCh
         typeof attempt.reason === "string" && attempt.reason.trim().length >= 3 && attempt.reason.length <= 500 &&
         typeof attempt.key === "string" && uuidV4Pattern.test(attempt.key) &&
         typeof attempt.savedAt === "number" && Number.isFinite(attempt.savedAt) &&
+        (attempt.action === undefined || attempt.action === "CANCEL" || attempt.action === "MODIFY_QUANTITY") &&
+        (attempt.quantity === undefined || (Number.isInteger(attempt.quantity) && attempt.quantity > 0)) &&
         attempt.savedAt <= now + 5 * 60 * 1000 && now - attempt.savedAt < maxAttemptsAgeMs;
     });
   } catch {
@@ -40,17 +44,21 @@ export function resolveOrderChangeAttempt(
   createKey: () => string,
   now = Date.now(),
   orderItemId: string | null = null,
+  action: "CANCEL" | "MODIFY_QUANTITY" = "CANCEL",
+  quantity?: number,
 ): OrderChangeAttempt[] {
   const owner = normalizeEmail(ownerEmail);
   const normalizedReason = reason.trim();
   const matchingIndex = attempts.findIndex((attempt) =>
     normalizeEmail(attempt.ownerEmail) === owner && attempt.orderRequestId === orderRequestId &&
-      (attempt.orderItemId ?? null) === orderItemId,
+      (attempt.orderItemId ?? null) === orderItemId &&
+      (attempt.action ?? "CANCEL") === action && (attempt.quantity ?? null) === (quantity ?? null),
   );
   const existing = matchingIndex >= 0 ? attempts[matchingIndex] : undefined;
   const next = existing?.reason === normalizedReason
     ? existing
-    : { ownerEmail: ownerEmail.trim(), orderRequestId, orderItemId, reason: normalizedReason, key: createKey(), savedAt: now };
+    : { ownerEmail: ownerEmail.trim(), orderRequestId, orderItemId, reason: normalizedReason,
+        key: createKey(), savedAt: now, action, quantity };
   if (matchingIndex < 0) return [...attempts, next];
   if (next === existing) return attempts;
   return attempts.map((attempt, index) => index === matchingIndex ? next : attempt);
@@ -61,11 +69,14 @@ export function removeOrderChangeAttempt(
   ownerEmail: string,
   orderRequestId: string,
   orderItemId: string | null = null,
+  action: "CANCEL" | "MODIFY_QUANTITY" = "CANCEL",
+  quantity?: number,
 ): OrderChangeAttempt[] {
   const owner = normalizeEmail(ownerEmail);
   return attempts.filter((attempt) =>
     normalizeEmail(attempt.ownerEmail) !== owner || attempt.orderRequestId !== orderRequestId ||
-      (attempt.orderItemId ?? null) !== orderItemId,
+      (attempt.orderItemId ?? null) !== orderItemId ||
+      (attempt.action ?? "CANCEL") !== action || (attempt.quantity ?? null) !== (quantity ?? null),
   );
 }
 

@@ -85,6 +85,8 @@ function OrderHistory() {
   const [cancellationStorageError, setCancellationStorageError] = useState("");
   const [changeReason, setChangeReason] = useState("");
   const [selectedChangeRequest, setSelectedChangeRequest] = useState<string | null>(null);
+  const [selectedQuantityChange, setSelectedQuantityChange] = useState<string | null>(null);
+  const [requestedQuantity, setRequestedQuantity] = useState("");
   const [submittingChange, setSubmittingChange] = useState<string | null>(null);
 
   const restoreCancellationAttempts = useCallback(async () => {
@@ -287,6 +289,63 @@ function OrderHistory() {
     finally { setSubmittingChange(null); }
   }
 
+  async function submitQuantityChange(orderRequestId: string, line: CancellableOrderItem) {
+    const quantity = Number(requestedQuantity);
+    const selectionKey = `${orderRequestId}:${line.orderItemId}:quantity`;
+    const reason = changeReason.trim();
+    if (!Number.isSafeInteger(quantity) || quantity <= 0 || quantity === line.quantity) {
+      setError("Indica una cantidad positiva distinta a la actual."); return;
+    }
+    if (reason.length < 3) { setError("Describe brevemente el motivo del cambio."); return; }
+    if (!cancellationAttemptsReady) { setError("Espera a que recuperemos el estado de tus solicitudes y vuelve a intentarlo."); return; }
+    setSubmittingChange(selectionKey); setError(""); setNotice("");
+    const nextAttempts = resolveOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "", orderRequestId,
+      reason, () => Crypto.randomUUID(), undefined, line.orderItemId, "MODIFY_QUANTITY", quantity);
+    const attempt = nextAttempts.find((item) => item.orderRequestId === orderRequestId &&
+      item.orderItemId === line.orderItemId && item.action === "MODIFY_QUANTITY" && item.quantity === quantity &&
+      item.ownerEmail.trim().toLowerCase() === (session?.email ?? "").trim().toLowerCase());
+    if (!attempt) { setSubmittingChange(null); setError("No pudimos preparar una solicitud segura. Inténtalo de nuevo."); return; }
+    try {
+      if (Platform.OS !== "web") await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(nextAttempts));
+      cancellationAttempts.current = nextAttempts;
+      const receipt = await request<OrderChangeRequestReceipt>(
+        `/api/v1/client/order-requests/${orderRequestId}/change-requests/items/${line.orderItemId}/quantity`,
+        { method: "POST", headers: { "Idempotency-Key": attempt.key },
+          body: JSON.stringify({ quantity, reason: attempt.reason }) },
+      );
+      const next = [receipt, ...changeRequestsRef.current.filter((item) =>
+        !(item.orderRequestId === orderRequestId && item.orderItemId === line.orderItemId
+          && item.requestType === "MODIFY_LINE_QUANTITY"))];
+      changeRequestsRef.current = next; setChangeRequests(next);
+      const remaining = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "",
+        orderRequestId, line.orderItemId, "MODIFY_QUANTITY", quantity);
+      cancellationAttempts.current = remaining;
+      if (Platform.OS !== "web") {
+        if (remaining.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(remaining));
+        else await deleteSecurePayload(orderChangeAttemptsKey);
+      }
+      setSelectedQuantityChange(null); setRequestedQuantity(""); setChangeReason("");
+      setNotice("Enviamos el cambio de cantidad al equipo. La cantidad del pedido se mantiene hasta que lo aprueben.");
+    } catch (cause) {
+      await refreshChangeRequests();
+      const recovered = changeRequestsRef.current.find((item) => item.orderRequestId === orderRequestId
+        && item.orderItemId === line.orderItemId && item.requestType === "MODIFY_LINE_QUANTITY"
+        && item.requestedQuantity === quantity);
+      if (recovered) {
+        const remaining = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "",
+          orderRequestId, line.orderItemId, "MODIFY_QUANTITY", quantity);
+        cancellationAttempts.current = remaining;
+        if (Platform.OS !== "web") {
+          if (remaining.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(remaining));
+          else await deleteSecurePayload(orderChangeAttemptsKey);
+        }
+        setSelectedQuantityChange(null); setRequestedQuantity(""); setChangeReason("");
+        setNotice(recovered.status === "PENDING_REVIEW" ? "El cambio quedó pendiente; el pedido conserva su cantidad actual." :
+          `Recuperamos la solicitud: ${recovered.status === "APPROVED" ? "cambio aprobado" : "cambio rechazado"}.`);
+      } else setError(cause instanceof Error ? cause.message : "No pudimos enviar el cambio. Puedes reintentar de forma segura.");
+    } finally { setSubmittingChange(null); }
+  }
+
   async function clearCancellationAttempt(orderRequestId: string, orderItemId: string | null = null) {
     const next = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "", orderRequestId, orderItemId);
     cancellationAttempts.current = next;
@@ -322,15 +381,41 @@ function OrderHistory() {
       onPress={() => { setError(""); setSelectedChangeRequest(selectionKey); }} />;
   }
 
+  function quantityChangeControls(orderRequestId: string, line: CancellableOrderItem) {
+    if (!line.quantityChangeSupported) return <Notice>El equipo debe revisar manualmente este producto antes de ajustar su cantidad.</Notice>;
+    const change = changeRequests.find((item) => item.orderRequestId === orderRequestId
+      && item.orderItemId === line.orderItemId && item.requestType === "MODIFY_LINE_QUANTITY");
+    if (change?.status === "PENDING_REVIEW") return <Notice>Cambio de cantidad a {change.requestedQuantity} pendiente de revisión; el pedido conserva {line.quantity} por ahora.</Notice>;
+    if (change?.status === "APPROVED") return <Notice>El equipo aprobó el cambio a {change.requestedQuantity} unidades.</Notice>;
+    if (change?.status === "REJECTED") return <Notice tone="error">El equipo no aceptó el cambio de cantidad.{change.decisionReason ? ` Motivo: ${change.decisionReason}` : ""}</Notice>;
+    const selectionKey = `${orderRequestId}:${line.orderItemId}:quantity`;
+    if (selectedQuantityChange === selectionKey) return <View style={ui.section}>
+      <Text style={ui.body}>El equipo revisará disponibilidad, preparación y el nuevo total antes de modificar el pedido.</Text>
+      <TextInput accessibilityLabel="Nueva cantidad" keyboardType="number-pad" value={requestedQuantity}
+        onChangeText={setRequestedQuantity} placeholder={`Cantidad actual: ${line.quantity}`}
+        style={{ minHeight: 48, borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 12, color: palette.ink }} />
+      <TextInput accessibilityLabel="Motivo del cambio de cantidad" placeholder="Motivo (mínimo 3 caracteres)" value={changeReason}
+        onChangeText={setChangeReason} multiline maxLength={500}
+        style={{ minHeight: 72, borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 12, color: palette.ink, textAlignVertical: "top" }} />
+      <Button title="Enviar cambio para revisión" busy={submittingChange === selectionKey}
+        disabled={Boolean(submittingChange) || Boolean(session?.offline) || !cancellationAttemptsReady}
+        onPress={() => void submitQuantityChange(orderRequestId, line)} />
+      <Button title="Volver" secondary onPress={() => { setSelectedQuantityChange(null); setRequestedQuantity(""); setChangeReason(""); }} />
+    </View>;
+    return <Button title="Solicitar cambio de cantidad" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline) || !cancellationAttemptsReady}
+      onPress={() => { setError(""); setRequestedQuantity(String(line.quantity)); setChangeReason(""); setSelectedQuantityChange(selectionKey); }} />;
+  }
+
   function lineCancellationSection(orderRequestId: string) {
     const lines = cancellableItems[orderRequestId];
     return <View style={ui.section}>
-      <Button title={lines ? "Ocultar productos cancelables" : "Solicitar cancelar un producto"} secondary
+      <Button title={lines ? "Ocultar productos ajustables" : "Ver productos ajustables"} secondary
         busy={loadingCancellableItems === orderRequestId} disabled={Boolean(loadingCancellableItems) || Boolean(session?.offline)}
         onPress={() => void loadCancellableItems(orderRequestId)} />
-      {lines?.length === 0 ? <Notice>No hay productos que se puedan cancelar desde la app. Contacta al equipo si necesitas ayuda.</Notice> : null}
+      {lines?.length === 0 ? <Notice>No hay productos que se puedan ajustar desde la app. Contacta al equipo si necesitas ayuda.</Notice> : null}
       {lines?.map((line) => <View key={line.orderItemId} style={ui.section}>
         <Text style={ui.body}>{line.quantity} × {line.name}</Text>
+        {quantityChangeControls(orderRequestId, line)}
         {cancellationControls(orderRequestId, line.orderItemId)}
       </View>)}
     </View>;

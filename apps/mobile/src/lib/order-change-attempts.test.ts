@@ -57,4 +57,18 @@ describe("order change idempotency attempts", () => {
     expect(resolveOrderChangeAttempt([legacy], owner, orderRequestId, "No puedo llegar", () => secondKey, 3000))
       .toEqual([legacy]);
   });
+
+  it("keeps cancellation and quantity-change keys separate and rotates when the requested quantity changes", () => {
+    const cancelled = resolveOrderChangeAttempt([], owner, orderRequestId, "No deseo este platillo", () => firstKey,
+      1000, firstItemId);
+    const changed = resolveOrderChangeAttempt(cancelled, owner, orderRequestId, "Quiero otra cantidad", () => secondKey,
+      2000, firstItemId, "MODIFY_QUANTITY", 2);
+    const anotherQuantity = resolveOrderChangeAttempt(changed, owner, orderRequestId, "Quiero otra cantidad", () => firstKey,
+      3000, firstItemId, "MODIFY_QUANTITY", 3);
+
+    expect(anotherQuantity).toHaveLength(3);
+    expect(anotherQuantity.map((attempt) => attempt.key)).toEqual([firstKey, secondKey, firstKey]);
+    expect(removeOrderChangeAttempt(anotherQuantity, owner, orderRequestId, firstItemId,
+      "MODIFY_QUANTITY", 2)).toHaveLength(2);
+  });
 });
