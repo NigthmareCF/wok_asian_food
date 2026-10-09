@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — Verificación actual y bloqueo de compilación Android
+
+- En `feature/mobile-shell`, `npm test -- --run` pasa 27 archivos / 125 pruebas; `npm run lint` y `npm run typecheck` terminan sin errores. El checkout estaba limpio y no se modificó código funcional en esta revisión.
+- Se intentó `./gradlew assembleRelease` desde `apps/mobile/android`, pero Gradle detuvo la configuración porque no encuentra Android SDK (`ANDROID_HOME`, `ANDROID_SDK_ROOT` o `sdk.dir`). No se generó un APK nuevo; el APK previo descrito abajo no contiene necesariamente los cambios móviles más recientes.
+- Para producir un APK actualizado hace falta instalar/configurar Android SDK y aceptar las licencias correspondientes, o usar un build remoto de Expo con proyecto/credenciales configurados. La prueba en teléfono real también sigue pendiente.
+
 ## 2026-10-08 — Solicitud de cambio de opciones de producto
 
 - Mis pedidos incorpora selección estructurada por los grupos/opciones activos del producto para solicitar cambios de modificadores; la app conserva la configuración vigente hasta aprobación Operativa y comunica estado/motivo de rechazo. Opciones históricas desactivadas se muestran y pueden quitarse, sin permitir reenviarlas como activas. Mientras haya una solicitud pendiente en el pedido, la interfaz bloquea solicitudes competidoras en otras líneas, de acuerdo con el control transaccional del backend.
