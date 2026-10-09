@@ -55,3 +55,15 @@ Los controles principales deben medir al menos 44 px y mantenerse accesibles con
 ## Entrega del canal
 
 Cada PR debe limitarse a vistas asignadas, identificar permisos simulados y documentar qué requiere backend o realtime. Adjuntar capturas de los estados normal, vacío y crítico, además de móvil y escritorio.
+
+## E9.1 - Inventario conectado
+
+Se conectaron mediante BFF GET /api/v1/operational/inventory/items, GET /items/{itemId} y POST /items/{itemId}/movements. El permiso real es inventory:manage; el backend calcula existencias, reservado, disponible, mínimo, estado y delta. Los movimientos ENTRY, ADJUSTMENT y WASTE usan Idempotency-Key y X-Request-Id, y la interfaz recarga el listado después de registrar.
+
+Se manejan carga, vacío, 401, 403, 404, 409, 422, validación y doble envío. Lotes, compras, proveedores, recetas, consumo de pedidos y producción no tienen una superficie conectada para esta etapa y quedan bloqueados para 9.2; no se usan fixtures como éxito real.
+
+## E9.2 - Compras, proveedores, recetas y producción
+
+La API existente permite lectura de lotes de producción (GET /api/v1/operational/production/batches y detalle), registro idempotente de producción (POST /batches) y lectura de recetas (GET /api/v1/operational/inventory/items/{itemId}/recipe). Las operaciones de producción consumen inventario y el backend valida receta, disponibilidad, permisos production:manage, Idempotency-Key y X-Request-Id.
+
+No hay endpoints operativos para proveedores, órdenes de compra, recepción de compras ni lotes de inventario. El consumo por pedidos se ejecuta internamente al cerrar/reservar pedidos y no tiene consulta operativa dedicada. La edición de recetas existe en backend (PUT) pero no hay editor activo conectado en esta etapa. Compras, proveedores, lotes, editor de recetas y cualquier estado no expuesto quedan bloqueados; no se simula persistencia ni éxito.

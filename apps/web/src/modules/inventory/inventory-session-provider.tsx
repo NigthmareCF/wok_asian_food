@@ -1,163 +1,148 @@
 "use client";
-
-import { createContext, useContext, useMemo, useState } from "react";
 import {
-  inventoryItems,
-  inventoryMovements,
-  type InventoryItem,
-  type InventoryMovement,
-  type InventoryMovementType,
-  type InventoryAdjustmentReason,
-} from "@/data/fixtures/inventory";
-
-type AddEntryInput = {
-  itemId: string;
-  quantity: number;
-  expiryDate: string;
-  supplier: string;
-  cost: number;
-  batchCode?: string;
-};
-
-type AdjustStockInput = {
-  itemId: string;
-  quantity: number;
-  reason: InventoryAdjustmentReason;
-  lotId?: string;
-  notes?: string;
-};
-
-type InventorySessionContextValue = {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { InventoryDetails, InventoryItem } from "./live-contract";
+type InventoryContextValue = {
   items: InventoryItem[];
-  movements: InventoryMovement[];
-  addEntry: (input: AddEntryInput) => boolean;
-  adjustStock: (input: AdjustStockInput) => boolean;
+  loading: boolean;
+  error: string | null;
+  actionLoading: boolean;
+  refresh: (query?: string) => Promise<void>;
+  details: (itemId: string) => Promise<InventoryDetails | null>;
+  recordMovement: (
+    itemId: string,
+    type: "ENTRY" | "ADJUSTMENT" | "WASTE",
+    quantity: number,
+    reason?: string,
+  ) => Promise<boolean>;
 };
-
-const InventorySessionContext =
-  createContext<InventorySessionContextValue | null>(null);
-
+const Context = createContext<InventoryContextValue | null>(null);
+const id = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+async function message(response: Response) {
+  return (
+    ((await response.json().catch(() => null)) as { message?: string } | null)
+      ?.message ?? "No pudimos completar la solicitud."
+  );
+}
 export function InventorySessionProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [items, setItems] = useState<InventoryItem[]>(inventoryItems);
-  const [movements, setMovements] =
-    useState<InventoryMovement[]>(inventoryMovements);
-
-  const value = useMemo<InventorySessionContextValue>(
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const refresh = useCallback(async (query = "") => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/bff/operational/inventory${query ? `?${query}` : ""}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) throw new Error(await message(response));
+      setItems((await response.json()) as InventoryItem[]);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "No pudimos cargar inventario.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
+  const details = useCallback(async (itemId: string) => {
+    try {
+      const response = await fetch(`/bff/operational/inventory/${itemId}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(await message(response));
+      return (await response.json()) as InventoryDetails;
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "No pudimos cargar el item.",
+      );
+      return null;
+    }
+  }, []);
+  const recordMovement = useCallback(
+    async (
+      itemId: string,
+      type: "ENTRY" | "ADJUSTMENT" | "WASTE",
+      quantity: number,
+      reason?: string,
+    ) => {
+      if (quantity < 0) return false;
+      setActionLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          `/bff/operational/inventory/${itemId}/movements`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": id(),
+              "X-Request-Id": id(),
+            },
+            body: JSON.stringify({
+              type,
+              quantity,
+              ...(reason ? { reason } : {}),
+            }),
+          },
+        );
+        if (!response.ok) throw new Error(await message(response));
+        await refresh();
+        return true;
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "No pudimos registrar el movimiento.",
+        );
+        await refresh();
+        return false;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [refresh],
+  );
+  const value = useMemo(
     () => ({
       items,
-      movements,
-      addEntry({ itemId, quantity, expiryDate, supplier, cost, batchCode }) {
-        const item = items.find((i) => i.id === itemId);
-        if (!item || quantity <= 0) return false;
-
-        const newLot = {
-          id: `lot-${Date.now()}`,
-          itemId,
-          quantity,
-          entryDate: new Date().toISOString().split("T")[0],
-          expiryDate,
-          supplier,
-          cost,
-          batchCode,
-        };
-
-        const newMovement: InventoryMovement = {
-          id: `imv-${Date.now()}`,
-          itemId,
-          itemName: item.name,
-          type: "entry",
-          quantity,
-          createdBy: "Antony",
-          createdAt: new Date().toLocaleTimeString("es-GT", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          }),
-        };
-
-        setItems((current) =>
-          current.map((i) =>
-            i.id === itemId
-              ? {
-                  ...i,
-                  stock: i.stock + quantity,
-                  available: i.available + quantity,
-                  lots: [...i.lots, newLot],
-                  lastEntry: newMovement.createdAt,
-                  status:
-                    i.stock + quantity >= i.minStock ? "available" : i.status,
-                }
-              : i,
-          ),
-        );
-        setMovements((current) => [newMovement, ...current]);
-        return true;
-      },
-      adjustStock({ itemId, quantity, reason, lotId, notes }) {
-        const item = items.find((i) => i.id === itemId);
-        if (!item) return false;
-
-        const newStock = item.stock + quantity;
-        if (newStock < 0) return false;
-
-        let newStatus: InventoryItem["status"] = item.status;
-        if (newStock <= 0) newStatus = "critical";
-        else if (newStock < item.minStock) newStatus = "low";
-        else newStatus = "available";
-
-        const newMovement: InventoryMovement = {
-          id: `imv-${Date.now()}`,
-          itemId,
-          itemName: item.name,
-          type: "adjustment",
-          quantity,
-          lotId,
-          reason: notes || reason,
-          createdBy: "Antony",
-          createdAt: new Date().toLocaleTimeString("es-GT", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          }),
-        };
-
-        setItems((current) =>
-          current.map((i) =>
-            i.id === itemId
-              ? {
-                  ...i,
-                  stock: newStock,
-                  available: Math.max(0, newStock - i.reserved),
-                  status: newStatus,
-                  lastAdjustment: newMovement.createdAt,
-                }
-              : i,
-          ),
-        );
-        setMovements((current) => [newMovement, ...current]);
-        return true;
-      },
+      loading,
+      error,
+      actionLoading,
+      refresh,
+      details,
+      recordMovement,
     }),
-    [items, movements],
+    [items, loading, error, actionLoading, refresh, details, recordMovement],
   );
-
-  return (
-    <InventorySessionContext.Provider value={value}>
-      {children}
-    </InventorySessionContext.Provider>
-  );
+  return <Context.Provider value={value}>{children}</Context.Provider>;
 }
-
 export function useInventorySession() {
-  const context = useContext(InventorySessionContext);
-  if (!context) {
+  const context = useContext(Context);
+  if (!context)
     throw new Error(
       "useInventorySession must be used inside InventorySessionProvider",
     );
-  }
   return context;
 }

@@ -1,70 +1,74 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { InventorySessionProvider } from "../inventory-session-provider";
-import { InventoryListView } from "./inventory-list-view";
 import { InventoryDetailView } from "./inventory-detail-view";
-
+import { InventoryListView } from "./inventory-list-view";
 afterEach(cleanup);
-
-const renderInventory = (view: React.ReactNode = <InventoryListView />) =>
-  render(<InventorySessionProvider>{view}</InventorySessionProvider>);
-
-describe("Inventory views", () => {
-  it("does not link to the non-existent new-entry route", () => {
-    renderInventory();
-    expect(
-      screen.queryByRole("link", { name: /Nueva entrada/ }),
-    ).not.toBeInTheDocument();
+const item = {
+  itemId: "11111111-1111-4111-8111-111111111111",
+  sku: "SKU-1",
+  name: "Arroz",
+  unit: "KG",
+  trackInventory: true,
+  active: true,
+  minimumStock: 2,
+  quantityOnHand: 5,
+  quantityReserved: 1,
+  quantityAvailable: 4,
+  status: "OK",
+};
+const detail = { item, movements: [] };
+it("muestra existencias del backend", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json([item])));
+  render(
+    <InventorySessionProvider>
+      <InventoryListView />
+    </InventorySessionProvider>,
+  );
+  expect(await screen.findByText("Arroz")).toBeInTheDocument();
+});
+it("registra movimiento y recarga la existencia", async () => {
+  const user = userEvent.setup();
+  const fetchMock = vi.fn((url: string) => {
+    if (url.includes("/movements"))
+      return Promise.resolve(
+        Response.json(
+          {
+            movementId: item.itemId,
+            itemId: item.itemId,
+            type: "ENTRY",
+            quantityDelta: 1,
+            quantityOnHand: 6,
+            unit: "KG",
+            idempotentReplay: false,
+          },
+          { status: 201 },
+        ),
+      );
+    if (url.includes("/inventory/") && !url.includes("/movements"))
+      return Promise.resolve(
+        Response.json({
+          ...detail,
+          item: { ...item, quantityOnHand: 6, quantityAvailable: 5 },
+        }),
+      );
+    return Promise.resolve(Response.json([item]));
   });
-
-  it("registers a stock entry from the item detail", async () => {
-    const user = userEvent.setup();
-    renderInventory(<InventoryDetailView itemId="inv-001" />);
-
-    await user.click(
-      screen.getByRole("button", { name: /Registrar entrada/ }),
-    );
-    const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
-    await user.type(within(dialog).getByPlaceholderText("0"), "10");
-    fireEvent.change(
-      within(dialog).getByLabelText(/Fecha de vencimiento/),
-      { target: { value: "2027-01-15" } },
-    );
-    await user.type(
-      within(dialog).getByPlaceholderText("Nombre del proveedor"),
-      "Distribuidora Asia",
-    );
-    await user.type(within(dialog).getByPlaceholderText("0.00"), "19");
-    await user.click(
-      within(dialog).getByRole("button", { name: /Confirmar entrada/ }),
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      /Entrada de 10 kg registrada/,
-    );
-    expect(screen.getAllByText("34 kg").length).toBeGreaterThan(0);
-  });
-
-  it("adjusts stock down with a reason", async () => {
-    const user = userEvent.setup();
-    renderInventory(<InventoryDetailView itemId="inv-003" />);
-
-    await user.click(screen.getByRole("button", { name: /Ajustar stock/ }));
-    const dialog = screen.getByRole("dialog", { name: "Ajustar stock" });
-    await user.type(within(dialog).getByPlaceholderText("-2"), "-1");
-    await user.click(
-      within(dialog).getByRole("button", { name: /Confirmar ajuste/ }),
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      /Ajuste de -1 kg registrado \(Daño\)/,
-    );
-  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(
+    <InventorySessionProvider>
+      <InventoryDetailView itemId={item.itemId} />
+    </InventorySessionProvider>,
+  );
+  await screen.findByText("Arroz");
+  await user.type(screen.getByLabelText("Cantidad"), "1");
+  await user.click(screen.getByRole("button", { name: "Registrar" }));
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "existencias recargadas",
+  );
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/movements"),
+    expect.objectContaining({ method: "POST" }),
+  );
 });

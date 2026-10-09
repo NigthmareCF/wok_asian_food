@@ -252,3 +252,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Después de responder, el hilo permanece visible con estado Abierta y la conversación sale de la cola. Se conserva el intento idempotente ante respuestas perdidas. Estado del servicio en el shell sigue simulado y su etiqueta lo aclara.
 - Prueba local entre Cliente Demo Checkout y Operativo Demo mediante HTTP y navegador: mensaje enviado, respuesta visible, cola sin pendientes. Cliente sin rol operativo recibe 403. Suite web 368 pruebas aprobadas, lint/TypeScript/build Docker correctos.
 - Delivery y reservas operativas conservan sus vistas previas; su integración y gestión posterior se deben abordar como siguiente sección. No se hicieron commits ni push.
+
+## E9.1 - Inventario
+
+Listado, detalle y movimientos de inventario consumen contratos reales mediante BFF; cantidades y estados provienen del backend y los movimientos son idempotentes. Lotes, compras, proveedores, recetas, consumo relacionado con pedidos y producción quedan bloqueados por falta de contrato conectado.
+## E9.2 - Compras, proveedores, recetas y producción
+
+Producción quedó conectada en lectura de lotes/detalle y registro idempotente; el detalle muestra consumos que el backend calculó. Se añadió lectura BFF de recetas. Proveedores, compras, recepción, lotes de inventario, consulta de consumo por pedidos y editor de recetas siguen bloqueados por falta de superficie web/contrato suficiente.
