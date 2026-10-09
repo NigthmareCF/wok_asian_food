@@ -1,15 +1,20 @@
 # Progreso de planificación móvil
 
+## 2026-10-08 — APK Android release recompilado
+
+- El SDK Android está en `/home/fer-cachy/.cache/wok-build/android-sdk` aunque `ANDROID_HOME` no está exportado. Con Android SDK 36 / NDK 27.1 se completó `assembleRelease` desde el checkout actual en seis minutos.
+- Artefacto local ignorado por Git: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, 102 MiB, multi-ABI; paquete `com.anonymous.wokasianfood` v1.0.0. SHA-256 `d0bb69356241de227055fc474af309cd22852552557d76db6754b9b3c835af90`. `apksigner verify` confirmó firma APK v2.
+- El release usa el certificado debug local y no se configuró `EXPO_PUBLIC_API_BASE_URL`; sirve para revisar pantallas instaladas, pero las llamadas API no conectarán. No se instaló ni ejecutó en un teléfono. No es una publicación de tienda ni APK de producción.
+
 ## 2026-10-08 — Intentos de cambio aislados por cuenta
 
 - Los intentos idempotentes de cancelar/cambiar cantidad/opciones de pedido ahora se guardan en SecureStore bajo una clave derivada del hash de la cuenta. Cada cuenta lee y reescribe únicamente sus propios intentos; una migración de lectura recupera los intentos válidos de la clave global anterior sin exponerlos a otra sesión.
 - Se añadieron pruebas para la clave account-scoped y para filtrar correctamente los intentos heredados, incluido correo con mayúsculas y sesión sin propietario. Verificación: Vitest 126/126, ESLint, TypeScript y export Expo Web de 17 rutas.
 
-## 2026-10-08 — Verificación actual y bloqueo de compilación Android
+## 2026-10-08 — Primera detección de SDK Android no exportado (SUPERSEDED)
 
-- En `feature/mobile-shell`, `npm test -- --run` pasa 27 archivos / 125 pruebas; `npm run lint` y `npm run typecheck` terminan sin errores. El checkout estaba limpio y no se modificó código funcional en esta revisión.
-- Se intentó `./gradlew assembleRelease` desde `apps/mobile/android`, pero Gradle detuvo la configuración porque no encuentra Android SDK (`ANDROID_HOME`, `ANDROID_SDK_ROOT` o `sdk.dir`). No se generó un APK nuevo; el APK previo descrito abajo no contiene necesariamente los cambios móviles más recientes.
-- Para producir un APK actualizado hace falta instalar/configurar Android SDK y aceptar las licencias correspondientes, o usar un build remoto de Expo con proyecto/credenciales configurados. La prueba en teléfono real también sigue pendiente.
+- Al inicio de la revisión no estaban exportadas `ANDROID_HOME` ni `ANDROID_SDK_ROOT`, por lo que el primer intento Gradle falló al buscar el SDK. Después se localizó el SDK preexistente en la caché de build y la entrada superior registra el APK generado desde el checkout actual.
+- La prueba en teléfono real y la configuración de URL API alcanzable siguen pendientes.
 
 ## 2026-10-08 — Solicitud de cambio de opciones de producto
 
