@@ -52,3 +52,7 @@ En escritorio, usar la navegación del shell existente. Toda vista debe incluir 
 ## Entrega del canal
 
 El PR debe listar los IDs implementados, enlazar el mockup correspondiente y adjuntar capturas de móvil y escritorio. Las acciones dependientes de backend deben usar fixtures y mostrar claramente que son demostrativas; no deben afirmar que un correo, pago, pedido o reserva fue procesado realmente.
+
+## Etapa 10 — contratos reales (2026-10-09)
+
+La [matriz de auditoría final](../STAGE_10_AUDIT.md) registra las rutas activas, DTO, conexiones y contratos ausentes. Para el alcance de esta etapa, sustituye las indicaciones históricas de usar fixtures: sólo se conectan endpoints existentes y las funciones sin contrato muestran estado bloqueado.

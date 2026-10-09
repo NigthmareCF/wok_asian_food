@@ -252,3 +252,12 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Después de responder, el hilo permanece visible con estado Abierta y la conversación sale de la cola. Se conserva el intento idempotente ante respuestas perdidas. Estado del servicio en el shell sigue simulado y su etiqueta lo aclara.
 - Prueba local entre Cliente Demo Checkout y Operativo Demo mediante HTTP y navegador: mensaje enviado, respuesta visible, cola sin pendientes. Cliente sin rol operativo recibe 403. Suite web 368 pruebas aprobadas, lint/TypeScript/build Docker correctos.
 - Delivery y reservas operativas conservan sus vistas previas; su integración y gestión posterior se deben abordar como siguiente sección. No se hicieron commits ni push.
+
+## 2026-10-09 — Etapa 10: cierre de auditoría e integración posible
+
+- Rama: `feature/chan-reports-audit-contracts`.
+- Resultado: O-01 conecta mesas activas mediante BFF existente y agrega BFF de lectura para OrderSummary y StationLoad, usando endpoints reales. Cuenta estados de mesas persistidas y muestra conteos de cocina por estación. Pedidos recientes limitados a 200, sin extrapolar ventas ni pedidos activos. Carga, vacío, errores independientes y actualización manual. Porcentaje de carga, ETA global, alertas y realtime siguen bloqueados por contrato ausente.
+- Contratos, pantallas y tabla final: [Etapa 10](../frontend/STAGE_10_AUDIT.md).
+- Pruebas: BFF de dashboard y servicios públicos, UI operativa/servicios, regresión de mesas e inicio Cliente y rutas administrativas bloqueadas.
+- Verificaciones: 34 pruebas enfocadas aprobadas en 6 archivos; `npm run lint`, `npm run typecheck`, `npm run build:web` y `git diff --check` aprobados. Typecheck inicial encontró referencias obsoletas en `.next`; pasó tras regenerarlas con build. La prueba adicional de rutas bloqueadas tuvo timeout al iniciar un worker durante el build y pasó al repetirse con `--maxWorkers=1`.
+- Límites: sin smoke HTTP contra backend desplegado ni validación visual en navegador; respuestas controladas en pruebas. Sin APIs de negocio, migraciones, dependencias ni integraciones externas nuevas. Sin commit ni push.

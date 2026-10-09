@@ -1,277 +1,149 @@
 "use client";
-
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import {
-  AlarmClockOff,
-  ArrowRight,
-  ChefHat,
-  ChevronDown,
-  CircleAlert,
-  CircleCheck,
-  CircleDot,
-  ReceiptText,
-} from "lucide-react";
-import {
-  operationalAlerts,
-  operationalKitchenSummary,
-  operationalOrders,
-  operationalOrderSummary,
-  operationalTableSummary,
-  type OperationalOrder,
-} from "@/data/fixtures/operation";
+import type { ReactNode } from "react";
+import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
+import { isOperationalTables } from "@/modules/tables/live-contract";
+import { isOrderSummaries, isStationLoads } from "../dashboard-contract";
 
-const orderStatus = {
-  new: { icon: CircleDot, label: "Nuevo", tone: "info" },
-  preparing: { icon: ChefHat, label: "Preparando", tone: "warning" },
-  ready: { icon: CircleCheck, label: "Listo", tone: "success" },
-  delayed: { icon: AlarmClockOff, label: "Retrasado", tone: "danger" },
-} satisfies Record<
-  OperationalOrder["status"],
-  { icon: typeof ChefHat; label: string; tone: string }
->;
-
-type OrderFilter = "all" | OperationalOrder["status"];
-
-export function OperationalDashboard() {
-  const [orderFilter, setOrderFilter] = useState<OrderFilter>("all");
-  const [alertsExpanded, setAlertsExpanded] = useState(false);
-
-  const filteredOrders = useMemo(
-    () =>
-      orderFilter === "all"
-        ? operationalOrders
-        : operationalOrders.filter((order) => order.status === orderFilter),
-    [orderFilter],
-  );
-
+const tableLabels = {
+  FREE: "Libres",
+  OCCUPIED: "Ocupadas",
+  RESERVED: "Reservadas",
+  CLEANING: "En limpieza",
+  UNAVAILABLE: "No disponibles",
+} as const;
+const orderLabels: Record<string, string> = {
+  SENT: "Enviado a cocina",
+  PREPARING: "Preparando",
+  READY: "Listo",
+  SERVED: "Servido",
+  CLOSED: "Cerrado",
+  CANCELLED: "Cancelado",
+};
+function ResourcePanel({
+  title,
+  data,
+  error,
+  reload,
+  children,
+}: {
+  title: string;
+  data: unknown;
+  error: { message: string; status: number } | null;
+  reload: () => void;
+  children: ReactNode;
+}) {
   return (
-    <div className="ops-dashboard ops-dashboard--focused">
-      <header className="ops-page-header ops-page-header--focused">
+    <section className="ops-work-panel">
+      <h2>{title}</h2>
+      {error ? (
+        <p role="alert">{error.message}</p>
+      ) : data === null ? (
+        <p role="status">Cargando {title.toLowerCase()}…</p>
+      ) : (
+        children
+      )}
+      <button
+        type="button"
+        className="button button--secondary"
+        onClick={reload}
+      >
+        Actualizar {title.toLowerCase()}
+      </button>
+    </section>
+  );
+}
+export function OperationalDashboard() {
+  const tables = usePickupResource(
+    "/bff/operational/tables?active=true",
+    isOperationalTables,
+  );
+  const orders = usePickupResource("/bff/operational/orders", isOrderSummaries);
+  const kitchen = usePickupResource(
+    "/bff/operational/kitchen/load",
+    isStationLoads,
+  );
+  return (
+    <div className="ops-dashboard">
+      <header className="ops-page-header">
         <div>
-          <span className="ops-kicker">Turno actual</span>
           <h1>Centro de operaciones</h1>
-          <p>Mesas, pedidos y cocina en una sola vista.</p>
+          <p>
+            Datos persistidos. Actualización manual; sin conexión en tiempo
+            real.
+          </p>
         </div>
-        <Link className="ops-service-link" href="/operation/status">
-          <span className="live-dot" aria-hidden="true" />
-          <span>
-            <strong>Servicio normal</strong>
-            <small>Datos simulados</small>
-          </span>
-          <ArrowRight aria-hidden="true" size={16} />
-        </Link>
       </header>
-
-      <section className="ops-focus-grid" aria-label="Resumen operativo">
-        <article className="ops-table-summary">
-          <div className="ops-summary-heading">
-            <div>
-              <span>Salón</span>
-              <h2>Estado de mesas</h2>
-            </div>
-            <Link className="text-action" href="/operation/tables">
-              Ver mesas <ArrowRight aria-hidden="true" size={15} />
-            </Link>
-          </div>
-          <div className="ops-table-summary__content">
-            <div
-              aria-label={`${operationalTableSummary.occupied} mesas ocupadas, ${operationalTableSummary.reserved} reservadas y ${operationalTableSummary.free} libres`}
-              className="ops-table-donut"
-              role="img"
-            >
-              <div>
-                <strong>{operationalTableSummary.total}</strong>
-                <span>mesas</span>
-              </div>
-            </div>
-            <ul className="ops-table-legend">
-              <li className="ops-table-legend__occupied">
-                <span aria-hidden="true" />
-                <div>
-                  <strong>{operationalTableSummary.occupied}</strong>
-                  <small>Ocupadas</small>
-                </div>
-              </li>
-              <li className="ops-table-legend__reserved">
-                <span aria-hidden="true" />
-                <div>
-                  <strong>{operationalTableSummary.reserved}</strong>
-                  <small>Reservadas</small>
-                </div>
-              </li>
-              <li className="ops-table-legend__free">
-                <span aria-hidden="true" />
-                <div>
-                  <strong>{operationalTableSummary.free}</strong>
-                  <small>Libres</small>
-                </div>
-              </li>
+      <div className="ops-focus-grid">
+        <ResourcePanel title="Mesas" {...tables}>
+          {tables.data?.length === 0 ? (
+            <p>No hay mesas activas.</p>
+          ) : (
+            <ul>
+              {Object.entries(tableLabels).map(([status, label]) => (
+                <li key={status}>
+                  {label}:{" "}
+                  {
+                    tables.data?.filter((table) => table.status === status)
+                      .length
+                  }
+                </li>
+              ))}
             </ul>
-          </div>
-        </article>
-
-        <div className="ops-compact-summaries">
-          <article className="ops-compact-summary">
-            <div>
-              <span>Pedidos activos</span>
-              <strong>{operationalOrderSummary.active}</strong>
-            </div>
-            <p>{operationalOrderSummary.attention} requieren atención</p>
-            <Link className="text-action" href="/operation/orders">
-              Abrir pedidos <ArrowRight aria-hidden="true" size={15} />
-            </Link>
-          </article>
-
-          <article className="ops-compact-summary ops-compact-summary--kitchen">
-            <div>
-              <span>Carga de cocina</span>
-              <strong>{operationalKitchenSummary.load}%</strong>
-            </div>
-            <div
-              aria-label={`Carga de cocina ${operationalKitchenSummary.load}%`}
-              className="ops-kitchen-progress"
-              role="progressbar"
-              aria-valuemax={100}
-              aria-valuemin={0}
-              aria-valuenow={operationalKitchenSummary.load}
-            >
-              <span style={{ width: `${operationalKitchenSummary.load}%` }} />
-            </div>
-            <p>Tiempo estimado: {operationalKitchenSummary.eta}</p>
-            <Link className="text-action" href="/operation/kitchen">
-              Ver cocina <ArrowRight aria-hidden="true" size={15} />
-            </Link>
-          </article>
-        </div>
-      </section>
-
-      <div className="ops-content-grid ops-content-grid--focused">
-        <section
-          className="ops-work-panel"
-          aria-labelledby="active-orders-title"
-        >
-          <div className="ops-section-heading ops-section-heading--compact">
-            <div>
-              <h2 id="active-orders-title">Pedidos activos</h2>
-              <p>{filteredOrders.length} pedidos en esta vista</p>
-            </div>
-            <Link className="text-action" href="/operation/orders">
-              Ver todos <ArrowRight aria-hidden="true" size={15} />
-            </Link>
-          </div>
-
-          <div className="segmented-control" aria-label="Filtrar pedidos">
-            {(
-              [
-                ["all", "Todos"],
-                ["new", "Nuevos"],
-                ["preparing", "Preparando"],
-                ["ready", "Listos"],
-                ["delayed", "Retrasados"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                aria-pressed={orderFilter === value}
-                key={value}
-                onClick={() => setOrderFilter(value)}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div className="ops-order-list">
-            {filteredOrders.length > 0 ? (
-              filteredOrders.map((order) => {
-                const status = orderStatus[order.status];
-                const StatusIcon = status.icon;
-                return (
-                  <Link
-                    className="ops-order-row ops-order-row--focused"
-                    href={`/operation/orders/${order.id.replace(/[^A-Za-z0-9-]/g, "")}`}
-                    key={order.id}
-                  >
-                    <div className="ops-order-row__identity">
-                      <strong>{order.id}</strong>
-                      <span>{order.source}</span>
-                    </div>
-                    <p>{order.summary}</p>
-                    <div className="ops-order-row__time">
-                      <span>{order.elapsed}</span>
-                      <strong>{order.eta}</strong>
-                    </div>
-                    <span
-                      aria-label={status.label}
-                      className={`ops-order-state ops-order-state--${status.tone}`}
-                      title={status.label}
-                    >
-                      <StatusIcon aria-hidden="true" size={20} />
-                    </span>
-                  </Link>
-                );
-              })
-            ) : (
-              <div className="ops-empty-state">
-                <ReceiptText aria-hidden="true" size={26} />
-                <strong>No hay pedidos con este estado</strong>
-                <span>Selecciona otro filtro para continuar.</span>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <aside
-          className="ops-work-panel ops-attention"
-          aria-labelledby="alerts-title"
-        >
-          <div className="ops-section-heading ops-section-heading--compact">
-            <div>
-              <h2 id="alerts-title">Atención</h2>
-              <p>{operationalAlerts.length} alertas requieren actuar</p>
-            </div>
-            <button
-              aria-expanded={alertsExpanded}
-              aria-label={
-                alertsExpanded
-                  ? "Contraer alertas de atención"
-                  : "Desplegar alertas de atención"
-              }
-              className="ops-attention__toggle"
-              onClick={() => setAlertsExpanded((current) => !current)}
-              title={alertsExpanded ? "Contraer alertas" : "Mostrar alertas"}
-              type="button"
-            >
-              <CircleAlert aria-hidden="true" size={19} />
-              <span>{operationalAlerts.length}</span>
-              <ChevronDown aria-hidden="true" size={17} />
-            </button>
-          </div>
-          <div className="ops-alert-list">
-            {(alertsExpanded
-              ? operationalAlerts
-              : operationalAlerts.slice(0, 1)
-            ).map((alert) => (
-              <article
-                className={`ops-alert ops-alert--${alert.tone}`}
-                key={alert.id}
-              >
-                <CircleAlert aria-hidden="true" size={18} />
-                <div>
-                  <strong>{alert.title}</strong>
-                  <p>{alert.detail}</p>
-                </div>
-                <span>{alert.time}</span>
+          )}
+          <Link className="text-action" href="/operation/tables">
+            Ver mesas
+          </Link>
+        </ResourcePanel>
+        <ResourcePanel title="Cocina" {...kitchen}>
+          {kitchen.data?.length === 0 ? (
+            <p>No hay estaciones activas.</p>
+          ) : (
+            kitchen.data?.map((station) => (
+              <article key={station.stationId}>
+                <h3>{station.stationCode}</h3>
+                <p>
+                  En cola: {station.queued} · Preparando: {station.preparing} ·
+                  Listos: {station.ready}
+                </p>
               </article>
-            ))}
-          </div>
-        </aside>
+            ))
+          )}
+          <p>Porcentaje de carga y ETA global bloqueados: faltan contratos.</p>
+          <Link className="text-action" href="/operation/kitchen">
+            Ver cocina
+          </Link>
+        </ResourcePanel>
       </div>
-
-      <p className="mock-disclaimer">
-        Datos simulados para validar la experiencia operativa.
-      </p>
+      <ResourcePanel title="Pedidos recientes" {...orders}>
+        <p>
+          La consulta devuelve como máximo 200 pedidos recientes. No representa
+          un total de ventas ni de pedidos activos.
+        </p>
+        {orders.data?.length === 0 ? (
+          <p>No hay pedidos registrados.</p>
+        ) : (
+          <ul>
+            {orders.data?.map((order) => (
+              <li key={order.id}>
+                <strong>{order.code}</strong> · {orderLabels[order.status]} ·{" "}
+                {order.diningTableName ?? order.accountName} · Artículos:{" "}
+                {order.itemCount}
+              </li>
+            ))}
+          </ul>
+        )}
+        <Link className="text-action" href="/operation/orders">
+          Abrir pedidos
+        </Link>
+      </ResourcePanel>
+      <section className="ops-work-panel">
+        <h2>Indicadores pendientes</h2>
+        <p>
+          Bloqueados: alertas agregadas, pedidos que requieren atención y ETA
+          global. No hay contratos suficientes para estos indicadores.
+        </p>
+      </section>
     </div>
   );
 }

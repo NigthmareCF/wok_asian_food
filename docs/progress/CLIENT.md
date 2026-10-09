@@ -378,3 +378,12 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Mensajes reales: conversación demo `2228f316-efa1-4774-a972-d16cda927234`; consulta/respuesta entre cuentas demo, reintento sin duplicado, entrada/salida de cola WAITING y lectura por cliente verificadas. Envío y respuesta también comprobados desde ambas pantallas.
 - Aislamiento real: otro cliente recibe 404 al leer delivery/conversación ajenos; cliente recibe 403 en bandeja operativa. Sin cambios de roles, credenciales, `.env`, commits o push.
 - Pendiente: integración de vistas operativas de Delivery/reservas y sus flujos posteriores; pagos reales, disponibilidad/capacidad en vivo y realtime. Esta entrega no convierte las solicitudes en pedidos confirmados. Revisión visual de escritorio realizada; matriz completa de cuatro tamaños pendiente.
+
+## 2026-10-09 — Etapa 10: cierre de auditoría e integración posible
+
+- Rama: `feature/chan-reports-audit-contracts`.
+- Resultado: C-02 reemplaza el estado demostrativo del servicio por Capability(code,status) desde el endpoint público persistido mediante BFF. No interpreta ENABLED como abierto ni inventa ETA. C-11 muestra bloqueo de ubicación/horarios por ausencia de contrato público; sin navegación externa inventada. El catálogo promocional del inicio conserva su etiqueta demostrativa previa. Realtime sigue bloqueado; mensajería REST no se declara IA ni streaming.
+- Contratos, pantallas y tabla final: [Etapa 10](../frontend/STAGE_10_AUDIT.md).
+- Pruebas: BFF de dashboard y servicios públicos, UI operativa/servicios, regresión de mesas e inicio Cliente y rutas administrativas bloqueadas.
+- Verificaciones: 34 pruebas enfocadas aprobadas en 6 archivos; `npm run lint`, `npm run typecheck`, `npm run build:web` y `git diff --check` aprobados. Typecheck inicial encontró referencias obsoletas en `.next`; pasó tras regenerarlas con build. La prueba adicional de rutas bloqueadas tuvo timeout al iniciar un worker durante el build y pasó al repetirse con `--maxWorkers=1`.
+- Límites: sin smoke HTTP contra backend desplegado ni validación visual en navegador; respuestas controladas en pruebas. Sin APIs de negocio, migraciones, dependencias ni integraciones externas nuevas. Sin commit ni push.
