@@ -71,4 +71,21 @@ describe("order change idempotency attempts", () => {
     expect(removeOrderChangeAttempt(anotherQuantity, owner, orderRequestId, firstItemId,
       "MODIFY_QUANTITY", 2)).toHaveLength(2);
   });
+
+  it("keeps modifier-change retries idempotent per selected option set", () => {
+    const firstOption = "66666666-6666-4666-8666-666666666666";
+    const secondOption = "77777777-7777-4777-8777-777777777777";
+    const first = resolveOrderChangeAttempt([], owner, orderRequestId, "Sin picante", () => firstKey,
+      1000, firstItemId, "MODIFY_MODIFIERS", undefined, [firstOption]);
+    const retry = resolveOrderChangeAttempt(first, owner, orderRequestId, "Sin picante", () => secondKey,
+      2000, firstItemId, "MODIFY_MODIFIERS", undefined, [firstOption]);
+    const changed = resolveOrderChangeAttempt(retry, owner, orderRequestId, "Sin picante", () => secondKey,
+      3000, firstItemId, "MODIFY_MODIFIERS", undefined, [secondOption]);
+
+    expect(retry).toEqual(first);
+    expect(changed).toHaveLength(2);
+    expect(parseOrderChangeAttempts(JSON.stringify(changed), 4000)).toEqual(changed);
+    expect(removeOrderChangeAttempt(changed, owner, orderRequestId, firstItemId,
+      "MODIFY_MODIFIERS", undefined, [firstOption])).toEqual([changed[1]]);
+  });
 });

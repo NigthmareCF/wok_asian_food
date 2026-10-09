@@ -210,10 +210,11 @@ export type OrderChangeRequestReceipt = {
   id: string;
   orderRequestId: string;
   orderCode: string;
-  requestType: "CANCEL_ORDER" | "CANCEL_LINE" | "MODIFY_LINE_QUANTITY";
+  requestType: "CANCEL_ORDER" | "CANCEL_LINE" | "MODIFY_LINE_QUANTITY" | "MODIFY_LINE_MODIFIERS";
   orderItemId?: string | null;
   expectedItemVersion?: number | null;
   requestedQuantity?: number | null;
+  requestedModifiers?: { modifierId: string; groupId: string; groupName: string; name: string; priceDelta: number }[];
   status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
   reason: string;
   decisionReason: string | null;
@@ -229,6 +230,10 @@ export type CancellableOrderItem = {
   itemVersion: number;
   orderVersion: number;
   quantityChangeSupported: boolean;
+  modifierChangeSupported: boolean;
+  selectedModifierIds: string[];
+  selectedModifiers: { modifierId: string; groupId: string; groupName: string; name: string; priceDelta: number }[];
+  modifierGroups: MenuModifierGroup[];
 };
 export type PaymentIntentReceipt = {
   intentId: string;

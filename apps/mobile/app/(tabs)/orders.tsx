@@ -11,6 +11,7 @@ import { useFocusedPolling } from "@/lib/use-focused-polling";
 import { OrderChangeAttempt, parseOrderChangeAttempts, removeOrderChangeAttempt, resolveOrderChangeAttempt } from "@/lib/order-change-attempts";
 import { deleteSecurePayload, readSecurePayload, saveSecurePayload } from "@/lib/reservation-attempt-storage";
 import { canSubmitPaymentEvidence, PaymentEvidenceStatus } from "@/lib/payment-evidence-policy";
+import { menuModifiersAreValid, toggleMenuModifier } from "@/lib/menu-options";
 
 const orderChangeAttemptsKey = "wok.client.order-change-attempts.v1";
 
@@ -87,6 +88,8 @@ function OrderHistory() {
   const [selectedChangeRequest, setSelectedChangeRequest] = useState<string | null>(null);
   const [selectedQuantityChange, setSelectedQuantityChange] = useState<string | null>(null);
   const [requestedQuantity, setRequestedQuantity] = useState("");
+  const [selectedModifierChange, setSelectedModifierChange] = useState<string | null>(null);
+  const [requestedModifierIds, setRequestedModifierIds] = useState<string[]>([]);
   const [submittingChange, setSubmittingChange] = useState<string | null>(null);
 
   const restoreCancellationAttempts = useCallback(async () => {
@@ -164,7 +167,10 @@ function OrderHistory() {
       const decisionArrived = wasPending && next.some((item) => item.status === "APPROVED" || item.status === "REJECTED");
       changeRequestsRef.current = next;
       setChangeRequests(next);
-      if (decisionArrived) void Promise.all([refresh(), refreshDelivery(), refreshTracking()]);
+      if (decisionArrived) {
+        setCancellableItems({});
+        void Promise.all([refresh(), refreshDelivery(), refreshTracking()]);
+      }
     }
     catch { /* Keep order tracking usable when the optional review history is unavailable. */ }
   }, [refresh, refreshDelivery, refreshTracking, request, session]);
@@ -346,6 +352,66 @@ function OrderHistory() {
     } finally { setSubmittingChange(null); }
   }
 
+  async function submitModifierChange(orderRequestId: string, line: CancellableOrderItem) {
+    const modifierIds = [...requestedModifierIds].sort();
+    const selectionKey = `${orderRequestId}:${line.orderItemId}:modifiers`;
+    const reason = changeReason.trim();
+    if (!menuModifiersAreValid(line.modifierGroups, modifierIds)) {
+      setError("Completa las opciones requeridas antes de enviar el cambio."); return;
+    }
+    if (JSON.stringify([...modifierIds].sort()) === JSON.stringify([...line.selectedModifierIds].sort())) {
+      setError("Selecciona una configuración distinta a la actual."); return;
+    }
+    if (reason.length < 3) { setError("Describe brevemente el motivo del cambio."); return; }
+    if (!cancellationAttemptsReady) { setError("Espera a que recuperemos el estado de tus solicitudes y vuelve a intentarlo."); return; }
+    setSubmittingChange(selectionKey); setError(""); setNotice("");
+    const nextAttempts = resolveOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "", orderRequestId,
+      reason, () => Crypto.randomUUID(), undefined, line.orderItemId, "MODIFY_MODIFIERS", undefined, modifierIds);
+    const attempt = nextAttempts.find((item) => item.orderRequestId === orderRequestId && item.orderItemId === line.orderItemId
+      && item.action === "MODIFY_MODIFIERS" && JSON.stringify(item.modifierIds ?? []) === JSON.stringify(modifierIds)
+      && item.ownerEmail.trim().toLowerCase() === (session?.email ?? "").trim().toLowerCase());
+    if (!attempt) { setSubmittingChange(null); setError("No pudimos preparar una solicitud segura. Inténtalo de nuevo."); return; }
+    try {
+      if (Platform.OS !== "web") await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(nextAttempts));
+      cancellationAttempts.current = nextAttempts;
+      const receipt = await request<OrderChangeRequestReceipt>(
+        `/api/v1/client/order-requests/${orderRequestId}/change-requests/items/${line.orderItemId}/modifiers`,
+        { method: "POST", headers: { "Idempotency-Key": attempt.key },
+          body: JSON.stringify({ modifierIds, reason: attempt.reason }) },
+      );
+      const next = [receipt, ...changeRequestsRef.current.filter((item) =>
+        !(item.orderRequestId === orderRequestId && item.orderItemId === line.orderItemId
+          && item.requestType === "MODIFY_LINE_MODIFIERS"))];
+      changeRequestsRef.current = next; setChangeRequests(next);
+      const remaining = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "",
+        orderRequestId, line.orderItemId, "MODIFY_MODIFIERS", undefined, modifierIds);
+      cancellationAttempts.current = remaining;
+      if (Platform.OS !== "web") {
+        if (remaining.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(remaining));
+        else await deleteSecurePayload(orderChangeAttemptsKey);
+      }
+      setSelectedModifierChange(null); setRequestedModifierIds([]); setChangeReason("");
+      setNotice("Enviamos las opciones al equipo. El pedido conserva las opciones actuales hasta que las aprueben.");
+    } catch (cause) {
+      await refreshChangeRequests();
+      const recovered = changeRequestsRef.current.find((item) => item.orderRequestId === orderRequestId
+        && item.orderItemId === line.orderItemId && item.requestType === "MODIFY_LINE_MODIFIERS"
+        && JSON.stringify((item.requestedModifiers ?? []).map((modifier) => modifier.modifierId).sort()) === JSON.stringify(modifierIds));
+      if (recovered) {
+        const remaining = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "",
+          orderRequestId, line.orderItemId, "MODIFY_MODIFIERS", undefined, modifierIds);
+        cancellationAttempts.current = remaining;
+        if (Platform.OS !== "web") {
+          if (remaining.length) await saveSecurePayload(orderChangeAttemptsKey, JSON.stringify(remaining));
+          else await deleteSecurePayload(orderChangeAttemptsKey);
+        }
+        setSelectedModifierChange(null); setRequestedModifierIds([]); setChangeReason("");
+        setNotice(recovered.status === "PENDING_REVIEW" ? "El cambio quedó pendiente; el pedido conserva sus opciones actuales." :
+          `Recuperamos la solicitud: ${recovered.status === "APPROVED" ? "cambio aprobado" : "cambio rechazado"}.`);
+      } else setError(cause instanceof Error ? cause.message : "No pudimos enviar el cambio. Puedes reintentar de forma segura.");
+    } finally { setSubmittingChange(null); }
+  }
+
   async function clearCancellationAttempt(orderRequestId: string, orderItemId: string | null = null) {
     const next = removeOrderChangeAttempt(cancellationAttempts.current, session?.email ?? "", orderRequestId, orderItemId);
     cancellationAttempts.current = next;
@@ -406,6 +472,45 @@ function OrderHistory() {
       onPress={() => { setError(""); setRequestedQuantity(String(line.quantity)); setChangeReason(""); setSelectedQuantityChange(selectionKey); }} />;
   }
 
+  function modifierChangeControls(orderRequestId: string, line: CancellableOrderItem) {
+    if (!line.modifierChangeSupported) return null;
+    const change = changeRequests.find((item) => item.orderRequestId === orderRequestId
+      && item.orderItemId === line.orderItemId && item.requestType === "MODIFY_LINE_MODIFIERS");
+    if (change?.status === "PENDING_REVIEW") return <Notice>Opciones solicitadas: {(change.requestedModifiers ?? []).map((option) => option.name).join(", ") || "sin opciones"}. Pendiente de revisión; tu pedido conserva su configuración actual.</Notice>;
+    if (change?.status === "APPROVED") return <Notice>El equipo aprobó el cambio de opciones.</Notice>;
+    if (change?.status === "REJECTED") return <Notice tone="error">El equipo no aceptó el cambio de opciones.{change.decisionReason ? ` Motivo: ${change.decisionReason}` : ""}</Notice>;
+    const selectionKey = `${orderRequestId}:${line.orderItemId}:modifiers`;
+    const availableIds = new Set(line.modifierGroups.flatMap((group) => group.options.map((option) => option.id)));
+    const unavailableSelections = line.selectedModifiers.filter((modifier) => !availableIds.has(modifier.modifierId));
+    if (selectedModifierChange === selectionKey) return <View style={ui.section}>
+      <Text style={ui.body}>El equipo revisará las nuevas opciones, el precio y la preparación antes de aplicarlas.</Text>
+      {unavailableSelections.map((modifier) => <View key={modifier.modifierId} style={ui.section}>
+        <Notice>La opción actual “{modifier.name}” ya no está disponible en el menú.</Notice>
+        <Button title={`Quitar ${modifier.name}`} secondary onPress={() => setRequestedModifierIds((current) =>
+          current.filter((id) => id !== modifier.modifierId))} />
+      </View>)}
+      {line.modifierGroups.map((group) => <View key={group.id} style={ui.section}>
+        <Text style={[ui.body, { color: palette.ink, fontWeight: "700" }]}>{group.name}{group.required ? " · requerido" : ""}</Text>
+        {group.options.map((option) => {
+          const selected = requestedModifierIds.includes(option.id);
+          return <Button key={option.id} title={`${selected ? "✓ " : ""}${option.name}${option.priceDelta ? ` · ${formatMoney(option.priceDelta, "GTQ")}` : ""}`}
+            secondary={!selected} onPress={() => { setError(""); setRequestedModifierIds((current) =>
+              toggleMenuModifier(line.modifierGroups, current, option.id)); }} />;
+        })}
+      </View>)}
+      <TextInput accessibilityLabel="Motivo del cambio de opciones" placeholder="Motivo (mínimo 3 caracteres)" value={changeReason}
+        onChangeText={setChangeReason} multiline maxLength={500}
+        style={{ minHeight: 72, borderWidth: 1, borderColor: palette.line, borderRadius: 12, padding: 12, color: palette.ink, textAlignVertical: "top" }} />
+      <Button title="Enviar opciones para revisión" busy={submittingChange === selectionKey}
+        disabled={Boolean(submittingChange) || Boolean(session?.offline) || !cancellationAttemptsReady
+          || !menuModifiersAreValid(line.modifierGroups, requestedModifierIds)}
+        onPress={() => void submitModifierChange(orderRequestId, line)} />
+      <Button title="Volver" secondary onPress={() => { setSelectedModifierChange(null); setRequestedModifierIds([]); setChangeReason(""); }} />
+    </View>;
+    return <Button title="Solicitar cambio de opciones" secondary disabled={Boolean(submittingChange) || Boolean(session?.offline) || !cancellationAttemptsReady}
+      onPress={() => { setError(""); setRequestedModifierIds(line.selectedModifierIds); setChangeReason(""); setSelectedModifierChange(selectionKey); }} />;
+  }
+
   function lineCancellationSection(orderRequestId: string) {
     const lines = cancellableItems[orderRequestId];
     return <View style={ui.section}>
@@ -416,6 +521,7 @@ function OrderHistory() {
       {lines?.map((line) => <View key={line.orderItemId} style={ui.section}>
         <Text style={ui.body}>{line.quantity} × {line.name}</Text>
         {quantityChangeControls(orderRequestId, line)}
+        {modifierChangeControls(orderRequestId, line)}
         {cancellationControls(orderRequestId, line.orderItemId)}
       </View>)}
     </View>;
