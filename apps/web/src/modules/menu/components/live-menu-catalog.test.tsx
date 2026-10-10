@@ -12,7 +12,7 @@ const menu = {
       name: "Especiales",
       items: [
         {
-          id: "backend-item",
+          id: "00000000-0000-4000-8000-000000000042",
           name: "Atún",
           description: "Del catálogo real",
           price: 42.5,
@@ -32,7 +32,7 @@ afterEach(() => {
 
 describe("live menu", () => {
   it("loads backend categories and prices and filters without fixture identifiers", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(menu)));
+    installMenuFetch(vi.fn().mockResolvedValue(Response.json(menu)));
     const user = userEvent.setup();
     render(
       <LiveCartProvider>
@@ -50,14 +50,14 @@ describe("live menu", () => {
     expect(screen.queryAllByRole("article")).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Limpiar filtros" }));
     expect(screen.getAllByRole("article")).toHaveLength(1);
-    expect(
-      screen.queryByRole("link", { name: /Ver detalle/ }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ver detalle/ })).toHaveAttribute(
+      "href",
+      "/client/menu/00000000-0000-4000-8000-000000000042",
+    );
   });
 
   it("shows an error and successfully retries instead of falling back to fixtures", async () => {
-    vi.stubGlobal(
-      "fetch",
+    installMenuFetch(
       vi
         .fn()
         .mockRejectedValueOnce(new Error("offline"))
@@ -78,8 +78,7 @@ describe("live menu", () => {
   });
 
   it("shows a genuinely empty backend catalog", async () => {
-    vi.stubGlobal(
-      "fetch",
+    installMenuFetch(
       vi.fn().mockResolvedValue(Response.json({ ...menu, categories: [] })),
     );
     render(
@@ -92,3 +91,19 @@ describe("live menu", () => {
     ).toBeInTheDocument();
   });
 });
+
+function installMenuFetch(menuFetch: typeof fetch) {
+  vi.stubGlobal("fetch", (input: RequestInfo | URL, options?: RequestInit) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const pathname = new URL(url, "http://mock.invalid").pathname;
+    if (pathname === "/bff/auth/session")
+      return Promise.resolve(Response.json({}, { status: 401 }));
+    if (pathname === "/bff/menu") return menuFetch(input, options);
+    throw new Error(`Unexpected menu test URL: ${pathname}`);
+  });
+}

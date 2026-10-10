@@ -1,0 +1,16 @@
+.image,
+.placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border-radius: 0.5rem;
+}
+.image {
+  object-fit: cover;
+}
+.placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--surface-muted, #f4f4f4);
+  color: var(--text-muted, #555);
+}

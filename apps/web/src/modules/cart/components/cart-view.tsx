@@ -110,7 +110,7 @@ export function CartView({
             Tu pedido
           </h1>
         </div>
-        <Link className="button button--secondary" href="/menu">
+        <Link className="button button--secondary" href="/client/menu">
           <ArrowLeft aria-hidden="true" size={18} />
           Volver al menú
         </Link>
@@ -128,7 +128,7 @@ export function CartView({
           <ShoppingBag aria-hidden="true" size={36} />
           <h2>Tu pedido está vacío</h2>
           <p>Explora el menú y configura tus productos para agregarlos aquí.</p>
-          <Link className="button button--primary" href="/menu">
+          <Link className="button button--primary" href="/client/menu">
             Ver menú
           </Link>
         </section>

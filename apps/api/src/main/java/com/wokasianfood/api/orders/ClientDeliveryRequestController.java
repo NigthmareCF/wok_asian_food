@@ -26,6 +26,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -69,6 +70,7 @@ public class ClientDeliveryRequestController {
         if (serviceStatuses.isEmpty() || "PAUSED".equals(serviceStatuses.getFirst()) || "DISABLED".equals(serviceStatuses.getFirst()))
             throw new AuthException(503, "La solicitud delivery está temporalmente indisponible.");
 
+        com.wokasianfood.api.identity.PhoneVerificationService.requireVerified(jdbc,userId,phone);
         List<Product> products = loadProducts(lines);
         if (products.size() != lines.size()) throw new AuthException(422, "Uno o más productos ya no están publicados.");
         UUID currencyId = products.getFirst().currencyId;
@@ -85,7 +87,7 @@ public class ClientDeliveryRequestController {
                     Math.multiplyExact((long) product.preparationSeconds, quantity));
             subtotal = subtotal.add(product.price.multiply(BigDecimal.valueOf(quantity)));
         }
-        if (preparationSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(preparationSeconds)))
+        if (preparationSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now()))
             throw new AuthException(422, "El horario solicitado es anterior al tiempo mínimo de preparación.");
 
         List<UUID> created = jdbc.query("""
@@ -111,12 +113,15 @@ public class ClientDeliveryRequestController {
                 VALUES (?, ?, ?, ?, ?, ?)
                 """, requestId, product.id, product.name, lines.get(index).quantity(), product.price, product.currencyId);
         }
+        RequestQuoteBridge.consume(jdbc,userId,request.quoteId(),"DELIVERY",request.requestedFor(),
+            lines.stream().map(line->new ClientOrderQuoteController.QuoteLineRequest(line.menuItemId(),line.quantity(),line.modifierIds())).toList(),
+            subtotal,currencyId,requestId);
         jdbc.update("""
             INSERT INTO wok.order_request_events(order_request_id, event_type, actor_user_id)
             VALUES (?, 'SUBMITTED', ?)
             """, requestId, userId);
         return new DeliveryRequestReceipt(requestId, "DELIVERY", "PENDING_REVIEW", request.requestedFor(),
-                subtotal, currency, request.paymentPreference(), false,
+                subtotal, currency, request.paymentPreference(), null, null, false,
                 "Recibimos la solicitud delivery. El equipo debe confirmar cobertura, disponibilidad y horario; todavía no es un pedido ni un pago.");
     }
 
@@ -124,13 +129,15 @@ public class ClientDeliveryRequestController {
     public List<DeliveryRequestReceipt> history(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = UUID.fromString(jwt.getSubject());
         return jdbc.query("""
-            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference
+            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference,
+                   r.order_id, o.status AS order_status
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
             ORDER BY r.created_at DESC, r.id DESC LIMIT 50
             """, (rs, row) -> new DeliveryRequestReceipt(rs.getObject("id", UUID.class), "DELIVERY",
                 rs.getString("status"), rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
-                rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")), false,
+                rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")), rs.getObject("order_id", UUID.class), rs.getString("order_status"), false,
                 "El equipo debe confirmar cobertura, disponibilidad y horario."), userId);
     }
 
@@ -139,13 +146,14 @@ public class ClientDeliveryRequestController {
         UUID userId = UUID.fromString(jwt.getSubject());
         List<DeliveryRequestDetails> found = jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code,
-                   r.payment_preference, r.customer_note
+                   r.payment_preference, r.customer_note, r.order_id, o.status AS order_status
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
             WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY'
             """, (rs, row) -> new DeliveryRequestDetails(rs.getObject("id", UUID.class), "DELIVERY",
                 rs.getString("status"), rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                 rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")),
-                rs.getString("customer_note"), List.of()), requestId, userId);
+                rs.getObject("order_id", UUID.class), rs.getString("order_status"), rs.getString("customer_note"), List.of()), requestId, userId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
         List<DeliveryRequestLine> items = jdbc.query("""
             SELECT name_snapshot, quantity, unit_price, line_total
@@ -155,8 +163,36 @@ public class ClientDeliveryRequestController {
         DeliveryRequestDetails request = found.getFirst();
         return new DeliveryRequestDetails(request.requestId(), request.fulfillmentType(), request.status(),
                 request.requestedFor(), request.subtotal(), request.currency(), request.paymentPreference(),
-                request.customerNote(), items);
+                request.orderId(), request.orderStatus(), request.customerNote(), items);
     }
+
+    @DeleteMapping("/{requestId}")
+    @Transactional
+    public DeliveryCancellationReceipt cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId) {
+        UUID customerId = UUID.fromString(jwt.getSubject());
+        List<String> statuses = jdbc.query("""
+            SELECT status FROM wok.order_requests
+            WHERE id = ? AND customer_user_id = ? AND fulfillment_type = 'DELIVERY' FOR UPDATE
+            """, (rs, row) -> rs.getString("status"), requestId, customerId);
+        if (statuses.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
+        if ("CANCELLED".equals(statuses.getFirst())) return new DeliveryCancellationReceipt(requestId, "CANCELLED");
+        if (!"PENDING_REVIEW".equals(statuses.getFirst()))
+            throw new AuthException(409, "Solo puedes cancelar solicitudes pendientes de revisión. Para pedidos aceptados contacta al restaurante.");
+        int changed = jdbc.update("""
+            UPDATE wok.order_requests SET status = 'CANCELLED', decided_by = ?, decided_at = now(),
+                decision_reason = 'CANCELLED_BY_CLIENT', updated_at = now()
+            WHERE id = ? AND customer_user_id = ? AND fulfillment_type = 'DELIVERY' AND status = 'PENDING_REVIEW'
+            """, customerId, requestId, customerId);
+        if (changed != 1) throw new AuthException(409, "La solicitud cambió. Actualiza su estado.");
+        jdbc.update("""
+            INSERT INTO wok.order_request_events(order_request_id, event_type, actor_user_id, reason)
+            VALUES (?, 'CANCELLED', ?, 'CANCELLED_BY_CLIENT')
+            """, requestId, customerId);
+        new OrderCapacityHoldService(jdbc,12).finish(requestId,OrderCapacityHoldService.EndState.RELEASED);
+        return new DeliveryCancellationReceipt(requestId, "CANCELLED");
+    }
+
+    public record DeliveryCancellationReceipt(UUID requestId, String status) {}
 
     private List<Product> loadProducts(List<RequestedItem> lines) {
         List<Product> products = new ArrayList<>();
@@ -171,7 +207,9 @@ public class ClientDeliveryRequestController {
                 WHERE mi.id = ? AND mi.status = 'ACTIVE' AND mi.visibility = 'PUBLIC' AND i.active = true
                 """, PRODUCT_MAPPER, line.menuItemId());
             if (found.isEmpty()) return List.of();
-            products.add(found.getFirst());
+            Product product=found.getFirst();
+            products.add(new Product(product.id(),product.name(),RequestQuoteBridge.price(jdbc,product.id(),product.price(),line.modifierIds()),
+                product.currencyId(),product.currency(),product.preparationSeconds()));
         }
         return products;
     }
@@ -188,22 +226,23 @@ public class ClientDeliveryRequestController {
             List<RequestedItem> lines) {
         String canonical = request.requestedFor() + "\n" + address + "\n" + (reference == null ? "" : reference)
                 + "\n" + phone + "\n" + request.paymentPreference() + "\n" + (note == null ? "" : note) + "\n"
-                + lines.stream().map(line -> line.menuItemId() + ":" + line.quantity()).reduce((a, b) -> a + "\n" + b).orElse("");
+                + lines.stream().map(line -> line.menuItemId() + ":" + line.quantity() + ":" + line.modifierIds()).reduce((a, b) -> a + "\n" + b).orElse("");
         try { return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8))); }
         catch (java.security.NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
 
     private DeliveryRequestReceipt existing(UUID userId, UUID key, String fingerprint) {
         List<DeliveryRequestReceipt> found = jdbc.query("""
-            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference, r.request_fingerprint
+            SELECT r.id, r.status, r.requested_for, r.subtotal, c.code AS currency_code, r.payment_preference, r.request_fingerprint, r.order_id, o.status AS order_status
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'DELIVERY' AND r.idempotency_key = ?
             """, (rs, row) -> {
                 if (!fingerprint.equals(rs.getString("request_fingerprint")))
                     throw new AuthException(409, "La clave de solicitud ya se usó con otros datos.");
                 return new DeliveryRequestReceipt(rs.getObject("id", UUID.class), "DELIVERY", rs.getString("status"),
                         rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
-                        rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")), true,
+                        rs.getString("currency_code"), PaymentPreference.valueOf(rs.getString("payment_preference")), rs.getObject("order_id", UUID.class), rs.getString("order_status"), true,
                         "Recibimos la solicitud delivery. El equipo debe confirmar cobertura y disponibilidad.");
             }, userId, key);
         return found.isEmpty() ? null : found.getFirst();
@@ -213,12 +252,18 @@ public class ClientDeliveryRequestController {
             @NotBlank @Size(min = 5, max = 500) String address, @Size(max = 300) String reference,
             @NotBlank @Pattern(regexp = "[0-9+() .-]{7,32}") String contactPhone,
             @NotNull PaymentPreference paymentPreference,
-            @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {}
-    public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
+            @NotEmpty @Size(max = 20) List<@NotNull @Valid RequestedItem> items, UUID quoteId) {
+        public DeliveryRequest(Instant requestedFor,String customerNote,String address,String reference,String contactPhone,PaymentPreference paymentPreference,List<RequestedItem> items) {this(requestedFor,customerNote,address,reference,contactPhone,paymentPreference,items,null);}
+    }
+    public record RequestedItem(@NotNull UUID menuItemId, @Positive @jakarta.validation.constraints.Max(50) int quantity,
+            @Size(max=30) List<@NotNull UUID> modifierIds) {
+        public RequestedItem(UUID id,int quantity) { this(id,quantity,List.of()); }
+        public RequestedItem { modifierIds=modifierIds==null?List.of():modifierIds.stream().sorted().toList(); }
+    }
     public record DeliveryRequestReceipt(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
-            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean idempotentReplay, String message) {}
+            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, UUID orderId, String orderStatus, boolean idempotentReplay, String message) {}
     public record DeliveryRequestDetails(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
-            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, String customerNote,
+            BigDecimal subtotal, String currency, PaymentPreference paymentPreference, UUID orderId, String orderStatus, String customerNote,
             List<DeliveryRequestLine> items) {}
     public record DeliveryRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
     public enum PaymentPreference { CASH_ON_DELIVERY, ONLINE_PAYMENT_REQUESTED }

@@ -1,5 +1,5 @@
 export type Permission =
-  `${string}.${"read" | "create" | "update" | "delete" | "manage"}`;
+  `${string}:${"read" | "create" | "update" | "delete" | "manage"}`;
 
 export function hasPermission(
   granted: readonly Permission[],

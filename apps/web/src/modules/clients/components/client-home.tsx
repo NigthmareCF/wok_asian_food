@@ -1,65 +1,49 @@
-﻿import Link from "next/link";
+"use client";
+
+import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
   ChefHat,
   ChevronDown,
   Clock3,
-  Coffee,
-  Fish,
   MapPin,
   MessagesSquare,
-  Plus,
-  Soup,
+  RefreshCw,
   UtensilsCrossed,
-  Wine,
 } from "lucide-react";
-import { homeMenuCategories, homeMenuProducts } from "@/data/fixtures/menu";
-import {
-  clientServiceFixture,
-  type ServiceSnapshot,
-} from "@/data/fixtures/client-home";
+import { usePublicMenu } from "@/modules/menu/use-public-menu";
+import { Button } from "@/shared/components/ui/button";
 import { StatusBadge } from "@/shared/components/ui/status-badge";
 import styles from "./client-home.module.css";
+import { MenuProductImage } from "@/modules/menu/components/menu-product-image";
 
-const categoryIcons = {
-  sushi: Fish,
-  specialties: Soup,
-  drinks: Coffee,
-  extras: Plus,
-  alcohol: Wine,
-};
-
-export function ServiceSummary({ service }: { service: ServiceSnapshot }) {
-  const isOpen = service.state === "open";
+export function ServiceSummary() {
   return (
-    <aside
-      className={styles.service}
-      aria-label="Estado demostrativo del servicio"
-    >
+    <aside className={styles.service} aria-label="Estado del servicio">
       <div className={styles.serviceHeading}>
-        <StatusBadge
-          label={isOpen ? "Abierto" : "Cerrado"}
-          tone={isOpen ? "success" : "warning"}
-        />
-        <small>Datos demostrativos</small>
+        <StatusBadge label="Estado no verificado" tone="info" />
       </div>
       <p>
         <Clock3 size={18} aria-hidden="true" />
-        {isOpen && service.preparationMinutes
-          ? `Preparación estimada: ${service.preparationMinutes[0]}–${service.preparationMinutes[1]} min`
-          : "Sin estimación de preparación"}
+        Sin estimación de preparación
       </p>
-      <small>
-        {isOpen ? service.availability : "Servicio no disponible"} · No incluye
-        traslado.
-      </small>
+      <small>No hay información confirmada sobre apertura ni horarios.</small>
     </aside>
   );
 }
 
 export function ClientHome() {
-  const selection = homeMenuProducts.filter((product) => product.homePreview);
+  const { menu, error, reload } = usePublicMenu();
+  const selection =
+    menu?.categories
+      .flatMap((category) =>
+        category.items.map((item) => ({
+          ...item,
+          categoryName: category.name,
+        })),
+      )
+      .slice(0, 6) ?? [];
   return (
     <div className={styles.home}>
       <header className={styles.hero}>
@@ -70,20 +54,16 @@ export function ClientHome() {
             <br />
             antoja hoy?
           </h1>
-          <p>
-            Sushi, especialidades y algo para acompañar.
-            <br />
-            Encuentra tu próximo antojo en nuestro menú.
-          </p>
-          <Link className="button button--primary" href="/menu">
+          <p>Encuentra tu próximo antojo en nuestro menú.</p>
+          <Link className="button button--primary" href="/client/menu">
             Ver menú <ArrowRight aria-hidden="true" size={19} />
           </Link>
         </div>
-        <ServiceSummary service={clientServiceFixture} />
+        <ServiceSummary />
       </header>
 
       <section aria-label="Acciones rápidas" className={styles.actions}>
-        <Link href="/menu" className={styles.primaryAction}>
+        <Link href="/client/menu" className={styles.primaryAction}>
           <UtensilsCrossed aria-hidden="true" />
           <strong>Menú / Pedir</strong>
           <span>Explora los platillos</span>
@@ -109,74 +89,99 @@ export function ClientHome() {
         </Link>
       </section>
 
-      <section aria-labelledby="home-categories">
-        <div className={styles.sectionHeading}>
-          <div>
-            <span className="eyebrow">A TU GUSTO</span>
-            <h2 id="home-categories">Explora el menú</h2>
-          </div>
-          <p>Conoce nuestras categorías.</p>
+      {error ? (
+        <div>
+          <p role="alert">No fue posible cargar el menú. Intenta nuevamente.</p>
+          <Button onClick={reload}>
+            <RefreshCw aria-hidden="true" size={18} /> Reintentar
+          </Button>
         </div>
-        <div className={styles.categories}>
-          {homeMenuCategories.map((category) => {
-            const Icon = categoryIcons[category.id];
-            return (
-              <details key={category.id} className={styles.category}>
-                <summary>
-                  <Icon aria-hidden="true" size={28} />
-                  <strong>{category.name}</strong>
-                  <ChevronDown aria-hidden="true" size={16} />
-                </summary>
-                <p>{category.description}</p>
-                <Link href="/menu" className={styles.textLink}>
-                  Ver menú <ArrowRight aria-hidden="true" size={16} />
-                </Link>
-              </details>
-            );
-          })}
-        </div>
-      </section>
+      ) : !menu ? (
+        <p role="status">Cargando menú…</p>
+      ) : (
+        <>
+          <section aria-labelledby="home-categories">
+            <div className={styles.sectionHeading}>
+              <div>
+                <span className="eyebrow">A TU GUSTO</span>
+                <h2 id="home-categories">Explora el menú</h2>
+              </div>
+              <p>Conoce nuestras categorías.</p>
+            </div>
+            <div className={styles.categories}>
+              {menu.categories.map((category) => {
+                return (
+                  <details key={category.id} className={styles.category}>
+                    <summary>
+                      <UtensilsCrossed aria-hidden="true" size={28} />
+                      <strong>{category.name}</strong>
+                      <ChevronDown aria-hidden="true" size={16} />
+                    </summary>
+                    <Link href="/client/menu" className={styles.textLink}>
+                      Ver menú <ArrowRight aria-hidden="true" size={16} />
+                    </Link>
+                  </details>
+                );
+              })}
+            </div>
+          </section>
 
-      <section aria-labelledby="home-discover">
-        <div className={styles.sectionHeading}>
-          <div>
-            <span className="eyebrow">UN VISTAZO</span>
-            <h2 id="home-discover">Descubre el menú</h2>
-          </div>
-          <Link className={styles.textLink} href="/menu">
-            Ver menú completo <ArrowRight aria-hidden="true" size={18} />
-          </Link>
-        </div>
-        <div className={styles.products}>
-          {selection.map((product) => {
-            const category = homeMenuCategories.find(
-              (entry) => entry.id === product.categoryId,
-            );
-            const Icon = categoryIcons[product.categoryId];
-            return (
-              <article className={styles.product} key={product.id}>
-                <div className={styles.placeholder}>
-                  <Icon aria-hidden="true" size={44} strokeWidth={1} />
-                  <span>Fotografía pendiente</span>
-                </div>
-                <div className={styles.productBody}>
-                  <small>{category?.name}</small>
-                  <div>
-                    <h3>{product.name}</h3>
-                    <strong>Q{product.price}</strong>
-                  </div>
-                  {product.note ? <p>{product.note}</p> : null}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
+          <section aria-labelledby="home-discover">
+            <div className={styles.sectionHeading}>
+              <div>
+                <span className="eyebrow">UN VISTAZO</span>
+                <h2 id="home-discover">Descubre el menú</h2>
+              </div>
+              <Link className={styles.textLink} href="/client/menu">
+                Ver menú completo <ArrowRight aria-hidden="true" size={18} />
+              </Link>
+            </div>
+            {selection.length === 0 ? (
+              <div>
+                <p role="status">El menú aún no tiene productos.</p>
+                <Button onClick={reload}>
+                  <RefreshCw aria-hidden="true" size={18} /> Reintentar
+                </Button>
+              </div>
+            ) : (
+              <div className={styles.products}>
+                {selection.map((product) => {
+                  return (
+                    <article className={styles.product} key={product.id}>
+                      <MenuProductImage
+                        name={product.name}
+                        imageReference={product.imageReference}
+                        className={styles.productImage}
+                        placeholderLabel="Sin fotografía"
+                      />
+                      <div className={styles.productBody}>
+                        <small>{product.categoryName}</small>
+                        <div>
+                          <h3>{product.name}</h3>
+                          <strong>
+                            {new Intl.NumberFormat("es-GT", {
+                              style: "currency",
+                              currency: product.currency,
+                            }).format(product.price)}
+                          </strong>
+                        </div>
+                        {product.description ? (
+                          <p>{product.description}</p>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
+      )}
       <footer className={styles.note}>
         <ChefHat size={18} aria-hidden="true" />
         <p>
-          Vista demostrativa. Consulta el menú para explorar; los pedidos y
-          reservas no se procesan desde este inicio.
+          Consulta el menú para explorar; los pedidos y reservas no se procesan
+          desde este inicio.
         </p>
       </footer>
     </div>

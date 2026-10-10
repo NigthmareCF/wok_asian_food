@@ -51,8 +51,8 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
         assertThat(current.path("movements")).hasSize(3);
 
         JsonNode closed = body(post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
-                {"countedCash":485.00,"expectedVersion":1}
-                """));
+                {"countedCash":485.00,"expectedVersion":%d}
+                """.formatted(current.path("rowVersion").asInt())));
         assertThat(closed.path("status").asText()).isEqualTo("CLOSED");
         assertThat(closed.path("expectedCash").decimalValue()).isEqualByComparingTo("490.00");
         assertThat(closed.path("countedCash").decimalValue()).isEqualByComparingTo("485.00");
@@ -204,8 +204,8 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
         assertThat(current.path("reconciliations")).hasSize(1);
 
         body(post("/api/v1/operational/cash-sessions/" + sessionId + "/close", token, """
-                {"countedCash":490.00,"expectedVersion":1}
-                """));
+                {"countedCash":490.00,"expectedVersion":%d}
+                """.formatted(current.path("rowVersion").asInt())));
         JsonNode closed = body(get("/api/v1/operational/cash-sessions/" + sessionId, token));
         assertThat(closed.path("reconciliations")).hasSize(2);
         assertThat(count("""
@@ -245,4 +245,109 @@ class CashSessionIntegrationTest extends PostgresIntegrationTest {
             throw new IllegalStateException(failure);
         }
     }
+
+    @Test
+    void rejectsFractionalCentsAndOverflowBeforeAnyFinancialEffect() {
+        String token = tokenForRole("OPERATIONAL");
+        String code = uniqueCode("F03"); openRegister(code);
+        for (String invalid : java.util.List.of("1.005", "999999999999.995", "1000000000000.00")) {
+            String key = UUID.randomUUID().toString();
+            assertThat(post("/api/v1/operational/cash-sessions", token,
+                    "{\"registerCode\":\"" + code + "\",\"openingFloat\":" + invalid + "}",
+                    Map.of("Idempotency-Key", key)).statusCode()).isEqualTo(422);
+            assertThat(count("SELECT count(*) FROM wok.idempotency_keys WHERE key=?", key)).isZero();
+            assertThat(count("SELECT count(*) FROM wok.cash_sessions s JOIN wok.cash_registers r ON r.id=s.cash_register_id WHERE r.code=?", code)).isZero();
+        }
+        UUID id = UUID.fromString(body(post("/api/v1/operational/cash-sessions", token,
+                "{\"registerCode\":\""+code+"\",\"openingFloat\":1.00}",
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()))).path("id").asText());
+        int audit = count("SELECT count(*) FROM wok.audit_logs WHERE entity_id=?", id);
+        for (String invalid : java.util.List.of("1.005", "1000000000000.00")) {
+            String key = UUID.randomUUID().toString();
+            assertThat(post("/api/v1/operational/cash-sessions/"+id+"/movements", token,
+                    "{\"type\":\"INCOME\",\"amount\":"+invalid+",\"reason\":\"F03 prueba\"}",
+                    Map.of("Idempotency-Key",key)).statusCode()).isEqualTo(422);
+            assertThat(count("SELECT count(*) FROM wok.idempotency_keys WHERE key=?",key)).isZero();
+            assertThat(post("/api/v1/operational/cash-sessions/"+id+"/close",token,
+                    "{\"countedCash\":"+invalid+",\"expectedVersion\":1}").statusCode()).isEqualTo(422);
+            assertThat(post("/api/v1/operational/cash-sessions/"+id+"/reconciliations",token,
+                    "{\"countedCash\":"+invalid+"}").statusCode()).isEqualTo(422);
+        }
+        assertThat(count("SELECT count(*) FROM wok.cash_movements WHERE cash_session_id=?",id)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.cash_reconciliations WHERE cash_session_id=?",id)).isZero();
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id=?",id)).isEqualTo(audit);
+        JsonNode unchanged=body(get("/api/v1/operational/cash-sessions/"+id,token));
+        assertThat(unchanged.path("rowVersion").asInt()).isEqualTo(1);
+        assertThat(unchanged.path("status").asText()).isEqualTo("OPEN");
+        assertThat(unchanged.path("expectedCash").decimalValue()).isEqualByComparingTo("1.00");
+        assertThat(post("/api/v1/operational/cash-sessions/"+id+"/close",token,
+                "{\"countedCash\":1.00,\"expectedVersion\":1}").statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void numericBoundariesAndAuditUseThePersistedMoneyWithoutRounding() {
+        String token=tokenForRole("OPERATIONAL"); String code=uniqueCode("F03MAX");openRegister(code);
+        UUID id=UUID.fromString(body(post("/api/v1/operational/cash-sessions",token,
+                "{\"registerCode\":\""+code+"\",\"openingFloat\":999999999999.99}",
+                Map.of("Idempotency-Key",UUID.randomUUID().toString()))).path("id").asText());
+        assertThat(post("/api/v1/operational/cash-sessions/"+id+"/close",token,
+                "{\"countedCash\":999999999999.99,\"expectedVersion\":1}").statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT (after_data->>'countedCash')::numeric FROM wok.audit_logs WHERE entity_id=? AND action='CASH_SESSION_CLOSED'",BigDecimal.class,id))
+                .isEqualByComparingTo("999999999999.99");
+        String second=uniqueCode("F03M");openRegister(second);
+        UUID sid=UUID.fromString(body(post("/api/v1/operational/cash-sessions",token,
+                "{\"registerCode\":\""+second+"\",\"openingFloat\":0.00}",
+                Map.of("Idempotency-Key",UUID.randomUUID().toString()))).path("id").asText());
+        JsonNode movement=body(post("/api/v1/operational/cash-sessions/"+sid+"/movements",token,
+                "{\"type\":\"INCOME\",\"amount\":999999999999.99,\"reason\":\"F03 max\"}",
+                Map.of("Idempotency-Key",UUID.randomUUID().toString())));
+        assertThat(movement.path("amountDelta").decimalValue()).isEqualByComparingTo("999999999999.99");
+        assertThat(jdbc.queryForObject("SELECT (after_data->>'amountDelta')::numeric FROM wok.audit_logs WHERE entity_id=? AND action='CASH_MOVEMENT_RECORDED'",BigDecimal.class,UUID.fromString(movement.path("id").asText())))
+                .isEqualByComparingTo(movement.path("amountDelta").decimalValue());
+        assertThat(post("/api/v1/operational/cash-sessions/"+sid+"/close",token,
+                "{\"countedCash\":999999999999.99,\"expectedVersion\":2}").statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void invalidMoneyCannotReachJdbcOrClaimEvenWhenTheServiceIsCalledDirectly() {
+        var mockedJdbc=org.mockito.Mockito.mock(org.springframework.jdbc.core.JdbcTemplate.class);
+        var claims=org.mockito.Mockito.mock(com.wokasianfood.api.platform.IdempotencyStore.class);
+        var service=new CashSessionService(mockedJdbc,claims);
+        UUID actor=UUID.randomUUID(),request=UUID.randomUUID(),key=UUID.randomUUID(),session=UUID.randomUUID();
+        for(String invalid:java.util.List.of("1.005","1000000000000.00","-0.01")) {
+            BigDecimal amount=new BigDecimal(invalid);
+            org.assertj.core.api.Assertions.assertThatThrownBy(()->service.open(actor,request,key,new CashSessionController.OpenRequest("MAIN",amount)))
+                    .isInstanceOf(com.wokasianfood.api.identity.AuthException.class);
+            org.assertj.core.api.Assertions.assertThatThrownBy(()->service.addMovement(session,actor,request,key,new CashSessionController.MovementRequest(CashSessionController.MovementType.INCOME,amount,"F03 prueba")))
+                    .isInstanceOf(com.wokasianfood.api.identity.AuthException.class);
+            org.assertj.core.api.Assertions.assertThatThrownBy(()->service.close(session,actor,request,new CashSessionController.CloseRequest(amount,1)))
+                    .isInstanceOf(com.wokasianfood.api.identity.AuthException.class);
+            org.assertj.core.api.Assertions.assertThatThrownBy(()->service.reconcile(session,actor,request,new CashSessionController.ReconciliationRequest(amount,null)))
+                    .isInstanceOf(com.wokasianfood.api.identity.AuthException.class);
+        }
+        org.mockito.Mockito.verifyNoInteractions(mockedJdbc,claims);
+    }
+
+    @Test
+    void validCentValuesPreserveSignsAndAuditMatchesPersistedOpeningMovementAndCount() {
+        String token=tokenForRole("OPERATIONAL"),code=uniqueCode("F03AUD");openRegister(code);
+        String payload="{\"registerCode\":\""+code+"\",\"openingFloat\":1.000}";
+        Map<String,String> key=Map.of("Idempotency-Key",UUID.randomUUID().toString());
+        UUID id=UUID.fromString(body(post("/api/v1/operational/cash-sessions",token,payload,key)).path("id").asText());
+        assertThat(body(post("/api/v1/operational/cash-sessions",token,payload,key)).path("id").asText()).isEqualTo(id.toString());
+        assertThat(jdbc.queryForObject("SELECT (a.after_data->>'openingFloat')::numeric-m.amount_delta FROM wok.audit_logs a JOIN wok.cash_movements m ON m.cash_session_id=a.entity_id AND m.movement_type='OPENING' WHERE a.action='CASH_SESSION_OPENED' AND a.entity_id=?",BigDecimal.class,id)).isZero();
+        for(String type:java.util.List.of("INCOME","EXPENSE","WITHDRAWAL")) {
+            JsonNode movement=body(post("/api/v1/operational/cash-sessions/"+id+"/movements",token,
+                    "{\"type\":\""+type+"\",\"amount\":0.010,\"reason\":\"F03 audit\"}",
+                    Map.of("Idempotency-Key",UUID.randomUUID().toString())));
+            assertThat(movement.path("amountDelta").decimalValue()).isEqualByComparingTo(type.equals("INCOME")?"0.01":"-0.01");
+            assertThat(jdbc.queryForObject("SELECT (a.after_data->>'amountDelta')::numeric-m.amount_delta FROM wok.audit_logs a JOIN wok.cash_movements m ON m.id=a.entity_id WHERE a.action='CASH_MOVEMENT_RECORDED' AND a.entity_id=?",BigDecimal.class,UUID.fromString(movement.path("id").asText()))).isZero();
+        }
+        assertThat(post("/api/v1/operational/cash-sessions/"+id+"/movements",token,
+                "{\"type\":\"INCOME\",\"amount\":0,\"reason\":\"F03 minimum\"}",Map.of("Idempotency-Key",UUID.randomUUID().toString())).statusCode()).isEqualTo(400);
+        assertThat(post("/api/v1/operational/cash-sessions/"+id+"/close",token,
+                "{\"countedCash\":0.990,\"expectedVersion\":4}").statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT (a.after_data->>'countedCash')::numeric-r.counted_cash FROM wok.audit_logs a JOIN wok.cash_reconciliations r ON r.cash_session_id=a.entity_id AND r.is_final WHERE a.action='CASH_SESSION_CLOSED' AND a.entity_id=?",BigDecimal.class,id)).isZero();
+    }
+
 }

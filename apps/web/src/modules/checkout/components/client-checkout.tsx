@@ -59,7 +59,7 @@ export function ClientCheckout({
         <section className="panel">
           <h1>Tu pedido está vacío</h1>
           <p>Agrega productos desde el menú para revisar tu solicitud.</p>
-          <Link className="button button--primary" href="/menu">
+          <Link className="button button--primary" href="/client/menu">
             Ver menú
           </Link>
         </section>

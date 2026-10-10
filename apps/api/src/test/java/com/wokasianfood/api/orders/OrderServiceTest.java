@@ -26,7 +26,7 @@ class OrderServiceTest {
     private UUID insertedOrderId;
 
     private OrderService service() {
-        return new OrderService(jdbc, idempotency, reservations);
+        return new OrderService(jdbc, idempotency, reservations, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc));
     }
 
     @Test
@@ -65,7 +65,7 @@ class OrderServiceTest {
         verify(jdbc).update(contains("INSERT INTO wok.kitchen_tickets"), any(UUID.class), eq(insertedOrderId), eq(1),
                 eq(stationId));
         verify(jdbc).update(contains("INSERT INTO wok.kitchen_ticket_items"), any(UUID.class), any(UUID.class), eq(2));
-        verify(jdbc).update(contains("estimated_ready_at = now() + make_interval"), eq(300), any(UUID.class));
+        verify(jdbc).update(contains("estimated_ready_at = now() + make_interval"), eq(600), any(UUID.class));
         verify(jdbc).update(contains("INSERT INTO wok.order_status_history"), eq(insertedOrderId), eq(actor),
                 eq(requestId));
     }
@@ -190,7 +190,7 @@ class OrderServiceTest {
     @Test
     void rejectsMissingOrderOnStatusChange() {
         UUID orderId = UUID.randomUUID();
-        when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
+        when(jdbc.query(contains("SELECT account_id FROM wok.orders WHERE id = ?"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of());
 
         AuthException error = assertThrows(AuthException.class, () -> service()
@@ -203,6 +203,7 @@ class OrderServiceTest {
     @Test
     void rejectsSkippedStateTransition() {
         UUID orderId = UUID.randomUUID();
+        stubOrderAccount(orderId);
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.SENT));
 
@@ -219,6 +220,7 @@ class OrderServiceTest {
         UUID actor = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID requestId = UUID.randomUUID();
+        stubOrderAccount(orderId);
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.SENT));
         when(jdbc.update(contains("SET status = ?"), eq("PREPARING"), eq("PREPARING"), eq(actor), eq(orderId),
@@ -238,14 +240,15 @@ class OrderServiceTest {
     }
 
     @Test
-    void cancellingOrderAlsoCancelsPendingTickets() {
+    void cancellingSentOrderAlsoCancelsPendingTickets() {
         UUID actor = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID ticketId = UUID.randomUUID();
+        stubOrderAccount(orderId);
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
-                eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.PREPARING));
+                eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.SENT));
         when(jdbc.update(contains("SET status = ?"), eq("CANCELLED"), eq("CANCELLED"), eq(actor), eq(orderId),
-                eq("PREPARING"), eq(3))).thenReturn(1);
+                eq("SENT"), eq(3))).thenReturn(1);
         when(jdbc.update(contains("INSERT INTO wok.order_status_history"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("audit_logs"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("SET status = 'CANCELLED', claimed_by = NULL"), any(Object[].class))).thenReturn(1);
@@ -265,6 +268,7 @@ class OrderServiceTest {
     @Test
     void reportsStaleVersionAsConflict() {
         UUID orderId = UUID.randomUUID();
+        stubOrderAccount(orderId);
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.READY));
         when(jdbc.update(contains("SET status = ?"), eq("SERVED"), eq("SERVED"), any(UUID.class), eq(orderId),
@@ -311,6 +315,14 @@ class OrderServiceTest {
                 eq(stationId));
     }
 
+    private void stubOrderAccount(UUID orderId) {
+        UUID accountId = UUID.randomUUID();
+        when(jdbc.query(contains("SELECT account_id FROM wok.orders WHERE id = ?"), any(RowMapper.class),
+                eq(orderId))).thenReturn(List.of(accountId));
+        when(jdbc.query(contains("FROM wok.order_accounts WHERE id = ? FOR UPDATE"), any(RowMapper.class),
+                eq(accountId))).thenReturn(List.of(new OrderService.Account(accountId, null, "OPEN")));
+    }
+
     private void stubHappyPath(UUID accountId, UUID tableId, UUID menuItemId, UUID currencyId, UUID stationId,
                               UUID summaryId, UUID actor, UUID idempotencyKey) {
         stubHappyPath(accountId, tableId, menuItemId, currencyId, stationId, List.of(), List.of(), actor, idempotencyKey);
@@ -348,11 +360,14 @@ class OrderServiceTest {
         when(jdbc.update(contains("kitchen_ticket_status_history"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("INSERT INTO wok.order_status_history"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("audit_logs"), any(Object[].class))).thenReturn(1);
-        when(jdbc.queryForObject(contains("status IN ('QUEUED', 'PREPARING')"), eq(Integer.class), eq(stationId)))
-                .thenReturn(1);
+        doNothing().when(jdbc).query(contains("SELECT g.id AS group_id"),any(org.springframework.jdbc.core.RowCallbackHandler.class),any(UUID.class));
+        doReturn(List.of()).when(jdbc).query(contains("FROM wok.menu_item_modifier_groups"),any(RowMapper.class),eq(menuItemId));
+        when(jdbc.query(contains("SELECT id FROM wok.preparation_areas WHERE id = ? AND active = true FOR UPDATE"),any(RowMapper.class),eq(stationId))).thenReturn(List.of(stationId));
+        when(jdbc.queryForObject(contains("CEIL(EXTRACT(EPOCH"),eq(Long.class),any(Object[].class))).thenReturn(0L);
     }
 
     private void stubDetails(UUID orderId, UUID menuItemId, UUID tableId) {
+        lenient().doReturn(List.of()).when(jdbc).query(contains("SELECT modifier_id FROM wok.order_item_modifiers"),any(RowMapper.class),any(UUID.class));
         when(jdbc.query(contains("JOIN wok.currencies c ON c.id = o.currency_id"), any(RowMapper.class), any(UUID.class)))
                 .thenReturn(List.of(summary(orderId, "SENT", 1)));
         when(jdbc.query(contains("JOIN wok.preparation_areas pa ON pa.id = i.preparation_area_id"), any(RowMapper.class),

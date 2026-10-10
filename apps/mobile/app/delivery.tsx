@@ -1,3 +1,7 @@
+import {CoreQuote,type QuoteSelection} from "@/components/core-quote";
+import {quoteSelectionMatches} from "@/lib/quote-selection";
+import {PhoneVerification} from "@/components/phone-verification";
+import {parseRestaurantLocalDateTime,formatRestaurantLocalInput} from "@/lib/restaurant-time";
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import { useEffect, useMemo, useState } from "react";
@@ -22,15 +26,12 @@ import {
   PublicMenuItem,
 } from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
-import { formatGuatemalaPhoneInput, isGuatemalaPhone } from "@/lib/identity";
+import { formatGuatemalaPhoneInput, isInternationalPhone } from "@/lib/identity";
 
 type PendingAttempt = { email: string; key: string; body: DeliveryRequestBody };
 const pendingKey = "wok.delivery.pending.v1";
 
-function localDateTime(value: Date) {
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
-}
+function formatRestaurantLocalInputDate(value:Date){return formatRestaurantLocalInput(value.toISOString());}
 
 export default function DeliveryScreen() {
   const { session, request } = useSession();
@@ -53,6 +54,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
   const [menu, setMenu] = useState<PublicMenu | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [requestedFor, setRequestedFor] = useState("");
+  const [selection,setSelection]=useState<QuoteSelection|null>(null);
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -196,7 +198,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     const apiTime = Date.parse(menu?.asOf ?? "");
     if (!Number.isNaN(apiTime))
       setRequestedFor(
-        localDateTime(new Date(apiTime + Math.max(30 * 60, prep + 60) * 1000)),
+        formatRestaurantLocalInputDate(new Date(apiTime + Math.max(30 * 60, prep + 60) * 1000)),
       );
   }
 
@@ -205,11 +207,15 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
       setError("Inicia sesión para enviar una solicitud de delivery.");
       return;
     }
+    if (!attempt && !quoteSelectionMatches(selection,{ownerEmail:session.email,items:selected.map(item=>({menuItemId:item.id,quantity:cart[item.id]})),requestedFor:parseRestaurantLocalDateTime(requestedFor)?.toISOString()??"",fulfillment:"DELIVERY"})) {
+      setError("Cotiza y acepta el resultado del servidor antes de continuar.");
+      return;
+    }
     if (
       !attempt &&
       (!selected.length ||
         !address.trim() ||
-        !isGuatemalaPhone(contactPhone) ||
+        !isInternationalPhone(contactPhone) ||
         !requestedFor)
     ) {
       setError("Completa productos, dirección, teléfono y horario solicitado.");
@@ -221,16 +227,14 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         email: session.email,
         key: createIdempotencyKey(),
         body: {
-          requestedFor: new Date(requestedFor).toISOString(),
+          requestedFor: (parseRestaurantLocalDateTime(requestedFor)??new Date(NaN)).toISOString(),
           customerNote: customerNote.trim() || undefined,
           address: address.trim(),
           reference: reference.trim() || undefined,
           contactPhone: contactPhone.trim(),
           paymentPreference,
-          items: selected.map((item) => ({
-            menuItemId: item.id,
-            quantity: cart[item.id],
-          })),
+          items: selection!.items,
+          quoteId: selection!.quoteId,
         },
       };
     } catch (cause) {
@@ -365,7 +369,7 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
     if (
       !addressLabel.trim() ||
       address.trim().length < 5 ||
-      !isGuatemalaPhone(contactPhone)
+      !isInternationalPhone(contactPhone)
     ) {
       setAddressError(
         "Completa un nombre, dirección y teléfono de Guatemala válido (8 dígitos).",
@@ -426,8 +430,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
         <Heading eyebrow="Entrega a domicilio">Solicitar delivery</Heading>
         <Notice>
           El equipo debe confirmar cobertura, productos y horario. Esta
-          solicitud no es un pedido aceptado, no reserva inventario y todavía no
-          genera un cobro.
+          solicitud no es un pedido aceptado. Aceptar la cotización y enviar
+          crea un hold temporal de capacidad e inventario, sin cobro.
         </Notice>
         {session?.offline ? (
           <Notice>
@@ -658,8 +662,8 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
                 setContactPhone(formatGuatemalaPhoneInput(value))
               }
               keyboardType="phone-pad"
-              maxLength={9}
-              placeholder="1234 5678"
+              maxLength={25}
+              placeholder="+código de país y número"
             />
             {session ? (
               <View style={ui.section}>
@@ -735,6 +739,10 @@ function DeliveryRequestScreen({ session, request }: DeliveryRequestProps) {
             {selected.length === 0 ? (
               <Notice>Agrega al menos un producto.</Notice>
             ) : null}
+            <PhoneVerification phone={contactPhone}/>
+            <CoreQuote items={selected.map(item=>({menuItemId:item.id,quantity:cart[item.id]}))}
+              requestedFor={parseRestaurantLocalDateTime(requestedFor)?.toISOString()??""}
+              fulfillment="DELIVERY" onSelection={setSelection}/>
             <Button
               title="Enviar solicitud de delivery"
               busy={sending}

@@ -11,7 +11,7 @@ import {
   useUiTheme,
 } from "@/components/ui";
 import { useSession } from "@/providers/session-provider";
-import { formatGuatemalaPhoneInput, isGuatemalaPhone } from "@/lib/identity";
+import { formatGuatemalaPhoneInput } from "@/lib/identity";
 
 type AddressDraft = {
   label: string;
@@ -103,15 +103,8 @@ function AddressBook({ session, request }: AddressBookProps) {
   }
 
   async function save() {
-    if (
-      !draft.label.trim() ||
-      draft.address.trim().length < 5 ||
-      !isGuatemalaPhone(draft.contactPhone)
-    ) {
-      setError(
-        "Revisa el nombre, la dirección y el teléfono de Guatemala (8 dígitos en grupos de cuatro).",
-      );
-      return;
+    if (!draft.label.trim() || draft.address.trim().length < 5 || !/^\+[1-9][0-9]{6,14}$/.test(draft.contactPhone.replace(/[ ()-]/g,""))) {
+      setError("Revisa el nombre, la dirección y el teléfono internacional con código de país."); return;
     }
     setSaving(true);
     setError("");
@@ -333,8 +326,8 @@ function AddressBook({ session, request }: AddressBookProps) {
                 }))
               }
               keyboardType="phone-pad"
-              maxLength={9}
-              placeholder="1234 5678"
+              maxLength={25}
+              placeholder="+código de país y número"
             />
             <Button
               title={

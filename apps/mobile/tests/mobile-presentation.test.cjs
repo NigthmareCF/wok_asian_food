@@ -514,15 +514,19 @@ test("actual reservation retry preserves its stored instant, serialized body and
     key: "stored-reservation-key",
   };
   const requests = [];
+  let stateIndex=0;
+  let refIndex=0;
   const { default: ReservationsScreen } = presentationModule(
     "app/(tabs)/reservations.tsx",
     {
+      "@/hooks/use-cart": {useCart:()=>({items:{},ready:true})},
       react: {
         useState: (value) => [
-          typeof value === "function" ? value() : value,
+          // El estado 15 corresponde a la recuperación terminada del borrador.
+          stateIndex++===15 ? true : (typeof value === "function" ? value() : value),
           () => {},
         ],
-        useRef: () => ({ current: pending }),
+        useRef: () => ({ current: refIndex++===0 ? false : pending }),
         useEffect() {},
         useCallback: (fn) => fn,
       },
@@ -561,7 +565,8 @@ test("actual reservation retry preserves its stored instant, serialized body and
       },
     },
   );
-  const tree = elements(ReservationsScreen());
+  const ownerScreen=ReservationsScreen();
+  const tree = elements(ownerScreen.type());
   assert.equal(
     tree.some((item) => item.props.accessibilityRole === "adjustable"),
     false,

@@ -21,6 +21,25 @@ export const pickupStatusLabels: Record<string, string> = {
   CANCELLED: "Cancelada",
   EXPIRED: "Vencida",
 };
+export const requestStatusDescriptions: Record<string, string> = {
+  PENDING_REVIEW:
+    "El restaurante debe revisar tu solicitud. Este comprobante no confirma disponibilidad ni registra un pago.",
+  ACCEPTED:
+    "El restaurante aceptó tu solicitud. Consulta el detalle para seguir el pedido. Este comprobante no registra un pago.",
+  REJECTED:
+    "El restaurante rechazó esta solicitud. Este comprobante no registra un pago.",
+  CANCELLED:
+    "Esta solicitud fue cancelada. Este comprobante no registra un pago.",
+  EXPIRED: "Esta solicitud venció. Este comprobante no registra un pago.",
+};
+export const pickupOrderStatusLabels: Record<string, string> = {
+  SENT: "Pedido enviado a cocina",
+  PREPARING: "En preparación",
+  READY: "Listo para recoger",
+  SERVED: "Entregado",
+  CLOSED: "Pedido cerrado",
+  CANCELLED: "Pedido cancelado",
+};
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object";
 const amount = (value: unknown): value is number =>

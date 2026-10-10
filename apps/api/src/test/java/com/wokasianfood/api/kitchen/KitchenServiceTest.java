@@ -201,6 +201,6 @@ class KitchenServiceTest {
                         status, rowVersion, UUID.randomUUID(), "COCINA", null, null,
                         "READY".equals(status) ? Instant.parse("2026-09-30T12:20:00Z") : null,
                         Instant.parse("2026-09-30T12:15:00Z"), "DINE_IN", "Mesa 01", "Cuenta 1", 2, 3,
-                        Instant.parse("2026-09-30T12:00:00Z"))));
+                        Instant.parse("2026-09-30T12:00:00Z"), List.of())));
     }
 }

@@ -30,7 +30,7 @@ const details = {
 const context = { params: Promise.resolve({ requestId: id }) };
 const request = (origin = "http://localhost") =>
   new NextRequest(`http://localhost/bff/order-requests/${id}`, {
-    headers: { host: "localhost", origin },
+    headers: { host: "localhost", origin, "X-Wok-Expected-Principal": id },
   });
 beforeEach(() => {
   auth.readAccessToken.mockResolvedValue("cookie-token");
@@ -42,9 +42,38 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("pickup history and cancellation BFF", () => {
+  it.each(["history", "detail", "cancel"])(
+    "rejects an absent principal header with update-required for %s",
+    async (operation) => {
+      const req = request();
+      req.headers.delete("X-Wok-Expected-Principal");
+      vi.stubGlobal("fetch", vi.fn());
+      const response =
+        operation === "history"
+          ? await history(req)
+          : operation === "detail"
+            ? await detail(req, context)
+            : await cancel(req, context);
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe("CLIENT_UPDATE_REQUIRED");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+  it("keeps invalid resource identifiers as 404 even without a principal header", async () => {
+    const req = request();
+    req.headers.delete("X-Wok-Expected-Principal");
+    vi.stubGlobal("fetch", vi.fn());
+    const response = await detail(req, {
+      params: Promise.resolve({ requestId: "../../admin" }),
+    });
+    expect(response.status).toBe(404);
+    expect((await response.json()).code).not.toBe("CLIENT_UPDATE_REQUIRED");
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it("reads private history without caching and uses server credentials", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json([receipt])));
-    const response = await history();
+    installFetch(vi.fn().mockResolvedValue(Response.json([receipt])));
+    const response = await history(request());
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual([receipt]);
@@ -61,8 +90,7 @@ describe("pickup history and cancellation BFF", () => {
     );
   });
   it("reads actual detail lines and forwards cancellation", async () => {
-    vi.stubGlobal(
-      "fetch",
+    installFetch(
       vi
         .fn()
         .mockResolvedValueOnce(Response.json(details))
@@ -83,7 +111,7 @@ describe("pickup history and cancellation BFF", () => {
   it("rejects unauthenticated access to all operations", async () => {
     auth.readAccessToken.mockResolvedValue(undefined);
     vi.stubGlobal("fetch", vi.fn());
-    expect((await history()).status).toBe(401);
+    expect((await history(request())).status).toBe(401);
     expect((await detail(request(), context)).status).toBe(401);
     expect((await cancel(request(), context)).status).toBe(401);
     expect(fetch).not.toHaveBeenCalled();
@@ -110,8 +138,7 @@ describe("pickup history and cancellation BFF", () => {
   it.each([401, 403, 404, 409, 500])(
     "preserves expected errors and hides backend diagnostics (%s)",
     async (status) => {
-      vi.stubGlobal(
-        "fetch",
+      installFetch(
         vi.fn().mockResolvedValue(new Response("private error", { status })),
       );
       const response = await cancel(request(), context);
@@ -120,22 +147,18 @@ describe("pickup history and cancellation BFF", () => {
     },
   );
   it("rejects a mismatched response id", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValue(
-          Response.json({
-            ...details,
-            requestId: "22222222-2222-4222-8222-222222222222",
-          }),
-        ),
+    installFetch(
+      vi.fn().mockResolvedValue(
+        Response.json({
+          ...details,
+          requestId: "22222222-2222-4222-8222-222222222222",
+        }),
+      ),
     );
     expect((await detail(request(), context)).status).toBe(503);
   });
   it("does not treat malformed or lost responses as cancellation success", async () => {
-    vi.stubGlobal(
-      "fetch",
+    installFetch(
       vi
         .fn()
         .mockResolvedValueOnce(Response.json({ status: "PENDING_REVIEW" }))
@@ -145,3 +168,23 @@ describe("pickup history and cancellation BFF", () => {
     expect((await cancel(request(), context)).status).toBe(503);
   });
 });
+
+function installFetch(domainFetch: typeof fetch) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: RequestInfo | URL, init?: RequestInit) =>
+      new URL(String(url)).pathname === "/api/v1/auth/me"
+        ? Promise.resolve(
+            Response.json({
+              userId: id,
+              email: "client@mock.invalid",
+              displayName: "MOCK_ONLY Client",
+              status: "ACTIVE",
+              roles: ["CLIENT"],
+              permissions: [],
+            }),
+          )
+        : domainFetch(url, init),
+    ),
+  );
+}

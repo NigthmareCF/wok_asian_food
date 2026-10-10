@@ -1,10 +1,22 @@
 "use client";
+import {PhoneVerification} from "@/modules/consolidated-core/phone-verification";
+import {QuotePanel} from "@/modules/consolidated-core/quote-panel";
+import type {QuoteSelection} from "@/modules/consolidated-core/contract";
+import { formatServiceDateTime } from "@/modules/checkout/service-time";
+import { requestStatusDescriptions } from "@/modules/client-order-tracking/pickup-details";
 import Link from "next/link";
 import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { useLiveCart } from "@/modules/cart/live-cart-provider";
 import { usePublicMenu } from "@/modules/menu/use-public-menu";
+import { useClientIdentity } from "@/modules/clients/use-client-identity";
+import {
+  createClientOperation,
+  type ClientIdentity,
+} from "@/modules/clients/client-identity-store";
+import { pickupInputToInstant } from "@/modules/checkout/pickup-window";
+import { firstDeliveryTime } from "../delivery-window";
 import {
   createAttemptStore,
   type Attempt,
@@ -30,6 +42,25 @@ const money = (amount: number, currency: string) =>
   );
 
 export function DeliveryCheckout({ userId }: { userId: string }) {
+  const { identity, verified, refresh } = useClientIdentity(userId);
+  if (!verified)
+    return (
+      <section>
+        <h1>Solicitud de delivery</h1>
+        <p role="status">Verifica tu sesión para continuar.</p>
+        <Button onClick={() => void refresh()}>Verificar sesión</Button>
+        <Link href="/login?next=%2Fclient%2Fdelivery">Iniciar sesión</Link>
+      </section>
+    );
+  return (
+    <VerifiedDeliveryCheckout
+      key={`${identity.ownerId}:${identity.generation}`}
+      scope={identity}
+    />
+  );
+}
+function VerifiedDeliveryCheckout({ scope }: { scope: ClientIdentity }) {
+  const userId = scope.ownerId!;
   const { items, complete } = useLiveCart();
   const { menu, error: menuError, reload } = usePublicMenu();
   const [store] = useState(() =>
@@ -45,6 +76,7 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
     store.getServerSnapshot,
   );
   const [requestedFor, setRequestedFor] = useState("");
+  const [selection,setSelection]=useState<QuoteSelection|null>(null);
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
@@ -79,6 +111,7 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
         cents + Math.round((row.product?.price ?? 0) * 100) * row.quantity,
       0,
     ) / 100;
+  const selectedTime = requestedFor || firstDeliveryTime(preparation);
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -87,10 +120,11 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
     setError("");
     setNeedsLogin(false);
     if (!current) {
-      const date = new Date(requestedFor);
+      if(!selection){setError("Cotiza y acepta el resultado del servidor antes de continuar.");return;}
+      const date = pickupInputToInstant(selectedTime);
       if (
         !ready ||
-        !Number.isFinite(date.getTime()) ||
+        !date ||
         date.getTime() <= Date.now() + preparation * 1000
       ) {
         setError(
@@ -105,11 +139,8 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
         reference,
         contactPhone: phone,
         paymentPreference: payment,
-        items: items.map((item) => ({
-          menuItemId: item.productId,
-          quantity: item.quantity,
-        })),
-      });
+        quoteId:selection.quoteId,
+        items:selection.items,      });
       if (!payload) {
         setError(
           "La solicitud admite hasta 20 productos, 50 unidades por producto y 500 caracteres de nota.",
@@ -128,19 +159,25 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
     }
     sending.current = true;
     setBusy(true);
+    const operation = createClientOperation(scope);
     try {
+      if (!(await operation.confirm())) return;
+      store.save({ ...current, uncertain: true });
       const response = await fetch("/bff/delivery-requests", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": current.key,
+          "X-Wok-Expected-Principal": userId,
         },
         body: JSON.stringify(current.payload),
-        signal: AbortSignal.timeout(15_000),
+        signal: operation.signal,
       });
       const data: unknown = await response.json();
+      if (!(await operation.confirm())) return;
       if (!response.ok) {
-        if ([400, 422].includes(response.status)) store.save(null);
+        if (!current.uncertain && [400, 422].includes(response.status))
+          store.save(null);
         setNeedsLogin(response.status === 401);
         const message =
           data &&
@@ -156,10 +193,12 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
       store.save({ ...current, receipt: data });
       complete(current.payload.items);
     } catch {
-      setError(
-        "No pudimos confirmar el resultado. Conservamos tu solicitud: reintenta para recuperar el comprobante sin duplicarla.",
-      );
+      if (operation.valid())
+        setError(
+          "No pudimos confirmar el resultado. Conservamos tu solicitud: reintenta para recuperar el comprobante sin duplicarla.",
+        );
     } finally {
+      operation.dispose();
       sending.current = false;
       setBusy(false);
     }
@@ -189,17 +228,13 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
             Código: <strong>{receipt.requestId}</strong>
           </p>
           <p>
-            Horario solicitado:{" "}
-            {new Date(receipt.requestedFor).toLocaleString("es-GT")}
+            Horario solicitado: {formatServiceDateTime(receipt.requestedFor)}
           </p>
           <p>
             Subtotal calculado por el restaurante:{" "}
             {money(receipt.subtotal, receipt.currency)}
           </p>
-          <p>
-            Este comprobante no confirma disponibilidad ni registra un pago. El
-            restaurante debe revisar tu solicitud.
-          </p>
+          <p>{requestStatusDescriptions[receipt.status]}</p>
           <Button
             onClick={() => {
               try {
@@ -212,7 +247,7 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
           >
             Preparar otra solicitud
           </Button>
-          <Link href="/menu">Volver al menú</Link>
+          <Link href="/client/menu">Volver al menú</Link>
         </section>
       ) : (
         <>
@@ -235,13 +270,13 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
                   (sum, item) => sum + item.quantity,
                   0,
                 )}{" "}
-                unidades ·{" "}
-                {new Date(attempt.payload.requestedFor).toLocaleString("es-GT")}
+                unidades · {formatServiceDateTime(attempt.payload.requestedFor)}
               </p>
             </section>
           ) : !items.length ? (
             <p>
-              Tu carrito está vacío. <Link href="/menu">Agregar productos</Link>
+              Tu carrito está vacío.{" "}
+              <Link href="/client/menu">Agregar productos</Link>
             </p>
           ) : (
             <section className={styles.summary}>
@@ -278,15 +313,18 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
           )}
           {(attempt || items.length > 0) && (
             <form onSubmit={send} className={styles.card}>
+              {!attempt?<QuotePanel userId={userId} fulfillment="DELIVERY" requestedFor={pickupInputToInstant(selectedTime)?.toISOString()??""} items={items.map(item=>({menuItemId:item.productId,quantity:item.quantity}))} onSelection={setSelection}/>:null}
+              {!attempt?<PhoneVerification userId={userId} phone={phone}/>:null}
               {!attempt && (
                 <>
                   <FormField
                     id="pickup-time"
                     label="Fecha y hora de delivery"
-                    help="Se usa la zona horaria de tu dispositivo. Elige una hora que permita preparar todos los productos."
+                    help="Horario de Guatemala. Elige una hora que permita preparar todos los productos."
                     type="datetime-local"
                     required
-                    value={requestedFor}
+                    value={selectedTime}
+                    min={firstDeliveryTime(preparation)}
                     onChange={(event) => setRequestedFor(event.target.value)}
                   />
                   <FormField
@@ -343,7 +381,7 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
               )}
               <p>
                 El servidor calculará el importe final con los precios vigentes.
-                Enviar no reserva existencias ni realiza un cobro.
+                Enviar formalmente retiene capacidad e inventario durante el hold; no realiza un cobro.
               </p>
               <p>
                 El restaurante confirmará cobertura, horario y cualquier costo

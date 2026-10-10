@@ -56,7 +56,8 @@ export type PublicMenuItem = {
 export type PickupRequestBody = {
   requestedFor: string;
   customerNote?: string;
-  items: { menuItemId: string; quantity: number }[];
+  items: { menuItemId: string; quantity: number; modifierIds?:string[] }[];
+  quoteId?:string;
 };
 export type PickupRequestReceipt = {
   requestId: string;
@@ -80,7 +81,8 @@ export type DeliveryRequestBody = {
   reference?: string;
   contactPhone: string;
   paymentPreference: "CASH_ON_DELIVERY" | "ONLINE_PAYMENT_REQUESTED";
-  items: { menuItemId: string; quantity: number }[];
+  items: { menuItemId: string; quantity: number; modifierIds?:string[] }[];
+  quoteId?:string;
 };
 export type DeliveryRequestReceipt = {
   requestId: string;

@@ -5,6 +5,7 @@ import { Button } from "@/shared/components/ui/button";
 import { usePublicMenu } from "@/modules/menu/use-public-menu";
 import { useLiveCart } from "../live-cart-provider";
 import styles from "./cart.module.css";
+import { useClientIdentity } from "@/modules/clients/use-client-identity";
 
 function money(amount: number, currency: string) {
   return new Intl.NumberFormat("es-GT", { style: "currency", currency }).format(
@@ -13,6 +14,22 @@ function money(amount: number, currency: string) {
 }
 
 export function LiveCartView() {
+  const { identity, refresh } = useClientIdentity();
+  if (identity.status === "unverified")
+    return (
+      <section>
+        <h1>Tu pedido</h1>
+        <p role="status">Verifica tu sesión para consultar el carrito.</p>
+        <Button onClick={() => void refresh()}>Verificar sesión</Button>
+        <Link href="/client/menu">Volver al menú</Link>
+      </section>
+    );
+  return (
+    <ScopedLiveCartView key={`${identity.ownerId}:${identity.generation}`} />
+  );
+}
+
+function ScopedLiveCartView() {
   const { items, setQuantity, remove } = useLiveCart();
   const { menu, error, reload } = usePublicMenu();
   const [announcement, setAnnouncement] = useState("");
@@ -39,7 +56,7 @@ export function LiveCartView() {
         <h1 ref={heading} tabIndex={-1}>
           Tu pedido
         </h1>
-        <Link className="button button--secondary" href="/menu">
+        <Link className="button button--secondary" href="/client/menu">
           Volver al menú
         </Link>
       </header>
@@ -53,7 +70,7 @@ export function LiveCartView() {
       {!items.length ? (
         <section className={styles.empty}>
           <h2>Tu pedido está vacío</h2>
-          <Link className="button button--primary" href="/menu">
+          <Link className="button button--primary" href="/client/menu">
             Ver menú
           </Link>
         </section>

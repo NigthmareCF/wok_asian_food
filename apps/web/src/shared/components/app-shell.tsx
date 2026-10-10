@@ -174,6 +174,15 @@ export function AppShell({
               <Link
                 aria-label={item.label}
                 aria-current={active ? "page" : undefined}
+                data-mobile-primary={
+                  context === "client" &&
+                  [
+                    "/client",
+                    "/client/menu",
+                    "/client/orders",
+                    "/client/profile",
+                  ].includes(item.route)
+                }
                 href={item.route}
                 key={item.route}
                 title={

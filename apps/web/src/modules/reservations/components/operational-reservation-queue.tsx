@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarDays, Check, UsersRound, X } from "lucide-react";
 import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
 import {
   isOperationalPendingReservations,
+  isOperationalReservationDecisionResult,
+  parseOperationalReservationDecision,
   type OperationalPendingReservation,
   type OperationalReservationDecision,
 } from "../live-contract";
@@ -20,6 +22,7 @@ function formatReservationDate(value: string) {
   return new Intl.DateTimeFormat("es-GT", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "America/Guatemala",
   }).format(new Date(value));
 }
 
@@ -27,8 +30,11 @@ export function OperationalReservationQueue() {
   const queue = usePickupResource(
     "/bff/operational/reservations/pending",
     isOperationalPendingReservations,
+    10_000,
   );
   const [draft, setDraft] = useState<DecisionDraft | null>(null);
+  const inFlight = useRef(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
@@ -37,6 +43,7 @@ export function OperationalReservationQueue() {
     reservation: OperationalPendingReservation,
     decision: OperationalReservationDecision["decision"],
   ) {
+    if (inFlight.current || accessDenied) return;
     setError("");
     setFeedback("");
     setDraft({
@@ -48,7 +55,14 @@ export function OperationalReservationQueue() {
   }
 
   async function submitDecision() {
-    if (!draft || sending) return;
+    if (
+      !draft ||
+      inFlight.current ||
+      accessDenied ||
+      !parseOperationalReservationDecision(draft)
+    )
+      return;
+    inFlight.current = true;
     setSending(true);
     setError("");
     try {
@@ -56,6 +70,7 @@ export function OperationalReservationQueue() {
         `/bff/operational/reservations/${draft.reservationId}/decision`,
         {
           method: "PUT",
+          signal: AbortSignal.timeout(15000),
           headers: {
             "Content-Type": "application/json",
             "X-Request-Id": crypto.randomUUID(),
@@ -84,8 +99,36 @@ export function OperationalReservationQueue() {
           queue.reload();
           return;
         }
-        throw new Error(message);
+        if (
+          response.status === 404 ||
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          setError(
+            response.status === 404
+              ? "La solicitud ya no está disponible. Actualizamos la cola."
+              : response.status === 401
+                ? "Tu sesión venció. Inicia sesión nuevamente."
+                : "No tienes permiso para decidir estas solicitudes.",
+          );
+          if (response.status !== 404) setAccessDenied(true);
+          setDraft(null);
+          queue.reload();
+          return;
+        }
+        if (response.status >= 500) throw new Error("Resultado incierto");
+        setError(message);
+        return;
       }
+      if (
+        !isOperationalReservationDecisionResult(body) ||
+        body.reservationId !== draft.reservationId ||
+        body.decision !== draft.decision ||
+        body.status !==
+          (draft.decision === "CONFIRM" ? "CONFIRMED" : "CANCELLED") ||
+        body.rowVersion <= draft.expectedVersion
+      )
+        throw new Error("Respuesta inválida");
       setFeedback(
         draft.decision === "CONFIRM"
           ? "Solicitud confirmada."
@@ -93,18 +136,19 @@ export function OperationalReservationQueue() {
       );
       setDraft(null);
       queue.reload();
-    } catch (cause) {
+    } catch {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "No pudimos guardar la decisión.",
+        "No pudimos confirmar el resultado. Actualizamos la cola antes de que vuelvas a decidir.",
       );
+      setDraft(null);
+      queue.reload();
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   }
 
-  const validReason = !!draft && draft.reason.trim().length >= 3;
+  const validReason = !!draft && !!parseOperationalReservationDecision(draft);
   const visibleError = error || queue.error?.message;
 
   return (
@@ -124,7 +168,10 @@ export function OperationalReservationQueue() {
           <button
             className="button button--secondary"
             disabled={sending}
-            onClick={queue.reload}
+            onClick={() => {
+              setDraft(null);
+              queue.reload();
+            }}
             type="button"
           >
             Actualizar cola
@@ -169,7 +216,7 @@ export function OperationalReservationQueue() {
                 <div className={styles.queueActions}>
                   <button
                     className="button button--primary button--compact"
-                    disabled={sending}
+                    disabled={sending || accessDenied}
                     onClick={() => beginDecision(reservation, "CONFIRM")}
                     type="button"
                   >
@@ -177,7 +224,7 @@ export function OperationalReservationQueue() {
                   </button>
                   <button
                     className="button button--secondary button--compact"
-                    disabled={sending}
+                    disabled={sending || accessDenied}
                     onClick={() => beginDecision(reservation, "REJECT")}
                     type="button"
                   >
@@ -211,9 +258,7 @@ export function OperationalReservationQueue() {
                         onClick={() => void submitDecision()}
                         type="button"
                       >
-                        {sending
-                          ? "Guardando…"
-                          : decisionLabel(draft.decision)}
+                        {sending ? "Guardando…" : decisionLabel(draft.decision)}
                       </button>
                       <button
                         className="button button--secondary button--compact"

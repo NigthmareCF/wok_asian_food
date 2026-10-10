@@ -147,8 +147,8 @@ class BffIntegrationTest {
 
     @Test
     void outOfScopeRoutesNeverReachCore() throws Exception {
-        for (String path : List.of("/api/v1/admin/users", "/api/v1/operational/orders", "/api/v1/client/delivery-requests",
-                "/api/v1/payments", "/api/v1/ai/chat", "/api/v1/client/addresses", "/api/v1/public/unknown")) {
+        for (String path : List.of("/api/v1/admin/users", "/api/v1/operational/orders", "/api/v1/client/delivery-requests/unknown",
+                "/api/v1/payments", "/api/v1/ai/chat", "/api/v1/client/addresses/unknown", "/api/v1/public/unknown")) {
             assertEquals(404, send("GET", path, "Bearer test-client", null, "").statusCode(), path);
         }
         assertEquals(404, send("POST", "/api/v1/public/menu", null, null, "{}").statusCode());
@@ -366,6 +366,65 @@ class BffIntegrationTest {
             assertFalse(response.body().contains("secret"));
             assertEquals(1, received.size());
         }
+    }
+
+    @Test
+    void consolidatedClientContractsForwardOnlyWithVerifiedClientAndExactReplayKey() throws Exception {
+        String id=UUID.randomUUID().toString();
+        for(String route:List.of("POST /api/v1/client/order-quotes", "POST /api/v1/client/reservation-quotes",
+                "GET /api/v1/client/order-quotes/"+id,"GET /api/v1/client/reservation-quotes/"+id,
+                "GET /api/v1/client/delivery-requests","POST /api/v1/client/delivery-requests",
+                "GET /api/v1/client/delivery-requests/"+id,"GET /api/v1/client/delivery-requests/"+id+"/tracking",
+                "GET /api/v1/client/phone-verification","POST /api/v1/client/phone-verification",
+                "POST /api/v1/client/phone-verification/confirm","GET /api/v1/client/substitutions",
+                "POST /api/v1/client/substitutions/"+id+"/decision",
+                "POST /api/v1/client/preorder-substitutions/"+id+"/decision",
+                "GET /api/v1/client/order-requests/"+id+"/documents/PREBILL",
+                "GET /api/v1/client/order-requests/"+id+"/documents/RECEIPT",
+                "POST /api/v1/client/order-requests/"+id+"/change-requests",
+                "GET /api/v1/client/order-requests/"+id+"/change-requests",
+                "GET /api/v1/client/addresses","POST /api/v1/client/addresses",
+                "PUT /api/v1/client/addresses/"+id,"DELETE /api/v1/client/addresses/"+id)) {
+            String[] parts=route.split(" ");String method=parts[0],path=parts[1];
+            String payload=List.of("POST","PUT").contains(method)?"{\"quoteId\":\""+id+"\",\"items\":[]}":"";
+            String key=UUID.randomUUID().toString();
+            received.clear();
+            assertEquals(401,send(method,path,null,key,payload).statusCode(),route);
+            assertTrue(received.isEmpty(),route);
+            assertEquals(200,send(method,path,"Bearer test-client",key,payload).statusCode(),route);
+            assertEquals(route,received.getLast().route());
+            assertEquals("Bearer test-client",received.getLast().authorization());
+            assertNull(received.getLast().cookie());
+            assertEquals(payload,received.getLast().body());
+            var contract=new ClientRoutes().find(method,path);
+            if(contract.idempotent()){
+                assertEquals(key,received.getLast().key());
+                received.clear();
+                assertEquals(400,send(method,path,"Bearer test-client",null,payload).statusCode());
+                assertTrue(received.stream().noneMatch(r->r.route().equals(route)));
+            }
+        }
+        responses.put("GET /api/v1/client/profile",new Stub(403,"{}"));
+        received.clear();
+        assertEquals(403,send("POST","/api/v1/client/order-quotes","Bearer denied",UUID.randomUUID().toString(),"{}").statusCode());
+        assertEquals(List.of("GET /api/v1/client/profile"),received.stream().map(Received::route).toList());
+    }
+
+    @Test
+    void consolidatedPublicContractsNeverForwardCredentialsAndUnknownRoutesStayClosed() throws Exception {
+        String id=UUID.randomUUID().toString();
+        for(String path:List.of("/api/v1/public/service-policy","/api/v1/public/menu/"+id+"/modifiers")) {
+            received.clear();
+            assertEquals(200,send("GET",path,"Bearer ignored",null,"").statusCode());
+            assertNull(received.getLast().authorization());assertNull(received.getLast().cookie());
+        }
+        for(String path:List.of("/api/v1/admin/service-policy","/api/v1/operational/orders/"+id,
+                "/api/v1/client/order-requests/"+id+"/documents/COMMAND","/api/v1/client/unknown",
+                "/api/v1/client/order-quotes/not-a-uuid","/api/v1/client/substitutions/"+id+"/apply")) {
+            received.clear();assertEquals(404,send("GET",path,"Bearer test-client",null,"").statusCode(),path);
+            assertTrue(received.isEmpty(),path);
+        }
+        assertEquals(404,send("PUT","/api/v1/client/order-quotes","Bearer test-client",null,"{}").statusCode());
     }
 
     private HttpResponse<String> send(String method, String path, String authorization, String key, String body) throws Exception {

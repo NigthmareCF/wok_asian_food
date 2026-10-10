@@ -50,22 +50,28 @@ test("request policy uses the real wire field and inclusive table boundaries", (
   const { reservationPolicySchema, reservationTimeError } = slots();
   const policy = reservationPolicySchema.parse({
     timeZone: "America/Guatemala",
-    minimumNoticeHours: 3,
-    firstRequestTime: "14:00:00",
+    minimumNoticeHours: 2,
+    minimumNoticeMinutes: 120,
+    baseGuests: 4,
+    additionalGuestGroupSize: 2,
+    additionalNoticeMinutes: 15,
+    completePreorderAt: "21:15:00",
+    outsideHoursRequiresReview: true,
+    firstRequestTime: "00:00:00",
     lastRequestTime: "21:15:00",
     preorderRecommendedAfter: "20:30:00",
-    preorderItemsSupported: false,
+    preorderItemsSupported: true,
     asOf: "2026-10-07T15:00:00Z",
   });
   const now = Date.parse("2026-10-07T15:00:00Z");
   assert.equal(reservationTimeError("2026-10-07T14:00", now, policy), null);
   assert.equal(reservationTimeError("2026-10-07T21:15", now, policy), null);
-  assert.ok(reservationTimeError("2026-10-07T13:59", now, policy));
+  assert.equal(reservationTimeError("2026-10-07T13:59", now, policy),null);
   assert.ok(reservationTimeError("2026-10-07T21:16", now, policy));
   assert.equal(
     reservationTimeError(
       "2026-10-07T14:00",
-      Date.parse("2026-10-07T17:00:00Z"),
+      Date.parse("2026-10-07T18:00:00Z"),
       policy,
     ),
     null,
@@ -73,10 +79,15 @@ test("request policy uses the real wire field and inclusive table boundaries", (
   assert.ok(
     reservationTimeError(
       "2026-10-07T14:00",
-      Date.parse("2026-10-07T17:00:01Z"),
+      Date.parse("2026-10-07T18:00:01Z"),
       policy,
     ),
   );
+  for (const [guests,minutes] of [[4,120],[5,135],[6,135],[7,150],[50,465]]) {
+    const target=Date.parse("2026-10-07T20:00:00Z");
+    assert.equal(reservationTimeError("2026-10-07T14:00",target-minutes*60000,policy,guests),null);
+    assert.ok(reservationTimeError("2026-10-07T14:00",target-minutes*60000+1,policy,guests));
+  }
   assert.equal(
     reservationPolicySchema.safeParse({
       ...policy,

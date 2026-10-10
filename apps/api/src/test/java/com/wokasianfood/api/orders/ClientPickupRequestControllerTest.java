@@ -22,9 +22,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 @ExtendWith(MockitoExtension.class)
 class ClientPickupRequestControllerTest {
     @Mock JdbcTemplate jdbc;
+    @Mock PickupSchedulePolicy schedule;
 
     @Test
-    void submitsPendingPickupRequestUsingCurrentBackendPriceSnapshots() throws Exception {
+    void refusesFormalSubmissionWithoutAcceptedQuote() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID menuItemId = UUID.randomUUID();
         UUID currencyId = UUID.randomUUID();
@@ -34,16 +35,9 @@ class ClientPickupRequestControllerTest {
         var request = new ClientPickupRequestController.PickupRequest(requestedFor, "Sin cebolla",
                 List.of(new ClientPickupRequestController.RequestedItem(menuItemId, 2)));
 
-        var result = new ClientPickupRequestController(jdbc).submit(jwt(userId), UUID.randomUUID(), request);
-
-        assertEquals(requestId, result.requestId());
-        assertEquals("PENDING_REVIEW", result.status());
-        assertEquals(new BigDecimal("20.50"), result.subtotal());
-        assertFalse(result.idempotentReplay());
-        assertTrue(result.message().contains("confirmar disponibilidad"));
-        verify(jdbc).update(contains("order_request_items"), eq(requestId), eq(menuItemId),
-                eq("Pad Thai"), eq(2), eq(new BigDecimal("10.25")), eq(currencyId));
-        verify(jdbc).update(contains("order_request_events"), eq(requestId), eq(userId));
+        var error=assertThrows(AuthException.class,()->new ClientPickupRequestController(jdbc,schedule).submit(jwt(userId),UUID.randomUUID(),request));
+        assertEquals(422,error.status());
+        verify(jdbc,never()).update(contains("order_request_events"),any(Object[].class));
     }
 
     @Test
@@ -55,7 +49,7 @@ class ClientPickupRequestControllerTest {
                 List.of(new ClientPickupRequestController.RequestedItem(menuItemId, 1)));
 
         AuthException error = assertThrows(AuthException.class, () ->
-                new ClientPickupRequestController(jdbc).submit(jwt(userId), UUID.randomUUID(), request));
+                new ClientPickupRequestController(jdbc, schedule).submit(jwt(userId), UUID.randomUUID(), request));
 
         assertEquals(422, error.status());
         verify(jdbc, never()).update(contains("order_request_items"), any(Object[].class));
@@ -69,7 +63,7 @@ class ClientPickupRequestControllerTest {
         stubRequestStatus("PENDING_REVIEW");
         when(jdbc.update(contains("SET status = 'CANCELLED'"), any(Object[].class))).thenReturn(1);
 
-        var result = new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId);
+        var result = new ClientPickupRequestController(jdbc, schedule).cancel(jwt(userId), requestId);
 
         assertEquals(new ClientPickupRequestController.OrderRequestState(requestId, "CANCELLED"), result);
         verify(jdbc).update(contains("order_request_events"), eq(requestId), eq(userId));
@@ -82,7 +76,7 @@ class ClientPickupRequestControllerTest {
         stubRequestStatus(null);
 
         AuthException error = assertThrows(AuthException.class, () ->
-                new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId));
+                new ClientPickupRequestController(jdbc, schedule).cancel(jwt(userId), requestId));
 
         assertEquals(404, error.status());
         verify(jdbc, never()).update(anyString(), any(Object[].class));
@@ -94,7 +88,7 @@ class ClientPickupRequestControllerTest {
         UUID requestId = UUID.randomUUID();
         stubRequestStatus("CANCELLED");
 
-        var result = new ClientPickupRequestController(jdbc).cancel(jwt(userId), requestId);
+        var result = new ClientPickupRequestController(jdbc, schedule).cancel(jwt(userId), requestId);
 
         assertEquals("CANCELLED", result.status());
         verify(jdbc, never()).update(anyString(), any(Object[].class));
@@ -124,15 +118,18 @@ class ClientPickupRequestControllerTest {
                 when(rs.getObject("currency_id", UUID.class)).thenReturn(currencyId);
                 when(rs.getString("currency_code")).thenReturn("GTQ");
                 when(rs.getString("customer_note")).thenReturn("Sin cebolla");
+                when(rs.getObject("order_id", UUID.class)).thenReturn(UUID.randomUUID());
+                when(rs.getString("order_status")).thenReturn("PREPARING");
             }
             return List.of(mapper.mapRow(rs, 0));
         }).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
 
-        var result = new ClientPickupRequestController(jdbc).details(jwt(userId), requestId);
+        var result = new ClientPickupRequestController(jdbc, schedule).details(jwt(userId), requestId);
 
         assertEquals("Sin cebolla", result.customerNote());
         assertEquals("Pad Thai", result.items().getFirst().name());
         assertEquals(new BigDecimal("20.50"), result.items().getFirst().lineTotal());
+        assertEquals("PREPARING", result.orderStatus());
     }
 
     @Test
@@ -140,7 +137,7 @@ class ClientPickupRequestControllerTest {
         doAnswer(invocation -> List.of()).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
 
         AuthException error = assertThrows(AuthException.class, () ->
-                new ClientPickupRequestController(jdbc).details(jwt(UUID.randomUUID()), UUID.randomUUID()));
+                new ClientPickupRequestController(jdbc, schedule).details(jwt(UUID.randomUUID()), UUID.randomUUID()));
 
         assertEquals(404, error.status());
         verify(jdbc, times(1)).query(anyString(), any(RowMapper.class), any(Object[].class));
@@ -148,7 +145,7 @@ class ClientPickupRequestControllerTest {
 
     private void stubRequestStatus(String status) {
         doAnswer(invocation -> {
-            if (status == null) return List.of();
+            if (status == null || !((String)invocation.getArgument(0)).contains("SELECT status FROM wok.order_requests")) return List.of();
             @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
             ResultSet rs = mock(ResultSet.class);
             when(rs.getString("status")).thenReturn(status);

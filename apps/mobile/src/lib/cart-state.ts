@@ -7,7 +7,8 @@ const itemsSchema = z.record(z.uuid(), z.number().int().min(1).max(50));
 const attemptSchema = z.object({
   email: z.string().min(1), key: z.uuid(), body: z.object({
     requestedFor: z.iso.datetime({ offset: true }), customerNote: z.string().max(500).optional(),
-    items: z.array(z.object({ menuItemId: z.uuid(), quantity: z.number().int().min(1).max(50) })).min(1),
+    quoteId:z.uuid().optional(),
+    items: z.array(z.object({ menuItemId: z.uuid(), quantity: z.number().int().min(1).max(50),modifierIds:z.array(z.uuid()).max(30).optional() })).min(1).max(20),
   }),
 });
 export type PickupAttempt = { email: string; key: string; body: PickupRequestBody };

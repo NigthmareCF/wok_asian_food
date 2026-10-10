@@ -135,6 +135,7 @@ export default function PickupRequestsScreen() {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Page safeTop brand>
+        <Button title="Sustituciones y documentos NO FEL" secondary onPress={()=>router.push("/core")}/>
         <Heading eyebrow="Tu actividad">Mis solicitudes</Heading>
         <Text style={ui.body}>
           Consulta el estado de las solicitudes para recoger y cancela las que

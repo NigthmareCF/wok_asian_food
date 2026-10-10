@@ -264,7 +264,7 @@ export function ReservationFormView({ initialTime }: { initialTime?: string }) {
               <Link
                 aria-describedby="preorder-help"
                 className={includesPreorder === true ? styles.selected : ""}
-                href="/menu"
+                href="/client/menu"
                 id="preorder-choice"
                 onClick={() => setIncludesPreorder(true)}
               >

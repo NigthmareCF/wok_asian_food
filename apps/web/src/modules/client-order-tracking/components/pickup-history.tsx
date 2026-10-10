@@ -1,18 +1,21 @@
 "use client";
+import { formatServiceDateTime } from "@/modules/checkout/service-time";
 import Link from "next/link";
 import { Button } from "@/shared/components/ui/button";
 import {
   formatPickupMoney,
   isPickupHistory,
+  pickupOrderStatusLabels,
   pickupStatusLabels,
 } from "../pickup-details";
-import { usePickupResource } from "../use-pickup-resource";
+import { useClientPickupResource } from "../use-client-pickup-resource";
 import styles from "./client-order-list.module.css";
 
-export function PickupHistory() {
-  const { data, error, reload } = usePickupResource(
+export function PickupHistory({ userId }: { userId?: string } = {}) {
+  const { data, error, reload } = useClientPickupResource(
     "/bff/order-requests",
     isPickupHistory,
+    userId,
   );
   return (
     <div className={styles.orders}>
@@ -23,7 +26,7 @@ export function PickupHistory() {
           requiere aceptación del restaurante.
         </p>
       </header>
-      <Link href="/menu">Volver al menú</Link>
+      <Link href="/client/menu">Volver al menú</Link>
       <Button variant="secondary" onClick={reload}>
         Actualizar solicitudes
       </Button>
@@ -41,7 +44,7 @@ export function PickupHistory() {
       ) : data.length === 0 ? (
         <section className={styles.empty}>
           <h2>Aún no tienes solicitudes para recoger</h2>
-          <Link href="/menu">Explorar el menú</Link>
+          <Link href="/client/menu">Explorar el menú</Link>
         </section>
       ) : (
         <section className={styles.list} aria-label="Tus solicitudes">
@@ -53,10 +56,13 @@ export function PickupHistory() {
             >
               <strong>Solicitud {request.requestId}</strong>
               <span>{pickupStatusLabels[request.status]}</span>
-              <p>
-                Para recoger:{" "}
-                {new Date(request.requestedFor).toLocaleString("es-GT")}
-              </p>
+              {request.orderStatus && (
+                <p>
+                  Estado del pedido:{" "}
+                  {pickupOrderStatusLabels[request.orderStatus]}
+                </p>
+              )}
+              <p>Para recoger: {formatServiceDateTime(request.requestedFor)}</p>
               <p>{formatPickupMoney(request.subtotal, request.currency)}</p>
               <small>Ver detalle</small>
             </Link>

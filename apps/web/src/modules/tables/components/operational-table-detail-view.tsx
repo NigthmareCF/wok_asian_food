@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { CircleAlert, RefreshCw } from "lucide-react";
+import { useRef, useState } from "react";
+import { CircleAlert, ReceiptText, RefreshCw } from "lucide-react";
 import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
 import {
   isOperationalTable,
   isOperationalTables,
 } from "@/modules/tables/live-contract";
+import { formatAccountStatus, formatTableAccount } from "../presentation";
 import styles from "./operational-tables.module.css";
+import {
+  isAccountBalances,
+  formatMoney,
+} from "@/modules/payments/live-contract";
+import { useFinancialAttempts } from "@/modules/payments/financial-attempt-provider";
 
 const labels = {
   FREE: "Libre",
@@ -28,17 +34,48 @@ function message(body: unknown) {
 }
 
 export function OperationalTableDetailView({ tableId }: { tableId: string }) {
+  const financial = usePickupResource(
+    `/bff/operational/accounts?tableId=${encodeURIComponent(tableId)}`,
+    isAccountBalances,
+  );
+  const { permissions } = useFinancialAttempts();
+  const accountPermission = permissions.includes("accounts:manage");
+  const financialRead =
+    accountPermission || permissions.includes("payments:manage");
+  const settled =
+    financial.data !== null &&
+    !financial.error &&
+    financial.data.every(
+      (a) =>
+        a.currencies.length <= 1 &&
+        a.currencyTotals.every((t) => t.balance === 0) &&
+        a.pendingOrderCount === 0 &&
+        a.unfinalizedOrderCount === 0,
+    );
   const resource = usePickupResource(
     "/bff/operational/tables",
     isOperationalTables,
   );
+  const inFlight = useRef(false);
   const [sending, setSending] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [confirmRelease, setConfirmRelease] = useState(false);
+
   const table = resource.data?.find((item) => item.id === tableId);
 
   async function action(kind: "open" | "close") {
-    if (sending || !table) return;
+    if (
+      inFlight.current ||
+      accessDenied ||
+      !table ||
+      !accountPermission ||
+      (kind === "close" && !settled)
+    )
+      return;
+    inFlight.current = true;
+    setConfirmRelease(false);
     setSending(true);
     setError("");
     setFeedback("");
@@ -53,12 +90,26 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
           setError(
             response.status === 404
               ? "La mesa ya no existe. Recargamos el listado."
-              : "El estado de la mesa cambió. Recargamos el listado.",
+              : `${message(body)} Recargamos el listado.`,
           );
           resource.reload();
+          financial.reload();
           return;
         }
-        throw new Error(message(body));
+        if (response.status === 401 || response.status === 403) {
+          setAccessDenied(true);
+          setError(
+            response.status === 401
+              ? "Tu sesión venció. Inicia sesión nuevamente."
+              : "No tienes permiso para actualizar esta mesa.",
+          );
+          resource.reload();
+          financial.reload();
+          return;
+        }
+        if (response.status >= 500) throw new Error("Resultado incierto");
+        setError(message(body));
+        return;
       }
       if (!isOperationalTable(body)) throw new Error("Respuesta inválida.");
       setFeedback(
@@ -67,13 +118,15 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
           : "Mesa cerrada y enviada a limpieza.",
       );
       resource.reload();
-    } catch (cause) {
+      financial.reload();
+    } catch {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "No pudimos actualizar la mesa.",
+        "No pudimos confirmar el resultado. Actualizamos la mesa antes de que vuelvas a operar.",
       );
+      resource.reload();
+      financial.reload();
     } finally {
+      inFlight.current = false;
       setSending(false);
     }
   }
@@ -103,10 +156,11 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
       </div>
     );
 
-  const openable = table.status === "FREE" || table.status === "CLEANING";
+  const openable =
+    table.active && (table.status === "FREE" || table.status === "CLEANING");
   const closable = table.status === "OCCUPIED";
   return (
-    <div className="ops-dashboard">
+    <div className={`ops-dashboard ${styles.root}`}>
       <header className="ops-page-header">
         <div>
           <Link className="text-action" href="/operation/tables">
@@ -142,16 +196,22 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
             }).format(new Date(table.updatedAt))}
           </dd>
           <dt>Cuenta</dt>
-          <dd>
-            {table.accountName
-              ? `${table.accountName} · ${table.accountStatus}`
-              : "Sin cuenta abierta"}
-          </dd>
+          <dd>{formatTableAccount(table)}</dd>
         </dl>
         <div className={styles.actions}>
+          {table.accountId ? (
+            <Link
+              className="button button--primary"
+              href={`/operation/orders/new?account=${encodeURIComponent(table.accountId)}&accountName=${encodeURIComponent(table.accountName ?? "Cuenta principal")}`}
+            >
+              <ReceiptText aria-hidden="true" size={17} /> Tomar pedido
+            </Link>
+          ) : null}
           <button
             className="button button--primary"
-            disabled={sending || !openable}
+            disabled={
+              sending || accessDenied || !openable || !accountPermission
+            }
             onClick={() => void action("open")}
             type="button"
           >
@@ -159,23 +219,110 @@ export function OperationalTableDetailView({ tableId }: { tableId: string }) {
           </button>
           <button
             className="button button--secondary"
-            disabled={sending || !closable}
-            onClick={() => void action("close")}
+            disabled={
+              sending ||
+              accessDenied ||
+              !closable ||
+              !accountPermission ||
+              !settled
+            }
+            onClick={() => setConfirmRelease(true)}
             type="button"
           >
-            {sending ? "Guardando…" : "Cerrar mesa"}
+            {sending ? "Guardando…" : "Finalizar cuentas y liberar mesa"}
           </button>
         </div>
       </section>
+      {confirmRelease ? (
+        <div className="confirm-dialog__backdrop">
+          <section
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            onKeyDown={(e) =>
+              containDialogKeys(e, () => {
+                if (!sending) setConfirmRelease(false);
+              })
+            }
+            aria-labelledby="release-title"
+          >
+            <h2 id="release-title">Confirmar liberación de {table.name}</h2>
+            <p>
+              Se finalizarán todas las cuentas con saldo cero y pedidos
+              finalizados. La mesa pasará a limpieza.
+            </p>
+            <div className="confirm-dialog__actions">
+              <button
+                className="button button--secondary"
+                autoFocus
+                onClick={() => setConfirmRelease(false)}
+              >
+                Volver sin liberar
+              </button>
+              <button
+                className="button button--primary"
+                disabled={
+                  sending || accessDenied || !settled || !accountPermission
+                }
+                onClick={() => void action("close")}
+              >
+                Confirmar liberación
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {financialRead ? (
+        <section className="ops-work-panel">
+          <h2>Todas las cuentas de la mesa</h2>
+          <button
+            className="button button--secondary"
+            onClick={financial.reload}
+          >
+            Actualizar cuentas
+          </button>
+          {financial.error ? (
+            <p role="alert">{financial.error.message}</p>
+          ) : null}
+          {!financial.data && !financial.error ? (
+            <p role="status">Consultando todas las cuentas…</p>
+          ) : null}
+          {financial.data?.map((a) => (
+            <div key={a.account.id}>
+              <h3>
+                {a.account.name} · {formatAccountStatus(a.account.status)}
+              </h3>
+              {a.currencyTotals.map((t) => (
+                <p key={t.currency}>
+                  Saldo: {formatMoney(t.balance, t.currency)}
+                </p>
+              ))}
+              <p>{a.unfinalizedOrderCount} pedidos sin finalizar</p>
+              <Link
+                className="button button--secondary"
+                href={`/operation/payments/${a.account.id}`}
+              >
+                Cuenta y precuenta
+              </Link>
+            </div>
+          ))}
+          {!settled ? (
+            <p>
+              La liberación exige saldo cero y pedidos finalizados en todas las
+              cuentas. El servidor vuelve a comprobarlo al liberar.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
       <section className="ops-work-panel" aria-labelledby="unavailable-actions">
         <h2 id="unavailable-actions">Acciones no disponibles</h2>
-        <p>Estas acciones requieren APIs que todavía no existen.</p>
+        <p>Estas acciones aún no están disponibles en esta pantalla.</p>
         <div className={styles.unavailable}>
           {[
             "Unir o separar mesas",
             "Asignar reserva",
             "Trasladar mesa",
-            "Dividir o cobrar cuenta",
+            "Dividir cuenta",
             "Marcar limpia como libre",
             "Abrir atención presencial",
           ].map((item) => (
@@ -212,4 +359,34 @@ function ErrorState({
       </button>
     </div>
   );
+}
+
+function containDialogKeys(
+  event: React.KeyboardEvent<HTMLElement>,
+  close: () => void,
+) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    close();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const controls = Array.from(
+    event.currentTarget.querySelectorAll<HTMLElement>(
+      "button:not(:disabled),input:not(:disabled),select:not(:disabled),a[href]",
+    ),
+  );
+  const first = controls[0],
+    last = controls[controls.length - 1];
+  if (!first || !last) {
+    event.preventDefault();
+    return;
+  }
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }

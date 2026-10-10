@@ -378,3 +378,57 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Mensajes reales: conversación demo `2228f316-efa1-4774-a972-d16cda927234`; consulta/respuesta entre cuentas demo, reintento sin duplicado, entrada/salida de cola WAITING y lectura por cliente verificadas. Envío y respuesta también comprobados desde ambas pantallas.
 - Aislamiento real: otro cliente recibe 404 al leer delivery/conversación ajenos; cliente recibe 403 en bandeja operativa. Sin cambios de roles, credenciales, `.env`, commits o push.
 - Pendiente: integración de vistas operativas de Delivery/reservas y sus flujos posteriores; pagos reales, disponibilidad/capacidad en vivo y realtime. Esta entrega no convierte las solicitudes en pedidos confirmados. Revisión visual de escritorio realizada; matriz completa de cuatro tamaños pendiente.
+
+## 2026-10-06 — Antony-C02-B: aislamiento de identidad en Cliente
+
+- Instancia única de identidad dentro del módulo Cliente, iniciada por suscripciones del carrito/vistas pickup. Revalida mediante GET `/bff/auth/session` existente; respuestas fuera de orden no pueden restaurar una identidad invalidada. Última desuscripción retira listeners y aborta verificación. Sin cambios a AppProviders, autenticación o transporte compartido.
+- Carrito v2 separado por dueño verificado y visitante. El v1 sin dueño queda intacto e ignorado; no se importa el borrador visitante al iniciar sesión. Identidad sin verificar oculta datos privados y bloquea operaciones. Las mutaciones del carrito capturan propietario/generación.
+- Checkout, historial, detalle y cancelación pickup invalidan operaciones ante cambio conocido de identidad, logout o desmontaje. Se comprueba vigencia después de awaits y antes de efectos; respuestas antiguas no guardan comprobantes, consumen carrito ni cambian errores/carga/historial de otra generación. Los intentos inciertos de A se conservan en su espacio al entrar B.
+- Validación exclusivamente en copia temporal con mocks: 78 casos Cliente y dos controles BFF aprobados; S01/S02 siguen fallando y abiertos. Regresiones adicionales: 38 aprobadas con una adaptación de mock solo en Temp. El test original de menú no diferencia sesión y catálogo y registra un fallo de arnés; su archivo queda sin modificar por estar fuera del delta autorizado. TypeScript y lint del delta aprobados.
+- Límites: ninguna comprobación browser evita la carrera sesión→POST. Fernando/Chan deben vincular intento y principal de forma verificable en la frontera servidor. Abort no revierte persistencia. Focus/visibility no detectan cambios entre pestañas instantáneamente; cambios invisibles entre consultas no tienen garantía. Sin pruebas contra servicios/bases existentes, instalaciones, commits, publicación o cambios de rama.
+- Informe, evidencia, parche contra el estado inicial y comprobación de preservación: `C:\Users\avill\AppData\Local\Temp\antony-c02b-identity-20261006`. Implementación detenida para revisión independiente; no se declara resuelto el requisito completo de extremo a extremo.
+
+## 2026-10-07 — Recorridos Web integrados de PLAN_TRABAJO
+
+- Catálogo/detalle reales; lecturas privadas automáticas; reservas/mensajes/delivery vinculados al principal esperado en el BFF. Intentos inciertos se conservan tras recarga; perfil conecta únicamente nombre/teléfono con versión.
+- Reservas y mensajes cruzados, perfil y aislamiento verificados con HTTP/API/PostgreSQL nuevo aislado; Web con respuestas controladas. Regresión global: 766 pruebas Web y 244 API aprobadas; lint, tipos y build aprobados.
+- Informe, archivos, contratos, límites y guion manual: [WEB_INTEGRATED_DELIVERY.md](WEB_INTEGRATED_DELIVERY.md). Validación visual del último delta y Android físico pendientes; no equivale a aceptación productiva. Cambios anteriores preservados, sin acciones Git de publicación.
+
+## 2026-10-07 — Corrección F1/F5 de revisión independiente
+
+- Perfil admite el JSON real sin phone y el BFF normaliza a null en GET/PUT; error de lectura separado de modificación incierta. Integración Next/BFF/API/PostgreSQL nuevo confirma cliente sin teléfono, alta/eliminación y persistencia en nueva sesión.
+- Recurso privado compartido vinculado a identidad/generación: invalida datos ante logout conocido y descarta respuestas obsoletas. Pruebas controladas distinguidas de integración real.
+- Regresión final: 786 pruebas Web aprobadas, lint/tipos/build aprobados. Informe F1–F6 y evidencia: [WEB_INTEGRATED_F1_F6.md](WEB_INTEGRATED_F1_F6.md). Sin cierre del plan completo ni publicación; detenido para revisión independiente.
+
+## 2026-10-09 — Paquete Antony sobre #39
+
+- Aceptación delivery adaptada selectivamente de `2768be3`, sin reemplazar el protocolo financiero de #39. Solicitud, pedido, cocina y seguimiento comparten el registro; no incluye logística de reparto.
+- Cancelación de delivery pendiente y cancelación revisada de pickup aceptado con ownership, idempotencia, versión e historial. Persistencia adaptada de `036ee70`: V56 provisional, requiere coordinación antes de integrar. Delivery aceptado sigue dependiendo del contrato de despacho; pagos capturados requieren atención del equipo, sin devoluciones ni restauración implícita de inventario.
+- Imágenes reales con alternativa accesible y horarios programados en America/Guatemala. El máximo de 3 horas para pickup se conserva hasta conciliarlo con las decisiones del equipo.
+- Verificación con Web/API/PostgreSQL aislados: seguimiento, mensajes, perfil, reservas, cancelaciones, concurrencia y recorrido presencial hasta CLEANING. Suites y evidencia detalladas en el paquete de auditoría externo al repositorio. Navegador bloqueado por fallo del runtime; revisión visual pendiente. Sin aceptación final ni publicación.
+
+## 2026-10-09 — Correcciones focalizadas F1–F4
+
+- Recepción operativa delivery muestra dirección, referencia, teléfono y preferencia de pago desde el contrato único autorizado; conserva filtros, productos y enlace al pedido. No incluye logística ni cobro confirmado.
+- Última cancelación consultada por pedido mediante `/change-requests/current`, sin depender de los últimos 100 cambios; conserva identidad esperada y descarte de respuestas tardías.
+- Recepción operativa presenta citas y envío en America/Guatemala usando el formateador existente. Motivos de solicitud/decisión se normalizan y validan antes de escrituras e idempotencia; aprobación admite motivo opcional, rechazo exige motivo válido.
+- Regresiones propias Web/BFF y HTTP/PostgreSQL nuevos, incluida protección financiera, con evidencia en Temp. Entorno 18139 anterior preservado. V56 intacta y provisional; pendientes comerciales, despacho delivery y revisión visual requieren coordinación con Chan/Barrera. Sin commits, integración ni aceptación final.
+
+## 2026-10-09 — Corrección focalizada F4 Unicode
+
+- Se reprodujeron ambos errores500 de `😀a`: tres unidades UTF-16 pero dos caracteres PostgreSQL, con rollback completo. DTO/servicio y parsers Web ahora cuentan puntos de código, manteniendo motivos normalizados de3–500 y aprobación con motivo opcional. Unicode válido no se prohíbe ni normaliza a NFC/NFKC; V56 permanece intacta.
+- Regresiones propias HTTP/PostgreSQL nuevo para solicitud/decisión, límites ASCII/suplementarios, ausencia de escrituras y replay; Web cubre el contrato y entrada de500 caracteres suplementarios. Evidencia de esta corrección en Temp; F1–F3 y finanzas preservados. Sin cambios al entorno18139, commits ni publicación; revisión independiente F4 pendiente.
+
+## 2026-10-09 — Candidato core consolidado para auditoría
+
+- Sobre la base y delta aceptados F1–F4 se adaptaron Web y móvil: quote explícita antes de submit, modificadores, teléfono/OTP, reservas con preorden, consentimiento de sustituciones y documentos HTML no fiscales. Se retiró el máximo pickup de tres horas; el backend concentra horarios y políticas.
+- Backend y Operativo añaden holds durables, reclaiming, revisión/logística auditadas, conversión explícita de preorden y configuración Admin con versión/idempotencia. Migraciones locales V57–V60, preservando V1–V27/V56; sin V36 equivalente.
+- No se habilita delivery sin transporte real de verificación. Diferencias de sustituciones pagadas quedan bloqueadas por falta de contrato de ajuste/devolución. Se cubre sustitución consentida de preorden confirmada antes de conversión y del pedido real después de conversión. P1 separado.
+- Evidencia, manifiestos/delta, controles finales y bloqueos en paquete Temp del candidato. Sin commits, publicación ni modificación de demos/bases existentes. No afirmar aprobación independiente ni verificación visual pendiente. Contratos: [CORE_CONTRACTS](../consolidated/CORE_CONTRACTS.md); cadena local: [MIGRATIONS](../consolidated/MIGRATIONS.md).
+
+## 2026-10-09 — Reconciliación del core sobre development fijo
+
+- Base local de preparación: development `1339d740320741050b1131dd9880491d1adffefc`; fuentes acumuladas de #39 `bbcb773b7f19804d54d04e69bc2d2410e46364a2` más delta aceptado y candidato consolidado. Composición por archivo/hunks, sin merge ni reproducción de commits históricos. No se actualizó la base durante el encargo.
+- Se conservan diseño/navegación e identidad/recuperación móvil de #36. Quote, preorden y consentimiento se adaptan a esa interfaz; el BFF añade una allowlist explícita de contratos Cliente, conservando seguridad y comprobación de perfil Core en cada acceso.
+- Política de reservas compartida: mínimo120 +15 por cada grupo de2 comensales sobre4, llegada máxima21:15 con preorden completa en la frontera, y solicitudes fuera de apertura sujetas a revisión. Se preservan finanzas/F1–F4 y V1–V27/V56; V57–V60 siguen provisionales.
+- Evidencia nueva del reconciliado: API322 pruebas sin omisiones (incluye Web/móvil/BFF reales, migraciones y regresión financiera), BFF32, Web902, móvil73; tipos/lint, build Web y export Android verificados en la copia aislada. Exportar Android no prueba un dispositivo físico. Revisión visual bloqueada por fallo del runtime; OTP real, ajuste financiero pagado y promoción compartida siguen pendientes. Informe/delta/manifiestos en Temp. Sin commits, push ni publicación.

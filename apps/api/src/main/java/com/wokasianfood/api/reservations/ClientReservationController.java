@@ -1,6 +1,7 @@
 package com.wokasianfood.api.reservations;
 
 import jakarta.validation.Valid;
+import com.wokasianfood.api.reservations.ReservationQuoteController.Line;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -49,7 +50,7 @@ public class ClientReservationController {
             @RequestHeader("Idempotency-Key") UUID requestId,
             @Valid @RequestBody Submission request) {
         var result = requests.submit(UUID.fromString(jwt.getSubject()), requestId,
-                new ReservationRequestService.Request(request.guests(), request.requestedAt(), request.preorder(), request.notes()));
+                new ReservationRequestService.Request(request.guests(), request.requestedAt(), request.preorder(), request.notes(),request.items(),request.quoteId()));
         return result.submitted() ? ResponseEntity.accepted().body(result) : ResponseEntity.ok(result);
     }
 
@@ -61,5 +62,8 @@ public class ClientReservationController {
     }
 
     public record Submission(@Min(1) @Max(50) int guests, @NotNull Instant requestedAt,
-                             boolean preorder, @Size(max = 1000) String notes) {}
+                             boolean preorder, @Size(max = 1000) String notes,
+        @Size(max=20) List<@Valid Line> items,UUID quoteId) {
+        public Submission(int guests,Instant at,boolean preorder,String notes){this(guests,at,preorder,notes,List.of(),null);}
+    }
 }

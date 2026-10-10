@@ -124,7 +124,7 @@ test("identity matches Core validation and does not apply registration policy to
     profileSchema.safeParse({ displayName: "A", phone: "abc" }).success,
     false,
   );
-  assert.equal(formatGuatemalaPhoneInput("+502 1234-5678"), "1234 5678");
+  assert.equal(formatGuatemalaPhoneInput("+502 1234-5678"), "+50212345678");
   assert.equal(formatGuatemalaPhoneInput("123456789"), "1234 5678");
   assert.equal(isGuatemalaPhone("1234 5678"), true);
   assert.equal(isGuatemalaPhone("123 45678"), false);

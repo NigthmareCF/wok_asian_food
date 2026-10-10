@@ -78,7 +78,7 @@ class ReservationRequestCancellationTest {
 
     private void stubStatus(String status) throws Exception {
         doAnswer(invocation -> {
-            if (status == null) return List.of();
+            if (status == null || ((String)invocation.getArgument(0)).contains("reservation_capacity_holds")) return List.of();
             @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
             ResultSet rs = mock(ResultSet.class);
             when(rs.getString("status")).thenReturn(status);

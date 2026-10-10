@@ -11,6 +11,13 @@ import { DELETE as cancel } from "@/app/bff/reservations/[reservationId]/route";
 import { messagingEndpoint } from "@/modules/messaging/server/live-endpoint";
 const auth = vi.hoisted(() => ({ readAccessToken: vi.fn() }));
 vi.mock("@/modules/auth/server/auth-cookies", () => auth);
+const principal = vi.hoisted(() => ({ loadCurrentUser: vi.fn() }));
+vi.mock("@/modules/auth/server/backend-auth", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/modules/auth/server/backend-auth")
+  >()),
+  ...principal,
+}));
 const id = "11111111-1111-4111-8111-111111111111";
 function req(
   method = "POST",
@@ -20,7 +27,12 @@ function req(
 ) {
   return new NextRequest("http://localhost/bff/test", {
     method,
-    headers: { origin, host: "localhost", "Idempotency-Key": key },
+    headers: {
+      origin,
+      host: "localhost",
+      "Idempotency-Key": key,
+      "X-Wok-Expected-Principal": id,
+    },
     ...(method === "POST" ? { body: JSON.stringify(body) } : {}),
   });
 }
@@ -45,6 +57,14 @@ const receipt = {
   message: "Pendiente",
 };
 beforeEach(() => {
+  principal.loadCurrentUser.mockResolvedValue({
+    userId: id,
+    displayName: "Prueba",
+    email: "test@example.test",
+    status: "ACTIVE",
+    roles: ["CLIENT"],
+    permissions: [],
+  });
   auth.readAccessToken.mockResolvedValue("cookie-token");
   vi.stubGlobal(
     "fetch",
@@ -137,7 +157,7 @@ it("requires the cancelled reservation to match", async () => {
     ).status,
   ).toBe(503);
 });
-it("does not invent preorders", async () => {
+it("rejects a preorder without explicit product lines", async () => {
   expect(
     (
       await reserve(
@@ -145,7 +165,7 @@ it("does not invent preorders", async () => {
           guests: 2,
           requestedAt: payload.requestedFor,
           notes: "",
-          preorder: true,
+          preorder: true, items:"invalid",
         }),
       )
     ).status,
