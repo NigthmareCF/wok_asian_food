@@ -2,6 +2,7 @@ export type PublicMenuItem = {
   id: string;
   name: string;
   description?: string | null;
+  imageReference?: string | null;
   price: number;
   currency: string;
   estimatedPreparationSeconds: number;
@@ -33,6 +34,8 @@ export function isPublicMenu(value: unknown): value is PublicMenu {
             record(item) &&
             typeof item.id === "string" &&
             typeof item.name === "string" &&
+            (item.imageReference == null ||
+              typeof item.imageReference === "string") &&
             (item.description == null ||
               typeof item.description === "string") &&
             typeof item.price === "number" &&

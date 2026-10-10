@@ -1,5 +1,6 @@
-import { OrderListView } from "@/modules/orders";
+import Link from "next/link";
+import { OperationalOrderListView } from "@/modules/orders";
 
 export default function OrdersPage() {
-  return <OrderListView />;
+  return <><Link href="/operation/core">Logística, overrides, preórdenes, sustituciones y documentos</Link><OperationalOrderListView /></>;
 }

@@ -1,7 +1,9 @@
+import {parseLines} from "@/modules/consolidated-core/contract";
 export type PickupRequest = {
   requestedFor: string;
   customerNote: string;
-  items: { menuItemId: string; quantity: number }[];
+  items: { menuItemId: string; quantity: number; modifierIds?:string[] }[];
+  quoteId?:string;
 };
 export type PickupReceipt = {
   requestId: string;
@@ -9,6 +11,8 @@ export type PickupReceipt = {
   requestedFor: string;
   subtotal: number;
   currency: string;
+  orderId?: string | null;
+  orderStatus?: string | null;
   idempotentReplay: boolean;
 };
 export const isUuid = (value: unknown): value is string =>
@@ -25,6 +29,7 @@ export function parsePickupRequest(value: unknown): PickupRequest | null {
   if (
     !record(value) ||
     !instant(value.requestedFor) ||
+    (value.quoteId!==undefined&&!isUuid(value.quoteId)) ||
     typeof value.customerNote !== "string" ||
     value.customerNote.length > 500 ||
     !Array.isArray(value.items) ||
@@ -42,9 +47,12 @@ export function parsePickupRequest(value: unknown): PickupRequest | null {
       Number(item.quantity) > 50
     )
       return null;
+    const selected=parseLines([item]);
+    if(!selected)return null;
     items.push({
       menuItemId: item.menuItemId,
       quantity: Number(item.quantity),
+      ...(selected[0].modifierIds===undefined?{}:{modifierIds:selected[0].modifierIds}),
     });
   }
   if (new Set(items.map((item) => item.menuItemId)).size !== items.length)
@@ -53,6 +61,7 @@ export function parsePickupRequest(value: unknown): PickupRequest | null {
     requestedFor: value.requestedFor,
     customerNote: value.customerNote.trim(),
     items,
+    ...(value.quoteId===undefined?{}:isUuid(value.quoteId)?{quoteId:value.quoteId}:{}),
   };
 }
 
@@ -70,6 +79,23 @@ export function isPickupReceipt(value: unknown): value is PickupReceipt {
     value.subtotal >= 0 &&
     typeof value.currency === "string" &&
     /^[A-Z]{3}$/.test(value.currency) &&
+    (value.orderId === undefined ||
+      value.orderId === null ||
+      isUuid(value.orderId)) &&
+    (value.orderStatus === undefined ||
+      value.orderStatus === null ||
+      (typeof value.orderStatus === "string" &&
+        [
+          "SENT",
+          "PREPARING",
+          "READY",
+          "SERVED",
+          "CLOSED",
+          "CANCELLED",
+        ].includes(value.orderStatus))) &&
+    ((value.orderId === undefined && value.orderStatus === undefined) ||
+      (value.orderId === null && value.orderStatus === null) ||
+      (isUuid(value.orderId) && typeof value.orderStatus === "string")) &&
     typeof value.idempotentReplay === "boolean"
   );
 }

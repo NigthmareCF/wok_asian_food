@@ -21,6 +21,20 @@
   min-width: 12rem;
 }
 
+.feedback,
+.loading {
+  border-left: 2px solid var(--brand);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+}
+
+.cancelled {
+  opacity: 0.58;
+  text-decoration: line-through;
+}
+
 .reconnecting {
   align-items: center;
   background: rgb(247 185 85 / 8%);

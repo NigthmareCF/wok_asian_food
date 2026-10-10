@@ -1,3 +1,4 @@
+import {parseLines,type QuoteLine} from "@/modules/consolidated-core/contract";
 import { isUuid } from "@/modules/checkout/pickup-contract";
 import { record, instant } from "@/modules/client-workflows/validation";
 const decisions = [
@@ -10,7 +11,9 @@ const decisions = [
 export type ReservationSubmission = {
   guests: number;
   requestedAt: string;
-  preorder: false;
+  preorder: boolean;
+  items?:QuoteLine[];
+  quoteId?:string;
   notes: string;
 };
 export function parseReservation(v: unknown): ReservationSubmission | null {
@@ -20,15 +23,19 @@ export function parseReservation(v: unknown): ReservationSubmission | null {
     Number(v.guests) < 1 ||
     Number(v.guests) > 50 ||
     !instant(v.requestedAt) ||
-    v.preorder !== false ||
+    typeof v.preorder !== "boolean" ||
     typeof v.notes !== "string" ||
     v.notes.length > 1000
   )
     return null;
+  const items=parseLines(v.items??[],true);
+  if(!items || v.quoteId!==undefined&&!isUuid(v.quoteId))return null;
   return {
     guests: Number(v.guests),
     requestedAt: v.requestedAt,
-    preorder: false,
+    preorder: v.preorder,
+    ...(v.items===undefined?{}:{items}),
+    ...(v.quoteId===undefined?{}:{quoteId:v.quoteId as string}),
     notes: v.notes.trim(),
   };
 }

@@ -1,17 +1,26 @@
 "use client";
+import { formatServiceDateTime } from "@/modules/checkout/service-time";
 import Link from "next/link";
-import { usePickupResource } from "@/modules/client-order-tracking/use-pickup-resource";
+import { useClientPickupResource } from "@/modules/client-order-tracking/use-client-pickup-resource";
 import {
   pickupStatusLabels,
   formatPickupMoney,
+  pickupOrderStatusLabels,
+  requestStatusDescriptions,
 } from "@/modules/client-order-tracking/pickup-details";
 import { isDeliveryHistory, isDeliveryDetails } from "../client-contract";
 import { Button } from "@/shared/components/ui/button";
 import styles from "@/modules/checkout/components/checkout.module.css";
-export function ClientDeliveryHistory() {
-  const { data, error, reload } = usePickupResource(
+import { RequestCancellation } from "@/modules/client-order-tracking/components/request-cancellation";
+const deliveryOrderStatusLabels: Record<string, string> = {
+  ...pickupOrderStatusLabels,
+  READY: "Listo en cocina",
+};
+export function ClientDeliveryHistory({ userId }: { userId?: string }) {
+  const { data, error, reload } = useClientPickupResource(
     "/bff/delivery-requests",
     isDeliveryHistory,
+    userId,
   );
   return (
     <div className={styles.checkout}>
@@ -33,7 +42,12 @@ export function ClientDeliveryHistory() {
         data.map((item) => (
           <article className={styles.summary} key={item.requestId}>
             <h2>{pickupStatusLabels[item.status]}</h2>
-            <p>{new Date(item.requestedFor).toLocaleString("es-GT")}</p>
+            {item.orderStatus && (
+              <p>
+                Estado del pedido: {deliveryOrderStatusLabels[item.orderStatus]}
+              </p>
+            )}
+            <p>{formatServiceDateTime(item.requestedFor)}</p>
             <p>{formatPickupMoney(item.subtotal, item.currency)}</p>
             <Link href={`/client/delivery/${item.requestId}`}>
               Ver solicitud {item.requestId}
@@ -44,10 +58,17 @@ export function ClientDeliveryHistory() {
     </div>
   );
 }
-export function ClientDeliveryDetail({ requestId }: { requestId: string }) {
-  const { data, error, reload } = usePickupResource(
+export function ClientDeliveryDetail({
+  requestId,
+  userId,
+}: {
+  requestId: string;
+  userId?: string;
+}) {
+  const { data, error, reload } = useClientPickupResource(
     `/bff/delivery-requests/${requestId}`,
     isDeliveryDetails,
+    userId,
   );
   return (
     <div className={styles.checkout}>
@@ -61,8 +82,13 @@ export function ClientDeliveryDetail({ requestId }: { requestId: string }) {
       ) : (
         <section className={styles.summary}>
           <h2>{pickupStatusLabels[data.status]}</h2>
+          {data.orderStatus && (
+            <p>
+              Estado del pedido: {deliveryOrderStatusLabels[data.orderStatus]}
+            </p>
+          )}
           <p>Código: {data.requestId}</p>
-          <p>{new Date(data.requestedFor).toLocaleString("es-GT")}</p>
+          <p>{formatServiceDateTime(data.requestedFor)}</p>
           {data.items.map((line, index) => (
             <p key={index}>
               {line.quantity} × {line.name}:{" "}
@@ -77,12 +103,20 @@ export function ClientDeliveryDetail({ requestId }: { requestId: string }) {
               : "Pago en línea solicitado; pendiente de coordinación"}
           </p>
           {data.customerNote && <p>Nota: {data.customerNote}</p>}
+          <p>{requestStatusDescriptions[data.status]}</p>
           <p>
-            La solicitud requiere revisión de cobertura, disponibilidad y
-            horario. No registra un pago. Para solicitar cambios o cancelación,
-            contacta al restaurante.
+            El seguimiento corresponde a la preparación del pedido. El reparto y
+            la cancelación de un delivery aceptado requieren coordinación
+            directa con el restaurante.
           </p>
           <Link href="/client/messages">Contactar al restaurante</Link>
+          {data.status === "PENDING_REVIEW" && (
+            <RequestCancellation
+              requestId={requestId}
+              userId={userId}
+              onChanged={reload}
+            />
+          )}
         </section>
       )}
     </div>

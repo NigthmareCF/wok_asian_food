@@ -4,36 +4,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
 const permissionsByContext = {
-  admin: [
-    "users.read",
-    "roles.read",
-    "staff.read",
-    "menu.read",
-    "settings.read",
-    "recipes.read",
-    "suppliers.read",
-    "purchases.read",
-    "production.read",
-    "reports.read",
-    "cash.read",
-    "clients.read",
-    "ai.read",
-    "vision.read",
-    "audit.read",
-  ],
-  client: ["orders.read"],
+  admin: ["users:manage", "audit:read"],
+  client: [],
   operational: [
-    "tables.read",
-    "orders.read",
-    "kitchen.read",
-    "reservations.read",
-    "messages.read",
-    "delivery.read",
-    "cash.read",
-    "payments.read",
-    "inventory.read",
-    "production.read",
-    "status.read",
+    "tables:manage",
+    "orders:manage",
+    "kitchen:manage",
+    "cash:manage",
+    "payments:manage",
+    "inventory:manage",
+    "production:manage",
+    "service:manage",
   ],
 } as const;
 
@@ -75,7 +56,7 @@ const expectedNavigationRoutes = {
   client: {
     Inicio: "/client",
     Mensajes: "/client/messages",
-    Menú: "/menu",
+    Menú: "/client/menu",
     Pedidos: "/client/orders",
     Reservas: "/client/reservations/new",
     Ubicación: "/location",
@@ -204,18 +185,19 @@ describe("AppShell", () => {
     ).toHaveAttribute("href", "/client");
     expect(screen.getByRole("link", { name: "Menú" })).toHaveAttribute(
       "href",
-      "/menu",
+      "/client/menu",
     );
     expect(screen.getByRole("link", { name: "Pedidos" })).toHaveAttribute(
       "href",
       "/client/orders",
     );
     expectNavigationRoutes("client");
-    await user.click(screen.getByRole("button", { name: "Perfil" }));
-    expect(screen.getByRole("dialog", { name: "Perfil" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Entendido" }));
+    expect(screen.getByRole("link", { name: "Perfil" })).toHaveAttribute(
+      "href",
+      "/client/profile",
+    );
     expect(dialog).not.toHaveAttribute("open");
-    expect(showModal).toHaveBeenCalledTimes(1);
+    expect(showModal).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Expandir menú" }));
     expect(container.firstChild).not.toHaveClass(
       "app-shell--sidebar-collapsed",
@@ -303,13 +285,13 @@ describe("AppShell", () => {
     ).toHaveAttribute("href", route);
   });
 
-  it("does not show navigation entries without the corresponding permission", () => {
+  it("keeps role-level entries visible while hiding protected capabilities", () => {
     render(
       <AppShell
         context="operational"
         currentUser={{
           ...currentUserFor("operational"),
-          permissions: ["tables.read"],
+          permissions: ["tables:manage"],
         }}
       >
         Contenido
@@ -317,6 +299,7 @@ describe("AppShell", () => {
     );
 
     expect(screen.getByRole("link", { name: "Mesas" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reservas" })).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Pedidos" }),
     ).not.toBeInTheDocument();

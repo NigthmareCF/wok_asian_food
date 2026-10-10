@@ -37,11 +37,13 @@ export async function messagingEndpoint(
       path,
       method: "GET",
       validate: root ? isConversations : isMessages,
+      bindClientPrincipal: true,
     });
   return endpoint(request, {
     path,
     method: "POST",
     validate: root ? isConversation : isMessageReceipt,
+    bindClientPrincipal: true,
     ...(messages ? { parse: parseMessage, idempotent: true } : {}),
   });
 }

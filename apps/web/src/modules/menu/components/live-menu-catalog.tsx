@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { usePublicMenu } from "../use-public-menu";
+import { MenuProductImage } from "./menu-product-image";
 import { useLiveCart } from "@/modules/cart/live-cart-provider";
 import styles from "./menu-catalog.module.css";
 
@@ -101,6 +103,10 @@ export function LiveMenuCatalog() {
                 aria-labelledby={`live-product-${item.id}`}
               >
                 <p className={styles.cardContext}>{item.categoryName}</p>
+                <MenuProductImage
+                  name={item.name}
+                  imageReference={item.imageReference}
+                />
                 <div className={styles.cardTitle}>
                   <h3 id={`live-product-${item.id}`}>{item.name}</h3>
                   <strong>
@@ -120,6 +126,13 @@ export function LiveMenuCatalog() {
                   </p>
                 ) : null}
                 <div className={styles.cardFooter}>
+                  <Link
+                    className="text-action"
+                    href={`/client/menu/${item.id}`}
+                    aria-label={`Ver detalle de ${item.name}`}
+                  >
+                    Ver detalle
+                  </Link>
                   <Button
                     aria-label={`Agregar ${item.name} al carrito`}
                     onClick={() =>
