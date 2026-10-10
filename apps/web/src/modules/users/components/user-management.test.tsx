@@ -7,529 +7,199 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { navigation } from "@/config/navigation";
 import { UserManagementView } from "./user-management-view";
 
-afterEach(cleanup);
+const userId = "11111111-1111-4111-8111-111111111111";
+const otherUserId = "22222222-2222-4222-8222-222222222222";
+const userRecord = {
+  id: userId,
+  email: "ana@example.test",
+  displayName: "Ana Pérez",
+  status: "ACTIVE",
+  rowVersion: 4,
+  createdAt: "2026-10-01T12:00:00Z",
+  roles: ["OPERATIONAL"],
+};
+const otherUser = {
+  ...userRecord,
+  id: otherUserId,
+  email: "otro@example.test",
+  displayName: "Otro Usuario",
+  roles: [],
+};
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});
+
+function mockList(items = [userRecord]) {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(items)));
+}
 
 describe("UserManagementView", () => {
-  it("searches users by name and email", async () => {
+  it("loads the real list and forwards search and pagination parameters", async () => {
+    mockList([userRecord]);
     const user = userEvent.setup();
     render(<UserManagementView />);
 
-    await user.type(screen.getByRole("searchbox"), "Lucía");
     expect(
-      screen.getByRole("row", { name: /Lucía Herrera/ }),
+      await screen.findByRole("row", { name: /Ana Pérez/ }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Mariana López")).not.toBeInTheDocument();
-
-    await user.clear(screen.getByRole("searchbox"));
-    await user.type(screen.getByRole("searchbox"), "carlos.mendez");
-    expect(
-      screen.getByRole("row", { name: /Carlos Méndez/ }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Daniel Reyes")).not.toBeInTheDocument();
-  });
-
-  it("filters users by every visible status", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    await user.click(screen.getByRole("button", { name: "Activo" }));
-    expect(
-      screen.getByRole("row", { name: /Mariana López/ }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Carlos Méndez")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Suspendido" }));
-    expect(
-      screen.getByRole("row", { name: /Carlos Méndez/ }),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Desactivado" }));
-    expect(
-      screen.getByRole("row", { name: /Daniel Reyes/ }),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Acceso pendiente" }));
-    expect(
-      screen.getByRole("row", { name: /Lucía Herrera/ }),
-    ).toBeInTheDocument();
-  });
-
-  it("shows empty, loading and error states", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    await user.type(screen.getByRole("searchbox"), "sin resultados");
-    expect(screen.getByText("No encontramos usuarios")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Carga" }));
-    expect(screen.getByText("Cargando usuarios")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Error" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "No pudimos cargar usuarios",
+    expect(fetch).toHaveBeenCalledWith(
+      "/bff/admin/users?search=&limit=20&offset=0",
+      expect.objectContaining({ cache: "no-store" }),
     );
 
-    await user.click(screen.getByRole("button", { name: "Vacío" }));
-    expect(screen.getByText("No encontramos usuarios")).toBeInTheDocument();
+    await user.type(screen.getByRole("searchbox"), "ana");
+    await waitFor(() =>
+      expect(fetch).toHaveBeenLastCalledWith(
+        "/bff/admin/users?search=ana&limit=20&offset=0",
+        expect.anything(),
+      ),
+    );
   });
 
-  it("creates and edits users with simulated audit records", async () => {
+  it("shows an empty state and neutralizes 401/403 errors", async () => {
+    mockList([]);
+    render(<UserManagementView />);
+    expect(
+      await screen.findByText("No encontramos usuarios"),
+    ).toBeInTheDocument();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 403 })),
+    );
+    cleanup();
+    render(<UserManagementView />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "no tiene permiso",
+    );
+  });
+
+  it("sends only a supported role change with reason and expectedVersion", async () => {
+    const updated = {
+      ...userRecord,
+      rowVersion: 5,
+      roles: ["OPERATIONAL", "ADMIN"],
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json([userRecord]))
+      .mockResolvedValueOnce(Response.json(updated));
+    vi.stubGlobal("fetch", fetcher);
     const user = userEvent.setup();
     render(<UserManagementView />);
+    const row = await screen.findByRole("row", { name: /Ana Pérez/ });
 
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const createDialog = screen.getByRole("dialog", {
-      name: "Crear usuario",
-    });
-    await user.type(within(createDialog).getByLabelText("Nombre"), "Ana Demo");
+    await user.click(
+      within(row).getByRole("button", { name: "Conceder Administrativo" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Conceder rol" });
     await user.type(
-      within(createDialog).getByLabelText("Correo"),
-      "ana.demo@wok.demo",
+      within(dialog).getByLabelText("Motivo (obligatorio)"),
+      "Cobertura de turno",
     );
     await user.click(
-      within(createDialog).getByRole("button", { name: "Guardar" }),
+      within(dialog).getByRole("button", { name: "Confirmar cambio" }),
     );
 
-    expect(screen.getByRole("row", { name: /Ana Demo/ })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Usuario creado");
-    expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
-      "Creación",
-    );
-
-    const row = screen.getByRole("row", { name: /Ana Demo/ });
-    await user.click(within(row).getByRole("button", { name: "Editar" }));
-    const editDialog = screen.getByRole("dialog", { name: "Editar usuario" });
-    await user.clear(within(editDialog).getByLabelText("Nombre"));
-    await user.type(within(editDialog).getByLabelText("Nombre"), "Ana Editada");
-    await user.click(
-      within(editDialog).getByRole("checkbox", { name: /Auditoría demo/ }),
-    );
-    await user.click(
-      within(editDialog).getByRole("button", { name: "Guardar" }),
-    );
-
-    expect(
-      screen.getByRole("row", { name: /Ana Editada/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
-      "Edición",
-    );
-  });
-
-  it("focuses the form, keeps the background inert and restores focus on cancel", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    const createButton = screen.getByRole("button", {
-      name: "Crear usuario",
-    });
-    await user.click(createButton);
-
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    expect(within(dialog).getByLabelText("Nombre")).toHaveFocus();
-    expect(
-      screen.getByText("Canal administrativo").parentElement?.parentElement
-        ?.parentElement,
-    ).toHaveAttribute("inert");
-
-    await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await waitFor(() => expect(createButton).toHaveFocus());
-  });
-
-  it("closes an unchanged form with Escape and restores focus", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    const createButton = screen.getByRole("button", {
-      name: "Crear usuario",
-    });
-    await user.click(createButton);
-    screen.getByRole("dialog", { name: "Crear usuario" });
-    await user.keyboard("{Escape}");
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await waitFor(() => expect(createButton).toHaveFocus());
-  });
-
-  it("protects a dirty draft on Escape and preserves it when discard is canceled", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    const nameField = within(dialog).getByLabelText("Nombre");
-    await user.type(nameField, "Borrador pendiente");
-    await user.keyboard("{Escape}");
-
-    const confirmation = screen.getByRole("dialog", {
-      name: "Descartar cambios",
-    });
-    expect(
-      within(confirmation).getByRole("button", { name: "Cancelar" }),
-    ).toHaveFocus();
-    await user.click(
-      within(confirmation).getByRole("button", { name: "Cancelar" }),
-    );
-
-    expect(screen.getByRole("dialog", { name: "Crear usuario" })).toBeVisible();
-    expect(nameField).toHaveValue("Borrador pendiente");
-    await waitFor(() => expect(nameField).toHaveFocus());
-  });
-
-  it.each(["Cerrar formulario", "Cancelar"])(
-    "confirms dirty changes from %s and restores the opener after discard",
-    async (actionName) => {
-      const user = userEvent.setup();
-      render(<UserManagementView />);
-
-      const opener = screen.getByRole("button", { name: "Crear usuario" });
-      await user.click(opener);
-      const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-      await user.type(within(dialog).getByLabelText("Nombre"), "Sin guardar");
-      await user.click(
-        within(dialog).getByRole("button", { name: actionName }),
-      );
-
-      const confirmation = screen.getByRole("dialog", {
-        name: "Descartar cambios",
-      });
-      await user.click(
-        within(confirmation).getByRole("button", {
-          name: "Descartar cambios",
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(fetcher).toHaveBeenLastCalledWith(
+      `/bff/admin/users/${userId}/roles/ADMIN`,
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          action: "GRANT",
+          reason: "Cobertura de turno",
+          expectedVersion: 4,
         }),
-      );
+      }),
+    );
+    expect(
+      await screen.findByText("Rol concedido: Administrativo."),
+    ).toBeInTheDocument();
+  });
 
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      await waitFor(() => expect(opener).toHaveFocus());
-    },
-  );
-
-  it("traps Tab and Shift+Tab inside the form dialog", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    const closeButton = within(dialog).getByRole("button", {
-      name: "Cerrar formulario",
+  it("validates the reason and prevents double submission", async () => {
+    let resolveUpdate!: (response: Response) => void;
+    const update = new Promise<Response>((resolve) => {
+      resolveUpdate = resolve;
     });
-    const saveButton = within(dialog).getByRole("button", { name: "Guardar" });
-
-    closeButton.focus();
-    await user.tab({ shift: true });
-    expect(saveButton).toHaveFocus();
-
-    await user.tab();
-    expect(closeButton).toHaveFocus();
-  });
-
-  it("allows saving an empty form and reports required name and email fields", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json([userRecord]))
+      .mockReturnValueOnce(update);
+    vi.stubGlobal("fetch", fetcher);
     const user = userEvent.setup();
     render(<UserManagementView />);
-
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
-
-    const nameField = within(dialog).getByLabelText("Nombre");
-    const emailField = within(dialog).getByLabelText("Correo");
-
-    expect(
-      within(dialog).getByText("El nombre es requerido."),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByText("El correo es requerido."),
-    ).toBeInTheDocument();
-    expect(nameField).toHaveAttribute("aria-invalid", "true");
-    expect(emailField).toHaveAttribute("aria-invalid", "true");
-    expect(nameField).toHaveAttribute(
-      "aria-describedby",
-      "admin-user-name-help",
+    const row = await screen.findByRole("row", { name: /Ana Pérez/ });
+    await user.click(
+      within(row).getByRole("button", { name: "Revocar Operativo" }),
     );
-    expect(emailField).toHaveAttribute(
-      "aria-describedby",
-      "admin-user-email-help",
+    const dialog = screen.getByRole("dialog", { name: "Revocar rol" });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Confirmar cambio" }),
     );
-    await waitFor(() => expect(nameField).toHaveFocus());
-  });
-
-  it("rejects an invalid email with a perceptible error and focuses it", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    await user.type(within(dialog).getByLabelText("Nombre"), "Correo inválido");
-    const emailField = within(dialog).getByLabelText("Correo");
-    await user.type(emailField, "correo-invalido");
-    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
-
-    expect(within(dialog).getByText("Ingresa un correo válido.")).toBeVisible();
-    expect(emailField).toHaveAttribute("aria-invalid", "true");
-    expect(emailField).toHaveAttribute(
-      "aria-describedby",
-      "admin-user-email-help",
-    );
-    await waitFor(() => expect(emailField).toHaveFocus());
-  });
-
-  it("rejects an invalid email while editing and accepts a valid replacement", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    const row = screen.getByRole("row", { name: /Mariana López/ });
-    await user.click(within(row).getByRole("button", { name: "Editar" }));
-    const dialog = screen.getByRole("dialog", { name: "Editar usuario" });
-    const emailField = within(dialog).getByLabelText("Correo");
-    await user.clear(emailField);
-    await user.type(emailField, "correo@invalido");
-    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
-
-    expect(within(dialog).getByText("Ingresa un correo válido.")).toBeVisible();
-    await user.clear(emailField);
-    await user.type(emailField, "mariana.actualizada@example.com");
-    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
-
     expect(
-      screen.getByRole("row", { name: /mariana.actualizada@example.com/ }),
+      screen.getByText("Indica un motivo de 3 a 500 caracteres."),
     ).toBeInTheDocument();
-  });
-
-  it("registers beforeunload only while dirty and removes it after saving", async () => {
-    const addSpy = vi.spyOn(window, "addEventListener");
-    const removeSpy = vi.spyOn(window, "removeEventListener");
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    expect(
-      addSpy.mock.calls.some(([eventName]) => eventName === "beforeunload"),
-    ).toBe(false);
-
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    await user.type(within(dialog).getByLabelText("Nombre"), "Con protección");
-
-    const listener = addSpy.mock.calls.find(
-      ([eventName]) => eventName === "beforeunload",
-    )?.[1] as (event: BeforeUnloadEvent) => void;
-    const event = {
-      preventDefault: vi.fn(),
-      returnValue: undefined,
-    } as unknown as BeforeUnloadEvent;
-    listener(event);
-    expect(event.preventDefault).toHaveBeenCalled();
-    expect(event.returnValue).toBe("");
-
     await user.type(
-      within(dialog).getByLabelText("Correo"),
-      "proteccion@example.com",
+      within(dialog).getByLabelText("Motivo (obligatorio)"),
+      "Cambio aprobado",
     );
-    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
-    expect(
-      removeSpy.mock.calls.some(([eventName]) => eventName === "beforeunload"),
-    ).toBe(true);
-  });
-
-  it("removes beforeunload after confirmed discard", async () => {
-    const removeSpy = vi.spyOn(window, "removeEventListener");
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    await user.type(within(dialog).getByLabelText("Nombre"), "Descartable");
-    await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
     await user.click(
-      within(
-        screen.getByRole("dialog", { name: "Descartar cambios" }),
-      ).getByRole("button", { name: "Descartar cambios" }),
+      within(dialog).getByRole("button", { name: "Confirmar cambio" }),
     );
-
-    expect(
-      removeSpy.mock.calls.some(([eventName]) => eventName === "beforeunload"),
-    ).toBe(true);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Guardando…" }),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    resolveUpdate(Response.json(userRecord));
   });
 
-  it("does not require roles when creating a user", async () => {
+  it("reloads the list after a conflict", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json([userRecord]))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "conflict" }), { status: 409 }),
+      )
+      .mockResolvedValueOnce(Response.json([{ ...userRecord, rowVersion: 5 }]));
+    vi.stubGlobal("fetch", fetcher);
     const user = userEvent.setup();
     render(<UserManagementView />);
-
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const dialog = screen.getByRole("dialog", { name: "Crear usuario" });
-    await user.type(within(dialog).getByLabelText("Nombre"), "Usuario Sin Rol");
+    const row = await screen.findByRole("row", { name: /Ana Pérez/ });
+    await user.click(
+      within(row).getByRole("button", { name: "Conceder Administrativo" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Conceder rol" });
     await user.type(
-      within(dialog).getByLabelText("Correo"),
-      "sin.rol@wok.demo",
+      within(dialog).getByLabelText("Motivo (obligatorio)"),
+      "Actualizar asignación",
     );
     await user.click(
-      within(dialog).getByRole("checkbox", { name: /Administración demo/ }),
+      within(dialog).getByRole("button", { name: "Confirmar cambio" }),
     );
-    await user.click(within(dialog).getByRole("button", { name: "Guardar" }));
-
-    expect(
-      screen.getByRole("row", { name: /Usuario Sin Rol/ }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+    expect(fetcher).toHaveBeenLastCalledWith(
+      "/bff/admin/users?search=&limit=20&offset=0",
+      expect.anything(),
+    );
   });
 
-  it("shows multiple roles and deduplicated effective capabilities", async () => {
+  it("disables actions without backend endpoints", async () => {
+    mockList([userRecord]);
     render(<UserManagementView />);
-
-    const detail = screen.getByLabelText("Detalle de roles");
-    expect(within(detail).getByText("Administración demo")).toBeInTheDocument();
-    expect(within(detail).getByText("Soporte demo")).toBeInTheDocument();
-
-    const capabilities = within(detail).getByLabelText("Capacidades efectivas");
     expect(
-      within(capabilities).getAllByText("Consultar usuarios"),
-    ).toHaveLength(1);
+      await screen.findByRole("button", { name: "Crear usuario" }),
+    ).toBeDisabled();
+    const row = await screen.findByRole("row", { name: /Ana Pérez/ });
+    expect(within(row).getByRole("button", { name: "Editar" })).toBeDisabled();
     expect(
-      within(capabilities).getAllByText("Consultar reportes"),
-    ).toHaveLength(1);
-    expect(
-      within(capabilities).getByText("Consultar roles asignados"),
-    ).toBeInTheDocument();
-  });
-
-  it("activates and suspends users with confirmation and optional reason", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    const suspendedRow = screen.getByRole("row", { name: /Carlos Méndez/ });
-    await user.click(
-      within(suspendedRow).getByRole("button", { name: "Activar" }),
-    );
-    let dialog = screen.getByRole("dialog", { name: "Activar usuario" });
-    await user.type(
-      within(dialog).getByLabelText("Motivo opcional"),
-      "Revisión simulada",
-    );
-    await user.click(
-      within(dialog).getByRole("button", { name: "Confirmar activación" }),
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent("Usuario activado");
-    expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
-      "Motivo: Revisión simulada",
-    );
-
-    const activeRow = screen.getByRole("row", { name: /Mariana López/ });
-    await user.click(
-      within(activeRow).getByRole("button", { name: "Suspender" }),
-    );
-    dialog = screen.getByRole("dialog", { name: "Suspender usuario" });
-    await user.click(
-      within(dialog).getByRole("button", { name: "Confirmar suspensión" }),
-    );
-
-    expect(screen.getByRole("status")).toHaveTextContent("Usuario suspendido");
-    expect(screen.getByLabelText("Bitácora simulada")).toHaveTextContent(
-      "Suspensión",
-    );
-  });
-
-  it("focuses confirmation cancel, closes with Escape and restores action focus", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    const row = screen.getByRole("row", { name: /Mariana López/ });
-    const suspendButton = within(row).getByRole("button", {
-      name: "Suspender",
-    });
-    await user.click(suspendButton);
-    const dialog = screen.getByRole("dialog", { name: "Suspender usuario" });
-
-    expect(
-      within(dialog).getByRole("button", { name: "Cancelar" }),
-    ).toHaveFocus();
-    await user.keyboard("{Escape}");
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("row", { name: /Mariana López/ }),
-    ).toHaveTextContent("Activo");
-    await waitFor(() => expect(suspendButton).toHaveFocus());
-  });
-
-  it("traps Tab and Shift+Tab inside the confirmation dialog", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    const row = screen.getByRole("row", { name: /Mariana López/ });
-    await user.click(within(row).getByRole("button", { name: "Suspender" }));
-    const dialog = screen.getByRole("dialog", { name: "Suspender usuario" });
-    const closeButton = within(dialog).getByRole("button", {
-      name: "Cerrar confirmación",
-    });
-    const confirmButton = within(dialog).getByRole("button", {
-      name: "Confirmar suspensión",
-    });
-
-    closeButton.focus();
-    await user.tab({ shift: true });
-    expect(confirmButton).toHaveFocus();
-
-    await user.tab();
-    expect(closeButton).toHaveFocus();
-  });
-
-  it("cancels a confirmation without changing the user", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    const row = screen.getByRole("row", { name: /Mariana López/ });
-    await user.click(within(row).getByRole("button", { name: "Suspender" }));
-    const dialog = screen.getByRole("dialog", { name: "Suspender usuario" });
-    await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("row", { name: /Mariana López/ }),
-    ).toHaveTextContent("Activo");
-  });
-
-  it("keeps forms, role detail and confirmations accessible", async () => {
-    const user = userEvent.setup();
-    render(<UserManagementView />);
-
-    const detailsButton = screen.getByRole("button", { name: /Mariana López/ });
-    expect(detailsButton).toHaveAttribute(
-      "aria-controls",
-      "admin-user-role-detail",
-    );
-    expect(detailsButton).toHaveAttribute("aria-expanded", "true");
-
-    await user.click(screen.getByRole("button", { name: "Crear usuario" }));
-    const form = screen.getByRole("dialog", { name: "Crear usuario" });
-    expect(within(form).getByLabelText("Nombre")).toBeInTheDocument();
-    expect(within(form).getByLabelText("Correo")).toBeInTheDocument();
-    await user.click(within(form).getByRole("button", { name: "Cancelar" }));
-
-    const row = screen.getByRole("row", { name: /Mariana López/ });
-    await user.click(within(row).getByRole("button", { name: "Suspender" }));
-    const confirmation = screen.getByRole("dialog", {
-      name: "Suspender usuario",
-    });
-    expect(
-      within(confirmation).getByLabelText("Motivo opcional"),
-    ).toBeInTheDocument();
-  });
-
-  it("enables the existing admin users navigation entry", () => {
-    const usersEntry = navigation.admin.find(
-      (item) => item.route === "/admin/users",
-    );
-
-    expect(usersEntry).toMatchObject({
-      icon: "people",
-      label: "Usuarios",
-      requiredPermission: "users.read",
-      route: "/admin/users",
-    });
-    expect(usersEntry).not.toHaveProperty("featureFlag", false);
+      within(row).getByRole("button", { name: "Activar / suspender" }),
+    ).toBeDisabled();
   });
 });
