@@ -4,7 +4,7 @@ import { Text, View } from "react-native";
 import { GradientPanel } from "./gradient-panel";
 import { Button, useUiTheme } from "./ui";
 import type { PublicMenuItem } from "@/lib/api";
-import { formatPrice, imageUri } from "@/lib/catalog";
+import { formatPrice, imageSource } from "@/lib/catalog";
 import { homeCopy } from "@/theme/home-copy";
 
 export function HomeHero({
@@ -15,9 +15,10 @@ export function HomeHero({
   onPress: () => void;
 }) {
   const { colors } = useUiTheme();
-  const uri = imageUri(product?.imageReference);
+  const source = imageSource(product?.imageReference);
+  const imageKey = product?.imageReference ?? "";
   const [failedUri, setFailedUri] = useState<string | null>(null);
-  const showPhoto = uri && failedUri !== uri;
+  const showPhoto = source && failedUri !== imageKey;
 
   return (
     <View
@@ -26,13 +27,13 @@ export function HomeHero({
     >
       {showPhoto ? (
         <Image
-          source={{ uri }}
+          source={source}
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
           accessible
           accessibilityLabel={product?.name}
-          recyclingKey={uri}
-          onError={() => setFailedUri(uri)}
+          recyclingKey={imageKey}
+          onError={() => setFailedUri(imageKey)}
         />
       ) : (
         <GradientPanel variant="warm" fill>

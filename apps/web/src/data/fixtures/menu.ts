@@ -1,9 +1,5 @@
 export type MenuCategoryId =
-  | "sushi"
-  | "specialties"
-  | "drinks"
-  | "extras"
-  | "alcohol";
+  "sushi" | "specialties" | "drinks" | "extras" | "alcohol";
 export type MenuAvailability = "available" | "limited" | "unavailable";
 export type MenuOption = {
   // Each group allows one choice; optional groups also allow no modifier.
@@ -88,6 +84,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "maki-tuna",
     categoryId: "sushi",
     name: "Maki Atún",
+    image: { src: "/menu/dishes/maki-atun.webp", alt: "Maki de atún" },
     price: 70,
     homePreview: true,
     availability: "available",
@@ -96,6 +93,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "maki-shrimp",
     categoryId: "sushi",
     name: "Maki Camarón",
+    image: { src: "/menu/dishes/maki-camaron.webp", alt: "Maki de camarón" },
     price: 65,
     availability: "available",
   },
@@ -103,6 +101,10 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "uramaki-avocado",
     categoryId: "sushi",
     name: "Uramaki Aguacate",
+    image: {
+      src: "/menu/dishes/ura-aguacate.webp",
+      alt: "Uramaki de aguacate",
+    },
     price: 65,
     availability: "available",
   },
@@ -110,6 +112,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "uramaki-tuna",
     categoryId: "sushi",
     name: "Uramaki Atún",
+    image: { src: "/menu/dishes/ura-atun.webp", alt: "Uramaki de atún" },
     price: 70,
     availability: "available",
   },
@@ -117,6 +120,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "uramaki-salmon",
     categoryId: "sushi",
     name: "Uramaki Salmón",
+    image: { src: "/menu/dishes/ura-salmon.webp", alt: "Uramaki de salmón" },
     price: 85,
     availability: "available",
   },
@@ -124,6 +128,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "gamba-roll",
     categoryId: "sushi",
     name: "Gamba Roll",
+    image: { src: "/menu/dishes/gamba-roll.webp", alt: "Gamba Roll" },
     price: 75,
     availability: "available",
   },
@@ -131,6 +136,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "crunchy-shrimp",
     categoryId: "sushi",
     name: "Camarón Crunchy",
+    image: { src: "/menu/dishes/camaron-crunchy.webp", alt: "Camarón Crunchy" },
     price: 75,
     availability: "limited",
   },
@@ -138,6 +144,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "panko",
     categoryId: "sushi",
     name: "Panko",
+    image: { src: "/menu/dishes/panko.webp", alt: "Panko" },
     price: 70,
     availability: "available",
     description: "Solo atún +Q5.",
@@ -160,6 +167,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "oniguiris-surimi",
     categoryId: "sushi",
     name: "Oniguiris Surimi",
+    image: { src: "/menu/dishes/oniguiris.webp", alt: "Oniguiris" },
     price: 40,
     availability: "available",
     description: "Fritos en panko +Q5.",
@@ -182,6 +190,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "oniguiris-tuna",
     categoryId: "sushi",
     name: "Oniguiris Atún Chipotle",
+    image: { src: "/menu/dishes/oniguiris.webp", alt: "Oniguiris" },
     price: 45,
     availability: "available",
     description: "Fritos en panko +Q5.",
@@ -232,6 +241,10 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "orange-chicken",
     categoryId: "specialties",
     name: "Pollo a la Naranja",
+    image: {
+      src: "/menu/dishes/pollo-naranja.webp",
+      alt: "Pollo a la naranja",
+    },
     price: 65,
     homePreview: true,
     availability: "available",
@@ -327,6 +340,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "matcha-latte",
     categoryId: "drinks",
     name: "Matcha Latte",
+    image: { src: "/menu/dishes/matcha-latte.webp", alt: "Matcha latte" },
     price: 30,
     homePreview: true,
     availability: "available",
@@ -349,6 +363,7 @@ export const menuFixtures: readonly MenuProduct[] = [
     id: "blue-matcha",
     categoryId: "drinks",
     name: "Blue Matcha",
+    image: { src: "/menu/dishes/blue-matcha.webp", alt: "Blue Matcha" },
     price: 35,
     availability: "unavailable",
   },

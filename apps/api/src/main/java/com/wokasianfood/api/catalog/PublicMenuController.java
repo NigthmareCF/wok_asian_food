@@ -54,7 +54,8 @@ public class PublicMenuController {
         if (menuItemId == null) return;
         category.items.add(new MenuItem(menuItemId, value(rs, "menu_item_name"),
                 rs.getString("menu_item_description"), rs.getBigDecimal("price"),
-                value(rs, "currency_code"), rs.getString("image_reference"),
+                value(rs, "currency_code"), MenuPhotoCatalog.reference(
+                        rs.getString("image_reference"), value(rs, "menu_item_name")),
                 rsInt(rs, "estimated_preparation_seconds"), rsInt(rs, "menu_item_order")));
     }
 

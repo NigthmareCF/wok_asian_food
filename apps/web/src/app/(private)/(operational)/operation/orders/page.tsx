@@ -1,5 +1,5 @@
-import { OrderListView } from "@/modules/orders";
+import { OperationalOrderListView } from "@/modules/orders";
 
 export default function OrdersPage() {
-  return <OrderListView />;
+  return <OperationalOrderListView />;
 }

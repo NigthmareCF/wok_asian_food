@@ -21,6 +21,28 @@ const mount = (key = "client:conversation") =>
   renderHook(() =>
     useSubmission(key, "/bff/messages", parseMessage, isMessageReceipt),
   );
+it("preserves an uncertain message and key even after a later validation rejection", async () => {
+  const fetcher = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("lost"))
+    .mockResolvedValueOnce(
+      Response.json({ message: "Revisa" }, { status: 400 }),
+    );
+  vi.stubGlobal("fetch", fetcher);
+  const first = mount();
+  await act(async () => {
+    await first.result.current.send({ body: "Original" });
+  });
+  first.unmount();
+  const second = mount();
+  await act(async () => {
+    await second.result.current.send({ body: "Diferente" });
+  });
+  expect(second.result.current.attempt?.payload.body).toBe("Original");
+  expect(fetcher.mock.calls[1][1].headers["Idempotency-Key"]).toBe(
+    fetcher.mock.calls[0][1].headers["Idempotency-Key"],
+  );
+});
 it("reuses payload and key after a lost response and remount", async () => {
   const fetcher = vi
     .fn()

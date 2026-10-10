@@ -1,5 +1,10 @@
 import { isUuid } from "@/modules/checkout/pickup-contract";
-export type Attempt<P, R> = { key: string; payload: P; receipt?: R };
+export type Attempt<P, R> = {
+  key: string;
+  payload: P;
+  receipt?: R;
+  uncertain?: boolean;
+};
 // Persistir antes de enviar permite recuperar respuestas perdidas con la misma clave.
 export function createAttemptStore<P, R>(
   storageKey: string,
@@ -22,6 +27,7 @@ export function createAttemptStore<P, R>(
             value = {
               key: v.key,
               payload,
+              uncertain: v.uncertain !== false,
               ...(validate(v.receipt) ? { receipt: v.receipt } : {}),
             };
         } catch {

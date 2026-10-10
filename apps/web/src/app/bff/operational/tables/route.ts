@@ -20,6 +20,7 @@ export const GET = (request: NextRequest) =>
   endpoint(request, {
     path: listPath(request),
     method: "GET",
+    bindClientPrincipal: true,
     validate: isOperationalTables,
   });
 

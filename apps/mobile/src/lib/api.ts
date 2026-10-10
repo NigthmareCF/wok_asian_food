@@ -1,10 +1,23 @@
 import { createApiRequest } from "./api-client";
 export { ApiError } from "./api-client";
 
-export const apiRequest = createApiRequest(process.env.EXPO_PUBLIC_API_BASE_URL, __DEV__);
+export const apiRequest = createApiRequest(
+  process.env.EXPO_PUBLIC_API_BASE_URL,
+  __DEV__,
+);
 
-export type TokenPair = { accessToken: string; refreshToken: string; expiresInSeconds: number };
-export type ClientProfile = { userId: string; email: string; displayName: string; phone?: string | null; version: number };
+export type TokenPair = {
+  accessToken: string;
+  refreshToken: string;
+  expiresInSeconds: number;
+};
+export type ClientProfile = {
+  userId: string;
+  email: string;
+  displayName: string;
+  phone?: string | null;
+  version: number;
+};
 export type ClientSession = {
   sessionId: string;
   clientType: "WEB" | "MOBILE" | "DESKTOP";
@@ -17,7 +30,12 @@ export type ReservationResult = {
   requestId: string;
   reservationId: string | null;
   submitted: boolean;
-  decision: "ACCEPT" | "ACCEPT_WITH_CONDITIONS" | "SUGGEST_OTHER_TIME" | "REQUIRES_HUMAN_APPROVAL" | "REJECT";
+  decision:
+    | "ACCEPT"
+    | "ACCEPT_WITH_CONDITIONS"
+    | "SUGGEST_OTHER_TIME"
+    | "REQUIRES_HUMAN_APPROVAL"
+    | "REJECT";
   reasonCodes: string[];
   minimumOccupancyMinutes: number;
   maximumOccupancyMinutes: number;
@@ -69,9 +87,22 @@ export type PickupRequestReceipt = {
   message: string;
 };
 export type PickupRequestState = PickupRequestReceipt;
+export type PickupTracking = {
+  requestId: string;
+  requestStatus: PickupRequestReceipt["status"];
+  orderStatus?: string | null;
+  estimatedReadyAt?: string | null;
+  asOf: string;
+};
 export type PickupRequestDetails = PickupRequestState & {
   customerNote: string | null;
-  items: { name: string; quantity: number; unitPrice: number; lineTotal: number; currencyId: string }[];
+  items: {
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    currencyId: string;
+  }[];
 };
 export type DeliveryRequestBody = {
   requestedFor: string;
@@ -95,7 +126,12 @@ export type DeliveryRequestReceipt = {
 };
 export type DeliveryRequestDetails = DeliveryRequestReceipt & {
   customerNote: string | null;
-  items: { name: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  items: {
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }[];
 };
 export type CustomerAddress = {
   addressId: string;

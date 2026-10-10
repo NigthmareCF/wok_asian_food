@@ -3,29 +3,34 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import { SymbolView } from "expo-symbols";
 import { useUiTheme } from "./ui";
-import { imageUri } from "@/lib/catalog";
+import { imageSource } from "@/lib/catalog";
 
 export function ProductImage({
   reference,
   name,
+  compact = false,
 }: {
   reference?: string | null;
   name: string;
+  compact?: boolean;
 }) {
-  const uri = imageUri(reference);
+  const source = imageSource(reference);
+  const imageKey = reference ?? "";
   const [failedUri, setFailedUri] = useState<string | null>(null);
   const { colors } = useUiTheme();
   return (
-    <View className="h-48 w-full overflow-hidden rounded-md bg-muted">
-      {uri && failedUri !== uri ? (
+    <View
+      className={`${compact ? "h-32" : "h-44"} w-full overflow-hidden rounded-md bg-muted`}
+    >
+      {source && failedUri !== imageKey ? (
         <Image
-          source={{ uri }}
+          source={source}
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
           accessible
           accessibilityLabel={name}
-          recyclingKey={uri}
-          onError={() => setFailedUri(uri)}
+          recyclingKey={imageKey}
+          onError={() => setFailedUri(imageKey)}
         />
       ) : (
         <View className="flex-1 items-center justify-center gap-3 p-4">

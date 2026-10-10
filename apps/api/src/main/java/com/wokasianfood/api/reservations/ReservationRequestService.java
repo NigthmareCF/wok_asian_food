@@ -38,6 +38,17 @@ public class ReservationRequestService {
         Result replay = findReplay(userId, requestId, payloadHash);
         if (replay != null) return replay;
 
+        List<String> serviceStatuses = jdbc.query("""
+            SELECT status FROM wok.service_capabilities
+            WHERE code = 'RESERVATIONS' AND effective_from <= now()
+              AND (effective_until IS NULL OR effective_until > now())
+            ORDER BY effective_from DESC, id DESC LIMIT 1
+            """, (rs, row) -> rs.getString("status"));
+        if (serviceStatuses.isEmpty() || "PAUSED".equals(serviceStatuses.getFirst())
+                || "DISABLED".equals(serviceStatuses.getFirst()))
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Las reservas están temporalmente indisponibles.");
+
         var assessment = capacity.assessTable(request.guests(), request.requestedAt(), Instant.now(), request.preorder());
         var estimate = assessment.occupancy() == null ? occupancy.estimate(request.guests()) : assessment.occupancy();
         UUID reservationId = null;

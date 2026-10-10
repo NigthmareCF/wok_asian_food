@@ -11,6 +11,7 @@ import {
   type OperationalTable,
   type OperationalTableStatus,
 } from "@/modules/tables/live-contract";
+import { formatTableAccount } from "../presentation";
 import styles from "./operational-tables.module.css";
 
 const statuses: OperationalTableStatus[] = [
@@ -135,7 +136,7 @@ export function OperationalTablesView() {
   const visibleError = error || resource.error?.message;
 
   return (
-    <div className="ops-dashboard table-floor">
+    <div className={`ops-dashboard table-floor ${styles.root}`}>
       <header className="ops-page-header ops-page-header--focused">
         <div>
           <span className="ops-kicker">Estado del salón</span>
@@ -147,10 +148,13 @@ export function OperationalTablesView() {
         <button
           className="button button--primary button--compact"
           disabled={Boolean(sending)}
+          aria-expanded={showCreator}
+          aria-controls="create-table-form"
           onClick={() => setShowCreator((value) => !value)}
           type="button"
         >
-          <Plus aria-hidden="true" size={17} /> Nueva mesa
+          <Plus aria-hidden="true" size={17} />{" "}
+          {showCreator ? "Ocultar formulario" : "Nueva mesa"}
         </button>
       </header>
 
@@ -172,6 +176,7 @@ export function OperationalTablesView() {
 
       {showCreator ? (
         <form
+          id="create-table-form"
           aria-label="Crear mesa"
           className={`ops-work-panel ${styles.form}`}
           onSubmit={create}
@@ -318,11 +323,7 @@ function TableCard({
       </div>
       <div className={styles.meta}>
         <div>{table.active ? "Activa" : "Inactiva"}</div>
-        <div>
-          {table.accountName
-            ? `${table.accountName} · ${table.accountStatus}`
-            : "Sin cuenta abierta"}
-        </div>
+        <div>{formatTableAccount(table)}</div>
         <div>Actualizada: {formatUpdatedAt(table.updatedAt)}</div>
       </div>
       <div className={styles.actions}>

@@ -1,5 +1,5 @@
 import type { PublicMenu, PublicMenuItem } from "./api";
-import { imageUri, menuProducts } from "./catalog";
+import { imageSource, menuProducts } from "./catalog";
 
 export function homeCarouselProducts(menu: PublicMenu | undefined) {
   return menuProducts(menu).slice(0, 6);
@@ -7,7 +7,7 @@ export function homeCarouselProducts(menu: PublicMenu | undefined) {
 
 export function selectHomeHero(products: PublicMenuItem[]) {
   return (
-    products.find((product) => imageUri(product.imageReference)) ??
+    products.find((product) => imageSource(product.imageReference)) ??
     products[0] ??
     null
   );

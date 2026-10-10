@@ -5,8 +5,15 @@ import { GET, POST as create } from "./route";
 import { POST as close } from "./[tableId]/close/route";
 import { POST as open } from "./[tableId]/open/route";
 
-const auth = vi.hoisted(() => ({ readAccessToken: vi.fn() }));
+const auth = vi.hoisted(() => ({
+  readAccessToken: vi.fn(),
+  loadCurrentUser: vi.fn(),
+}));
 vi.mock("@/modules/auth/server/auth-cookies", () => auth);
+vi.mock("@/modules/auth/server/backend-auth", async (original) => ({
+  ...(await original<typeof import("@/modules/auth/server/backend-auth")>()),
+  loadCurrentUser: auth.loadCurrentUser,
+}));
 
 const tableId = "11111111-1111-4111-8111-111111111111";
 const requestId = "22222222-2222-4222-8222-222222222222";
@@ -29,6 +36,7 @@ function request(method: "GET" | "POST", body?: unknown, headers = "") {
     method,
     headers: {
       origin: "http://localhost",
+      "X-Wok-Expected-Principal": "40000000-0000-4000-8000-000000000001",
       host: "localhost",
       ...(method === "POST" ? { "X-Request-Id": requestId } : {}),
     },
@@ -37,6 +45,14 @@ function request(method: "GET" | "POST", body?: unknown, headers = "") {
 }
 
 beforeEach(() => {
+  auth.loadCurrentUser.mockResolvedValue({
+    userId: "40000000-0000-4000-8000-000000000001",
+    email: "staff@wok.test",
+    displayName: "Staff fixture",
+    status: "ACTIVE",
+    roles: ["OPERATIONAL"],
+    permissions: [],
+  });
   auth.readAccessToken.mockResolvedValue("staff-token");
   vi.stubGlobal("fetch", vi.fn());
 });
@@ -73,6 +89,40 @@ it("requires a session before listing tables", async () => {
   auth.readAccessToken.mockResolvedValue(null);
   expect((await GET(request("GET"))).status).toBe(401);
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it("accepts a paid account without changing the occupied table or releasing it", async () => {
+  const paid = {
+    ...table,
+    status: "OCCUPIED",
+    accountId: requestId,
+    accountName: "Cuenta pagada",
+    accountStatus: "PAID",
+  };
+  vi.mocked(fetch).mockResolvedValue(Response.json([paid]));
+  const response = await GET(request("GET"));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual([paid]);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledWith(
+    expect.any(String),
+    expect.objectContaining({ method: "GET" }),
+  );
+});
+
+it("rejects unknown account states returned by the API", async () => {
+  vi.mocked(fetch).mockResolvedValue(
+    Response.json([
+      {
+        ...table,
+        status: "OCCUPIED",
+        accountId: requestId,
+        accountName: "Cuenta",
+        accountStatus: "UNKNOWN",
+      },
+    ]),
+  );
+  expect((await GET(request("GET"))).status).toBe(503);
 });
 
 it("keeps backend role denial private", async () => {

@@ -133,6 +133,11 @@ export default function HomeScreen() {
               product={hero}
               onPress={() => router.push(homeProductRoute(hero))}
             />
+            <Button
+              title="Ver ubicación del restaurante"
+              secondary
+              onPress={() => router.push("/location")}
+            />
             <View className="gap-3">
               <Text
                 accessibilityRole="header"
@@ -217,6 +222,7 @@ export default function HomeScreen() {
                           <ProductImage
                             reference={item.imageReference}
                             name={item.name}
+                            compact
                           />
                           <Text
                             numberOfLines={2}

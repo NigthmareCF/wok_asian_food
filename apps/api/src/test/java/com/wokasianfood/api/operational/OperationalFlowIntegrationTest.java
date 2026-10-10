@@ -58,6 +58,11 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         assertThat(queue.get(0).path("estimatedReadyAt").isNull()).isFalse();
         assertThat(queue.get(0).path("diningTableName").asText()).isNotBlank();
         assertThat(queue.get(0).path("orderId").asText()).isEqualTo(orderId.toString());
+        assertThat(queue.get(0).path("items")).hasSize(1);
+        assertThat(queue.get(0).path("items").get(0).path("name").asText()).isEqualTo("Wok E2E");
+        assertThat(queue.get(0).path("items").get(0).path("quantity").asInt()).isEqualTo(2);
+        assertThat(queue.get(0).path("items").get(0).path("action").asText()).isEqualTo("NEW");
+        assertThat(queue.get(0).path("items").get(0).path("fulfillment").asText()).isEqualTo("DINE_IN");
 
         JsonNode claimed = body(post("/api/v1/operational/kitchen/tickets/" + ticketId + "/claim", token, null));
         assertThat(claimed.path("status").asText()).isEqualTo("PREPARING");
@@ -73,6 +78,14 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
 
         JsonNode served = changeOrderStatus(token, orderId, "SERVED");
         assertThat(served.path("status").asText()).isEqualTo("SERVED");
+        assertThat(patch("/api/v1/operational/orders/" + orderId + "/status", token,
+                """
+                {"status":"CLOSED","expectedVersion":%d}
+                """.formatted(served.path("rowVersion").asInt())).statusCode()).isEqualTo(409);
+        JsonNode paid = body(post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                "{\"method\":\"TRANSFER\"}", Map.of("Idempotency-Key", UUID.randomUUID().toString())));
+        assertThat(paid.path("amount").decimalValue()).isEqualByComparingTo("90.00");
+        assertThat(paid.path("balance").decimalValue()).isZero();
         JsonNode closedOrder = changeOrderStatus(token, orderId, "CLOSED");
         assertThat(closedOrder.path("status").asText()).isEqualTo("CLOSED");
         assertThat(closedOrder.path("closedAt").isNull()).isFalse();
@@ -138,6 +151,22 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         assertThat(replay.statusCode()).isEqualTo(201);
         assertThat(body(replay).path("idempotentReplay").asBoolean()).isTrue();
         assertThat(body(replay).path("orderId").asText()).isEqualTo(body(first).path("orderId").asText());
+
+        UUID otherTableId = createDiningTable("Mesa Otra Cuenta");
+        UUID otherAccountId = UUID.fromString(body(post("/api/v1/operational/tables/" + otherTableId + "/open",
+                token, null)).path("accountId").asText());
+        UUID orderId = UUID.fromString(body(first).path("orderId").asText());
+        String historicalFingerprint = jdbc.queryForObject("SELECT request_fingerprint FROM wok.orders WHERE id = ?",
+                String.class, orderId);
+        var wrongAccount = post("/api/v1/operational/orders", token,
+                payload.replace(accountId.toString(), otherAccountId.toString()),
+                Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(wrongAccount.statusCode()).as(wrongAccount.body()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.orders WHERE account_id = ?", otherAccountId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT request_fingerprint FROM wok.orders WHERE id = ?", String.class, orderId))
+                .isEqualTo(historicalFingerprint);
+        assertThat(body(post("/api/v1/operational/orders", token, payload,
+                Map.of("Idempotency-Key", idempotencyKey))).path("idempotentReplay").asBoolean()).isTrue();
 
         var conflicting = post("/api/v1/operational/orders", token,
                 payload.replace("\"guestCount\":2", "\"guestCount\":3"), Map.of("Idempotency-Key", idempotencyKey));

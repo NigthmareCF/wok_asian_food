@@ -244,7 +244,10 @@ class InventoryService {
     @Transactional
     public RecipeDetails updateRecipe(UUID actor, UUID requestId, UUID itemId,
                                       InventoryController.RecipeRequest request) {
-        requireItem(itemId);
+        List<UUID> locked = jdbc.query("SELECT id FROM wok.items WHERE id = ? FOR UPDATE",
+                (rs, row) -> rs.getObject("id", UUID.class), itemId);
+        if (locked.isEmpty()) throw new AuthException(404, "No encontramos el item de inventario.");
+        String previous = recipeSnapshot(itemId);
         List<InventoryController.RecipeComponentRequest> components = request.components();
         java.util.Set<UUID> seen = new java.util.HashSet<>();
         for (InventoryController.RecipeComponentRequest component : components) {
@@ -267,10 +270,19 @@ class InventoryService {
         }
         jdbc.update("""
             INSERT INTO wok.audit_logs
-                (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
-            VALUES (?, 'ITEM_RECIPE_UPDATED', 'ITEM', ?, jsonb_build_object('components', ?), 'SUCCESS', ?)
-            """, actor, itemId, components.size(), requestId);
+                (actor_user_id, action, entity_type, entity_id, before_data, after_data, result, request_id)
+            VALUES (?, 'ITEM_RECIPE_UPDATED', 'ITEM', ?, CAST(? AS jsonb), CAST(? AS jsonb), 'SUCCESS', ?)
+            """, actor, itemId, previous, recipeSnapshot(itemId), requestId);
         return recipe(itemId);
+    }
+
+    private String recipeSnapshot(UUID itemId) {
+        return jdbc.queryForObject("""
+            SELECT jsonb_build_object('parentItemId', CAST(? AS uuid), 'components',
+                COALESCE(jsonb_agg(jsonb_build_object('componentItemId', component_item_id,
+                    'quantity', quantity) ORDER BY component_item_id), '[]'::jsonb))::text
+            FROM wok.item_recipe_components WHERE parent_item_id = ?
+            """, String.class, itemId, itemId);
     }
 
     private void requireItem(UUID itemId) {

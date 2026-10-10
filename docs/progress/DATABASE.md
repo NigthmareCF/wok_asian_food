@@ -23,6 +23,7 @@
 - Executed `V1_constraints.sql`, `V3_reservations.sql`, `V4_hours.sql`, `V5_reservation_request_idempotency.sql`, and `V6_cash_sessions_and_movements.sql`; all completed successfully and rolled back their test data where applicable.
 - Removed the temporary container after validation. No project database, credentials, or repository secrets were used.
 - This verifies migration execution and the available SQL checks only. The model/SQL/dictionary/ERD reconciliation, full business-rule coverage, and migration upgrade-path testing remain open.
+
 # Progreso de base de datos
 
 ## 2026-09-30 — Libreta de direcciones Cliente
@@ -64,3 +65,10 @@
 - La estructura no crea una orden aceptada ni reserva inventario; el personal debe revalidar horario, capacidad, stock y precio antes de aceptar, siguiendo la regla del mega prompt. En esta primera migración sólo se habilita modalidad `PICKUP`; no implica delivery, mesa ni pago.
 - Prueba V9 valida líneas/huella, unicidad de idempotencia y rechaza cantidad cero. Flyway V1–V9 ejecutó sobre PostgreSQL 18 recién inicializado; V8 y V9 SQL tests aprobaron.
 - La tabla candidate `orders` no expresa suficientemente la solicitud pendiente separada. Esta decisión sigue la jerarquía nueva del requisito explícito; reconciliar `database/design/model.json`, ERD y diccionario antes de presentar el modelo completo como definitivo.
+
+## 2026-10-10 — Recetario transcrito como borradores
+
+- V28 agrega tablas de procedencia para importar 13 recetas, 72 componentes, 21 presentaciones de compra y 15 preguntas del recetario JSON actualizado el 2026-10-10. El importador Python genera SQL PostgreSQL idempotente por IDs REC/COM/Q y preserva cualquier fila ya importada.
+- No se crea existencia, consumo ni disponibilidad automática. Rendimientos, procedimientos y tiempos quedan NULL; `oz` conserva la ambigüedad masa/volumen; presentaciones quedan marcadas `is_inventory=false`. Las coincidencias con productos y artículos se enlazan sólo cuando el nombre es único. Cerdo y Ramen quedan señalados para revisión de correspondencia.
+- Fuente: [transcripción](recipe-book-transcription-2026-10-10.md), [JSON estructurado](../../database/seeds/recipe_book_2026-10-10.json) y [guía de importación](recipe-book-import.md). Validación: `python3 -m unittest discover -s scripts/db -p 'test_*.py'` (3 pruebas).
+- Las opciones comerciales siguen las configuraciones ya existentes en el catálogo; el recetario no contiene cantidades por variación y por eso no se generaron recetas distintas para cada opción.

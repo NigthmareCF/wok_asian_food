@@ -39,6 +39,18 @@
   gap: 0.7rem;
   justify-content: flex-end;
 }
+.headerActions button {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.listPanel article {
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
 
 .notice,
 .feedback,

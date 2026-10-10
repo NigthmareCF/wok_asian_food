@@ -45,7 +45,7 @@ export function PendingRequestView({
           <ArrowLeft aria-hidden="true" size={18} />
           Volver al carrito
         </Button>
-        <Link href="/menu">Ver menú</Link>
+        <Link href="/client/menu">Ver menú</Link>
       </div>
       <div className={styles.layout}>
         <section className={styles.message} aria-labelledby="pending-title">

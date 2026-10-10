@@ -1,5 +1,18 @@
 # Progreso del canal Cliente
 
+## 2026-10-10 — Recuperación del flujo de pickup Cliente → Operativo
+
+- El agregado al carrito ahora espera la resolución de identidad si se hace click antes de terminar la carga de sesión; evita descartar el primer click y confundir el resultado con un límite del carrito.
+- Pickup ya no limita la programación a tres horas. La interfaz propone la siguiente franja estándar abierta y Spring valida fecha, preparación y horario contra `wok.business_hours`.
+- Recorrido comprobado en la base aislada `wokpr12demo`: Cliente autenticado envió solicitud (202), Operativo la vio y aceptó (200), se creó el pedido y la comanda, Cocina lo pasó a `PREPARING` y `READY`, y Cliente consultó el estado actualizado.
+- Build de producción Web y API completado. Pruebas Web del catálogo/carrito, checkout y horario pickup: 39/39. El build local directo con `npm run build:web` no sirve en este worktree temporal porque su `node_modules` es un symlink externo; la compilación equivalente de Docker sí pasó.
+- Los métodos HTTP incorrectos de una ruta ahora responden 405 con `Allow`, no 500 genérico; se cubre en `ApiErrorHandlerTest`.
+
+## 2026-10-10 — Fotos del menú y ubicación publicada
+
+- El catálogo y la portada Web muestran las fotos entregadas, con respaldo por nombre de producto cuando `image_reference` está vacío. `/location` abre el enlace de Google Maps compartido por el propietario; no se inventaron dirección ni horario.
+- La API conserva su contrato actual. Prueba de componente Web pendiente porque falta `@vitejs/plugin-react` en las dependencias instaladas del entorno; lint Web había pasado antes de retirar el enlace temporal a `node_modules`.
+
 ## 2026-09-26 — PR #16: solicitudes de reserva pendientes de validación
 
 - Coordinación confirma que el frontend recopila fecha, hora, personas, intención de preorden y notas; la disponibilidad y la aceptación o rechazo corresponden al restaurante. No existe un límite fijo de 21:30 ni se inventan horarios oficiales o respuestas.
@@ -378,3 +391,32 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Mensajes reales: conversación demo `2228f316-efa1-4774-a972-d16cda927234`; consulta/respuesta entre cuentas demo, reintento sin duplicado, entrada/salida de cola WAITING y lectura por cliente verificadas. Envío y respuesta también comprobados desde ambas pantallas.
 - Aislamiento real: otro cliente recibe 404 al leer delivery/conversación ajenos; cliente recibe 403 en bandeja operativa. Sin cambios de roles, credenciales, `.env`, commits o push.
 - Pendiente: integración de vistas operativas de Delivery/reservas y sus flujos posteriores; pagos reales, disponibilidad/capacidad en vivo y realtime. Esta entrega no convierte las solicitudes en pedidos confirmados. Revisión visual de escritorio realizada; matriz completa de cuatro tamaños pendiente.
+
+## 2026-10-06 — Antony-C02-B: aislamiento de identidad en Cliente
+
+- Instancia única de identidad dentro del módulo Cliente, iniciada por suscripciones del carrito/vistas pickup. Revalida mediante GET `/bff/auth/session` existente; respuestas fuera de orden no pueden restaurar una identidad invalidada. Última desuscripción retira listeners y aborta verificación. Sin cambios a AppProviders, autenticación o transporte compartido.
+- Carrito v2 separado por dueño verificado y visitante. El v1 sin dueño queda intacto e ignorado; no se importa el borrador visitante al iniciar sesión. Identidad sin verificar oculta datos privados y bloquea operaciones. Las mutaciones del carrito capturan propietario/generación.
+- Checkout, historial, detalle y cancelación pickup invalidan operaciones ante cambio conocido de identidad, logout o desmontaje. Se comprueba vigencia después de awaits y antes de efectos; respuestas antiguas no guardan comprobantes, consumen carrito ni cambian errores/carga/historial de otra generación. Los intentos inciertos de A se conservan en su espacio al entrar B.
+- Validación exclusivamente en copia temporal con mocks: 78 casos Cliente y dos controles BFF aprobados; S01/S02 siguen fallando y abiertos. Regresiones adicionales: 38 aprobadas con una adaptación de mock solo en Temp. El test original de menú no diferencia sesión y catálogo y registra un fallo de arnés; su archivo queda sin modificar por estar fuera del delta autorizado. TypeScript y lint del delta aprobados.
+- Límites: ninguna comprobación browser evita la carrera sesión→POST. Fernando/Chan deben vincular intento y principal de forma verificable en la frontera servidor. Abort no revierte persistencia. Focus/visibility no detectan cambios entre pestañas instantáneamente; cambios invisibles entre consultas no tienen garantía. Sin pruebas contra servicios/bases existentes, instalaciones, commits, publicación o cambios de rama.
+- Informe, evidencia, parche contra el estado inicial y comprobación de preservación: `C:\Users\avill\AppData\Local\Temp\antony-c02b-identity-20261006`. Implementación detenida para revisión independiente; no se declara resuelto el requisito completo de extremo a extremo.
+
+## 2026-10-07 — Recorridos Web integrados de PLAN_TRABAJO
+
+- Catálogo/detalle reales; lecturas privadas automáticas; reservas/mensajes/delivery vinculados al principal esperado en el BFF. Intentos inciertos se conservan tras recarga; perfil conecta únicamente nombre/teléfono con versión.
+- Reservas y mensajes cruzados, perfil y aislamiento verificados con HTTP/API/PostgreSQL nuevo aislado; Web con respuestas controladas. Regresión global: 766 pruebas Web y 244 API aprobadas; lint, tipos y build aprobados.
+- Informe, archivos, contratos, límites y guion manual: [WEB_INTEGRATED_DELIVERY.md](WEB_INTEGRATED_DELIVERY.md). Validación visual del último delta y Android físico pendientes; no equivale a aceptación productiva. Cambios anteriores preservados, sin acciones Git de publicación.
+
+## 2026-10-07 — Corrección F1/F5 de revisión independiente
+
+- Perfil admite el JSON real sin phone y el BFF normaliza a null en GET/PUT; error de lectura separado de modificación incierta. Integración Next/BFF/API/PostgreSQL nuevo confirma cliente sin teléfono, alta/eliminación y persistencia en nueva sesión.
+- Recurso privado compartido vinculado a identidad/generación: invalida datos ante logout conocido y descarta respuestas obsoletas. Pruebas controladas distinguidas de integración real.
+- Regresión final: 786 pruebas Web aprobadas, lint/tipos/build aprobados. Informe F1–F6 y evidencia: [WEB_INTEGRATED_F1_F6.md](WEB_INTEGRATED_F1_F6.md). Sin cierre del plan completo ni publicación; detenido para revisión independiente.
+
+## 2026-10-09 — Reconciliación local de perfil PR40 sobre PR39
+
+Codex, escritor único de codex/integration-pr32-40 desde bbcb773. Se mantiene LiveProfile y /bff/profile protegidos; añadidas direcciones y sesiones de PR40 con identidad vinculada, versiones, normalización NON_NULL y DELETE 204. Sin segundo perfil ni cambios a identidad. Estado/evidencias/bloqueos en docs/integration/CANDIDATE_STATUS.md. No merge a development, commit o push.
+
+## 2026-10-09 — Candidato aislado con Docker
+
+API 268 pruebas reales, BFF móvil 26, móvil 20 y Web 863 aprobadas. Smoke aislado: 44 HTTP y siete límites pickup; 12 contratos SQL y propuesta de trazabilidad con rollback. Perfil protegido con direcciones auditadas y sesiones; replay conserva huella histórica, cancellation PICKUP, reservas/capability/policy configurable. Resultados y bloqueos en docs/integration/CANDIDATE_STATUS.md y TEST_RESULTS.json. Sin commits/push/merge; inventario externo y DELIVERY canónico pendientes; escritor único y lockfile preservados.
