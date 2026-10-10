@@ -79,12 +79,13 @@ class OrderServiceTest {
         UUID tableId = UUID.randomUUID();
         UUID menuItemId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
-                any(String.class))).thenReturn(List.of(orderId));
-        stubDetails(orderId, menuItemId, tableId);
+        var lines = List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null));
+        var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null, lines);
+        String modernFp = calculateFp(accountId, menuItemId);
 
-        var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null,
-                List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null)));
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(List.of(new OrderService.OrderFingerprintRow(orderId, accountId, modernFp)));
+        stubDetails(orderId, menuItemId, tableId);
 
         var receipt = service().open(actor, UUID.randomUUID(), idempotencyKey, request);
 
@@ -95,23 +96,60 @@ class OrderServiceTest {
     }
 
     @Test
+    void replaysLegacyFingerprintOnSameAccount() {
+        UUID actor = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID tableId = UUID.randomUUID();
+        UUID menuItemId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        var lines = List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null));
+        var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null, lines);
+        String legacyFp = calculateLegacyFp(menuItemId);
+
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(List.of(new OrderService.OrderFingerprintRow(orderId, accountId, legacyFp)));
+        stubDetails(orderId, menuItemId, tableId);
+
+        var receipt = service().open(actor, UUID.randomUUID(), idempotencyKey, request);
+
+        assertTrue(receipt.idempotentReplay());
+        assertEquals(orderId, receipt.orderId());
+    }
+
+    @Test
+    void rejectsLegacyFingerprintOnDifferentAccount() {
+        UUID actor = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        UUID accountIdA = UUID.randomUUID();
+        UUID accountIdB = UUID.randomUUID();
+        UUID menuItemId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        var lines = List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null));
+        var requestB = new OperationalOrderController.OpenOrderRequest(accountIdB, "DINE_IN", 2, null, lines);
+        String legacyFp = calculateLegacyFp(menuItemId);
+
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(List.of(new OrderService.OrderFingerprintRow(orderId, accountIdA, legacyFp)));
+
+        AuthException error = assertThrows(AuthException.class,
+                () -> service().open(actor, UUID.randomUUID(), idempotencyKey, requestB));
+
+        assertEquals(409, error.status());
+    }
+
+    @Test
     void rejectsSameIdempotencyKeyAndContentForDifferentAccount() {
         UUID actor = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
         UUID accountId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID menuItemId = UUID.randomUUID();
-        AtomicReference<String> savedFingerprint = new AtomicReference<>();
-        when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
-                any(String.class))).thenAnswer(invocation -> {
-                    String fingerprint = invocation.getArgument(4);
-                    savedFingerprint.compareAndSet(null, fingerprint);
-                    return savedFingerprint.get().equals(fingerprint) ? List.of(orderId) : List.of();
-                });
-        when(jdbc.queryForObject(contains("SELECT count(*) FROM wok.orders"), any(Class.class), eq(actor),
-                eq(idempotencyKey))).thenReturn(1);
-        stubDetails(orderId, menuItemId, UUID.randomUUID());
         var lines = List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null));
+        String modernFp = calculateFp(accountId, menuItemId);
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(List.of(new OrderService.OrderFingerprintRow(orderId, accountId, modernFp)));
+        stubDetails(orderId, menuItemId, UUID.randomUUID());
         var original = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null, lines);
         var differentAccount = new OperationalOrderController.OpenOrderRequest(
                 UUID.randomUUID(), "DINE_IN", 2, null, lines);
@@ -133,10 +171,9 @@ class OrderServiceTest {
     void rejectsIdempotencyKeyReusedWithDifferentPayload() {
         UUID actor = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
-        when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
-                any(String.class))).thenReturn(List.of());
-        when(jdbc.queryForObject(contains("SELECT count(*) FROM wok.orders"), any(Class.class), eq(actor),
-                eq(idempotencyKey))).thenReturn(1);
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(List.of(
+                        new OrderService.OrderFingerprintRow(UUID.randomUUID(), UUID.randomUUID(), "differentFp")));
 
         var request = new OperationalOrderController.OpenOrderRequest(UUID.randomUUID(), "DINE_IN", 2, "otro nota",
                 List.of(new OperationalOrderController.OrderLineRequest(UUID.randomUUID(), 3, "DINE_IN", null)));
@@ -147,14 +184,28 @@ class OrderServiceTest {
         assertEquals(409, error.status());
     }
 
+    private String calculateFp(UUID accountId, UUID menuItemId) {
+        String canonical = accountId + "\nDINE_IN\n2\n\n" + menuItemId + ":1:DINE_IN:";
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    private String calculateLegacyFp(UUID menuItemId) {
+        String canonical = "DINE_IN\n2\n\n" + menuItemId + ":1:DINE_IN:";
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
     @Test
     void rejectsProductThatIsNoLongerAvailable() {
         UUID actor = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
-        when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
-                any(String.class))).thenReturn(List.of());
-        when(jdbc.queryForObject(contains("SELECT count(*) FROM wok.orders"), any(Class.class), eq(actor),
-                eq(idempotencyKey))).thenReturn(0);
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(List.of());
         when(jdbc.query(contains("FROM wok.order_accounts WHERE id = ? FOR UPDATE"), any(RowMapper.class), any(UUID.class)))
                 .thenReturn(List.of(new OrderService.Account(null, UUID.randomUUID(), "OPEN")));
         doAnswer(invocation -> List.of()).when(jdbc).query(contains("JOIN wok.currencies c ON c.id = mi.currency_id"),
@@ -174,10 +225,8 @@ class OrderServiceTest {
     void rejectsDineInOrderForAccountWithoutTable() {
         UUID actor = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
-        when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
-                any(String.class))).thenReturn(List.of());
-        when(jdbc.queryForObject(contains("SELECT count(*) FROM wok.orders"), any(Class.class), eq(actor),
-                eq(idempotencyKey))).thenReturn(0);
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(List.of());
         when(jdbc.query(contains("FROM wok.order_accounts WHERE id = ? FOR UPDATE"), any(RowMapper.class), any(UUID.class)))
                 .thenReturn(List.of(new OrderService.Account(null, null, "OPEN")));
 
@@ -194,10 +243,8 @@ class OrderServiceTest {
     void rejectsOrderOnAccountThatIsNoLongerOpen() {
         UUID actor = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
-        when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
-                any(String.class))).thenReturn(List.of());
-        when(jdbc.queryForObject(contains("SELECT count(*) FROM wok.orders"), any(Class.class), eq(actor),
-                eq(idempotencyKey))).thenReturn(0);
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(List.of());
         when(jdbc.query(contains("FROM wok.order_accounts WHERE id = ? FOR UPDATE"), any(RowMapper.class), any(UUID.class)))
                 .thenReturn(List.of(new OrderService.Account(null, UUID.randomUUID(), "CLOSED")));
 
@@ -325,8 +372,9 @@ class OrderServiceTest {
         UUID stationId = UUID.randomUUID();
         UUID summaryId = UUID.randomUUID();
 
-        stubHappyPath(accountId, tableId, menuItemId, currencyId, stationId, List.of(), List.of(summaryId), actor,
-                idempotencyKey);
+        stubHappyPath(accountId, tableId, menuItemId, currencyId, stationId, List.of(),
+                List.of(new OrderService.OrderFingerprintRow(summaryId, accountId, calculateFp(accountId, menuItemId))),
+                actor, idempotencyKey);
         stubDetails(summaryId, menuItemId, tableId);
 
         var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null,
@@ -336,8 +384,8 @@ class OrderServiceTest {
 
         assertFalse(receipt.idempotentReplay());
         assertEquals(1, receipt.itemCount());
-        verify(jdbc, times(1)).query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor),
-                eq(idempotencyKey), any(String.class));
+        verify(jdbc, times(1)).query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class), eq(actor),
+                eq(idempotencyKey));
         verify(jdbc).queryForObject(contains("INSERT INTO wok.order_items"), eq(UUID.class), eq(insertedOrderId),
                 eq(menuItemId), eq("Pad Thai"), eq(1), eq(new BigDecimal("10.25")), eq(stationId), eq("DINE_IN"),
                 eq(null));
@@ -359,11 +407,11 @@ class OrderServiceTest {
     }
 
     private void stubHappyPath(UUID accountId, UUID tableId, UUID menuItemId, UUID currencyId, UUID stationId,
-                              List<UUID> firstLookup, List<UUID> secondLookup, UUID actor, UUID idempotencyKey) {
-        when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
-                any(String.class))).thenReturn(firstLookup, secondLookup);
-        when(jdbc.queryForObject(contains("SELECT count(*) FROM wok.orders"), any(Class.class), eq(actor),
-                eq(idempotencyKey))).thenReturn(0);
+                              List<OrderService.OrderFingerprintRow> firstLookup,
+                              List<OrderService.OrderFingerprintRow> secondLookup,
+                              UUID actor, UUID idempotencyKey) {
+        when(jdbc.query(contains("FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?"), any(RowMapper.class),
+                eq(actor), eq(idempotencyKey))).thenReturn(firstLookup, secondLookup);
         when(jdbc.query(contains("FROM wok.order_accounts WHERE id = ? FOR UPDATE"), any(RowMapper.class), eq(accountId)))
                 .thenReturn(List.of(new OrderService.Account(accountId, tableId, "OPEN")));
         when(jdbc.queryForObject(contains("nextval"), eq(Integer.class))).thenReturn(1);

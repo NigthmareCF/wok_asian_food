@@ -161,6 +161,47 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void replaysLegacyFingerprintOnSameAccountAndRejectsOnDifferentAccount() {
+        String token = tokenForRole("OPERATIONAL");
+        UUID tableId = createDiningTable("Mesa Legacy FP");
+        UUID menuItemId = seedMenuItem("Wok Legacy FP", "30.00", "WOK_LEGACY", 120);
+        UUID accountId = UUID.fromString(
+                body(post("/api/v1/operational/tables/" + tableId + "/open", token, null)).path("accountId").asText());
+        String idempotencyKey = UUID.randomUUID().toString();
+        String payload = """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":2,"items":[
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                """.formatted(accountId, menuItemId);
+
+        var first = post("/api/v1/operational/orders", token, payload, Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(first.statusCode()).isEqualTo(201);
+        UUID orderId = UUID.fromString(body(first).path("orderId").asText());
+
+        // Update database record to store legacy fingerprint (without accountId prefix)
+        String legacyCanonical = "DINE_IN\n2\n\n" + menuItemId + ":1:DINE_IN:";
+        String legacyFp;
+        try {
+            legacyFp = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(legacyCanonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (Exception e) { throw new RuntimeException(e); }
+        jdbc.update("UPDATE wok.orders SET request_fingerprint = ? WHERE id = ?", legacyFp, orderId);
+
+        // Replay on same account -> returns 201 idempotentReplay
+        var legacyReplay = post("/api/v1/operational/orders", token, payload, Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(legacyReplay.statusCode()).isEqualTo(201);
+        assertThat(body(legacyReplay).path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(body(legacyReplay).path("orderId").asText()).isEqualTo(orderId.toString());
+
+        // Replay on different account -> returns 409 Conflict
+        UUID otherTableId = createDiningTable("Mesa Otra Account Legacy");
+        UUID otherAccountId = UUID.fromString(body(post(
+                "/api/v1/operational/tables/" + otherTableId + "/open", token, null)).path("accountId").asText());
+        var conflictingAccount = post("/api/v1/operational/orders", token,
+                payload.replace(accountId.toString(), otherAccountId.toString()), Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(conflictingAccount.statusCode()).isEqualTo(409);
+    }
+
+    @Test
     void keepsBlockingCloseWhileOrderIsOpen() {
         String token = tokenForRole("OPERATIONAL");
         UUID tableId = createDiningTable("Mesa Bloqueada");

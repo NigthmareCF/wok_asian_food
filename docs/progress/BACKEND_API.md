@@ -1,5 +1,11 @@
 # Progreso de API backend
 
+## 2026-10-09 — PR35-U1: cancelación Delivery e idempotencia de huella histórica de pedidos
+
+- `ClientPickupRequestController.java`: se eliminó el filtro `fulfillment_type = 'PICKUP'` de la consulta bloqueada (`FOR UPDATE`) y de la actualización en `cancel(...)`. La cancelación de solicitudes del Cliente (`DELETE /api/v1/client/order-requests/{requestId}`) vuelve a ser compatible con solicitudes de tipo `PICKUP` y `DELIVERY`, manteniendo la validación estricta del propietario (`customer_user_id`), estado cancelable (`PENDING_REVIEW`), respuesta neutral `404` ante recursos no pertenecientes al cliente o inexistentes y `409` para estados no cancelables. Sin rutas HTTP nuevas.
+- `OperationalOrderController.java`: la huella de creación de pedidos en cuentas operativas reevalúa tanto la huella moderna (que incluye `accountId`) como la huella legada (sin `accountId`). Para solicitudes históricas sin `accountId` en su fingerprint, los reintentos (replay) se aceptan si coincide el fingerprint legado y la cuenta del pedido coincide con `accountId`. Solicitudes con diferente payload o cuentas en conflicto responden HTTP `409`.
+- Pruebas Java unitarias e integraciones HTTP/PostgreSQL: `ClientPickupCancellationIntegrationTest` (4 pruebas), `OperationalFlowIntegrationTest` (8 pruebas) y `OrderServiceTest` (17 pruebas) aprobadas sin errores.
+
 ## 2026-10-07 — Smoke operativo tras E1.2
 
 - .github/scripts/operational-flow-smoke.sh conserva el 409 al cerrar una mesa con saldo pendiente, registra el pago CASH mediante los contratos existentes y exige 200 con cuenta PAID y mesa CLEANING al reintentar el cierre.
