@@ -274,33 +274,33 @@ La línea base E0 procede de una revisión estática: las pruebas citadas fueron
 
 ### `GET /api/v1/operational/order-requests`
 
-| Campo | Contrato implementado |
+| Campo | Contrato implementado (Canónico PR39) |
 | --- | --- |
 | Permiso | `orders:manage` |
 | DTO de entrada | Query opcional `status` (`PENDING_REVIEW`, `ACCEPTED`, `REJECTED`, `CANCELLED`, `EXPIRED`) y `type` (`PICKUP`, `DELIVERY`) |
-| Respuesta | 200 `List<Summary>` con solicitud, estado, tipo, horario, subtotal, moneda, vínculo `orderId` y creación |
+| Respuesta | 200 `List<OrderRequestSummary>` con `requestId`, `status`, `fulfillmentType`, `requestedFor`, `submittedAt`, `customerName`, `customerEmail`, `customerNote`, `subtotal`, `currency`, `orderId`, `orderStatus`, e `items` (`name`, `quantity`, `unitPrice`, `lineTotal`) |
 | Estados | Filtra estados persistidos; la solicitud permanece separada del pedido |
-| Errores | 400 enum inválido; 403 sin permiso |
-| Versión | v1; máximo 50, orden `created_at DESC, id DESC` |
+| Errores | 400 enum/filtro inválido; 403 sin permiso |
+| Versión | v1; máximo 50, orden `PENDING_REVIEW` primero, luego `created_at DESC, id DESC` |
 | Idempotencia | Lectura |
 | Correlación | — |
-| Pruebas | `OrderRequestQueryIntegrationTest`: pickup/delivery, filtros, orden, rol y ausencia de datos sensibles |
-| Limitaciones comprobadas | El resumen omite cliente, dirección/contacto, fingerprint y clave de idempotencia |
+| Pruebas | `OrderRequestQueryIntegrationTest`: pickup/delivery, filtros status/type, orden, rol 403, 400 por filtro inválido y ausencia de datos sensibles |
+| Limitaciones comprobadas | El contrato canónico omite cliente userId, dirección/contacto, fingerprint y clave de idempotencia |
 
 ### `GET /api/v1/operational/order-requests/{requestId}`
 
-| Campo | Contrato implementado |
+| Campo | Contrato implementado (Canónico PR39) |
 | --- | --- |
 | Permiso | `orders:manage` |
 | DTO de entrada | UUID en ruta |
-| Respuesta | 200 `Details` con solicitud, datos delivery necesarios, vínculo opcional `orderId` y snapshots de líneas |
+| Respuesta | 200 `OrderRequestSummary` (único DTO unificado con listado) con `submittedAt`, datos cliente (`customerName`, `customerEmail`), `orderId`/`orderStatus` opcionales e `items` snapshot |
 | Estados | Estado persistido; no crea ni transforma la solicitud en pedido |
 | Errores | 403 sin permiso; 404 inexistente |
 | Versión | v1; sin versión esperada |
 | Idempotencia | Lectura |
 | Correlación | — |
-| Pruebas | `OrderRequestQueryIntegrationTest`: detalle, líneas, separación solicitud/pedido, 403/404 |
-| Limitaciones comprobadas | No expone cliente, fingerprint ni clave de idempotencia; ACCEPT delivery continúa bloqueado |
+| Pruebas | `OrderRequestQueryIntegrationTest`: detalle, items, separación solicitud/pedido, 403/404 |
+| Limitaciones comprobadas | Comparte exactamente el mismo DTO canónico con el listado sin exponer campos sensibles ni direcciones |
 
 ## Cocina
 

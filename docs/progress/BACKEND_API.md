@@ -1,5 +1,11 @@
 # Progreso de API backend
 
+## 2026-10-09 — PR35-U2: consolidación de bandeja operativa con contrato canónico de PR39
+
+- `OperationalOrderRequestController.java` y `OperationalOrderRequestQuery`: unificación del DTO en la estructura canónica `OrderRequestSummary` (`requestId`, `status`, `fulfillmentType`, `requestedFor`, `submittedAt`, `customerName`, `customerEmail`, `customerNote`, `subtotal`, `currency`, `orderId`, `orderStatus`, e `items` snapshot). Eliminados los DTOs redundantes (`Summary`, `Details`, `Line`) y campos no expuestos por el contrato canónico.
+- Se mantuvieron los filtros `status` y `type` en `GET /api/v1/operational/order-requests` y la consulta del detalle `GET /api/v1/operational/order-requests/{requestId}`, respondiendo con el mismo DTO canónico bajo la autoridad `orders:manage`.
+- Pruebas `OrderRequestQueryIntegrationTest` (2 pruebas HTTP/PostgreSQL) actualizadas y verificadas con 0 fallos.
+
 ## 2026-10-09 — PR35-U1: cancelación Delivery e idempotencia de huella histórica de pedidos
 
 - `ClientPickupRequestController.java`: se eliminó el filtro `fulfillment_type = 'PICKUP'` de la consulta bloqueada (`FOR UPDATE`) y de la actualización en `cancel(...)`. La cancelación de solicitudes del Cliente (`DELETE /api/v1/client/order-requests/{requestId}`) vuelve a ser compatible con solicitudes de tipo `PICKUP` y `DELIVERY`, manteniendo la validación estricta del propietario (`customer_user_id`), estado cancelable (`PENDING_REVIEW`), respuesta neutral `404` ante recursos no pertenecientes al cliente o inexistentes y `409` para estados no cancelables. Sin rutas HTTP nuevas.

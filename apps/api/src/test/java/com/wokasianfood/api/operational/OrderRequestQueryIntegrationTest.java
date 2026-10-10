@@ -42,22 +42,37 @@ class OrderRequestQueryIntegrationTest extends PostgresIntegrationTest {
         assertThat(deliverySummary).isNotNull();
         assertThat(deliverySummary.path("fulfillmentType").asText()).isEqualTo("DELIVERY");
         assertThat(deliverySummary.path("status").asText()).isEqualTo("PENDING_REVIEW");
+        assertThat(deliverySummary.hasNonNull("submittedAt")).isTrue();
+        assertThat(deliverySummary.has("customerName")).isTrue();
+        assertThat(deliverySummary.has("customerEmail")).isTrue();
+        assertThat(deliverySummary.has("items")).isTrue();
+
+        // Safety assertions: sensitive or non-canonical fields must be absent
         assertThat(deliverySummary.has("customerUserId")).isFalse();
         assertThat(deliverySummary.has("deliveryAddress")).isFalse();
+        assertThat(deliverySummary.has("deliveryReference")).isFalse();
         assertThat(deliverySummary.has("contactPhone")).isFalse();
+        assertThat(deliverySummary.has("paymentPreference")).isFalse();
         assertThat(deliverySummary.has("idempotencyKey")).isFalse();
         assertThat(deliverySummary.has("requestFingerprint")).isFalse();
 
+        // Test valid filters status & type
         JsonNode filtered = body(get("/api/v1/operational/order-requests?status=PENDING_REVIEW&type=DELIVERY", operator));
         assertThat(filtered.findValuesAsText("requestId")).contains(delivery.toString());
         for (JsonNode item : filtered) {
             assertThat(item.path("status").asText()).isEqualTo("PENDING_REVIEW");
             assertThat(item.path("fulfillmentType").asText()).isEqualTo("DELIVERY");
         }
+
+        // Test invalid filters return 400 Bad Request
+        assertThat(get("/api/v1/operational/order-requests?status=INVALID_STATUS", operator).statusCode())
+                .isEqualTo(400);
+        assertThat(get("/api/v1/operational/order-requests?type=INVALID_TYPE", operator).statusCode())
+                .isEqualTo(400);
     }
 
     @Test
-    void returnsRequestDetailAndLinesWithoutTurningItIntoAnOrder() {
+    void returnsRequestDetailAndItemsWithoutTurningItIntoAnOrder() {
         UUID menuItem = seedMenuItem("Detalle operativo", "21.50", "QUERY_DETAIL");
         UUID requestId = submitPickup(tokenForRole("CLIENT"), menuItem, 3600);
         String operator = tokenForRole("ADMIN");
@@ -68,19 +83,34 @@ class OrderRequestQueryIntegrationTest extends PostgresIntegrationTest {
         assertThat(detail.path("requestId").asText()).isEqualTo(requestId.toString());
         assertThat(detail.path("status").asText()).isEqualTo("PENDING_REVIEW");
         assertThat(detail.path("fulfillmentType").asText()).isEqualTo("PICKUP");
+        assertThat(detail.hasNonNull("submittedAt")).isTrue();
+        assertThat(detail.has("customerName")).isTrue();
+        assertThat(detail.has("customerEmail")).isTrue();
         assertThat(detail.hasNonNull("orderId")).isFalse();
-        assertThat(detail.path("lines")).hasSize(1);
-        assertThat(detail.path("lines").get(0).path("name").asText()).isEqualTo("Detalle operativo");
-        assertThat(detail.path("lines").get(0).path("quantity").asInt()).isEqualTo(2);
-        assertThat(detail.path("lines").get(0).path("unitPrice").decimalValue()).isEqualByComparingTo("21.50");
+        assertThat(detail.hasNonNull("orderStatus")).isFalse();
+        assertThat(detail.path("items")).hasSize(1);
+        assertThat(detail.path("items").get(0).path("name").asText()).isEqualTo("Detalle operativo");
+        assertThat(detail.path("items").get(0).path("quantity").asInt()).isEqualTo(2);
+        assertThat(detail.path("items").get(0).path("unitPrice").decimalValue()).isEqualByComparingTo("21.50");
+        assertThat(detail.path("items").get(0).path("lineTotal").decimalValue()).isEqualByComparingTo("43.00");
+
+        // Safety assertions
         assertThat(detail.has("customerUserId")).isFalse();
+        assertThat(detail.has("deliveryAddress")).isFalse();
+        assertThat(detail.has("deliveryReference")).isFalse();
+        assertThat(detail.has("contactPhone")).isFalse();
+        assertThat(detail.has("paymentPreference")).isFalse();
         assertThat(detail.has("idempotencyKey")).isFalse();
         assertThat(detail.has("requestFingerprint")).isFalse();
+
         assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class, requestId))
                 .isNull();
 
+        // 404 for non-existent request ID
         assertThat(get("/api/v1/operational/order-requests/" + UUID.randomUUID(), operator).statusCode())
                 .isEqualTo(404);
+
+        // 403 for client role without orders:manage authority
         assertThat(get("/api/v1/operational/order-requests", tokenForRole("CLIENT")).statusCode())
                 .isEqualTo(403);
         assertThat(get("/api/v1/operational/order-requests/" + requestId, tokenForRole("CLIENT")).statusCode())
@@ -133,7 +163,7 @@ class OrderRequestQueryIntegrationTest extends PostgresIntegrationTest {
                 UUID.class, sku, name, itemType, unit);
         return jdbc.queryForObject("""
                 INSERT INTO wok.menu_items (item_id, category_id, preparation_area_id, name, price, currency_id,
-                                            estimated_preparation_seconds, status, visibility)
+                                             estimated_preparation_seconds, status, visibility)
                 VALUES (?, ?, ?, ?, ?::numeric, ?, 60, 'ACTIVE', 'PUBLIC') RETURNING id
                 """, UUID.class, item, categoryId, area, name, price, currency);
     }
