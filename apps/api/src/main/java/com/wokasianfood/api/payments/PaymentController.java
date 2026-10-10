@@ -129,9 +129,9 @@ class PaymentService {
             if (tip.signum() > 0) {
                 jdbc.update("""
                     INSERT INTO wok.cash_movements
-                        (cash_session_id, movement_type, amount_delta, reason, responsible_user_id)
-                    VALUES (?, 'INCOME', ?, 'Propina de cuenta', ?)
-                    """, cashSessionId, tip, actor);
+                        (cash_session_id, movement_type, amount_delta, payment_id, reason, responsible_user_id, request_id)
+                    VALUES (?, 'INCOME', ?, ?, 'Propina de cuenta', ?, ?)
+                    """, cashSessionId, tip, paymentId, actor, requestId);
             }
         }
 
@@ -207,7 +207,7 @@ class PaymentService {
             FROM wok.payments p
             JOIN wok.currencies c ON c.id = p.currency_id
             JOIN wok.order_accounts a ON a.id = p.account_id
-            LEFT JOIN wok.cash_movements m ON m.payment_id = p.id
+            LEFT JOIN wok.cash_movements m ON m.payment_id = p.id AND m.movement_type = 'SALE'
             WHERE p.id = ?
             """, (rs, row) -> new PaymentReceipt(rs.getObject("id", UUID.class),
                 rs.getObject("account_id", UUID.class), rs.getString("account_status"),

@@ -6,6 +6,7 @@ Propuesta de trabajo para seis integrantes y entrega en cinco o seis semanas, pr
 2. [Backlog inicial](BACKLOG.md): paquetes de trabajo, responsables propuestos, dependencias y criterios de aceptación.
 3. [Plan concreto de app Cliente](../mobile/CLIENT_APP_PLAN.md): React Native + Expo, pantallas, tareas y pruebas.
 4. [Registro de avance](../progress/BACKEND.md): resultado de esta preparación y límites de la revisión.
+5. [Matriz contractual backend](CONTRACT_MATRIX.md): contratos de cuentas, pedidos, cocina, pagos y caja según el inventario E0; E1.1–E1.4 corregidas.
 
 Recomendación central: backend modular con Java/Spring Boot y PostgreSQL, compartido por la web actual y una futura app React Native con Expo. Construir cada flujo con persistencia y pruebas desde el inicio, manteniendo operación local ante pérdida de Internet.
 

@@ -215,7 +215,7 @@ class OrderService {
         Channel channel = request.channel() == null ? Channel.DINE_IN : Channel.valueOf(request.channel().trim().toUpperCase());
         String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
         List<OperationalOrderController.OrderLineRequest> lines = normalizedLines(request.items());
-        String fingerprint = fingerprint(channel, notes, request.guestCount(), lines);
+        String fingerprint = fingerprint(request.accountId(), channel, notes, request.guestCount(), lines);
 
         OrderDetails previous = existing(actor, idempotencyKey, fingerprint);
         if (previous != null) return receipt(previous, true);
@@ -587,9 +587,9 @@ class OrderService {
         return null;
     }
 
-    private String fingerprint(Channel channel, String notes, int guestCount,
+    private String fingerprint(UUID accountId, Channel channel, String notes, int guestCount,
                                List<OperationalOrderController.OrderLineRequest> lines) {
-        String canonical = channel.name() + "\n" + guestCount + "\n" + (notes == null ? "" : notes) + "\n"
+        String canonical = accountId + "\n" + channel.name() + "\n" + guestCount + "\n" + (notes == null ? "" : notes) + "\n"
                 + lines.stream()
                         .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
                                 + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()) + ":"

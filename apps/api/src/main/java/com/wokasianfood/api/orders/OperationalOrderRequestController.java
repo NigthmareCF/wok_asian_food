@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,7 +15,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,8 +28,24 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasAuthority('orders:manage')")
 public class OperationalOrderRequestController {
     private final OrderRequestDecisionService decisions;
+    private final OrderRequestQueryService queries;
 
-    public OperationalOrderRequestController(OrderRequestDecisionService decisions) { this.decisions = decisions; }
+    public OperationalOrderRequestController(OrderRequestDecisionService decisions, OrderRequestQueryService queries) {
+        this.decisions = decisions;
+        this.queries = queries;
+    }
+
+    @GetMapping
+    public List<OrderRequestQueryService.Summary> list(
+            @RequestParam(value = "status", required = false) OrderRequestQueryService.RequestStatus status,
+            @RequestParam(value = "type", required = false) OrderRequestQueryService.RequestType type) {
+        return queries.list(status, type);
+    }
+
+    @GetMapping("/{requestId}")
+    public OrderRequestQueryService.Details details(@PathVariable UUID requestId) {
+        return queries.details(requestId);
+    }
 
     @PostMapping("/{requestId}/decision")
     public OrderRequestDecisionService.DecisionResult decide(@AuthenticationPrincipal Jwt jwt,
@@ -40,6 +59,82 @@ public class OperationalOrderRequestController {
     public record DecisionRequest(@NotNull Action action, @Size(max = 500) String reason) {}
 
     public enum Action { ACCEPT, REJECT }
+}
+
+@Service
+class OrderRequestQueryService {
+    private static final int MAX_RESULTS = 50;
+    private final JdbcTemplate jdbc;
+
+    OrderRequestQueryService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+
+    List<Summary> list(RequestStatus status, RequestType type) {
+        StringBuilder sql = new StringBuilder("""
+            SELECT r.id, r.status, r.fulfillment_type, r.requested_for, r.subtotal,
+                   c.code AS currency_code, r.order_id, r.created_at
+            FROM wok.order_requests r
+            JOIN wok.currencies c ON c.id = r.currency_id
+            WHERE 1 = 1
+            """);
+        List<Object> args = new ArrayList<>();
+        if (status != null) {
+            sql.append(" AND r.status = ?");
+            args.add(status.name());
+        }
+        if (type != null) {
+            sql.append(" AND r.fulfillment_type = ?");
+            args.add(type.name());
+        }
+        sql.append(" ORDER BY r.created_at DESC, r.id DESC LIMIT ").append(MAX_RESULTS);
+        return jdbc.query(sql.toString(), (rs, row) -> new Summary(
+                rs.getObject("id", UUID.class), rs.getString("status"), rs.getString("fulfillment_type"),
+                rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
+                rs.getString("currency_code"), rs.getObject("order_id", UUID.class),
+                rs.getTimestamp("created_at").toInstant()), args.toArray());
+    }
+
+    Details details(UUID requestId) {
+        List<Details> found = jdbc.query("""
+            SELECT r.id, r.status, r.fulfillment_type, r.requested_for, r.customer_note, r.subtotal,
+                   c.code AS currency_code, r.payment_preference, r.delivery_address,
+                   r.delivery_reference, r.contact_phone, r.order_id, r.created_at
+            FROM wok.order_requests r
+            JOIN wok.currencies c ON c.id = r.currency_id
+            WHERE r.id = ?
+            """, (rs, row) -> new Details(
+                rs.getObject("id", UUID.class), rs.getString("status"), rs.getString("fulfillment_type"),
+                rs.getTimestamp("requested_for").toInstant(), rs.getString("customer_note"),
+                rs.getBigDecimal("subtotal"), rs.getString("currency_code"), rs.getString("payment_preference"),
+                rs.getString("delivery_address"), rs.getString("delivery_reference"),
+                rs.getString("contact_phone"), rs.getObject("order_id", UUID.class),
+                rs.getTimestamp("created_at").toInstant(), List.of()), requestId);
+        if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
+        Details request = found.getFirst();
+        List<Line> lines = jdbc.query("""
+            SELECT name_snapshot, quantity, unit_price, line_total, currency_id
+            FROM wok.order_request_items
+            WHERE order_request_id = ? ORDER BY created_at, id
+            """, (rs, row) -> new Line(rs.getString("name_snapshot"), rs.getInt("quantity"),
+                rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"),
+                rs.getObject("currency_id", UUID.class)), requestId);
+        return new Details(request.requestId(), request.status(), request.fulfillmentType(), request.requestedFor(),
+                request.customerNote(), request.subtotal(), request.currency(), request.paymentPreference(),
+                request.deliveryAddress(), request.deliveryReference(), request.contactPhone(), request.orderId(),
+                request.createdAt(), lines);
+    }
+
+    enum RequestStatus { PENDING_REVIEW, ACCEPTED, REJECTED, CANCELLED, EXPIRED }
+    enum RequestType { PICKUP, DELIVERY }
+
+    record Summary(UUID requestId, String status, String fulfillmentType, Instant requestedFor,
+                   java.math.BigDecimal subtotal, String currency, UUID orderId, Instant createdAt) {}
+
+    record Details(UUID requestId, String status, String fulfillmentType, Instant requestedFor, String customerNote,
+                   java.math.BigDecimal subtotal, String currency, String paymentPreference, String deliveryAddress,
+                   String deliveryReference, String contactPhone, UUID orderId, Instant createdAt, List<Line> lines) {}
+
+    record Line(String name, int quantity, java.math.BigDecimal unitPrice, java.math.BigDecimal lineTotal,
+                UUID currencyId) {}
 }
 
 @Service

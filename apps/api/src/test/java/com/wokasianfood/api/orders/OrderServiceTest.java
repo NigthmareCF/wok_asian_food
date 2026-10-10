@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -91,6 +92,41 @@ class OrderServiceTest {
         assertEquals(1, receipt.itemCount());
         verify(jdbc, never()).update(contains("INSERT INTO wok.orders"), any(Object[].class));
         verify(jdbc, never()).update(contains("INSERT INTO wok.kitchen_tickets"), any(Object[].class));
+    }
+
+    @Test
+    void rejectsSameIdempotencyKeyAndContentForDifferentAccount() {
+        UUID actor = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID menuItemId = UUID.randomUUID();
+        AtomicReference<String> savedFingerprint = new AtomicReference<>();
+        when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
+                any(String.class))).thenAnswer(invocation -> {
+                    String fingerprint = invocation.getArgument(4);
+                    savedFingerprint.compareAndSet(null, fingerprint);
+                    return savedFingerprint.get().equals(fingerprint) ? List.of(orderId) : List.of();
+                });
+        when(jdbc.queryForObject(contains("SELECT count(*) FROM wok.orders"), any(Class.class), eq(actor),
+                eq(idempotencyKey))).thenReturn(1);
+        stubDetails(orderId, menuItemId, UUID.randomUUID());
+        var lines = List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null));
+        var original = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null, lines);
+        var differentAccount = new OperationalOrderController.OpenOrderRequest(
+                UUID.randomUUID(), "DINE_IN", 2, null, lines);
+        var service = service();
+
+        assertEquals(orderId, service.open(actor, UUID.randomUUID(), idempotencyKey, original).orderId());
+        assertTrue(service.open(actor, UUID.randomUUID(), idempotencyKey, original).idempotentReplay());
+        AuthException error = assertThrows(AuthException.class,
+                () -> service.open(actor, UUID.randomUUID(), idempotencyKey, differentAccount));
+
+        assertEquals(409, error.status());
+        verify(jdbc, times(2)).query(contains("JOIN wok.currencies c ON c.id = o.currency_id"),
+                any(RowMapper.class), eq(orderId));
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+        verifyNoInteractions(reservations, idempotency);
     }
 
     @Test

@@ -87,16 +87,20 @@ class ReservationReviewService {
                                  OperationalReservationController.Decision decision,
                                  String reason, int expectedVersion) {
         List<CurrentReservation> rows = jdbc.query("""
-            SELECT id, status, row_version
+            SELECT id, status, reservation_at, row_version
             FROM wok.reservations WHERE id = ? FOR UPDATE
             """, (rs, row) -> new CurrentReservation(rs.getObject("id", UUID.class),
-                rs.getString("status"), rs.getInt("row_version")), reservationId);
+                rs.getString("status"), rs.getTimestamp("reservation_at").toInstant(),
+                rs.getInt("row_version")), reservationId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Solicitud no encontrada.");
         CurrentReservation current = rows.getFirst();
         if (!"REQUESTED".equals(current.status))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud ya fue revisada.");
         if (current.rowVersion != expectedVersion)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud cambió. Actualiza la vista y vuelve a intentarlo.");
+        if (decision == OperationalReservationController.Decision.CONFIRM
+                && !current.reservationAt().isAfter(Instant.now()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "La hora de la reserva ya pasó.");
 
         String nextStatus = decision == OperationalReservationController.Decision.CONFIRM ? "CONFIRMED" : "CANCELLED";
         String cancellationReason = decision == OperationalReservationController.Decision.REJECT ? "STAFF_REJECTED: " + reason : null;
@@ -123,7 +127,7 @@ class ReservationReviewService {
         return new DecisionResult(reservationId, decision, nextStatus, expectedVersion + 1, reason);
     }
 
-    record CurrentReservation(UUID id, String status, int rowVersion) {}
+    record CurrentReservation(UUID id, String status, Instant reservationAt, int rowVersion) {}
     public record PendingReservation(UUID id, int guests, Instant reservationAt, Instant estimatedEndAt,
                                      String notes, int rowVersion, String customerName, String email) {}
     public record DecisionResult(UUID reservationId, OperationalReservationController.Decision decision,

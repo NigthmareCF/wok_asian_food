@@ -89,6 +89,10 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
                 """);
         assertThat(staleVersion.statusCode()).isEqualTo(409);
 
+        body(post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                """
+                {"method":"TRANSFER"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         JsonNode closedTable = body(post("/api/v1/operational/tables/" + tableId + "/close", token, null));
         assertThat(closedTable.path("status").asText()).isEqualTo("CLEANING");
         assertThat(jdbc.queryForObject("SELECT status FROM wok.order_accounts WHERE id = ?", String.class, accountId))
@@ -139,6 +143,14 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         assertThat(body(replay).path("idempotentReplay").asBoolean()).isTrue();
         assertThat(body(replay).path("orderId").asText()).isEqualTo(body(first).path("orderId").asText());
 
+        UUID otherTableId = createDiningTable("Mesa Otra Cuenta");
+        UUID otherAccountId = UUID.fromString(body(post(
+                "/api/v1/operational/tables/" + otherTableId + "/open", token, null)).path("accountId").asText());
+        var differentAccount = post("/api/v1/operational/orders", token,
+                payload.replace(accountId.toString(), otherAccountId.toString()), Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(differentAccount.statusCode()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.orders WHERE account_id = ?", otherAccountId)).isZero();
+
         var conflicting = post("/api/v1/operational/orders", token,
                 payload.replace("\"guestCount\":2", "\"guestCount\":3"), Map.of("Idempotency-Key", idempotencyKey));
         assertThat(conflicting.statusCode()).isEqualTo(409);
@@ -164,6 +176,10 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
                 .isEqualTo(409);
         assertThat(jdbc.queryForObject("SELECT current_status FROM wok.dining_tables WHERE id = ?", String.class, tableId))
                 .isEqualTo("OCCUPIED");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_accounts WHERE id = ?", String.class, accountId))
+                .isEqualTo("OPEN");
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'TABLE_CLOSED'", tableId))
+                .isZero();
     }
 
     @Test
