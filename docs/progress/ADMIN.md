@@ -98,3 +98,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Se agregó `GET/PUT /api/v1/client/profile`, protegido con rol `CLIENT` y sujeto tomado del JWT. La edición actualiza `users` y `customer_profiles` en una transacción, controla `expectedVersion` y audita los campos sin guardar el teléfono en el evento.
 - La prueba verifica rechazo por versión obsoleta sin escrituras y persistencia coordinada de ambas representaciones; la edición no permite cambiar correo ni acceder a otro perfil.
 - Validación en composición temporal con foundation + auth: Maven pasó 7/7 pruebas unitarias. El smoke HTTP/DB también pasó en PostgreSQL 18 temporal: login CLIENT, perfil GET/PUT, conflicto de versión, validación de teléfono y 403 para ADMIN; DB confirmó sincronización/auditoría. Falta integrar las ramas oficialmente y repetirlo en CI.
+
+## 2026-10-09 - E7.1 auditoria de lectura del menu
+
+- El backend expone solo `GET /api/v1/public/menu` mediante `PublicMenuController`; no existe contrato Admin para categorias, productos, precios, publicacion, disponibilidad, detalle u opciones.
+- El DTO publico filtra `ACTIVE`/`PUBLIC` y omite estado, visibilidad, versionado y relaciones de modificadores. No es una fuente valida para `/admin/menu`.
+- No se agregaron BFF ni lecturas Web Admin. `/admin/menu` conserva fixtures hasta que backend entregue endpoints y DTOs administrativos.
+- Bloqueado para 7.2: definir lecturas Admin y, por separado, mutaciones de catalogo, categorias, opciones, publicacion y disponibilidad. No se cambiaron backend ni contratos publicos.

@@ -60,3 +60,9 @@ Las tablas incluyen búsqueda, filtros, orden y paginación cuando el volumen lo
 ## Entrega del canal
 
 El PR debe indicar los permisos representados, acciones sensibles, datos simulados y decisiones pendientes. Para Roles y permisos se usa el mockup identificado como referencia visual, pero el catálogo real de permisos debe confirmarse con backend antes de declararlo definitivo.
+
+## E7.1 - Auditoria de lectura de menu
+
+La auditoria encontro unicamente `GET /api/v1/public/menu` en `PublicMenuController`. Su DTO publico entrega `categories`, `asOf`, categorias (`id`, `name`, `displayOrder`) y elementos (`id`, `name`, `description`, `price`, `currency`, `imageReference`, `estimatedPreparationSeconds`, `displayOrder`), filtrados a elementos activos y visibles publicamente.
+
+No existe endpoint Admin de lectura para categorias, productos, precios internos, publicacion, disponibilidad, detalle administrativo ni grupos/opciones. Por eso `/admin/menu` conserva sus fixtures y no se agrega BFF ni se reutiliza el menu publico como si fuera Admin. Las mutaciones quedan fuera de esta etapa.
