@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.wokasianfood.api.identity.AuthException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -88,6 +89,28 @@ class TableServiceTest {
     }
 
     @Test
+    void refusesToCloseAnyAccountWhenAnotherLinkedAccountHasPendingBalance() {
+        UUID tableId = UUID.randomUUID();
+        UUID paidAccountId = UUID.randomUUID();
+        UUID unpaidAccountId = UUID.randomUUID();
+        when(jdbc.query(contains("NULL::UUID AS account_id"), any(RowMapper.class), eq(tableId)))
+                .thenReturn(List.of(view(tableId, "OCCUPIED", 3)));
+        when(jdbc.queryForObject(contains("FROM wok.orders"), eq(Integer.class), eq(tableId))).thenReturn(0);
+        when(jdbc.query(contains("SELECT id FROM wok.order_accounts"), any(RowMapper.class), eq(tableId)))
+                .thenReturn(List.of(paidAccountId, unpaidAccountId));
+        when(jdbc.queryForObject(contains("AS balance"), eq(BigDecimal.class), eq(paidAccountId), eq(paidAccountId)))
+                .thenReturn(BigDecimal.ZERO);
+        when(jdbc.queryForObject(contains("AS balance"), eq(BigDecimal.class), eq(unpaidAccountId), eq(unpaidAccountId)))
+                .thenReturn(new BigDecimal("25.00"));
+
+        AuthException error = assertThrows(AuthException.class,
+                () -> new TableService(jdbc).close(UUID.randomUUID(), UUID.randomUUID(), tableId));
+
+        assertEquals(409, error.status());
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
     void closingTableEndsOpenAccountsAndMovesTableToCleaning() {
         UUID actor = UUID.randomUUID();
         UUID tableId = UUID.randomUUID();
@@ -97,6 +120,8 @@ class TableServiceTest {
         when(jdbc.queryForObject(contains("FROM wok.orders"), eq(Integer.class), eq(tableId))).thenReturn(0);
         when(jdbc.query(contains("SELECT id FROM wok.order_accounts"), any(RowMapper.class), eq(tableId)))
                 .thenReturn(List.of(accountId));
+        when(jdbc.queryForObject(contains("AS balance"), eq(BigDecimal.class), eq(accountId), eq(accountId)))
+                .thenReturn(BigDecimal.ZERO);
         when(jdbc.update(contains("UPDATE wok.order_accounts"), any(Object[].class))).thenReturn(1);
         when(jdbc.update(contains("SET current_status = ?"), eq("CLEANING"), eq(actor), eq(tableId), eq("OCCUPIED")))
                 .thenReturn(1);

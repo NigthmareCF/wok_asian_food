@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -155,12 +156,23 @@ class TableService {
         if (blocking != null && blocking > 0)
             throw new AuthException(409, "La mesa tiene pedidos que todavía no se han cerrado.");
 
-        List<UUID> openAccounts = jdbc.query("""
+        List<UUID> linkedAccounts = jdbc.query("""
             SELECT id FROM wok.order_accounts
-            WHERE dining_table_id = ? AND status IN ('OPEN', 'IN_COBRO', 'PAID')
+            WHERE dining_table_id = ?
             FOR UPDATE
             """, (rs, row) -> rs.getObject(1, UUID.class), tableId);
-        for (UUID accountId : openAccounts) {
+        for (UUID accountId : linkedAccounts) {
+            // Same persisted balance used by account details and payment receipts; tips do not settle consumption.
+            BigDecimal balance = jdbc.queryForObject("""
+                SELECT (SELECT COALESCE(SUM(o.total), 0) FROM wok.orders o
+                         WHERE o.account_id = ? AND o.status <> 'CANCELLED')
+                     - (SELECT COALESCE(SUM(p.amount), 0) FROM wok.payments p
+                         WHERE p.account_id = ? AND p.status = 'CAPTURED') AS balance
+                """, BigDecimal.class, accountId, accountId);
+            if (balance.signum() > 0)
+                throw new AuthException(409, "La mesa tiene cuentas con saldo pendiente.");
+        }
+        for (UUID accountId : linkedAccounts) {
             jdbc.update("""
                 UPDATE wok.order_accounts
                 SET status = 'CLOSED', closed_at = now(), updated_at = now(), updated_by = ?, row_version = row_version + 1
