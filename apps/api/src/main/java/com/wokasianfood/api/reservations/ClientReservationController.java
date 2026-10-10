@@ -25,8 +25,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/client/reservations")
 public class ClientReservationController {
     private final ReservationRequestService requests;
+    private final OperationalCapacityService capacity;
 
-    public ClientReservationController(ReservationRequestService requests) { this.requests = requests; }
+    public ClientReservationController(ReservationRequestService requests, OperationalCapacityService capacity) {
+        this.requests = requests;
+        this.capacity = capacity;
+    }
+
+    @GetMapping("/policy")
+    @PreAuthorize("hasRole('CLIENT')")
+    public OperationalCapacityService.Policy policy() { return capacity.policy(); }
 
     @GetMapping
     @PreAuthorize("hasRole('CLIENT')")

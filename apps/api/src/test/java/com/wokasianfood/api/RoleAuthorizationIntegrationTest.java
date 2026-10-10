@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
+import java.time.LocalTime;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
 
@@ -13,6 +16,29 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
     private static final String OPERATIONAL_KITCHEN = "/api/v1/operational/kitchen/tickets";
     private static final String ADMIN_USERS = "/api/v1/admin/users";
     private static final String CLIENT_SESSIONS = "/api/v1/client/sessions";
+    private static final String RESERVATION_POLICY = "/api/v1/client/reservations/policy";
+
+    @Test
+    void reservationPolicyIsClientOnlyAndReturnsThePublishedWireContract() throws Exception {
+        assertThat(get(RESERVATION_POLICY, null).statusCode()).isEqualTo(401);
+        for (String role : java.util.List.of("OPERATIONAL", "ADMIN")) {
+            assertThat(get(RESERVATION_POLICY, tokenForRole(role)).statusCode()).isEqualTo(403);
+        }
+
+        Instant before = Instant.now();
+        var response = get(RESERVATION_POLICY, tokenForRole("CLIENT"));
+        Instant after = Instant.now();
+        assertThat(response.statusCode()).isEqualTo(200);
+        var policy = JsonMapper.builder().build().readTree(response.body());
+        assertThat(policy.size()).isEqualTo(7);
+        assertThat(policy.path("timeZone").asString()).isEqualTo("America/Guatemala");
+        assertThat(policy.path("minimumNoticeHours").asInt()).isEqualTo(3);
+        assertThat(LocalTime.parse(policy.path("firstRequestTime").asString())).isEqualTo(LocalTime.of(14, 0));
+        assertThat(LocalTime.parse(policy.path("lastRequestTime").asString())).isEqualTo(LocalTime.of(21, 15));
+        assertThat(LocalTime.parse(policy.path("preorderRecommendedAfter").asString())).isEqualTo(LocalTime.of(20, 30));
+        assertThat(policy.path("preorderItemsSupported").asBoolean()).isFalse();
+        assertThat(Instant.parse(policy.path("asOf").asString())).isBetween(before, after);
+    }
 
     @Test
     void rejectsAnonymousRequestsToProtectedAreas() {

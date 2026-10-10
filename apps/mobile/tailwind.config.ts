@@ -8,8 +8,7 @@ import { darkTokens, lightTokens } from "./src/theme/tokens";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const nativewindPreset = require("nativewind/preset") as Config;
 
-
-const color = (token: Extract<keyof typeof lightTokens, string>) =>
+const color = (token: keyof typeof lightTokens) =>
   `rgb(var(${token}) / <alpha-value>)`;
 
 // NativeWind defaults to a 14-unit rem; Web's Tailwind scale uses a 16px rem.
@@ -105,7 +104,7 @@ const config = {
   plugins: [
     plugin(({ addBase }) => {
       addBase({
-        ":root": lightTokens,
+        ":root": darkTokens,
         "@media (prefers-color-scheme: dark)": { ":root": darkTokens },
       });
     }),

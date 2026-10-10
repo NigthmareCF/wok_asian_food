@@ -143,6 +143,26 @@ public class ClientPickupRequestController {
                 request.subtotal(), request.currencyId(), request.currency(), request.customerNote(), items);
     }
 
+    @GetMapping("/{requestId}/tracking")
+    public PickupTracking tracking(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId) {
+        UUID customerId = UUID.fromString(jwt.getSubject());
+        List<PickupTracking> found = jdbc.query("""
+            SELECT r.id, r.status AS request_status, o.status AS order_status,
+                   CASE WHEN o.status IN ('SENT', 'PREPARING') THEN (
+                       SELECT max(t.estimated_ready_at) FROM wok.kitchen_tickets t
+                       WHERE t.order_id = o.id AND t.status <> 'CANCELLED'
+                   ) END AS estimated_ready_at, now() AS as_of
+            FROM wok.order_requests r
+            LEFT JOIN wok.orders o ON o.id = r.order_id AND o.channel = 'PICKUP'
+            WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'PICKUP'
+            """, (rs, row) -> new PickupTracking(rs.getObject("id", UUID.class),
+                rs.getString("request_status"), rs.getString("order_status"),
+                rs.getTimestamp("estimated_ready_at") == null ? null : rs.getTimestamp("estimated_ready_at").toInstant(),
+                rs.getTimestamp("as_of").toInstant()), requestId, customerId);
+        if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
+        return found.getFirst();
+    }
+
     @DeleteMapping("/{requestId}")
     @Transactional
     public OrderRequestState cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID requestId) {
@@ -235,6 +255,8 @@ public class ClientPickupRequestController {
     public record PickupRequestReceipt(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
             UUID currencyId, String currency, boolean idempotentReplay, String message) {}
     public record OrderRequestState(UUID requestId, String status) {}
+    public record PickupTracking(UUID requestId, String requestStatus, String orderStatus,
+                                 Instant estimatedReadyAt, Instant asOf) {}
     public record PickupRequestDetails(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
             UUID currencyId, String currency, String customerNote, List<PickupRequestLine> items) {}
     public record PickupRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal, UUID currencyId) {}

@@ -156,6 +156,83 @@ class BffIntegrationTest {
     }
 
     @Test
+    void reservationPolicyForwardsOnlyAfterCoreVerifiesTheClient() throws Exception {
+        String path = "/api/v1/client/reservations/policy";
+        String policy = "{\"timeZone\":\"America/Guatemala\",\"minimumNoticeHours\":3,"
+                + "\"firstRequestTime\":\"14:00:00\",\"lastRequestTime\":\"21:15:00\","
+                + "\"preorderRecommendedAfter\":\"20:30:00\",\"preorderItemsSupported\":false,"
+                + "\"asOf\":\"2026-10-07T18:00:00Z\"}";
+        responses.put("GET " + path, new Stub(200, policy));
+
+        var response = send("GET", path, "Bearer test-client", null, "");
+        assertEquals(200, response.statusCode());
+        assertEquals(policy, response.body());
+        assertEquals(List.of("GET /api/v1/client/profile", "GET " + path),
+                received.stream().map(Received::route).toList());
+        assertEquals("Bearer test-client", received.getLast().authorization());
+        assertNull(received.getLast().cookie());
+        assertNull(received.getLast().key());
+        assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow());
+        assertTrue(response.headers().firstValue("Set-Cookie").isEmpty());
+    }
+
+    @Test
+    void reservationPolicyRejectsGuestsAndDeniedClientProfilesBeforeForwarding() throws Exception {
+        String path = "/api/v1/client/reservations/policy";
+        assertEquals(401, send("GET", path, null, null, "").statusCode());
+        assertTrue(received.isEmpty());
+        for (int status : List.of(401, 403)) {
+            received.clear();
+            responses.put("GET /api/v1/client/profile", new Stub(status, "{\"trace\":\"private-profile\"}"));
+            var response = send("GET", path, "Bearer test-client", null, "");
+            assertEquals(status, response.statusCode());
+            assertFalse(response.body().contains("private-profile"));
+            assertEquals(List.of("GET /api/v1/client/profile"), received.stream().map(Received::route).toList());
+        }
+    }
+
+    @Test
+    void reservationPolicyPreservesSafeCoreErrorsWithoutRetryOrDetails() throws Exception {
+        String path = "/api/v1/client/reservations/policy";
+        for (int status : List.of(400, 404, 429, 500)) {
+            received.clear();
+            responses.put("GET " + path, new Stub(status, "{\"trace\":\"private-policy\"}"));
+            var response = send("GET", path, "Bearer test-client", null, "");
+            assertEquals(status == 500 ? 503 : status, response.statusCode());
+            assertFalse(response.body().contains("private-policy"));
+            assertEquals(List.of("GET /api/v1/client/profile", "GET " + path),
+                    received.stream().map(Received::route).toList());
+        }
+    }
+
+    @Test
+    void reservationPolicyAllowsOnlyTheExactReadRoute() throws Exception {
+        String path = "/api/v1/client/reservations/policy";
+        assertEquals(404, send("POST", path, "Bearer test-client", null, "{}").statusCode());
+        assertEquals(404, send("GET", path + "/other", "Bearer test-client", null, "").statusCode());
+        assertEquals(400, send("GET", path + "?url=https://example.com", "Bearer test-client", null, "").statusCode());
+        assertTrue(received.isEmpty());
+    }
+
+    @Test
+    void reservationPolicyCorsRejectsUntrustedOriginsBeforeCore() throws Exception {
+        String path = "/api/v1/client/reservations/policy";
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .header("Origin", "https://untrusted.example").header("Authorization", "Bearer test-client").GET().build();
+        assertEquals(403, http.send(request, HttpResponse.BodyHandlers.ofString()).statusCode());
+        assertTrue(received.isEmpty());
+
+        var allowed = HttpRequest.newBuilder(request.uri()).header("Origin", "http://localhost:8081")
+                .header("Authorization", "Bearer test-client").GET().build();
+        var response = http.send(allowed, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode());
+        assertEquals("http://localhost:8081", response.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
+        assertTrue(response.headers().firstValue("Access-Control-Allow-Credentials").isEmpty());
+        assertEquals(List.of("GET /api/v1/client/profile", "GET " + path),
+                received.stream().map(Received::route).toList());
+    }
+
+    @Test
     void queryInjectionIsRejectedBeforeCore() throws Exception {
         assertEquals(400, send("GET", "/api/v1/public/menu?url=https://example.com", null, null, "").statusCode());
         assertTrue(received.isEmpty());
