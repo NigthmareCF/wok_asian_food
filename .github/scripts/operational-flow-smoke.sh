@@ -159,8 +159,15 @@ db_value "$restore_hours" > /dev/null
 printf 'PASS outside-service rejection and zero persisted requests\n'
 requested_for=$(select_pickup_window)
 [[ -n "$requested_for" ]]
+pickup_quote_json=$(jq -nc --arg item "$menu_item_id" --arg requested_for "$requested_for" \
+  '{fulfillmentType:"PICKUP",requestedFor:$requested_for,items:[{menuItemId:$item,quantity:1,modifierIds:[]}]}')
+pickup_quote_key='85ea0654-a18e-4921-a7ed-36f1fef2ed11'
+request POST /api/v1/client/order-quotes "$client_token" "$pickup_quote_json" "$pickup_quote_key"
+expect_status 201
+pickup_quote_id=$(jq -er '.quoteId' <<< "$http_body")
 pickup_request_json=$(jq -nc --arg item "$menu_item_id" --arg requested_for "$requested_for" \
-  '{requestedFor:$requested_for,customerNote:"Smoke security flow",items:[{menuItemId:$item,quantity:1}]}')
+  --arg quote_id "$pickup_quote_id" \
+  '{requestedFor:$requested_for,quoteId:$quote_id,customerNote:"Smoke security flow",items:[{menuItemId:$item,quantity:1}]}')
 pickup_idempotency_key='85ea0654-a18e-4921-a7ed-36f1fef2ed12'
 request POST /api/v1/client/order-requests "$operational_token" "$pickup_request_json" "$pickup_idempotency_key"
 expect_status 403
