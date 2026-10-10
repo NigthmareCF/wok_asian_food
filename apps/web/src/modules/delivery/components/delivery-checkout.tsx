@@ -1,6 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { useLiveCart } from "@/modules/cart/live-cart-provider";
@@ -16,6 +22,10 @@ import {
   type DeliveryReceipt,
 } from "../client-contract";
 import styles from "@/modules/checkout/components/checkout.module.css";
+import {
+  isClientAddressList,
+  type ClientAddress,
+} from "@/modules/profile/address-contract";
 
 const statusLabels: Record<string, string> = {
   PENDING_REVIEW: "Pendiente de revisión",
@@ -28,6 +38,20 @@ const money = (amount: number, currency: string) =>
   new Intl.NumberFormat("es-GT", { style: "currency", currency }).format(
     amount,
   );
+
+async function readSavedAddresses(
+  signal: AbortSignal,
+): Promise<ClientAddress[]> {
+  const response = await fetch("/bff/client/addresses", {
+    cache: "no-store",
+    signal,
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok || !isClientAddressList(body)) {
+    throw new Error("Address book unavailable");
+  }
+  return body;
+}
 
 export function DeliveryCheckout({ userId }: { userId: string }) {
   const { items, complete } = useLiveCart();
@@ -48,6 +72,12 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
+  const [savedAddresses, setSavedAddresses] = useState<ClientAddress[]>([]);
+  const [savedAddressesLoading, setSavedAddressesLoading] = useState(true);
+  const [savedAddressesError, setSavedAddressesError] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const addressFieldsEdited = useRef(false);
+  const addressFields = useRef({ address: "", reference: "", phone: "" });
   const [payment, setPayment] =
     useState<DeliveryRequest["paymentPreference"]>("CASH_ON_DELIVERY");
   const [note, setNote] = useState("");
@@ -55,6 +85,58 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
   const [busy, setBusy] = useState(false);
   const [needsLogin, setNeedsLogin] = useState(false);
   const sending = useRef(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadSavedAddresses() {
+      try {
+        const addresses = await readSavedAddresses(controller.signal);
+        if (controller.signal.aborted) return;
+        setSavedAddresses(addresses);
+        if (
+          !addressFieldsEdited.current &&
+          !addressFields.current.address &&
+          !addressFields.current.reference &&
+          !addressFields.current.phone
+        ) {
+          const defaultAddress = addresses.find((item) => item.isDefault);
+          if (defaultAddress) {
+            setSelectedAddressId(defaultAddress.addressId);
+            addressFields.current = {
+              address: defaultAddress.address,
+              reference: defaultAddress.reference ?? "",
+              phone: defaultAddress.contactPhone,
+            };
+            setAddress(defaultAddress.address);
+            setReference(defaultAddress.reference ?? "");
+            setPhone(defaultAddress.contactPhone);
+          }
+        }
+      } catch {
+        if (!controller.signal.aborted) setSavedAddressesError(true);
+      } finally {
+        if (!controller.signal.aborted) setSavedAddressesLoading(false);
+      }
+    }
+    void loadSavedAddresses();
+    return () => controller.abort();
+  }, []);
+
+  function selectSavedAddress(value: string) {
+    addressFieldsEdited.current = true;
+    setSelectedAddressId(value);
+    if (!value) return;
+    const selected = savedAddresses.find((item) => item.addressId === value);
+    if (!selected) return;
+    setAddress(selected.address);
+    setReference(selected.reference ?? "");
+    setPhone(selected.contactPhone);
+    addressFields.current = {
+      address: selected.address,
+      reference: selected.reference ?? "",
+      phone: selected.contactPhone,
+    };
+  }
   const products = menu?.categories.flatMap((category) => category.items) ?? [];
   const rows = items.map((item) => ({
     ...item,
@@ -296,14 +378,50 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
                     minLength={5}
                     maxLength={500}
                     value={address}
-                    onChange={(e) => setAddress(e.target.value)}
+                    onChange={(e) => {
+                      addressFieldsEdited.current = true;
+                      addressFields.current.address = e.target.value;
+                      setSelectedAddressId("");
+                      setAddress(e.target.value);
+                    }}
                   />
+                  <label htmlFor="delivery-saved-address">
+                    Dirección guardada
+                  </label>
+                  <select
+                    id="delivery-saved-address"
+                    value={selectedAddressId}
+                    onChange={(event) => selectSavedAddress(event.target.value)}
+                    disabled={savedAddressesLoading || !savedAddresses.length}
+                  >
+                    <option value="">Ingresar dirección manualmente</option>
+                    {savedAddresses.map((saved) => (
+                      <option key={saved.addressId} value={saved.addressId}>
+                        {saved.label}
+                        {saved.isDefault ? " · Predeterminada" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {savedAddressesLoading ? (
+                    <small>Cargando direcciones guardadas…</small>
+                  ) : null}
+                  {savedAddressesError ? (
+                    <small>
+                      No pudimos cargar tus direcciones. Puedes ingresar una
+                      dirección manualmente.
+                    </small>
+                  ) : null}
                   <FormField
                     id="delivery-reference"
                     label="Referencia (opcional)"
                     maxLength={300}
                     value={reference}
-                    onChange={(e) => setReference(e.target.value)}
+                    onChange={(e) => {
+                      addressFieldsEdited.current = true;
+                      addressFields.current.reference = e.target.value;
+                      setSelectedAddressId("");
+                      setReference(e.target.value);
+                    }}
                   />
                   <FormField
                     id="delivery-phone"
@@ -313,7 +431,12 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
                     minLength={7}
                     maxLength={32}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      addressFieldsEdited.current = true;
+                      addressFields.current.phone = e.target.value;
+                      setSelectedAddressId("");
+                      setPhone(e.target.value);
+                    }}
                   />
                   <label htmlFor="delivery-payment">Preferencia de pago</label>
                   <select

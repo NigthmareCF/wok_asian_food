@@ -378,3 +378,10 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Mensajes reales: conversación demo `2228f316-efa1-4774-a972-d16cda927234`; consulta/respuesta entre cuentas demo, reintento sin duplicado, entrada/salida de cola WAITING y lectura por cliente verificadas. Envío y respuesta también comprobados desde ambas pantallas.
 - Aislamiento real: otro cliente recibe 404 al leer delivery/conversación ajenos; cliente recibe 403 en bandeja operativa. Sin cambios de roles, credenciales, `.env`, commits o push.
 - Pendiente: integración de vistas operativas de Delivery/reservas y sus flujos posteriores; pagos reales, disponibilidad/capacidad en vivo y realtime. Esta entrega no convierte las solicitudes en pedidos confirmados. Revisión visual de escritorio realizada; matriz completa de cuatro tamaños pendiente.
+
+## 2026-10-08 — E5.1: perfil Cliente
+
+- `/client/profile` ahora consulta y actualiza el contrato real `ClientProfile` / `UpdateProfile` mediante `GET/PUT /bff/client/profile`; el BFF usa la sesión HttpOnly, exige mismo origen en la mutación, valida la respuesta y conserva `no-store`.
+- La interfaz muestra `userId`, correo, nombre visible, teléfono y versión; solo permite editar `displayName` y `phone`, enviando siempre `expectedVersion`. Incluye carga, validación local, guardado, sesión vencida, conflicto 409 con recarga y protección contra doble envío.
+- Se habilitó el enlace Perfil existente. No se modificaron backend, direcciones, sesiones ni Delivery.
+- Pruebas enfocadas añadidas para BFF y UI.

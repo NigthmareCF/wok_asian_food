@@ -58,8 +58,6 @@ export const navigation: Record<NavigationContext, NavigationItem[]> = {
       label: "Perfil",
       route: "/client/profile",
       icon: "people",
-      demoNotice:
-        "El perfil aún no está habilitado. Este acceso es demostrativo y no consulta ni modifica datos personales.",
     },
   ],
   operational: [

@@ -7,6 +7,7 @@ type Options = {
   method: "GET" | "POST" | "PUT" | "DELETE";
   parse?: (v: unknown) => unknown;
   validate: (v: unknown) => boolean;
+  emptyResponse?: boolean;
   idempotent?: boolean;
   requestId?: boolean;
 };
@@ -72,6 +73,11 @@ export async function endpoint(request: NextRequest, options: Options) {
         messages[response.status] ? response.status : 503,
       );
     }
+    if (options.emptyResponse || response.status === 204)
+      return new NextResponse(null, {
+        status: 204,
+        headers: { "Cache-Control": "no-store" },
+      });
     const body: unknown = await response.json();
     if (!options.validate(body)) throw new Error("Invalid upstream response");
     return reply(body, response.status);

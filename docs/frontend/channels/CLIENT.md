@@ -15,21 +15,27 @@ Las rutas indicadas como propuestas deben confirmarse en el PR antes de consider
 
 ## Catálogo de vistas
 
-| ID   | Ruta inicial                                               | Controles y acciones mínimas                                                | Estados mínimos                                                    |
-| ---- | ---------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| C-01 | `/login`, `/register`, `/forgot-password`, `/verify-email` | Ingresar, crear cuenta, recuperar acceso, verificar y volver                | Validación, envío, error neutral, bloqueo y verificación pendiente |
-| C-02 | `/client`                                                  | Pedir, reservar, ubicación, mensajes y accesos a recomendaciones/categorías | Restaurante abierto/cerrado, ETA y disponibilidad general          |
-| C-03 | `/menu`                                                    | Categorías, búsqueda, ver detalle y agregar cuando corresponda              | Cargando, vacío, error, disponible, pocas unidades y no disponible |
-| C-04 | `/menu/[productId]` propuesta                              | Seleccionar opciones obligatorias, extras permitidos, observación y agregar | Opción incompleta, disponibilidad cambiada y ETA adicional         |
-| C-05 | `/client/cart` propuesta                                   | Aumentar, disminuir, eliminar, elegir servicio y continuar                  | Carrito vacío, revalidando y producto no disponible                |
-| C-06 | Estado dentro de carrito/pedido                            | Esperar, cancelar solicitud o pedir aviso                                   | Servicio degradado, alta demanda y reconexión                      |
-| C-07 | `/client/reservations/new` propuesta                       | Fecha, hora, personas, preorden, nota y continuar                           | Disponibilidad, validación y confirmación pendiente                |
-| C-08 | Estado dentro de reservación                               | Usar 21:15 o elegir otra hora                                               | Reserva tardía y preorden obligatoria                              |
-| C-09 | `/client/checkout` propuesta                               | Elegir servicio, momento y método de pago; confirmar solicitud              | Método no disponible, revalidación y envío pendiente               |
-| C-10 | `/client/orders/[orderId]` propuesta                       | Consultar estado, ETA, cambios y detalle de delivery                        | Pendiente, confirmado, preparación, listo, retrasado y entregado   |
-| C-11 | `/location`                                                | Consultar dirección y abrir navegación externa cuando exista proveedor      | Permiso de ubicación denegado y proveedor pendiente                |
-| C-12 | `/client/messages` propuesta                               | Elegir conversación, enviar texto y comprobante permitido                   | Conectando, enviado, error y atención humana requerida             |
-| C-13 | `/client/profile` propuesta                                | Consultar datos, preferencias, historial y solicitar eliminación            | Activo, suspendido y eliminación pendiente                         |
+| ID   | Ruta inicial                                               | Controles y acciones mínimas                                                  | Estados mínimos                                                    |
+| ---- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| C-01 | `/login`, `/register`, `/forgot-password`, `/verify-email` | Ingresar, crear cuenta, recuperar acceso, verificar y volver                  | Validación, envío, error neutral, bloqueo y verificación pendiente |
+| C-02 | `/client`                                                  | Pedir, reservar, ubicación, mensajes y accesos a recomendaciones/categorías   | Restaurante abierto/cerrado, ETA y disponibilidad general          |
+| C-03 | `/menu`                                                    | Categorías, búsqueda, ver detalle y agregar cuando corresponda                | Cargando, vacío, error, disponible, pocas unidades y no disponible |
+| C-04 | `/menu/[productId]` propuesta                              | Seleccionar opciones obligatorias, extras permitidos, observación y agregar   | Opción incompleta, disponibilidad cambiada y ETA adicional         |
+| C-05 | `/client/cart` propuesta                                   | Aumentar, disminuir, eliminar, elegir servicio y continuar                    | Carrito vacío, revalidando y producto no disponible                |
+| C-06 | Estado dentro de carrito/pedido                            | Esperar, cancelar solicitud o pedir aviso                                     | Servicio degradado, alta demanda y reconexión                      |
+| C-07 | `/client/reservations/new` propuesta                       | Fecha, hora, personas, preorden, nota y continuar                             | Disponibilidad, validación y confirmación pendiente                |
+| C-08 | Estado dentro de reservación                               | Usar 21:15 o elegir otra hora                                                 | Reserva tardía y preorden obligatoria                              |
+| C-09 | `/client/checkout` propuesta                               | Elegir servicio, momento y método de pago; confirmar solicitud                | Método no disponible, revalidación y envío pendiente               |
+| C-10 | `/client/orders/[orderId]` propuesta                       | Consultar estado, ETA, cambios y detalle de delivery                          | Pendiente, confirmado, preparación, listo, retrasado y entregado   |
+| C-11 | `/location`                                                | Consultar dirección y abrir navegación externa cuando exista proveedor        | Permiso de ubicación denegado y proveedor pendiente                |
+| C-12 | `/client/messages` propuesta                               | Elegir conversación, enviar texto y comprobante permitido                     | Conectando, enviado, error y atención humana requerida             |
+| C-13 | `/client/profile` propuesta                                | Consultar datos, preferencias, historial, direcciones y solicitar eliminación | Activo, suspendido y eliminación pendiente                         |
+
+La sección de direcciones de `/client/profile` (E5.2) usa la libreta privada del Cliente para listar, crear, editar, eliminar y marcar una dirección como predeterminada. Las actualizaciones envían `expectedVersion`; se muestran carga, vacío, validación, sesión expirada, registro inexistente y conflicto. El borrado requiere confirmación explícita.
+
+La sección de sesiones activas de `/client/profile` (E5.3) muestra únicamente los campos del DTO de sesiones, identifica la sesión actual y permite revocar otras sesiones con confirmación. La sesión actual no se revoca desde esta vista; el cierre normal usa logout. También se cubren carga, vacío, sesión expirada, registro inexistente, error, doble envío y recarga después de revocar.
+
+Delivery (E5.4) consulta las direcciones guardadas mediante el BFF y permite seleccionar una para copiar `address`, `reference` y `contactPhone` al formulario textual existente. El payload no incluye `addressId`; se conserva la opción de ingresar la dirección manualmente, sus campos al cambiar de modo y el flujo manual si la libreta no está disponible. Checkout no edita ni elimina direcciones.
 
 ## Reglas que no se pueden omitir
 
