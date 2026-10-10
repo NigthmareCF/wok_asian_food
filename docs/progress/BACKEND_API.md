@@ -90,9 +90,9 @@
 
 ## 2026-10-07 — E1.4: trazabilidad de propina en efectivo corregida
 
-- V26 conserva las columnas existentes y reemplaza los índices únicos individuales por restricciones parciales únicas mínimas: `(payment_id, movement_type)` evita repetir SALE o propina, y `(request_id, tipo de traza)` permite el par venta/propina mientras mantiene la colisión de solicitudes para movimientos manuales.
+- V28 conserva las columnas existentes y reemplaza los índices únicos individuales por restricciones parciales únicas mínimas: `(payment_id, movement_type)` evita repetir SALE o propina, y `(request_id, tipo de traza)` permite el par venta/propina mientras mantiene la colisión de solicitudes para movimientos manuales, después de las migraciones financieras V26/V27.
 - El movimiento `INCOME` de propina guarda el `payment_id` creado y el mismo `X-Request-Id` usado por el pago y el movimiento `SALE`; importes, signos, saldo y comportamiento financiero permanecen iguales.
-- `PaymentIntegrationTest` y `database/tests/V26_cash_movement_traceability.sql`: PostgreSQL verifica ambos vínculos, rechaza SALE/TIP duplicados y conserva la colisión manual de `request_id`; el replay de la misma clave no duplica pago, venta ni propina. Prueba enfocada: 10 ejecutadas, 0 fallos, 0 errores y 0 omitidas; SQL directo aprobado desde V1–V26 en base limpia. E1.1–E1.3 conservadas; sin cambios de smoke, GET operativos, DTO ni rutas.
+- `PaymentIntegrationTest` y `database/tests/V28_cash_movement_traceability.sql`: PostgreSQL verifica ambos vínculos, rechaza SALE/TIP duplicados y conserva la colisión manual de `request_id`; el replay de la misma clave no duplica pago, venta ni propina. Prueba enfocada: 10 ejecutadas, 0 fallos, 0 errores y 0 omitidas; SQL directo aprobado desde V1–V28 en base limpia. E1.1–E1.3 conservadas; sin cambios de smoke, GET operativos, DTO ni rutas.
 
 ## 2026-10-06 — E1.3: cancelación exclusiva de pickup
 

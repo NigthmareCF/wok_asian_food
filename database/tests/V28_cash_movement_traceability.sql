@@ -1,4 +1,4 @@
--- Run after V1 -> V26 on a disposable PostgreSQL database.
+-- Run after V1 -> V28 on a disposable PostgreSQL database.
 \set ON_ERROR_STOP on
 BEGIN;
 SET search_path = wok, public;
