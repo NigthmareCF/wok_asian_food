@@ -81,6 +81,25 @@ request POST "/api/v1/operational/tables/$table_id/open" "$operational_token"
 expect_status 200
 account_id=$(jq -er --arg table "$table_id" 'select(.id == $table and .status == "OCCUPIED") | .accountId' <<< "$http_body")
 
+requested_for=$(date -u -d '+2 days 18:00' +%Y-%m-%dT%H:%M:%SZ)
+quote_request=$(jq -nc --arg requested_for "$requested_for" --arg item "$menu_item_id" '{
+  fulfillmentType: "PICKUP",
+  requestedFor: $requested_for,
+  items: [{ menuItemId: $item, quantity: 1 }]
+}')
+request POST /api/v1/client/order-quotes "$client_token" "$quote_request" "$(uuidgen)"
+expect_status 201
+quote_id=$(jq -er '.quoteId' <<< "$http_body")
+
+pickup_request=$(jq -nc --arg requested_for "$requested_for" --arg item "$menu_item_id" --arg quote_id "$quote_id" '{
+  requestedFor: $requested_for,
+  customerNote: "Smoke flow",
+  items: [{ menuItemId: $item, quantity: 1 }],
+  quoteId: $quote_id
+}')
+request POST /api/v1/client/order-requests "$client_token" "$pickup_request" "$(uuidgen)"
+expect_status 202
+
 order_json=$(jq -nc --arg account "$account_id" --arg item "$menu_item_id" \
   '{accountId:$account,channel:"DINE_IN",guestCount:2,items:[{menuItemId:$item,quantity:2,fulfillment:"DINE_IN"}]}')
 idempotency_key='79ab58d0-d770-409b-9813-834d3282c2b5'
