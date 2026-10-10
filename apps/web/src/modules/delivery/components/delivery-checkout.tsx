@@ -6,6 +6,7 @@ import { FormField } from "@/shared/components/ui/form-field";
 import { useLiveCart } from "@/modules/cart/live-cart-provider";
 import { usePublicMenu } from "@/modules/menu/use-public-menu";
 import { useClientIdentity } from "@/modules/clients/use-client-identity";
+import { useClientPickupResource } from "@/modules/client-order-tracking/use-client-pickup-resource";
 import {
   createClientOperation,
   type ClientIdentity,
@@ -23,6 +24,10 @@ import {
   type DeliveryReceipt,
 } from "../client-contract";
 import styles from "@/modules/checkout/components/checkout.module.css";
+import {
+  isClientAddressList,
+  type ClientAddress,
+} from "@/modules/profile/address-contract";
 
 const statusLabels: Record<string, string> = {
   PENDING_REVIEW: "Pendiente de revisión",
@@ -58,6 +63,12 @@ function VerifiedDeliveryCheckout({ scope }: { scope: ClientIdentity }) {
   const userId = scope.ownerId!;
   const { items, complete } = useLiveCart();
   const { menu, error: menuError, reload } = usePublicMenu();
+  const addresses = useClientPickupResource(
+    "/bff/client/addresses",
+    isClientAddressList,
+    userId,
+    30_000,
+  );
   const [store] = useState(() =>
     createAttemptStore(
       `wok.delivery.attempt.v1:${userId}`,
@@ -74,6 +85,7 @@ function VerifiedDeliveryCheckout({ scope }: { scope: ClientIdentity }) {
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
+  const [selectedAddressId, setSelectedAddressId] = useState("");
   const [payment, setPayment] =
     useState<DeliveryRequest["paymentPreference"]>("CASH_ON_DELIVERY");
   const [note, setNote] = useState("");
@@ -106,6 +118,16 @@ function VerifiedDeliveryCheckout({ scope }: { scope: ClientIdentity }) {
       0,
     ) / 100;
   const selectedTime = requestedFor || firstDeliveryTime(preparation);
+
+  function selectSavedAddress(addressId: string) {
+    setSelectedAddressId(addressId);
+    if (!addressId) return;
+    const saved = addresses.data?.find((item) => item.addressId === addressId);
+    if (!saved) return;
+    setAddress(saved.address);
+    setReference(saved.reference ?? "");
+    setPhone(saved.contactPhone);
+  }
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -316,6 +338,20 @@ function VerifiedDeliveryCheckout({ scope }: { scope: ClientIdentity }) {
             <form onSubmit={send} className={styles.card}>
               {!attempt && (
                 <>
+                  <label htmlFor="saved-delivery-address">Dirección guardada</label>
+                  <select
+                    id="saved-delivery-address"
+                    value={selectedAddressId}
+                    onChange={(event) => selectSavedAddress(event.target.value)}
+                  >
+                    <option value="">Usar una dirección manual</option>
+                    {(addresses.data ?? []).map((saved: ClientAddress) => (
+                      <option key={saved.addressId} value={saved.addressId}>
+                        {saved.label}{saved.isDefault ? " (predeterminada)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {addresses.error && <p role="status">{addresses.error.message}</p>}
                   <FormField
                     id="pickup-time"
                     label="Fecha y hora de delivery"
