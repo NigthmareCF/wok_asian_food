@@ -213,7 +213,7 @@ public class ClientDeliveryRequestController {
             @NotBlank @Size(min = 5, max = 500) String address, @Size(max = 300) String reference,
             @NotBlank @Pattern(regexp = "[0-9+() .-]{7,32}") String contactPhone,
             @NotNull PaymentPreference paymentPreference,
-            @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {}
+            @NotEmpty @Size(max = 20) List<@NotNull @Valid RequestedItem> items) {}
     public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
     public record DeliveryRequestReceipt(UUID requestId, String fulfillmentType, String status, Instant requestedFor,
             BigDecimal subtotal, String currency, PaymentPreference paymentPreference, boolean idempotentReplay, String message) {}

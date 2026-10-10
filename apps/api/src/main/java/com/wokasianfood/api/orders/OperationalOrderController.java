@@ -313,6 +313,18 @@ class OrderService {
     @Transactional
     public UUID createPickupOrder(UUID actor, UUID requestId, String accountName,
                                   List<OperationalOrderController.OrderLineRequest> requestedLines) {
+        return createRequestOrder(actor, requestId, accountName, requestedLines, Channel.PICKUP);
+    }
+
+    @Transactional
+    public UUID createDeliveryOrder(UUID actor, UUID requestId, String accountName,
+                                    List<OperationalOrderController.OrderLineRequest> requestedLines) {
+        return createRequestOrder(actor, requestId, accountName, requestedLines, Channel.DELIVERY);
+    }
+
+    private UUID createRequestOrder(UUID actor, UUID requestId, String accountName,
+                                    List<OperationalOrderController.OrderLineRequest> requestedLines,
+                                    Channel channel) {
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines.stream()
                 .map(line -> new OperationalOrderController.OrderLineRequest(
                         line.menuItemId(), line.quantity(), "TAKEAWAY", line.notes()))
@@ -334,8 +346,8 @@ class OrderService {
         jdbc.update("""
             INSERT INTO wok.orders
                 (id, code, account_id, dining_table_id, channel, status, currency_id, guest_count, opened_by, updated_by)
-            VALUES (?, ?, ?, NULL, 'PICKUP', 'SENT', ?, 1, ?, ?)
-            """, orderId, nextCode(), accountId, currencyId, actor, actor);
+            VALUES (?, ?, ?, NULL, ?, 'SENT', ?, 1, ?, ?)
+            """, orderId, nextCode(), accountId, channel.name(), currencyId, actor, actor);
 
         List<NewLine> newLines = new ArrayList<>();
         for (int index = 0; index < products.size(); index++) {
@@ -352,8 +364,8 @@ class OrderService {
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
             VALUES (?, 'ORDER_OPENED', 'ORDER', ?,
-                    jsonb_build_object('status', 'SENT', 'channel', 'PICKUP', 'lines', ?), 'SUCCESS', ?)
-            """, actor, orderId, lines.size(), requestId);
+                    jsonb_build_object('status', 'SENT', 'channel', ?, 'lines', ?), 'SUCCESS', ?)
+            """, actor, orderId, channel.name(), lines.size(), requestId);
         return orderId;
     }
 
