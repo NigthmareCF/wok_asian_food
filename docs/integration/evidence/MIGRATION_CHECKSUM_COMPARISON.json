@@ -1,0 +1,164 @@
+[
+  {
+    "script": "V1__identity_and_core.sql",
+    "applied": 974025187,
+    "candidate": 974025187,
+    "matches": true
+  },
+  {
+    "script": "V2__reference_data.sql",
+    "applied": -476445836,
+    "candidate": -476445836,
+    "matches": true
+  },
+  {
+    "script": "V3__tables_and_reservations.sql",
+    "applied": 1514867393,
+    "candidate": 1514867393,
+    "matches": true
+  },
+  {
+    "script": "V4__restaurant_hours.sql",
+    "applied": 681921791,
+    "candidate": 681921791,
+    "matches": true
+  },
+  {
+    "script": "V5__reservation_request_idempotency.sql",
+    "applied": 726954573,
+    "candidate": 726954573,
+    "matches": true
+  },
+  {
+    "script": "V6__cash_sessions_and_movements.sql",
+    "applied": -1770843769,
+    "candidate": -1770843769,
+    "matches": true
+  },
+  {
+    "script": "V7__reservation_request_history_snapshot.sql",
+    "applied": -442436717,
+    "candidate": -442436717,
+    "matches": true
+  },
+  {
+    "script": "V8__catalog_foundation.sql",
+    "applied": 369187605,
+    "candidate": 369187605,
+    "matches": true
+  },
+  {
+    "script": "V9__customer_order_requests.sql",
+    "applied": 1980315160,
+    "candidate": 1980315160,
+    "matches": true
+  },
+  {
+    "script": "V10__customer_app_messaging.sql",
+    "applied": -2055966118,
+    "candidate": -2055966118,
+    "matches": true
+  },
+  {
+    "script": "V11__delivery_request_details.sql",
+    "applied": -1662564044,
+    "candidate": -1662564044,
+    "matches": true
+  },
+  {
+    "script": "V12__customer_delivery_addresses.sql",
+    "applied": -2022304867,
+    "candidate": -2022304867,
+    "matches": true
+  },
+  {
+    "script": "V13__orders_and_kitchen.sql",
+    "applied": -2086607539,
+    "candidate": -2086607539,
+    "matches": true
+  },
+  {
+    "script": "V14__auth_rate_limit_events.sql",
+    "applied": 1368093323,
+    "candidate": 1368093323,
+    "matches": true
+  },
+  {
+    "script": "V15__granular_operational_permissions.sql",
+    "applied": -1054403499,
+    "candidate": -1054403499,
+    "matches": true
+  },
+  {
+    "script": "V16__order_request_decision_link.sql",
+    "applied": -561808911,
+    "candidate": -561808911,
+    "matches": true
+  },
+  {
+    "script": "V17__cash_permissions.sql",
+    "applied": 285522326,
+    "candidate": 285522326,
+    "matches": true
+  },
+  {
+    "script": "V18__account_payments.sql",
+    "applied": -1721746904,
+    "candidate": -1721746904,
+    "matches": true
+  },
+  {
+    "script": "V19__inventory_foundation.sql",
+    "applied": -566781602,
+    "candidate": -566781602,
+    "matches": true
+  },
+  {
+    "script": "V20__recipes_and_reservations.sql",
+    "applied": 1858845869,
+    "candidate": 1858845869,
+    "matches": true
+  },
+  {
+    "script": "V21__production_batches.sql",
+    "applied": -1267351247,
+    "candidate": -1267351247,
+    "matches": true
+  },
+  {
+    "script": "V22__payment_tips.sql",
+    "applied": 1719022680,
+    "candidate": 1719022680,
+    "matches": true
+  },
+  {
+    "script": "V23__invoices_and_outbox.sql",
+    "applied": -305872274,
+    "candidate": -305872274,
+    "matches": true
+  },
+  {
+    "script": "V24__invoice_active_account_guard.sql",
+    "applied": 1189086576,
+    "candidate": 1189086576,
+    "matches": true
+  },
+  {
+    "script": "V25__auth_rate_limit_login.sql",
+    "applied": -1530172473,
+    "candidate": -1530172473,
+    "matches": true
+  },
+  {
+    "script": "V26__presential_payment_attempts.sql",
+    "applied": -803647152,
+    "candidate": -803647152,
+    "matches": true
+  },
+  {
+    "script": "V27__presential_payment_attempt_resolution.sql",
+    "applied": -1729631226,
+    "candidate": -1729631226,
+    "matches": true
+  }
+]

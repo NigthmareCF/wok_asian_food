@@ -1,0 +1,76 @@
+[
+  {
+    "pair": "39+development",
+    "base": "9eab32352b33adc0d4b6a77f6ebee21e9724ed98",
+    "conflictFiles": [
+      "apps/web/package.json",
+      "package-lock.json"
+    ]
+  },
+  {
+    "pair": "39+47",
+    "base": "9eab32352b33adc0d4b6a77f6ebee21e9724ed98",
+    "conflictFiles": [
+      "apps/api/src/main/java/com/wokasianfood/api/orders/OperationalOrderRequestController.java",
+      "apps/api/src/main/java/com/wokasianfood/api/tables/OperationalTableController.java",
+      "apps/api/src/test/java/com/wokasianfood/api/operational/OrderRequestDecisionIntegrationTest.java",
+      "apps/api/src/test/java/com/wokasianfood/api/tables/TableServiceTest.java"
+    ]
+  },
+  {
+    "pair": "39+48",
+    "base": "9eab32352b33adc0d4b6a77f6ebee21e9724ed98",
+    "conflictFiles": [
+      "apps/api/src/main/java/com/wokasianfood/api/orders/OperationalOrderRequestController.java",
+      "apps/api/src/main/java/com/wokasianfood/api/tables/OperationalTableController.java",
+      "apps/api/src/test/java/com/wokasianfood/api/operational/OrderRequestDecisionIntegrationTest.java",
+      "apps/api/src/test/java/com/wokasianfood/api/tables/TableServiceTest.java"
+    ]
+  },
+  {
+    "pair": "39+41",
+    "base": "9eab32352b33adc0d4b6a77f6ebee21e9724ed98",
+    "conflictFiles": [
+      "apps/web/src/app/bff/admin/users/[userId]/roles/[roleCode]/route.ts",
+      "apps/web/src/app/bff/admin/users/route.ts",
+      "apps/web/src/modules/users/components/user-management.test.tsx",
+      "docs/progress/ADMIN.md"
+    ]
+  },
+  {
+    "pair": "39+43",
+    "base": "9eab32352b33adc0d4b6a77f6ebee21e9724ed98",
+    "conflictFiles": [
+      "apps/web/src/app/(private)/(operational)/operation/payments/[recordId]/page.tsx",
+      "apps/web/src/app/bff/operational/accounts/[accountId]/payments/route.ts",
+      "apps/web/src/app/bff/operational/accounts/[accountId]/route.ts",
+      "apps/web/src/app/bff/operational/cash-sessions/[sessionId]/close/route.ts",
+      "apps/web/src/app/bff/operational/cash-sessions/[sessionId]/movements/route.ts",
+      "apps/web/src/app/bff/operational/cash-sessions/[sessionId]/route.ts",
+      "apps/web/src/app/bff/operational/cash-sessions/route.ts",
+      "apps/web/src/modules/cash/components/cash-view.test.tsx",
+      "apps/web/src/modules/cash/components/cash-view.tsx",
+      "apps/web/src/modules/cash/live-contract.ts",
+      "apps/web/src/modules/payments/live-contract.ts",
+      "docs/progress/OPERATIONAL.md"
+    ]
+  },
+  {
+    "pair": "39+44",
+    "base": "9eab32352b33adc0d4b6a77f6ebee21e9724ed98",
+    "conflictFiles": [
+      "docs/progress/OPERATIONAL.md"
+    ]
+  },
+  {
+    "pair": "39+45",
+    "base": "9eab32352b33adc0d4b6a77f6ebee21e9724ed98",
+    "conflictFiles": [
+      "apps/web/src/app/bff/operational/orders/route.ts",
+      "apps/web/src/modules/clients/components/client-home.tsx",
+      "docs/progress/ADMIN.md",
+      "docs/progress/CLIENT.md",
+      "docs/progress/OPERATIONAL.md"
+    ]
+  }
+]

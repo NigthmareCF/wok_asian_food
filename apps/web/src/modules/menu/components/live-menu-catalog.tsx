@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { usePublicMenu } from "../use-public-menu";
@@ -120,6 +121,13 @@ export function LiveMenuCatalog() {
                   </p>
                 ) : null}
                 <div className={styles.cardFooter}>
+                  <Link
+                    className="text-action"
+                    href={`/client/menu/${item.id}`}
+                    aria-label={`Ver detalle de ${item.name}`}
+                  >
+                    Ver detalle
+                  </Link>
                   <Button
                     aria-label={`Agregar ${item.name} al carrito`}
                     onClick={() =>

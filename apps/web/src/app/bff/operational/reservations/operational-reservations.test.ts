@@ -4,8 +4,15 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { GET as pending } from "./pending/route";
 import { PUT as decide } from "./[reservationId]/decision/route";
 
-const auth = vi.hoisted(() => ({ readAccessToken: vi.fn() }));
+const auth = vi.hoisted(() => ({
+  readAccessToken: vi.fn(),
+  loadCurrentUser: vi.fn(),
+}));
 vi.mock("@/modules/auth/server/auth-cookies", () => auth);
+vi.mock("@/modules/auth/server/backend-auth", async (original) => ({
+  ...(await original<typeof import("@/modules/auth/server/backend-auth")>()),
+  loadCurrentUser: auth.loadCurrentUser,
+}));
 
 const reservationId = "11111111-1111-4111-8111-111111111111";
 const requestId = "22222222-2222-4222-8222-222222222222";
@@ -23,12 +30,25 @@ const pendingReservation = {
 function request(method: "GET" | "PUT", body?: unknown, headers = {}) {
   return new NextRequest("http://localhost/bff/operational/reservations", {
     method,
-    headers: { origin: "http://localhost", host: "localhost", ...headers },
+    headers: {
+      "X-Wok-Expected-Principal": "40000000-0000-4000-8000-000000000001",
+      origin: "http://localhost",
+      host: "localhost",
+      ...headers,
+    },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 }
 
 beforeEach(() => {
+  auth.loadCurrentUser.mockResolvedValue({
+    userId: "40000000-0000-4000-8000-000000000001",
+    email: "staff@wok.test",
+    displayName: "Staff",
+    status: "ACTIVE",
+    roles: ["OPERATIONAL"],
+    permissions: [],
+  });
   auth.readAccessToken.mockResolvedValue("staff-token");
   vi.stubGlobal("fetch", vi.fn());
 });

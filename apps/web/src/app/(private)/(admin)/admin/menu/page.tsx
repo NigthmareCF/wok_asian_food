@@ -1,4 +1,4 @@
-import { AdminMenuView } from "@/modules/menu";
+import { LiveCatalogManagement } from "@/modules/menu/components/live-catalog-management";
 export default function Page() {
-  return <AdminMenuView />;
+  return <LiveCatalogManagement />;
 }

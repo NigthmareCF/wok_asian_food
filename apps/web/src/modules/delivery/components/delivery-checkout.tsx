@@ -5,6 +5,14 @@ import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { useLiveCart } from "@/modules/cart/live-cart-provider";
 import { usePublicMenu } from "@/modules/menu/use-public-menu";
+import { useClientIdentity } from "@/modules/clients/use-client-identity";
+import { useClientPickupResource } from "@/modules/client-order-tracking/use-client-pickup-resource";
+import {
+  createClientOperation,
+  type ClientIdentity,
+} from "@/modules/clients/client-identity-store";
+import { pickupInputToInstant } from "@/modules/checkout/pickup-window";
+import { firstDeliveryTime } from "../delivery-window";
 import {
   createAttemptStore,
   type Attempt,
@@ -16,6 +24,10 @@ import {
   type DeliveryReceipt,
 } from "../client-contract";
 import styles from "@/modules/checkout/components/checkout.module.css";
+import {
+  isClientAddressList,
+  type ClientAddress,
+} from "@/modules/profile/address-contract";
 
 const statusLabels: Record<string, string> = {
   PENDING_REVIEW: "Pendiente de revisión",
@@ -30,8 +42,33 @@ const money = (amount: number, currency: string) =>
   );
 
 export function DeliveryCheckout({ userId }: { userId: string }) {
+  const { identity, verified, refresh } = useClientIdentity(userId);
+  if (!verified)
+    return (
+      <section>
+        <h1>Solicitud de delivery</h1>
+        <p role="status">Verifica tu sesión para continuar.</p>
+        <Button onClick={() => void refresh()}>Verificar sesión</Button>
+        <Link href="/login?next=%2Fclient%2Fdelivery">Iniciar sesión</Link>
+      </section>
+    );
+  return (
+    <VerifiedDeliveryCheckout
+      key={`${identity.ownerId}:${identity.generation}`}
+      scope={identity}
+    />
+  );
+}
+function VerifiedDeliveryCheckout({ scope }: { scope: ClientIdentity }) {
+  const userId = scope.ownerId!;
   const { items, complete } = useLiveCart();
   const { menu, error: menuError, reload } = usePublicMenu();
+  const addresses = useClientPickupResource(
+    "/bff/client/addresses",
+    isClientAddressList,
+    userId,
+    30_000,
+  );
   const [store] = useState(() =>
     createAttemptStore(
       `wok.delivery.attempt.v1:${userId}`,
@@ -48,6 +85,7 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
   const [address, setAddress] = useState("");
   const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
+  const [selectedAddressId, setSelectedAddressId] = useState("");
   const [payment, setPayment] =
     useState<DeliveryRequest["paymentPreference"]>("CASH_ON_DELIVERY");
   const [note, setNote] = useState("");
@@ -79,6 +117,17 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
         cents + Math.round((row.product?.price ?? 0) * 100) * row.quantity,
       0,
     ) / 100;
+  const selectedTime = requestedFor || firstDeliveryTime(preparation);
+
+  function selectSavedAddress(addressId: string) {
+    setSelectedAddressId(addressId);
+    if (!addressId) return;
+    const saved = addresses.data?.find((item) => item.addressId === addressId);
+    if (!saved) return;
+    setAddress(saved.address);
+    setReference(saved.reference ?? "");
+    setPhone(saved.contactPhone);
+  }
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -87,10 +136,10 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
     setError("");
     setNeedsLogin(false);
     if (!current) {
-      const date = new Date(requestedFor);
+      const date = pickupInputToInstant(selectedTime);
       if (
         !ready ||
-        !Number.isFinite(date.getTime()) ||
+        !date ||
         date.getTime() <= Date.now() + preparation * 1000
       ) {
         setError(
@@ -128,19 +177,25 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
     }
     sending.current = true;
     setBusy(true);
+    const operation = createClientOperation(scope);
     try {
+      if (!(await operation.confirm())) return;
+      store.save({ ...current, uncertain: true });
       const response = await fetch("/bff/delivery-requests", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": current.key,
+          "X-Wok-Expected-Principal": userId,
         },
         body: JSON.stringify(current.payload),
-        signal: AbortSignal.timeout(15_000),
+        signal: operation.signal,
       });
       const data: unknown = await response.json();
+      if (!(await operation.confirm())) return;
       if (!response.ok) {
-        if ([400, 422].includes(response.status)) store.save(null);
+        if (!current.uncertain && [400, 422].includes(response.status))
+          store.save(null);
         setNeedsLogin(response.status === 401);
         const message =
           data &&
@@ -156,10 +211,12 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
       store.save({ ...current, receipt: data });
       complete(current.payload.items);
     } catch {
-      setError(
-        "No pudimos confirmar el resultado. Conservamos tu solicitud: reintenta para recuperar el comprobante sin duplicarla.",
-      );
+      if (operation.valid())
+        setError(
+          "No pudimos confirmar el resultado. Conservamos tu solicitud: reintenta para recuperar el comprobante sin duplicarla.",
+        );
     } finally {
+      operation.dispose();
       sending.current = false;
       setBusy(false);
     }
@@ -212,7 +269,7 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
           >
             Preparar otra solicitud
           </Button>
-          <Link href="/menu">Volver al menú</Link>
+          <Link href="/client/menu">Volver al menú</Link>
         </section>
       ) : (
         <>
@@ -241,7 +298,8 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
             </section>
           ) : !items.length ? (
             <p>
-              Tu carrito está vacío. <Link href="/menu">Agregar productos</Link>
+              Tu carrito está vacío.{" "}
+              <Link href="/client/menu">Agregar productos</Link>
             </p>
           ) : (
             <section className={styles.summary}>
@@ -280,13 +338,33 @@ export function DeliveryCheckout({ userId }: { userId: string }) {
             <form onSubmit={send} className={styles.card}>
               {!attempt && (
                 <>
+                  <label htmlFor="saved-delivery-address">
+                    Dirección guardada
+                  </label>
+                  <select
+                    id="saved-delivery-address"
+                    value={selectedAddressId}
+                    onChange={(event) => selectSavedAddress(event.target.value)}
+                  >
+                    <option value="">Usar una dirección manual</option>
+                    {(addresses.data ?? []).map((saved: ClientAddress) => (
+                      <option key={saved.addressId} value={saved.addressId}>
+                        {saved.label}
+                        {saved.isDefault ? " (predeterminada)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {addresses.error && (
+                    <p role="status">{addresses.error.message}</p>
+                  )}
                   <FormField
                     id="pickup-time"
                     label="Fecha y hora de delivery"
-                    help="Se usa la zona horaria de tu dispositivo. Elige una hora que permita preparar todos los productos."
+                    help="Horario de Guatemala. Elige una hora que permita preparar todos los productos."
                     type="datetime-local"
                     required
-                    value={requestedFor}
+                    value={selectedTime}
+                    min={firstDeliveryTime(preparation)}
                     onChange={(event) => setRequestedFor(event.target.value)}
                   />
                   <FormField

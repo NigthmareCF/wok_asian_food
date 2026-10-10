@@ -49,3 +49,31 @@
     width: 100%;
   }
 }
+
+.root button,
+.root a,
+.root input,
+.root select {
+  min-height: 44px;
+}
+
+.root a {
+  display: inline-flex;
+  align-items: center;
+}
+
+.root input,
+.root select {
+  max-width: 100%;
+}
+
+.root :is(button, a, input, select):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.card,
+.root h1,
+.root dd {
+  overflow-wrap: anywhere;
+}

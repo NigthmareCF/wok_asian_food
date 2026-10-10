@@ -46,6 +46,7 @@ export function isAllowedVulnerability(
   packageName,
   vulnerabilities,
   visiting = new Set(),
+  asOf = new Date().toISOString().slice(0, 10),
 ) {
   // Un ciclo de dependencias (por ejemplo metro <-> metro-config) no aporta
   // ningun aviso propio: se ignora la arista que vuelve a un paquete en
@@ -57,6 +58,9 @@ export function isAllowedVulnerability(
 
   const vulnerability = vulnerabilities[packageName];
   if (!vulnerability) {
+    return false;
+  }
+  if (vulnerability.severity === "critical") {
     return false;
   }
 
@@ -71,11 +75,16 @@ export function isAllowedVulnerability(
   const directAllowed = direct.every((advisory) => {
     const id = advisoryId(advisory.url);
     const exception = id ? allowedAdvisories.get(id) : undefined;
-    return exception?.packageName === packageName;
+    return (
+      exception?.packageName === packageName &&
+      advisory.severity === "high" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(asOf) &&
+      asOf <= exception.reviewBy
+    );
   });
 
   const transitiveAllowed = transitive.every((dependencyName) =>
-    isAllowedVulnerability(dependencyName, vulnerabilities, nextVisiting),
+    isAllowedVulnerability(dependencyName, vulnerabilities, nextVisiting, asOf),
   );
 
   return directAllowed && transitiveAllowed;

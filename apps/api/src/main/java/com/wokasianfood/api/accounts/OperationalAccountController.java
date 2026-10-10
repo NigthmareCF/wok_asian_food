@@ -4,22 +4,34 @@ import com.wokasianfood.api.identity.AuthException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import com.wokasianfood.api.accounts.AccountFinancialTotalsService.CurrencyTotal;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/operational/accounts")
-@PreAuthorize("hasAuthority('accounts:manage')")
+@PreAuthorize("hasAnyAuthority('accounts:manage', 'payments:manage')")
 public class OperationalAccountController {
     private final AccountService accounts;
 
     public OperationalAccountController(AccountService accounts) { this.accounts = accounts; }
+
+    @GetMapping
+    public List<AccountService.AccountBalance> list(@RequestParam(required = false) UUID tableId) {
+        return accounts.list(tableId);
+    }
 
     @GetMapping("/{accountId}")
     public AccountService.AccountDetails details(@PathVariable UUID accountId) {
@@ -31,8 +43,32 @@ public class OperationalAccountController {
 class AccountService {
     private final JdbcTemplate jdbc;
 
-    AccountService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    private final AccountFinancialTotalsService financialTotals;
 
+    AccountService(JdbcTemplate jdbc, AccountFinancialTotalsService financialTotals) {
+        this.jdbc = jdbc;
+        this.financialTotals = financialTotals;
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    List<AccountBalance> list(UUID tableId) {
+        if (tableId != null && !Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM wok.dining_tables WHERE id = ?)", Boolean.class, tableId)))
+            throw new AuthException(404, "No encontramos la mesa.");
+        return jdbc.query("""
+            SELECT id FROM wok.order_accounts
+            WHERE dining_table_id IS NOT NULL AND status IN ('OPEN', 'IN_COBRO', 'PAID')
+              AND (CAST(? AS uuid) IS NULL OR dining_table_id = ?)
+            ORDER BY opened_at, id
+            """, (rs, row) -> rs.getObject(1, UUID.class), tableId, tableId).stream().map(id -> {
+                AccountDetails d = details(id);
+                return new AccountBalance(d.account(), d.total(), d.paid(), d.balance(), d.tips(),
+                        d.currencies(), d.currencyTotals(), d.orders().size(), d.pendingOrderCount(),
+                        d.unfinalizedOrderCount());
+            }).toList();
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     AccountDetails details(UUID accountId) {
         List<AccountSummary> found = jdbc.query("""
             SELECT a.id, a.name, a.status, a.dining_table_id, t.name AS dining_table_name,
@@ -47,49 +83,65 @@ class AccountService {
                 rs.getInt("row_version")), accountId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos la cuenta.");
 
+        Map<UUID, List<AccountItem>> items = new LinkedHashMap<>();
+        jdbc.query("""
+            SELECT i.order_id, i.id, i.name_snapshot, i.quantity, i.unit_price, i.line_total
+            FROM wok.order_items i JOIN wok.orders o ON o.id = i.order_id
+            WHERE o.account_id = ? ORDER BY i.created_at, i.id
+            """, (org.springframework.jdbc.core.RowCallbackHandler) rs -> items.computeIfAbsent(
+                rs.getObject("order_id", UUID.class), ignored -> new ArrayList<>()).add(new AccountItem(
+                rs.getObject("id", UUID.class), rs.getString("name_snapshot"), rs.getInt("quantity"),
+                rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"))), accountId);
         List<AccountOrder> orders = jdbc.query("""
-            SELECT o.id, o.code, o.status, o.channel, o.total, o.opened_at, o.closed_at,
+            SELECT o.id, o.code, o.status, o.channel, o.total, o.subtotal, o.discount, o.row_version,
+                   c.code AS currency, o.opened_at, o.closed_at,
                    (SELECT count(*) FROM wok.order_items i WHERE i.order_id = o.id) AS item_count
-            FROM wok.orders o
+            FROM wok.orders o JOIN wok.currencies c ON c.id = o.currency_id
             WHERE o.account_id = ?
             ORDER BY o.opened_at, o.id
             """, (rs, row) -> new AccountOrder(rs.getObject("id", UUID.class), rs.getString("code"),
                 rs.getString("status"), rs.getString("channel"), rs.getBigDecimal("total"),
                 rs.getTimestamp("opened_at").toInstant(),
                 rs.getTimestamp("closed_at") == null ? null : rs.getTimestamp("closed_at").toInstant(),
-                rs.getInt("item_count")), accountId);
-
-        BigDecimal total = orders.stream()
-                .filter(order -> !"CANCELLED".equals(order.status()))
-                .map(AccountOrder::total)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                rs.getInt("item_count"), rs.getBigDecimal("subtotal"), rs.getBigDecimal("discount"),
+                rs.getString("currency"), rs.getInt("row_version"),
+                items.getOrDefault(rs.getObject("id", UUID.class), List.of())), accountId);
 
         List<AccountPayment> payments = jdbc.query("""
-            SELECT id, amount, tip_amount, method, status, reference, captured_at
-            FROM wok.payments WHERE account_id = ? ORDER BY captured_at, id
+            SELECT p.id, p.amount, p.tip_amount, p.method, p.status, p.reference, p.captured_at, c.code AS currency
+            FROM wok.payments p JOIN wok.currencies c ON c.id = p.currency_id
+            WHERE p.account_id = ? ORDER BY p.captured_at, p.id
             """, (rs, row) -> new AccountPayment(rs.getObject("id", UUID.class), rs.getBigDecimal("amount"),
                 rs.getBigDecimal("tip_amount"), rs.getString("method"), rs.getString("status"),
-                rs.getString("reference"), rs.getTimestamp("captured_at").toInstant()), accountId);
-        BigDecimal paid = payments.stream()
-                .filter(payment -> "CAPTURED".equals(payment.status()))
-                .map(AccountPayment::amount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal tips = payments.stream()
-                .filter(payment -> "CAPTURED".equals(payment.status()))
-                .map(AccountPayment::tipAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new AccountDetails(found.getFirst(), orders, total, paid, total.subtract(paid), tips, payments);
+                rs.getString("reference"), rs.getTimestamp("captured_at").toInstant(), rs.getString("currency")), accountId);
+        var totals = financialTotals.totals(accountId);
+        List<CurrencyTotal> currencyTotals = totals.currencies();
+        CurrencyTotal single = totals.single();
+        int pending = (int) orders.stream().filter(o -> !List.of("SERVED", "CLOSED", "CANCELLED").contains(o.status())).count();
+        int unfinalized = (int) orders.stream().filter(o -> !List.of("CLOSED", "CANCELLED").contains(o.status())).count();
+        return new AccountDetails(found.getFirst(), orders, single == null ? null : single.total(),
+                single == null ? null : single.paid(), single == null ? null : single.total().subtract(single.paid()),
+                single == null ? null : single.tips(), payments, currencyTotals.stream().map(CurrencyTotal::currency).toList(), currencyTotals, pending, unfinalized);
     }
+
 
     public record AccountSummary(UUID id, String name, String status, UUID diningTableId, String diningTableName,
                                  Instant openedAt, Instant closedAt, int rowVersion) {}
 
     public record AccountOrder(UUID id, String code, String status, String channel, BigDecimal total,
-                               Instant openedAt, Instant closedAt, int itemCount) {}
+                               Instant openedAt, Instant closedAt, int itemCount, BigDecimal subtotal,
+                               BigDecimal discount, String currency, int rowVersion, List<AccountItem> items) {}
+
+    public record AccountItem(UUID id, String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal) {}
 
     public record AccountPayment(UUID id, BigDecimal amount, BigDecimal tipAmount, String method, String status,
-                                 String reference, Instant capturedAt) {}
+                                 String reference, Instant capturedAt, String currency) {}
 
     public record AccountDetails(AccountSummary account, List<AccountOrder> orders, BigDecimal total,
-                                 BigDecimal paid, BigDecimal balance, BigDecimal tips, List<AccountPayment> payments) {}
+                                 BigDecimal paid, BigDecimal balance, BigDecimal tips, List<AccountPayment> payments,
+                                 List<String> currencies, List<CurrencyTotal> currencyTotals,
+                                 int pendingOrderCount, int unfinalizedOrderCount) {}
+    public record AccountBalance(AccountSummary account, BigDecimal total, BigDecimal paid, BigDecimal balance,
+                                 BigDecimal tips, List<String> currencies, List<CurrencyTotal> currencyTotals,
+                                 int orderCount, int pendingOrderCount, int unfinalizedOrderCount) {}
 }

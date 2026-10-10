@@ -1,0 +1,259 @@
+{
+  "container": "/wok-db-1",
+  "health": "healthy",
+  "database": "wok",
+  "user": "wok_app",
+  "historySchema": "public",
+  "mounts": [
+    {
+      "type": "volume",
+      "name": "wok_postgres_data",
+      "destination": "/var/lib/postgresql"
+    }
+  ],
+  "history": [
+    {
+      "installed_rank": 1,
+      "version": "1",
+      "description": "identity and core",
+      "script": "V1__identity_and_core.sql",
+      "checksum": 974025187,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:14.978584"
+    },
+    {
+      "installed_rank": 2,
+      "version": "2",
+      "description": "reference data",
+      "script": "V2__reference_data.sql",
+      "checksum": -476445836,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:15.312916"
+    },
+    {
+      "installed_rank": 3,
+      "version": "3",
+      "description": "tables and reservations",
+      "script": "V3__tables_and_reservations.sql",
+      "checksum": 1514867393,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:15.391035"
+    },
+    {
+      "installed_rank": 4,
+      "version": "4",
+      "description": "restaurant hours",
+      "script": "V4__restaurant_hours.sql",
+      "checksum": 681921791,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:15.618945"
+    },
+    {
+      "installed_rank": 5,
+      "version": "5",
+      "description": "reservation request idempotency",
+      "script": "V5__reservation_request_idempotency.sql",
+      "checksum": 726954573,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:15.665042"
+    },
+    {
+      "installed_rank": 6,
+      "version": "6",
+      "description": "cash sessions and movements",
+      "script": "V6__cash_sessions_and_movements.sql",
+      "checksum": -1770843769,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:15.712608"
+    },
+    {
+      "installed_rank": 7,
+      "version": "7",
+      "description": "reservation request history snapshot",
+      "script": "V7__reservation_request_history_snapshot.sql",
+      "checksum": -442436717,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:15.808307"
+    },
+    {
+      "installed_rank": 8,
+      "version": "8",
+      "description": "catalog foundation",
+      "script": "V8__catalog_foundation.sql",
+      "checksum": 369187605,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:15.835039"
+    },
+    {
+      "installed_rank": 9,
+      "version": "9",
+      "description": "customer order requests",
+      "script": "V9__customer_order_requests.sql",
+      "checksum": 1980315160,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:15.965763"
+    },
+    {
+      "installed_rank": 10,
+      "version": "10",
+      "description": "customer app messaging",
+      "script": "V10__customer_app_messaging.sql",
+      "checksum": -2055966118,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:16.030041"
+    },
+    {
+      "installed_rank": 11,
+      "version": "11",
+      "description": "delivery request details",
+      "script": "V11__delivery_request_details.sql",
+      "checksum": -1662564044,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:16.129652"
+    },
+    {
+      "installed_rank": 12,
+      "version": "12",
+      "description": "customer delivery addresses",
+      "script": "V12__customer_delivery_addresses.sql",
+      "checksum": -2022304867,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:16.165647"
+    },
+    {
+      "installed_rank": 13,
+      "version": "13",
+      "description": "orders and kitchen",
+      "script": "V13__orders_and_kitchen.sql",
+      "checksum": -2086607539,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:16.22317"
+    },
+    {
+      "installed_rank": 14,
+      "version": "14",
+      "description": "auth rate limit events",
+      "script": "V14__auth_rate_limit_events.sql",
+      "checksum": 1368093323,
+      "success": true,
+      "installed_on": "2026-10-03T01:00:16.339278"
+    },
+    {
+      "installed_rank": 15,
+      "version": "15",
+      "description": "granular operational permissions",
+      "script": "V15__granular_operational_permissions.sql",
+      "checksum": -1054403499,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:14.938829"
+    },
+    {
+      "installed_rank": 16,
+      "version": "16",
+      "description": "order request decision link",
+      "script": "V16__order_request_decision_link.sql",
+      "checksum": -561808911,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:14.993808"
+    },
+    {
+      "installed_rank": 17,
+      "version": "17",
+      "description": "cash permissions",
+      "script": "V17__cash_permissions.sql",
+      "checksum": 285522326,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.071366"
+    },
+    {
+      "installed_rank": 18,
+      "version": "18",
+      "description": "account payments",
+      "script": "V18__account_payments.sql",
+      "checksum": -1721746904,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.133534"
+    },
+    {
+      "installed_rank": 19,
+      "version": "19",
+      "description": "inventory foundation",
+      "script": "V19__inventory_foundation.sql",
+      "checksum": -566781602,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.203431"
+    },
+    {
+      "installed_rank": 20,
+      "version": "20",
+      "description": "recipes and reservations",
+      "script": "V20__recipes_and_reservations.sql",
+      "checksum": 1858845869,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.286736"
+    },
+    {
+      "installed_rank": 21,
+      "version": "21",
+      "description": "production batches",
+      "script": "V21__production_batches.sql",
+      "checksum": -1267351247,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.340378"
+    },
+    {
+      "installed_rank": 22,
+      "version": "22",
+      "description": "payment tips",
+      "script": "V22__payment_tips.sql",
+      "checksum": 1719022680,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.405427"
+    },
+    {
+      "installed_rank": 23,
+      "version": "23",
+      "description": "invoices and outbox",
+      "script": "V23__invoices_and_outbox.sql",
+      "checksum": -305872274,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.436835"
+    },
+    {
+      "installed_rank": 24,
+      "version": "24",
+      "description": "invoice active account guard",
+      "script": "V24__invoice_active_account_guard.sql",
+      "checksum": 1189086576,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.513991"
+    },
+    {
+      "installed_rank": 25,
+      "version": "25",
+      "description": "auth rate limit login",
+      "script": "V25__auth_rate_limit_login.sql",
+      "checksum": -1530172473,
+      "success": true,
+      "installed_on": "2026-10-06T03:32:15.556597"
+    },
+    {
+      "installed_rank": 26,
+      "version": "26",
+      "description": "presential payment attempts",
+      "script": "V26__presential_payment_attempts.sql",
+      "checksum": -803647152,
+      "success": true,
+      "installed_on": "2026-10-10T02:53:30.208165"
+    },
+    {
+      "installed_rank": 27,
+      "version": "27",
+      "description": "presential payment attempt resolution",
+      "script": "V27__presential_payment_attempt_resolution.sql",
+      "checksum": -1729631226,
+      "success": true,
+      "installed_on": "2026-10-10T02:53:30.418778"
+    }
+  ]
+}

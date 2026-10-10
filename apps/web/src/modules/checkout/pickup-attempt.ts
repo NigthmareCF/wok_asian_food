@@ -8,6 +8,7 @@ import {
 export type PickupAttempt = {
   key: string;
   payload: PickupRequest;
+  mayHaveBeenSent?: boolean;
   receipt?: PickupReceipt;
 };
 
@@ -30,6 +31,9 @@ export function createPickupAttemptStore(userId: string) {
             value = {
               key: parsed.key,
               payload,
+              ...(typeof parsed.mayHaveBeenSent === "boolean"
+                ? { mayHaveBeenSent: parsed.mayHaveBeenSent }
+                : {}),
               ...(isPickupReceipt(parsed.receipt)
                 ? { receipt: parsed.receipt }
                 : {}),

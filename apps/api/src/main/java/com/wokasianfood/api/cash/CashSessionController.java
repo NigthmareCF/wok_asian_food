@@ -26,6 +26,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -114,10 +115,11 @@ public class CashSessionController {
 @Service
 class CashSessionService {
     private static final String SESSION_SELECT = """
-        SELECT s.id, r.code AS register_code, s.status, s.opened_by, s.opened_at, s.closed_by, s.closed_at,
+        SELECT s.id, r.code AS register_code, c.code AS currency_code, s.status, s.opened_by, s.opened_at, s.closed_by, s.closed_at,
                s.row_version, rec.expected_cash, rec.counted_cash, rec.difference
         FROM wok.cash_sessions s
         JOIN wok.cash_registers r ON r.id = s.cash_register_id
+        JOIN wok.currencies c ON c.id = r.currency_id
         LEFT JOIN wok.cash_reconciliations rec ON rec.cash_session_id = s.id AND rec.is_final
         """;
 
@@ -127,7 +129,7 @@ class CashSessionService {
             rs.getObject("closed_by", UUID.class),
             rs.getTimestamp("closed_at") == null ? null : rs.getTimestamp("closed_at").toInstant(),
             rs.getInt("row_version"), rs.getBigDecimal("expected_cash"), rs.getBigDecimal("counted_cash"),
-            rs.getBigDecimal("difference"));
+            rs.getBigDecimal("difference"), rs.getString("currency_code"));
 
     private static final RowMapper<CashMovement> MOVEMENT_MAPPER = (rs, row) ->
             new CashMovement(rs.getObject("id", UUID.class), rs.getString("movement_type"),
@@ -146,8 +148,8 @@ class CashSessionService {
     public CashSession open(UUID actor, UUID requestId, UUID idempotencyKey,
                             CashSessionController.OpenRequest request) {
         String code = request.registerCode().trim().toUpperCase(Locale.ROOT);
-        BigDecimal openingFloat = request.openingFloat();
-        String hash = fingerprint("OPEN", code, openingFloat.toPlainString());
+        BigDecimal openingFloat = money(request.openingFloat(), BigDecimal.ZERO);
+        String hash = fingerprint("OPEN", code, request.openingFloat().toPlainString());
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "CASH_SESSION_OPENED",
                 idempotencyKey, hash);
         if (claim.replay()) return details(claim.resourceId());
@@ -181,7 +183,7 @@ class CashSessionService {
         return details(sessionId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CashSession current(String registerCode) {
         String code = registerCode.trim().toUpperCase(Locale.ROOT);
         List<UUID> ids = jdbc.query("""
@@ -194,7 +196,7 @@ class CashSessionService {
         return details(ids.getFirst());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CashSession details(UUID sessionId) {
         return toDto(load(sessionId));
     }
@@ -202,9 +204,9 @@ class CashSessionService {
     @Transactional
     public CashMovement addMovement(UUID sessionId, UUID actor, UUID requestId, UUID idempotencyKey,
                                     CashSessionController.MovementRequest request) {
-        BigDecimal amount = request.amount();
+        BigDecimal amount = money(request.amount(), new BigDecimal("0.01"));
         String hash = fingerprint("MOVEMENT", sessionId.toString(), request.type().name(),
-                amount.toPlainString(), request.reason().trim());
+                request.amount().toPlainString(), request.reason().trim());
         IdempotencyStore.Result claim = idempotency.claim(actor.toString(), "CASH_MOVEMENT_RECORDED",
                 idempotencyKey, hash);
         if (claim.replay()) return movement(claim.resourceId());
@@ -225,6 +227,10 @@ class CashSessionService {
             VALUES (?, 'CASH_MOVEMENT_RECORDED', 'CASH_MOVEMENT', ?,
                     jsonb_build_object('type', ?, 'amountDelta', ?), ?, 'SUCCESS', ?)
             """, actor, movementId, request.type().name(), delta, request.reason().trim(), requestId);
+        jdbc.update("""
+            UPDATE wok.cash_sessions SET row_version = row_version + 1, updated_at = now(), updated_by = ?
+            WHERE id = ? AND status = 'OPEN'
+            """, actor, sessionId);
         idempotency.complete(actor.toString(), "CASH_MOVEMENT_RECORDED", idempotencyKey, movementId);
         return movement(movementId);
     }
@@ -232,17 +238,18 @@ class CashSessionService {
     @Transactional
     public CashSession close(UUID sessionId, UUID actor, UUID requestId,
                              CashSessionController.CloseRequest request) {
+        BigDecimal counted = money(request.countedCash(), BigDecimal.ZERO);
         SessionRow session = lock(sessionId);
         if (!"OPEN".equals(session.status()))
             throw new AuthException(409, "La caja ya está cerrada.");
         if (session.rowVersion() != request.expectedVersion())
             throw new AuthException(409, "La caja cambió. Actualiza la vista y vuelve a intentarlo.");
-        BigDecimal expected = expectedCash(sessionId);
+        BigDecimal expected = money(expectedCash(sessionId), BigDecimal.ZERO);
         jdbc.update("""
             INSERT INTO wok.cash_reconciliations
                 (cash_session_id, expected_cash, counted_cash, counted_by, is_final)
             VALUES (?, ?, ?, ?, true)
-            """, sessionId, expected, request.countedCash(), actor);
+            """, sessionId, expected, counted, actor);
         jdbc.update("""
             UPDATE wok.cash_sessions
             SET status = 'CLOSED', closed_by = ?, closed_at = now(), updated_by = ?, updated_at = now(),
@@ -254,29 +261,30 @@ class CashSessionService {
                 (actor_user_id, action, entity_type, entity_id, before_data, after_data, result, request_id)
             VALUES (?, 'CASH_SESSION_CLOSED', 'CASH_SESSION', ?,
                     jsonb_build_object('expectedCash', ?), jsonb_build_object('countedCash', ?), 'SUCCESS', ?)
-            """, actor, sessionId, expected, request.countedCash(), requestId);
+            """, actor, sessionId, expected, counted, requestId);
         return details(sessionId);
     }
 
     @Transactional
     public Reconciliation reconcile(UUID sessionId, UUID actor, UUID requestId,
                                     CashSessionController.ReconciliationRequest request) {
+        BigDecimal counted = money(request.countedCash(), BigDecimal.ZERO);
         SessionRow session = lock(sessionId);
         if (!"OPEN".equals(session.status()))
             throw new AuthException(409, "La caja ya está cerrada.");
-        BigDecimal expected = expectedCash(sessionId);
+        BigDecimal expected = money(expectedCash(sessionId), BigDecimal.ZERO);
         String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
         UUID reconciliationId = jdbc.queryForObject("""
             INSERT INTO wok.cash_reconciliations
                 (cash_session_id, expected_cash, counted_cash, counted_by, is_final, notes)
             VALUES (?, ?, ?, ?, false, ?) RETURNING id
-            """, UUID.class, sessionId, expected, request.countedCash(), actor, notes);
+            """, UUID.class, sessionId, expected, counted, actor, notes);
         jdbc.update("""
             INSERT INTO wok.audit_logs
                 (actor_user_id, action, entity_type, entity_id, after_data, result, request_id)
             VALUES (?, 'CASH_RECONCILED', 'CASH_SESSION', ?,
                     jsonb_build_object('expectedCash', ?, 'countedCash', ?), 'SUCCESS', ?)
-            """, actor, sessionId, expected, request.countedCash(), requestId);
+            """, actor, sessionId, expected, counted, requestId);
         return reconciliation(reconciliationId);
     }
 
@@ -284,7 +292,7 @@ class CashSessionService {
         BigDecimal expected = row.expectedCash() == null ? expectedCash(row.id()) : row.expectedCash();
         return new CashSession(row.id(), row.registerCode(), row.status(), expected, row.countedCash(),
                 row.difference(), row.openedBy(), row.openedAt(), row.closedBy(), row.closedAt(), row.rowVersion(),
-                breakdown(row.id()), reconciliations(row.id()), movements(row.id()));
+                breakdown(row.id()), reconciliations(row.id()), movements(row.id()), row.currency());
     }
 
     private CashBreakdown breakdown(UUID sessionId) {
@@ -368,6 +376,16 @@ class CashSessionService {
         return expected == null ? BigDecimal.ZERO : expected;
     }
 
+    private BigDecimal money(BigDecimal value, BigDecimal minimum) {
+        if (value == null || value.compareTo(minimum) < 0 || value.compareTo(new BigDecimal("999999999999.99")) > 0)
+            throw new AuthException(422, "El importe de caja está fuera del rango permitido.");
+        try {
+            return value.setScale(2, java.math.RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException invalidPrecision) {
+            throw new AuthException(422, "El importe de caja debe expresarse con precisión de centavos.");
+        }
+    }
+
     private String fingerprint(String... parts) {
         String canonical = String.join("\n", parts);
         try {
@@ -390,9 +408,9 @@ class CashSessionService {
     public record CashSession(UUID id, String registerCode, String status, BigDecimal expectedCash,
                               BigDecimal countedCash, BigDecimal difference, UUID openedBy, Instant openedAt,
                               UUID closedBy, Instant closedAt, int rowVersion, CashBreakdown breakdown,
-                              List<Reconciliation> reconciliations, List<CashMovement> movements) {}
+                              List<Reconciliation> reconciliations, List<CashMovement> movements, String currency) {}
 
     private record SessionRow(UUID id, String registerCode, String status, UUID openedBy, Instant openedAt,
                               UUID closedBy, Instant closedAt, int rowVersion, BigDecimal expectedCash,
-                              BigDecimal countedCash, BigDecimal difference) {}
+                              BigDecimal countedCash, BigDecimal difference, String currency) {}
 }

@@ -1,6 +1,7 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { clientIdentityStore } from "@/modules/clients/client-identity-store";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PickupHistory } from "./pickup-history";
 import { PickupRequestDetail } from "./pickup-request-detail";
 const id = "11111111-1111-4111-8111-111111111111";
@@ -10,6 +11,8 @@ const receipt = {
   requestedFor: "2026-10-03T18:00:00Z",
   subtotal: 68,
   currency: "GTQ",
+  orderId: null,
+  orderStatus: null,
   idempotentReplay: false,
 };
 const details = {
@@ -31,7 +34,7 @@ afterEach(() => {
 });
 describe("pickup history", () => {
   it("renders real links and statuses, then refreshes from the API", async () => {
-    vi.stubGlobal(
+    installFetch(
       "fetch",
       vi
         .fn()
@@ -52,7 +55,7 @@ describe("pickup history", () => {
     expect(await screen.findByText("Cancelada")).toBeInTheDocument();
   });
   it("retries a failed history and shows a genuine empty state", async () => {
-    vi.stubGlobal(
+    installFetch(
       "fetch",
       vi
         .fn()
@@ -79,7 +82,7 @@ describe("pickup detail", () => {
       .mockResolvedValueOnce(
         Response.json({ ...details, status: "CANCELLED" }),
       );
-    vi.stubGlobal("fetch", fetcher);
+    installFetch("fetch", fetcher);
     const user = userEvent.setup();
     render(<PickupRequestDetail requestId={id} />);
     await screen.findByRole("heading", { name: "Gyozas" });
@@ -111,7 +114,7 @@ describe("pickup detail", () => {
     );
   });
   it("refreshes a concurrent 409 without claiming cancellation", async () => {
-    vi.stubGlobal(
+    installFetch(
       "fetch",
       vi
         .fn()
@@ -141,10 +144,30 @@ describe("pickup detail", () => {
       screen.queryByText("La solicitud fue cancelada."),
     ).not.toBeInTheDocument();
   });
+  it("shows the kitchen status after the restaurant accepts the request", async () => {
+    installFetch(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          ...details,
+          status: "ACCEPTED",
+          orderId: id,
+          orderStatus: "READY",
+        }),
+      ),
+    );
+    render(<PickupRequestDetail requestId={id} />);
+    expect(
+      await screen.findByText("Listo para recoger", { selector: "strong" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Tu pedido está listo para recoger/),
+    ).toBeInTheDocument();
+  });
   it.each([401, 404])(
     "shows a private access error without leaking detail (%s)",
     async (status) => {
-      vi.stubGlobal(
+      installFetch(
         "fetch",
         vi.fn().mockResolvedValue(
           Response.json(
@@ -159,7 +182,11 @@ describe("pickup detail", () => {
         ),
       );
       render(<PickupRequestDetail requestId={id} />);
-      await screen.findByRole("alert");
+      if (status === 401)
+        await waitFor(() =>
+          expect(clientIdentityStore.getSnapshot().status).toBe("unverified"),
+        );
+      else await screen.findByRole("alert");
       expect(
         screen.queryByRole("heading", { name: "Gyozas" }),
       ).not.toBeInTheDocument();
@@ -174,4 +201,16 @@ describe("pickup detail", () => {
         ).toBeInTheDocument();
     },
   );
+});
+
+function installFetch(_name: string, fetcher: typeof fetch) {
+  vi.stubGlobal("fetch", (url: RequestInfo | URL, options?: RequestInit) =>
+    url === "/bff/auth/session"
+      ? Promise.resolve(Response.json({ user: { userId: "client-test" } }))
+      : fetcher(url, options),
+  );
+}
+beforeEach(async () => {
+  installFetch("fetch", vi.fn());
+  await clientIdentityStore.refresh();
 });
