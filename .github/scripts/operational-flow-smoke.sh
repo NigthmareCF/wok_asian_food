@@ -143,20 +143,23 @@ else
 fi
 [[ -n "$requested_for" ]]
 
-# El mismo timestamp cumple preparación/máximo; cerrar el servicio debe rechazarlo.
-# Restaurar la configuración antes del recorrido válido, sin aceptar422 como éxito.
-current_step='negative pickup outside service window'
-restore_hours=$(db_value "SELECT string_agg(format('UPDATE wok.business_hours SET active = %L WHERE id = %L;', active, id), E'\n') FROM wok.business_hours WHERE service_type = 'RESTAURANT';")
-db_value "UPDATE wok.business_hours SET active = false WHERE service_type = 'RESTAURANT';" > /dev/null
-negative_pickup_json=$(jq -nc --arg item "$menu_item_id" --arg requested_for "$requested_for" \
+# Fuera de horario puede ir a revisión humana; solo el cutoff absoluto debe rechazar.
+current_step='select pickup after configured absolute cutoff'
+negative_requested_for=$(db_value "SELECT to_char(
+  (((CASE WHEN local_now::time <= sp.pickup_last_arrival THEN local_now::date
+           ELSE local_now::date + 1 END) + sp.pickup_last_arrival + interval '1 minute')
+    AT TIME ZONE 'America/Guatemala') AT TIME ZONE 'UTC',
+  'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')
+FROM (SELECT clock_timestamp() AT TIME ZONE 'America/Guatemala' AS local_now) AS clock
+CROSS JOIN wok.service_policy AS sp WHERE sp.id = 1;")
+negative_pickup_json=$(jq -nc --arg item "$menu_item_id" --arg requested_for "$negative_requested_for" \
   '{requestedFor:$requested_for,items:[{menuItemId:$item,quantity:1}]}')
 negative_pickup_key='85ea0654-a18e-4921-a7ed-36f1fef2ed13'
 request POST /api/v1/client/order-requests "$client_token" "$negative_pickup_json" "$negative_pickup_key"
 expect_status 422
-jq -e '.message | contains("horario debe estar dentro del servicio")' <<< "$http_body" > /dev/null
+jq -e '.message | contains("cutoff operativo")' <<< "$http_body" > /dev/null
 [[ "$(db_value "SELECT count(*) FROM wok.order_requests WHERE idempotency_key = '$negative_pickup_key';")" == '0' ]]
-db_value "$restore_hours" > /dev/null
-printf 'PASS outside-service rejection and zero persisted requests\n'
+printf 'PASS pickup cutoff rejection and zero persisted requests\n'
 requested_for=$(select_pickup_window)
 [[ -n "$requested_for" ]]
 pickup_quote_json=$(jq -nc --arg item "$menu_item_id" --arg requested_for "$requested_for" \
