@@ -55,3 +55,15 @@ Los controles principales deben medir al menos 44 px y mantenerse accesibles con
 ## Entrega del canal
 
 Cada PR debe limitarse a vistas asignadas, identificar permisos simulados y documentar qué requiere backend o realtime. Adjuntar capturas de los estados normal, vacío y crítico, además de móvil y escritorio.
+
+## E8.1 - Caja conectada a contratos reales
+
+La vista /operation/cash consume mediante BFF GET /api/v1/operational/cash-sessions/current?registerCode=MAIN, POST /api/v1/operational/cash-sessions, POST /{sessionId}/movements y POST /{sessionId}/close. El backend exige cash:manage; apertura y movimientos requieren Idempotency-Key y X-Request-Id, y el cierre envía expectedVersion junto con X-Request-Id. El DTO real expone sesión, desglose, movimientos y arqueos, y la interfaz no inventa nombres de usuario ni saldos.
+
+Se cubren carga, vacío sin sesión, errores 401/403/404/409, validación, bloqueo de doble envío y recarga después de movimientos o conflictos. Pagos, devoluciones, pasarela, cuentas/precuentas y cualquier mutación sin endpoint específico quedan bloqueados para 8.2; no se simulan cobros ni saldos.
+
+## E8.2 - Pagos y cuentas operativas
+
+Se conectaron mediante BFF GET /api/v1/operational/accounts/{accountId} y POST /api/v1/operational/accounts/{accountId}/payments. El backend calcula total, pagado, saldo y el importe completo cuando el monto se omite; la interfaz no trata cálculos del navegador como autoridad. Los pagos aceptan únicamente CASH, CARD_EXTERNAL y TRANSFER, con Idempotency-Key y X-Request-Id; después de un pago se recargan la cuenta y la sesión de caja.
+
+El cierre de cuenta, la precuenta y las devoluciones/reversiones no tienen endpoint operativo disponible y quedan bloqueados. Tampoco se inventa pasarela online. Se manejan 401, 403, 404, 409 y 422 a través del BFF, además de validación y doble envío.

@@ -2,3 +2,4 @@ export { PaymentsSessionProvider, usePaymentsSession } from "./payments-session-
 export { PaymentsListView } from "./components/payments-list-view";
 export { PaymentDetailView } from "./components/payment-detail-view";
 export { PreBillView } from "./components/prebill-view";
+export { OperationalAccountView } from './components/operational-account-view';

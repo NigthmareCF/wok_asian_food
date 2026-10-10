@@ -252,3 +252,12 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Después de responder, el hilo permanece visible con estado Abierta y la conversación sale de la cola. Se conserva el intento idempotente ante respuestas perdidas. Estado del servicio en el shell sigue simulado y su etiqueta lo aclara.
 - Prueba local entre Cliente Demo Checkout y Operativo Demo mediante HTTP y navegador: mensaje enviado, respuesta visible, cola sin pendientes. Cliente sin rol operativo recibe 403. Suite web 368 pruebas aprobadas, lint/TypeScript/build Docker correctos.
 - Delivery y reservas operativas conservan sus vistas previas; su integración y gestión posterior se deben abordar como siguiente sección. No se hicieron commits ni push.
+# E8.1 - Auditoría e integración de Caja
+
+Conectada `/operation/cash` al contrato real de sesiones de caja mediante BFF: lectura de sesión actual, apertura idempotente, movimientos idempotentes y cierre con `expectedVersion`/`X-Request-Id`. La UI conserva estados de carga, vacío, errores, validación y doble envío; no usa fixtures para saldos ni cobros.
+
+Bloqueado para 8.2 por falta de superficie conectada en esta tarea: pagos, devoluciones, pasarela, cuentas y precuenta. El endpoint de Caja calcula el desglose de movimientos, pero no existe un contrato separado para consultar o mutar cuentas/precuentas desde esta vista.
+
+## E8.2 - Pagos y cuentas
+
+Conectados detalle/saldo de cuenta y registro idempotente de pagos. El backend conserva la autoridad sobre totales, saldo y monto completo; la UI recarga cuenta y Caja despu�s de pagar. Cierre de cuenta, precuenta y devoluci�n/reversi�n siguen bloqueados por falta de API operativa espec�fica. No se implement� pasarela online.

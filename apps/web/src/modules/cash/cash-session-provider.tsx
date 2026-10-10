@@ -1,158 +1,189 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
 import {
-  initialCashSession,
-  type CashSession,
-  type CashMovement,
-  type CashMovementType,
-  type CashMovementStatus,
-  cashCategories,
-} from "@/data/fixtures/cash";
-
-type AddMovementInput = {
-  type: CashMovementType;
-  amount: number;
-  description: string;
-  category: string;
-  reference?: string;
-};
-
-type CloseCashInput = {
-  countedAmount: number;
-  notes?: string;
-};
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { CashSession } from "./live-contract";
 
 type CashSessionContextValue = {
-  session: CashSession;
-  addMovement: (input: AddMovementInput) => boolean;
-  updateMovementStatus: (movementId: string, status: CashMovementStatus) => boolean;
-  closeCash: (input: CloseCashInput) => boolean;
+  session: CashSession | null;
+  loading: boolean;
+  error: string | null;
+  actionLoading: boolean;
+  refresh: () => Promise<void>;
+  openCash: (openingFloat: number) => Promise<boolean>;
+  addMovement: (
+    type: "INCOME" | "EXPENSE" | "WITHDRAWAL",
+    amount: number,
+    reason: string,
+  ) => Promise<boolean>;
+  closeCash: (countedCash: number) => Promise<boolean>;
 };
 
-const CashSessionContext = createContext<CashSessionContextValue | null>(null);
+const Context = createContext<CashSessionContextValue | null>(null);
+const makeId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+
+async function readError(response: Response) {
+  const body = (await response.json().catch(() => null)) as {
+    message?: string;
+  } | null;
+  return body?.message ?? "No pudimos completar la solicitud.";
+}
 
 export function CashSessionProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [session, setSession] = useState<CashSession>(initialCashSession);
+  const [session, setSession] = useState<CashSession | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        "/bff/operational/cash-sessions?registerCode=MAIN",
+        { cache: "no-store" },
+      );
+      if (response.status === 404) {
+        setSession(null);
+        return;
+      }
+      if (!response.ok) throw new Error(await readError(response));
+      setSession((await response.json()) as CashSession);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "No pudimos cargar la caja.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInitial = async () => {
+      try {
+        const response = await fetch("/bff/operational/cash-sessions?registerCode=MAIN", { cache: "no-store" });
+        if (cancelled) return;
+        if (response.status === 404) {
+          setSession(null);
+          return;
+        }
+        if (!response.ok) throw new Error(await readError(response));
+        setSession(await response.json() as CashSession);
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "No pudimos cargar la caja.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadInitial();
+    return () => { cancelled = true; };
+  }, []);
+
+  const perform = useCallback(
+    async (url: string, init: RequestInit) => {
+      setActionLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(url, init);
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "No pudimos completar la solicitud.",
+        );
+        await refresh();
+        return null;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [refresh],
+  );
 
   const value = useMemo<CashSessionContextValue>(
     () => ({
       session,
-      addMovement({ type, amount, description, category, reference }) {
-        if (amount <= 0) return false;
-
-        const newMovement: CashMovement = {
-          id: `mov-${Date.now()}`,
-          type,
-          amount,
-          description,
-          category,
-          status: "confirmed",
-          createdAt: new Date().toLocaleTimeString("es-GT", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          }),
-          createdBy: "Antony",
-          reference,
-        };
-
-        setSession((current) => {
-          const newMovements = [...current.movements, newMovement];
-          let newCurrent = current.currentAmount;
-          if (type === "income" || type === "deposit") {
-            newCurrent += amount;
-          } else {
-            newCurrent -= amount;
-          }
-          const summary = getCashSummary({ ...current, movements: newMovements, currentAmount: newCurrent });
-          return {
-            ...current,
-            movements: newMovements,
-            currentAmount: newCurrent,
-            expectedAmount: summary.expectedCash,
-            difference: summary.difference,
-          };
+      loading,
+      error,
+      actionLoading,
+      refresh,
+      async openCash(openingFloat) {
+        if (openingFloat < 0) return false;
+        const result = await perform("/bff/operational/cash-sessions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": makeId(),
+            "X-Request-Id": makeId(),
+          },
+          body: JSON.stringify({ registerCode: "MAIN", openingFloat }),
         });
-
+        if (!result) return false;
+        setSession(result as CashSession);
         return true;
       },
-      updateMovementStatus(movementId, status) {
-        setSession((current) => ({
-          ...current,
-          movements: current.movements.map((m) =>
-            m.id === movementId ? { ...m, status } : m,
-          ),
-        }));
+      async addMovement(type, amount, reason) {
+        if (!session || amount <= 0 || reason.trim().length < 3) return false;
+        const result = await perform(
+          `/bff/operational/cash-sessions/${session.id}/movements`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": makeId(),
+              "X-Request-Id": makeId(),
+            },
+            body: JSON.stringify({ type, amount, reason: reason.trim() }),
+          },
+        );
+        if (!result) return false;
+        await refresh();
         return true;
       },
-      closeCash({ countedAmount, notes }) {
-        if (session.status !== "open") return false;
-
-        setSession((current) => ({
-          ...current,
-          status: "closed",
-          currentAmount: countedAmount,
-          difference: countedAmount - current.expectedAmount,
-          closedAt: new Date().toLocaleTimeString("es-GT", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          }),
-          closedBy: "Antony",
-          closingNotes: notes,
-        }));
-
+      async closeCash(countedCash) {
+        if (!session || countedCash < 0) return false;
+        const result = await perform(
+          `/bff/operational/cash-sessions/${session.id}/close`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Request-Id": makeId(),
+            },
+            body: JSON.stringify({
+              countedCash,
+              expectedVersion: session.rowVersion,
+            }),
+          },
+        );
+        if (!result) return false;
+        setSession(result as CashSession);
         return true;
       },
     }),
-    [session],
+    [session, loading, error, actionLoading, refresh, perform],
   );
 
-  return (
-    <CashSessionContext.Provider value={value}>
-      {children}
-    </CashSessionContext.Provider>
-  );
-}
-
-function getCashSummary(session: CashSession) {
-  const income = session.movements
-    .filter((m) => m.type === "income" && m.status === "confirmed")
-    .reduce((sum, m) => sum + m.amount, 0);
-  const expenses = session.movements
-    .filter((m) => m.type === "expense" && m.status === "confirmed")
-    .reduce((sum, m) => sum + m.amount, 0);
-  const withdrawals = session.movements
-    .filter((m) => m.type === "withdrawal" && m.status === "confirmed")
-    .reduce((sum, m) => sum + m.amount, 0);
-  const deposits = session.movements
-    .filter((m) => m.type === "deposit" && m.status === "confirmed")
-    .reduce((sum, m) => sum + m.amount, 0);
-
-  const netCash = income - expenses - withdrawals + deposits;
-  const expectedCash = session.initialAmount + netCash;
-  const difference = session.currentAmount - expectedCash;
-
-  return {
-    totalIncome: income,
-    totalExpenses: expenses,
-    totalWithdrawals: withdrawals,
-    totalDeposits: deposits,
-    netCash,
-    expectedCash,
-    difference,
-  };
+  return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
 export function useCashSession() {
-  const context = useContext(CashSessionContext);
-  if (!context) {
+  const context = useContext(Context);
+  if (!context)
     throw new Error("useCashSession must be used inside CashSessionProvider");
-  }
   return context;
 }
