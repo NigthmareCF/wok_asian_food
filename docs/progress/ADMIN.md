@@ -98,3 +98,9 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Se agregó `GET/PUT /api/v1/client/profile`, protegido con rol `CLIENT` y sujeto tomado del JWT. La edición actualiza `users` y `customer_profiles` en una transacción, controla `expectedVersion` y audita los campos sin guardar el teléfono en el evento.
 - La prueba verifica rechazo por versión obsoleta sin escrituras y persistencia coordinada de ambas representaciones; la edición no permite cambiar correo ni acceder a otro perfil.
 - Validación en composición temporal con foundation + auth: Maven pasó 7/7 pruebas unitarias. El smoke HTTP/DB también pasó en PostgreSQL 18 temporal: login CLIENT, perfil GET/PUT, conflicto de versión, validación de teléfono y 403 para ADMIN; DB confirmó sincronización/auditoría. Falta integrar las ramas oficialmente y repetirlo en CI.
+
+## 2026-10-07 — Recorridos Web integrados de PLAN_TRABAJO
+
+- Usuarios y roles consultan contratos reales; asignación/retiro de ADMIN/OPERATIONAL con razón y versión. Catálogo administrativo consulta el catálogo publicado y muestra el bloqueo de mantenimiento; no hay CRUD ficticio ni cambios de permisos.
+- Pendientes contratos de escritura de catálogo/precios/disponibilidad y CRUD general de usuarios/roles/permisos. Se mantienen los límites de otras pantallas demostrativas fuera del recorrido intervenido.
+- Informe de contratos, archivos, regresión (766 Web / 244 API), pruebas controladas frente a HTTP/PostgreSQL aislado y guion: [WEB_INTEGRATED_DELIVERY.md](WEB_INTEGRATED_DELIVERY.md). Sin datos de ventas reales ni publicación Git; auditoría independiente pendiente.
