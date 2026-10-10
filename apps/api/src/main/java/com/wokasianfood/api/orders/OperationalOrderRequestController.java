@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,7 +15,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,8 +28,25 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasAuthority('orders:manage')")
 public class OperationalOrderRequestController {
     private final OrderRequestDecisionService decisions;
+    private final OperationalOrderRequestQuery requests;
 
-    public OperationalOrderRequestController(OrderRequestDecisionService decisions) { this.decisions = decisions; }
+    public OperationalOrderRequestController(OrderRequestDecisionService decisions,
+            OperationalOrderRequestQuery requests) {
+        this.decisions = decisions;
+        this.requests = requests;
+    }
+
+    @GetMapping
+    public List<OperationalOrderRequestQuery.OrderRequestSummary> list(
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "type", required = false) String type) {
+        return requests.list(status, type);
+    }
+
+    @GetMapping("/{requestId}")
+    public OperationalOrderRequestQuery.OrderRequestSummary details(@PathVariable UUID requestId) {
+        return requests.details(requestId);
+    }
 
     @PostMapping("/{requestId}/decision")
     public OrderRequestDecisionService.DecisionResult decide(@AuthenticationPrincipal Jwt jwt,
@@ -40,6 +60,137 @@ public class OperationalOrderRequestController {
     public record DecisionRequest(@NotNull Action action, @Size(max = 500) String reason) {}
 
     public enum Action { ACCEPT, REJECT }
+}
+
+@Service
+class OperationalOrderRequestQuery {
+    private static final List<String> VALID_STATUSES = List.of(
+            "PENDING_REVIEW", "ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED");
+    private static final List<String> VALID_TYPES = List.of(
+            "PICKUP", "DELIVERY");
+    private static final int MAX_RESULTS = 50;
+    private final JdbcTemplate jdbc;
+
+    OperationalOrderRequestQuery(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    List<OrderRequestSummary> list(String requestedStatus, String requestedType) {
+        String status = requestedStatus == null || requestedStatus.isBlank()
+                ? null : requestedStatus.trim().toUpperCase(java.util.Locale.ROOT);
+        if (status != null && !VALID_STATUSES.contains(status)) {
+            throw new AuthException(400, "El estado solicitado no es válido.");
+        }
+        String type = requestedType == null || requestedType.isBlank()
+                ? null : requestedType.trim().toUpperCase(java.util.Locale.ROOT);
+        if (type != null && !VALID_TYPES.contains(type)) {
+            throw new AuthException(400, "El tipo de entrega solicitado no es válido.");
+        }
+
+        StringBuilder sql = new StringBuilder("""
+            SELECT r.id, r.status, r.fulfillment_type, r.requested_for, r.created_at, r.customer_note,
+                   r.subtotal, c.code AS currency, r.order_id,
+                   o.status AS order_status, u.display_name, u.email
+            FROM wok.order_requests r
+            JOIN wok.currencies c ON c.id = r.currency_id
+            JOIN wok.users u ON u.id = r.customer_user_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
+            WHERE 1 = 1
+            """);
+        List<Object> args = new ArrayList<>();
+        if (status != null) {
+            sql.append(" AND r.status = ?\n");
+            args.add(status);
+        }
+        if (type != null) {
+            sql.append(" AND r.fulfillment_type = ?\n");
+            args.add(type);
+        }
+        sql.append("""
+            ORDER BY CASE WHEN r.status = 'PENDING_REVIEW' THEN 0 ELSE 1 END,
+                     r.created_at DESC, r.id DESC
+            LIMIT 50
+            """);
+
+        return jdbc.query(sql.toString(), (rs, row) -> mapSummary(rs), args.toArray());
+    }
+
+    OrderRequestSummary details(UUID requestId) {
+        String sql = """
+            SELECT r.id, r.status, r.fulfillment_type, r.requested_for, r.created_at, r.customer_note,
+                   r.subtotal, c.code AS currency, r.order_id,
+                   o.status AS order_status, u.display_name, u.email
+            FROM wok.order_requests r
+            JOIN wok.currencies c ON c.id = r.currency_id
+            JOIN wok.users u ON u.id = r.customer_user_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
+            WHERE r.id = ?
+            """;
+        List<OrderRequestSummary> found = jdbc.query(sql, (rs, row) -> mapSummary(rs), requestId);
+        if (found.isEmpty()) {
+            throw new AuthException(404, "No encontramos esa solicitud.");
+        }
+        return found.getFirst();
+    }
+
+    private OrderRequestSummary mapSummary(java.sql.ResultSet rs) throws java.sql.SQLException {
+        UUID requestId = rs.getObject("id", UUID.class);
+        List<OrderRequestItem> items = jdbc.query("""
+            SELECT name_snapshot, quantity, unit_price, line_total
+            FROM wok.order_request_items
+            WHERE order_request_id = ? ORDER BY created_at, id
+            """, (itemRs, itemRow) -> new OrderRequestItem(
+                itemRs.getString("name_snapshot"),
+                itemRs.getInt("quantity"),
+                itemRs.getBigDecimal("unit_price"),
+                itemRs.getBigDecimal("line_total")
+            ), requestId);
+
+        String customerName = rs.getString("display_name");
+        if (customerName == null) customerName = "";
+
+        String customerEmail = rs.getString("email");
+        if (customerEmail == null) customerEmail = "";
+
+        return new OrderRequestSummary(
+                requestId,
+                rs.getString("status"),
+                rs.getString("fulfillment_type"),
+                rs.getTimestamp("requested_for").toInstant(),
+                rs.getTimestamp("created_at").toInstant(),
+                customerName,
+                customerEmail,
+                rs.getString("customer_note"),
+                rs.getBigDecimal("subtotal"),
+                rs.getString("currency"),
+                rs.getObject("order_id", UUID.class),
+                rs.getString("order_status"),
+                items
+        );
+    }
+
+    public record OrderRequestSummary(
+            UUID requestId,
+            String status,
+            String fulfillmentType,
+            Instant requestedFor,
+            Instant submittedAt,
+            String customerName,
+            String customerEmail,
+            String customerNote,
+            java.math.BigDecimal subtotal,
+            String currency,
+            UUID orderId,
+            String orderStatus,
+            List<OrderRequestItem> items
+    ) {}
+
+    public record OrderRequestItem(
+            String name,
+            int quantity,
+            java.math.BigDecimal unitPrice,
+            java.math.BigDecimal lineTotal
+    ) {}
 }
 
 @Service

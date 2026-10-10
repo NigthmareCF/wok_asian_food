@@ -215,9 +215,10 @@ class OrderService {
         Channel channel = request.channel() == null ? Channel.DINE_IN : Channel.valueOf(request.channel().trim().toUpperCase());
         String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
         List<OperationalOrderController.OrderLineRequest> lines = normalizedLines(request.items());
-        String fingerprint = fingerprint(channel, notes, request.guestCount(), lines);
+        String fingerprint = fingerprint(request.accountId(), channel, notes, request.guestCount(), lines);
+        String legacyFp = legacyFingerprint(channel, notes, request.guestCount(), lines);
 
-        OrderDetails previous = existing(actor, idempotencyKey, fingerprint);
+        OrderDetails previous = existing(actor, idempotencyKey, fingerprint, legacyFp, request.accountId());
         if (previous != null) return receipt(previous, true);
 
         Account account = lockAccount(request.accountId());
@@ -244,7 +245,7 @@ class OrderService {
                 request.guestCount(), notes, idempotencyKey, fingerprint, actor, actor);
 
         if (inserted == 0) {
-            OrderDetails replay = existing(actor, idempotencyKey, fingerprint);
+            OrderDetails replay = existing(actor, idempotencyKey, fingerprint, legacyFp, request.accountId());
             if (replay != null) return receipt(replay, true);
         }
 
@@ -575,21 +576,47 @@ class OrderService {
         return items.stream().sorted(Comparator.comparing(item -> item.menuItemId().toString())).toList();
     }
 
-    private OrderDetails existing(UUID actor, UUID idempotencyKey, String fingerprint) {
-        List<UUID> found = jdbc.query("""
-            SELECT id FROM wok.orders WHERE opened_by = ? AND idempotency_key = ? AND request_fingerprint = ?
-            """, (rs, row) -> rs.getObject(1, UUID.class), actor, idempotencyKey, fingerprint);
-        if (!found.isEmpty()) return details(found.getFirst());
-        Integer reused = jdbc.queryForObject("""
-            SELECT count(*) FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?
-            """, Integer.class, actor, idempotencyKey);
-        if (reused != null && reused > 0) throw new AuthException(409, "La clave de pedido ya se usó con otros datos.");
-        return null;
+    private OrderDetails existing(UUID actor, UUID idempotencyKey, String modernFingerprint,
+                                 String legacyFingerprint, UUID targetAccountId) {
+        List<OrderFingerprintRow> found = jdbc.query("""
+            SELECT id, account_id, request_fingerprint FROM wok.orders WHERE opened_by = ? AND idempotency_key = ?
+            """, (rs, row) -> new OrderFingerprintRow(
+                rs.getObject("id", UUID.class),
+                rs.getObject("account_id", UUID.class),
+                rs.getString("request_fingerprint")), actor, idempotencyKey);
+        if (found.isEmpty()) return null;
+
+        OrderFingerprintRow existingOrder = found.getFirst();
+        if (modernFingerprint.equals(existingOrder.fingerprint())) {
+            return details(existingOrder.id());
+        }
+        if (legacyFingerprint.equals(existingOrder.fingerprint()) && targetAccountId.equals(existingOrder.accountId())) {
+            return details(existingOrder.id());
+        }
+        throw new AuthException(409, "La clave de pedido ya se usó con otros datos.");
     }
 
-    private String fingerprint(Channel channel, String notes, int guestCount,
-                               List<OperationalOrderController.OrderLineRequest> lines) {
+    record OrderFingerprintRow(UUID id, UUID accountId, String fingerprint) {}
+
+    private String legacyFingerprint(Channel channel, String notes, int guestCount,
+                                     List<OperationalOrderController.OrderLineRequest> lines) {
         String canonical = channel.name() + "\n" + guestCount + "\n" + (notes == null ? "" : notes) + "\n"
+                + lines.stream()
+                        .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
+                                + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()) + ":"
+                                + (line.notes() == null ? "" : line.notes()))
+                        .reduce((a, b) -> a + "\n" + b).orElse("");
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    private String fingerprint(UUID accountId, Channel channel, String notes, int guestCount,
+                               List<OperationalOrderController.OrderLineRequest> lines) {
+        String canonical = accountId + "\n" + channel.name() + "\n" + guestCount + "\n" + (notes == null ? "" : notes) + "\n"
                 + lines.stream()
                         .map(line -> line.menuItemId() + ":" + line.quantity() + ":"
                                 + (line.fulfillment() == null ? "DINE_IN" : line.fulfillment()) + ":"

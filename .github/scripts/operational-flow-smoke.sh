@@ -103,22 +103,26 @@ expect_status 409
 
 request POST "/api/v1/operational/tables/$table_id/close" "$operational_token"
 expect_status 409
+
 request GET /api/v1/operational/kitchen/tickets "$operational_token"
 expect_status 200
-ticket_id=$(jq -er --arg order "$order_id" '.[] | select(.orderId == $order and .status == "QUEUED") | .id' <<< "$http_body")
+mapfile -t ticket_ids < <(jq -er --arg order "$order_id" '.[] | select(.orderId == $order and .status == "QUEUED") | .id' <<< "$http_body")
+[[ "${#ticket_ids[@]}" -gt 0 ]]
+for ticket_id in "${ticket_ids[@]}"; do
+  request POST "/api/v1/operational/kitchen/tickets/$ticket_id/claim" "$operational_token"
+  expect_status 200
+  ticket_version=$(jq -er 'select(.status == "PREPARING") | .rowVersion' <<< "$http_body")
 
-request POST "/api/v1/operational/kitchen/tickets/$ticket_id/claim" "$operational_token"
-expect_status 200
-ticket_version=$(jq -er 'select(.status == "PREPARING") | .rowVersion' <<< "$http_body")
-
-request PATCH "/api/v1/operational/kitchen/tickets/$ticket_id/status" "$operational_token" \
-  "$(jq -nc --argjson version "$ticket_version" '{status:"READY",expectedVersion:$version}')"
-expect_status 200
-jq -e '.status == "READY"' <<< "$http_body" > /dev/null
+  request PATCH "/api/v1/operational/kitchen/tickets/$ticket_id/status" "$operational_token" \
+    "$(jq -nc --argjson version "$ticket_version" '{status:"READY",expectedVersion:$version}')"
+  expect_status 200
+  jq -e '.status == "READY"' <<< "$http_body" > /dev/null
+done
 
 request GET "/api/v1/operational/orders/$order_id" "$operational_token"
 expect_status 200
-order_version=$(jq -er 'select(.order.status == "READY" and .tickets[0].status == "READY") | .order.rowVersion' <<< "$http_body")
+jq -e --arg order "$order_id" '.order.id == $order and .order.status == "READY" and ([.tickets[].status] | all(. == "READY"))' <<< "$http_body" > /dev/null
+order_version=$(jq -er '.order.rowVersion' <<< "$http_body")
 
 request PATCH "/api/v1/operational/orders/$order_id/status" "$operational_token" \
   "$(jq -nc --argjson version "$order_version" '{status:"SERVED",expectedVersion:$version}')"
@@ -129,6 +133,17 @@ request PATCH "/api/v1/operational/orders/$order_id/status" "$operational_token"
   "$(jq -nc --argjson version "$served_version" '{status:"CLOSED",expectedVersion:$version}')"
 expect_status 200
 jq -e '.status == "CLOSED"' <<< "$http_body" > /dev/null
+
+request POST /api/v1/operational/cash-sessions "$operational_token" \
+  '{"registerCode":"MAIN","openingFloat":0.00}' "$idempotency_key"
+expect_status 201
+jq -e '.status == "OPEN" and .registerCode == "MAIN"' <<< "$http_body" > /dev/null
+
+request POST "/api/v1/operational/accounts/$account_id/payments" "$operational_token" \
+  '{"method":"CASH","registerCode":"MAIN"}' "$idempotency_key"
+expect_status 201
+jq -e '.status == "CAPTURED" and .accountStatus == "PAID" and .balance == 0 and .idempotentReplay == false' <<< "$http_body" > /dev/null
+[[ "$(db_value "SELECT status FROM wok.order_accounts WHERE id = '$account_id';")" == 'PAID' ]]
 
 request POST "/api/v1/operational/tables/$table_id/close" "$operational_token"
 expect_status 200

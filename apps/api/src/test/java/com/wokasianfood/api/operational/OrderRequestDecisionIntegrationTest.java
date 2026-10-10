@@ -7,9 +7,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
+import java.sql.Connection;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
@@ -146,6 +150,241 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 .isEqualTo("PENDING_REVIEW");
         assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class, requestId))
                 .isNull();
+    }
+
+    @Test
+    void rejectsSubmittedDeliveryAndShowsOnlyOwnHistoryWithoutCreatingOrder() {
+        UUID menuItemId = seedMenuItem("Delivery de prueba", "18.00", "DELIVERY_REJECTION", 60);
+        String client = tokenForRole("CLIENT");
+        String otherClient = tokenForRole("CLIENT");
+        UUID operatorId = createUserWithRole("delivery-review-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        String operator = tokenFor(operatorId);
+        int ordersBefore = count("SELECT count(*) FROM wok.orders");
+
+        UUID requestId = submitDelivery(client, menuItemId);
+        UUID otherRequestId = submitDelivery(otherClient, menuItemId);
+        String decisionPath = "/api/v1/operational/order-requests/" + requestId + "/decision";
+        var pending = jdbc.queryForMap("SELECT * FROM wok.order_requests WHERE id = ?", requestId);
+        var submittedEvents = jdbc.queryForList("""
+                SELECT * FROM wok.order_request_events WHERE order_request_id = ? ORDER BY id
+                """, requestId);
+        assertThat(pending.get("fulfillment_type")).isEqualTo("DELIVERY");
+        assertThat(pending.get("order_id")).isNull();
+
+        var blocked = post(decisionPath, operator, """
+                {"action":"ACCEPT"}
+                """);
+        assertThat(blocked.statusCode()).as(blocked.body()).isEqualTo(422);
+        assertThat(jdbc.queryForMap("SELECT * FROM wok.order_requests WHERE id = ?", requestId)).isEqualTo(pending);
+        assertThat(jdbc.queryForList("""
+                SELECT * FROM wok.order_request_events WHERE order_request_id = ? ORDER BY id
+                """, requestId)).isEqualTo(submittedEvents);
+        assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(ordersBefore);
+
+        String rejection = """
+                {"action":"REJECT","reason":"Fuera de cobertura"}
+                """;
+        var rejectedResponse = post(decisionPath, operator, rejection);
+        assertThat(rejectedResponse.statusCode()).as(rejectedResponse.body()).isEqualTo(200);
+        JsonNode rejected = body(rejectedResponse);
+        assertThat(rejected.path("requestId").asText()).isEqualTo(requestId.toString());
+        assertThat(rejected.path("status").asText()).isEqualTo("REJECTED");
+        assertThat(rejected.path("idempotentReplay").asBoolean()).isFalse();
+        assertThat(rejected.hasNonNull("orderId")).isFalse();
+        var persisted = jdbc.queryForMap("SELECT * FROM wok.order_requests WHERE id = ?", requestId);
+        assertThat(persisted.get("status")).isEqualTo("REJECTED");
+        assertThat(persisted.get("decision_reason")).isEqualTo("Fuera de cobertura");
+        assertThat(persisted.get("decided_by")).isEqualTo(operatorId);
+        assertThat(persisted.get("order_id")).isNull();
+        var events = jdbc.queryForList("""
+                SELECT * FROM wok.order_request_events WHERE order_request_id = ? ORDER BY id
+                """, requestId);
+        assertThat(events).hasSize(2);
+        assertThat(count("""
+                SELECT count(*) FROM wok.order_request_events
+                WHERE order_request_id = ? AND event_type = 'REJECTED'
+                  AND reason = 'Fuera de cobertura' AND actor_user_id = ?
+                """, requestId, operatorId)).isEqualTo(1);
+
+        var replayResponse = post(decisionPath, operator, rejection);
+        assertThat(replayResponse.statusCode()).as(replayResponse.body()).isEqualTo(200);
+        JsonNode replay = body(replayResponse);
+        assertThat(replay.path("requestId").asText()).isEqualTo(requestId.toString());
+        assertThat(replay.path("status").asText()).isEqualTo("REJECTED");
+        assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(replay.hasNonNull("orderId")).isFalse();
+        assertThat(jdbc.queryForMap("SELECT * FROM wok.order_requests WHERE id = ?", requestId)).isEqualTo(persisted);
+        assertThat(jdbc.queryForList("""
+                SELECT * FROM wok.order_request_events WHERE order_request_id = ? ORDER BY id
+                """, requestId)).isEqualTo(events);
+        assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(ordersBefore);
+
+        var historyResponse = get("/api/v1/client/delivery-requests", client);
+        assertThat(historyResponse.statusCode()).as(historyResponse.body()).isEqualTo(200);
+        JsonNode history = body(historyResponse);
+        assertThat(history.isArray()).isTrue();
+        assertThat(history).hasSize(1);
+        assertThat(history.get(0).path("requestId").asText()).isEqualTo(requestId.toString());
+        assertThat(history.get(0).path("fulfillmentType").asText()).isEqualTo("DELIVERY");
+        assertThat(history.get(0).path("status").asText()).isEqualTo("REJECTED");
+        assertThat(history.get(0).hasNonNull("orderId")).isFalse();
+
+        var otherHistoryResponse = get("/api/v1/client/delivery-requests", otherClient);
+        assertThat(otherHistoryResponse.statusCode()).as(otherHistoryResponse.body()).isEqualTo(200);
+        JsonNode otherHistory = body(otherHistoryResponse);
+        assertThat(otherHistory.isArray()).isTrue();
+        assertThat(otherHistory).hasSize(1);
+        assertThat(otherHistory.get(0).path("requestId").asText()).isEqualTo(otherRequestId.toString());
+        assertThat(otherHistory.get(0).path("status").asText()).isEqualTo("PENDING_REVIEW");
+        assertThat(get("/api/v1/client/delivery-requests/" + requestId, otherClient).statusCode()).isEqualTo(404);
+        assertThat(get("/api/v1/client/delivery-requests/" + otherRequestId, client).statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void concurrentAcceptsCreateOneOrderAndReplayTheSameDecision() throws Exception {
+        assertConcurrentDecisions("ACCEPT", "ACCEPT");
+    }
+
+    @Test
+    void concurrentAcceptAndRejectCommitOnlyTheWinningDecision() throws Exception {
+        assertConcurrentDecisions("ACCEPT", "REJECT");
+    }
+
+    private void assertConcurrentDecisions(String firstAction, String secondAction) throws Exception {
+        UUID menuItemId = seedMenuItem("Pickup concurrente", "25.00", "CONCURRENT_DECISION", 60);
+        UUID requestId = UUID.fromString(submit(tokenForRole("CLIENT"), menuItemId, 1,
+                Instant.now().plusSeconds(3600).toString()).path("requestId").asText());
+        DecisionCall first = decisionCall(firstAction);
+        DecisionCall second = decisionCall(secondAction);
+        List<DecisionCall> calls = List.of(first, second);
+        int ordersBefore = count("SELECT count(*) FROM wok.orders");
+        List<HttpResponse<String>> responses = concurrentDecisions(requestId, calls);
+
+        int winnerIndex;
+        if (firstAction.equals(secondAction)) {
+            assertThat(responses).extracting(HttpResponse::statusCode).containsExactly(200, 200);
+            JsonNode firstBody = body(responses.get(0));
+            JsonNode secondBody = body(responses.get(1));
+            assertThat(List.of(firstBody.path("idempotentReplay").asBoolean(),
+                    secondBody.path("idempotentReplay").asBoolean())).containsExactlyInAnyOrder(false, true);
+            assertThat(firstBody.path("orderId").asText()).isEqualTo(secondBody.path("orderId").asText());
+            assertThat(firstBody.path("status").asText()).isEqualTo("ACCEPTED");
+            assertThat(secondBody.path("status").asText()).isEqualTo("ACCEPTED");
+            assertThat(firstBody.path("requestId").asText()).isEqualTo(requestId.toString());
+            assertThat(secondBody.path("requestId").asText()).isEqualTo(requestId.toString());
+            winnerIndex = firstBody.path("idempotentReplay").asBoolean() ? 1 : 0;
+        } else {
+            assertThat(responses).extracting(HttpResponse::statusCode).containsExactlyInAnyOrder(200, 409);
+            winnerIndex = responses.get(0).statusCode() == 200 ? 0 : 1;
+        }
+
+        DecisionCall winner = calls.get(winnerIndex);
+        JsonNode decision = body(responses.get(winnerIndex));
+        boolean accepted = winner.action().equals("ACCEPT");
+        String status = accepted ? "ACCEPTED" : "REJECTED";
+        assertThat(decision.path("requestId").asText()).isEqualTo(requestId.toString());
+        assertThat(decision.path("status").asText()).isEqualTo(status);
+        assertThat(decision.path("idempotentReplay").asBoolean()).isFalse();
+        var persisted = jdbc.queryForMap("SELECT * FROM wok.order_requests WHERE id = ?", requestId);
+        assertThat(persisted.get("status")).isEqualTo(status);
+        assertThat(persisted.get("decided_by")).isEqualTo(winner.actor());
+        assertThat(persisted.get("decided_at")).isNotNull();
+        assertThat(persisted.get("decision_reason")).isEqualTo(accepted ? "ACCEPTED" : "Sin disponibilidad");
+        assertThat(count("SELECT count(*) FROM wok.orders")).isEqualTo(ordersBefore + (accepted ? 1 : 0));
+        if (accepted) {
+            UUID orderId = UUID.fromString(decision.path("orderId").asText());
+            assertThat(persisted.get("order_id")).isEqualTo(orderId);
+            assertThat(jdbc.queryForMap("SELECT channel, status FROM wok.orders WHERE id = ?", orderId))
+                    .containsEntry("channel", "PICKUP").containsEntry("status", "SENT");
+        } else {
+            assertThat(persisted.get("order_id")).isNull();
+            assertThat(decision.hasNonNull("orderId")).isFalse();
+        }
+
+        assertThat(count("SELECT count(*) FROM wok.order_request_events WHERE order_request_id = ?", requestId))
+                .isEqualTo(2);
+        var events = jdbc.queryForList("""
+                SELECT event_type, actor_user_id, reason FROM wok.order_request_events
+                WHERE order_request_id = ? AND event_type IN ('ACCEPTED', 'REJECTED')
+                """, requestId);
+        assertThat(events).hasSize(1);
+        assertThat(events.getFirst()).containsEntry("event_type", status)
+                .containsEntry("actor_user_id", winner.actor())
+                .containsEntry("reason", accepted ? "ORDER_CREATED" : "Sin disponibilidad");
+        var audits = jdbc.queryForList("""
+                SELECT action, actor_user_id, request_id, after_data->>'status' AS status, reason, result
+                FROM wok.audit_logs WHERE entity_type = 'ORDER_REQUEST' AND entity_id = ?
+                """, requestId);
+        assertThat(audits).hasSize(1);
+        assertThat(audits.getFirst()).containsEntry("action", "ORDER_REQUEST_" + status)
+                .containsEntry("actor_user_id", winner.actor())
+                .containsEntry("request_id", winner.correlationId())
+                .containsEntry("status", status).containsEntry("result", "SUCCESS")
+                .containsEntry("reason", accepted ? null : "Sin disponibilidad");
+    }
+
+    private DecisionCall decisionCall(String action) {
+        UUID actor = createUserWithRole("concurrent-review-" + UUID.randomUUID() + "@wok.test", "OPERATIONAL");
+        return new DecisionCall(actor, tokenFor(actor), UUID.randomUUID(), action);
+    }
+
+    private List<HttpResponse<String>> concurrentDecisions(UUID requestId, List<DecisionCall> calls) throws Exception {
+        var executor = Executors.newFixedThreadPool(2);
+        try (Connection connection = jdbc.getDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var lock = connection.prepareStatement("SELECT id FROM wok.order_requests WHERE id = ? FOR UPDATE")) {
+                lock.setObject(1, requestId);
+                try (var rows = lock.executeQuery()) {
+                    assertThat(rows.next()).isTrue();
+                }
+            }
+            var first = executor.submit(() -> postDecision(requestId, calls.get(0)));
+            var second = executor.submit(() -> postDecision(requestId, calls.get(1)));
+            try {
+                // Both HTTP transactions must reach PostgreSQL before the fixture lock is released.
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+                int waiting;
+                do {
+                    waiting = count("""
+                            SELECT count(*) FROM pg_stat_activity
+                            WHERE datname = current_database() AND wait_event_type = 'Lock'
+                              AND query LIKE '%FROM wok.order_requests WHERE id = %FOR UPDATE%'
+                            """);
+                    if (waiting == 2) break;
+                    Thread.sleep(25);
+                } while (System.nanoTime() < deadline);
+                assertThat(waiting).as("Both decisions must overlap while waiting for the request lock").isEqualTo(2);
+            } finally {
+                connection.rollback();
+            }
+            return List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    private HttpResponse<String> postDecision(UUID requestId, DecisionCall call) {
+        return post("/api/v1/operational/order-requests/" + requestId + "/decision", call.token(), """
+                {"action":"%s","reason":"Sin disponibilidad"}
+                """.formatted(call.action()), Map.of("X-Request-Id", call.correlationId().toString()));
+    }
+
+    private record DecisionCall(UUID actor, String token, UUID correlationId, String action) {}
+
+    private UUID submitDelivery(String token, UUID menuItemId) {
+        var response = post("/api/v1/client/delivery-requests", token, """
+                {"requestedFor":"%s","address":"Zona 1, Ciudad de Guatemala",
+                 "contactPhone":"+502 5555-0101","paymentPreference":"CASH_ON_DELIVERY",
+                 "items":[{"menuItemId":"%s","quantity":1}]}
+                """.formatted(Instant.now().plusSeconds(3600), menuItemId),
+                Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(202);
+        JsonNode submitted = body(response);
+        assertThat(submitted.path("fulfillmentType").asText()).isEqualTo("DELIVERY");
+        assertThat(submitted.path("status").asText()).isEqualTo("PENDING_REVIEW");
+        assertThat(submitted.hasNonNull("orderId")).isFalse();
+        return UUID.fromString(submitted.path("requestId").asText());
     }
 
     private JsonNode body(HttpResponse<String> response) {

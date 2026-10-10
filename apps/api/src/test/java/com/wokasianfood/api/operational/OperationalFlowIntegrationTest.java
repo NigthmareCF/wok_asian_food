@@ -89,6 +89,10 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
                 """);
         assertThat(staleVersion.statusCode()).isEqualTo(409);
 
+        body(post("/api/v1/operational/accounts/" + accountId + "/payments", token,
+                """
+                {"method":"TRANSFER"}
+                """, Map.of("Idempotency-Key", UUID.randomUUID().toString())));
         JsonNode closedTable = body(post("/api/v1/operational/tables/" + tableId + "/close", token, null));
         assertThat(closedTable.path("status").asText()).isEqualTo("CLEANING");
         assertThat(jdbc.queryForObject("SELECT status FROM wok.order_accounts WHERE id = ?", String.class, accountId))
@@ -139,6 +143,14 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
         assertThat(body(replay).path("idempotentReplay").asBoolean()).isTrue();
         assertThat(body(replay).path("orderId").asText()).isEqualTo(body(first).path("orderId").asText());
 
+        UUID otherTableId = createDiningTable("Mesa Otra Cuenta");
+        UUID otherAccountId = UUID.fromString(body(post(
+                "/api/v1/operational/tables/" + otherTableId + "/open", token, null)).path("accountId").asText());
+        var differentAccount = post("/api/v1/operational/orders", token,
+                payload.replace(accountId.toString(), otherAccountId.toString()), Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(differentAccount.statusCode()).isEqualTo(409);
+        assertThat(count("SELECT count(*) FROM wok.orders WHERE account_id = ?", otherAccountId)).isZero();
+
         var conflicting = post("/api/v1/operational/orders", token,
                 payload.replace("\"guestCount\":2", "\"guestCount\":3"), Map.of("Idempotency-Key", idempotencyKey));
         assertThat(conflicting.statusCode()).isEqualTo(409);
@@ -146,6 +158,47 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
                 payload.replace("Sin cebolla", "Con cebolla"), Map.of("Idempotency-Key", idempotencyKey));
         assertThat(conflictingNotes.statusCode()).isEqualTo(409);
         assertThat(count("SELECT count(*) FROM wok.orders WHERE account_id = ?", accountId)).isEqualTo(1);
+    }
+
+    @Test
+    void replaysLegacyFingerprintOnSameAccountAndRejectsOnDifferentAccount() {
+        String token = tokenForRole("OPERATIONAL");
+        UUID tableId = createDiningTable("Mesa Legacy FP");
+        UUID menuItemId = seedMenuItem("Wok Legacy FP", "30.00", "WOK_LEGACY", 120);
+        UUID accountId = UUID.fromString(
+                body(post("/api/v1/operational/tables/" + tableId + "/open", token, null)).path("accountId").asText());
+        String idempotencyKey = UUID.randomUUID().toString();
+        String payload = """
+                {"accountId":"%s","channel":"DINE_IN","guestCount":2,"items":[
+                  {"menuItemId":"%s","quantity":1,"fulfillment":"DINE_IN"}]}
+                """.formatted(accountId, menuItemId);
+
+        var first = post("/api/v1/operational/orders", token, payload, Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(first.statusCode()).isEqualTo(201);
+        UUID orderId = UUID.fromString(body(first).path("orderId").asText());
+
+        // Update database record to store legacy fingerprint (without accountId prefix)
+        String legacyCanonical = "DINE_IN\n2\n\n" + menuItemId + ":1:DINE_IN:";
+        String legacyFp;
+        try {
+            legacyFp = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(legacyCanonical.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (Exception e) { throw new RuntimeException(e); }
+        jdbc.update("UPDATE wok.orders SET request_fingerprint = ? WHERE id = ?", legacyFp, orderId);
+
+        // Replay on same account -> returns 201 idempotentReplay
+        var legacyReplay = post("/api/v1/operational/orders", token, payload, Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(legacyReplay.statusCode()).isEqualTo(201);
+        assertThat(body(legacyReplay).path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(body(legacyReplay).path("orderId").asText()).isEqualTo(orderId.toString());
+
+        // Replay on different account -> returns 409 Conflict
+        UUID otherTableId = createDiningTable("Mesa Otra Account Legacy");
+        UUID otherAccountId = UUID.fromString(body(post(
+                "/api/v1/operational/tables/" + otherTableId + "/open", token, null)).path("accountId").asText());
+        var conflictingAccount = post("/api/v1/operational/orders", token,
+                payload.replace(accountId.toString(), otherAccountId.toString()), Map.of("Idempotency-Key", idempotencyKey));
+        assertThat(conflictingAccount.statusCode()).isEqualTo(409);
     }
 
     @Test
@@ -164,6 +217,10 @@ class OperationalFlowIntegrationTest extends PostgresIntegrationTest {
                 .isEqualTo(409);
         assertThat(jdbc.queryForObject("SELECT current_status FROM wok.dining_tables WHERE id = ?", String.class, tableId))
                 .isEqualTo("OCCUPIED");
+        assertThat(jdbc.queryForObject("SELECT status FROM wok.order_accounts WHERE id = ?", String.class, accountId))
+                .isEqualTo("OPEN");
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'TABLE_CLOSED'", tableId))
+                .isZero();
     }
 
     @Test
