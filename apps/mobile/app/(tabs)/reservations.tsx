@@ -1,3 +1,6 @@
+import {CoreQuote,type QuoteSelection} from "@/components/core-quote";
+import {quoteSelectionMatches} from "@/lib/quote-selection";
+import {useCart} from "@/hooks/use-cart";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,9 +34,12 @@ import {
   type ReservationPolicy,
 } from "@/lib/slot-time";
 
-export default function ReservationsScreen() {
+export default function ReservationsScreen(){const {session}=useSession();return <ReservationSession key={`${session?.email}:${session?.version}`}/>;}
+function ReservationSession() {
   const { colors, ui } = useUiTheme();
   const { session, request } = useSession();
+  const cart=useCart();
+  const [selection,setSelection]=useState<QuoteSelection|null>(null);
   const [guests, setGuests] = useState("2");
   const [requestedAt, setRequestedAt] = useState("");
   const [notes, setNotes] = useState("");
@@ -51,8 +57,11 @@ export default function ReservationsScreen() {
   const [cancellationError, setCancellationError] = useState("");
   const [cancellationNotice, setCancellationNotice] = useState("");
   const [draftReady, setDraftReady] = useState(false);
+  const [pendingRestored,setPendingRestored]=useState(false);
+  const submitLock=useRef(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftError, setDraftError] = useState("");
+  const pendingStorageKey="wok.reservation.pending."+encodeURIComponent(session?.email??"guest").replace(/%/g,"_");
   const pendingRequest = useRef<{ body: string; key: string } | null>(null);
   const [policy, setPolicy] = useState<{
     owner: string;
@@ -60,6 +69,7 @@ export default function ReservationsScreen() {
   } | null>(null);
   const [policyError, setPolicyError] = useState("");
   const [policyRefresh, setPolicyRefresh] = useState(0);
+  const [recoveryRefresh,setRecoveryRefresh]=useState(0);
   const currentPolicy =
     policy?.owner === session?.email ? policy?.value : undefined;
 
@@ -94,6 +104,8 @@ export default function ReservationsScreen() {
     void Promise.resolve()
       .then(async () => {
         if (Platform.OS !== "web") {
+          const pending = await SecureStore.getItemAsync(pendingStorageKey);
+          if(pending && active){const value=JSON.parse(pending);if(typeof value.body!=="string"||typeof value.key!=="string")throw new Error("Solicitud protegida inválida");pendingRequest.current=value;setPendingRestored(true);}
           const raw = await SecureStore.getItemAsync(reservationDraftKey);
           if (raw) {
             const draft = parseReservationDraft(raw);
@@ -119,20 +131,18 @@ export default function ReservationsScreen() {
             }
           }
         }
+        if(active){setDraftError("");setDraftReady(true);}
       })
       .catch(() => {
         if (active)
           setDraftError(
             "No se pudo leer el borrador guardado en este dispositivo.",
           );
-      })
-      .finally(() => {
-        if (active) setDraftReady(true);
       });
     return () => {
       active = false;
     };
-  }, [session?.email]);
+  }, [session?.email,pendingStorageKey,recoveryRefresh]);
 
   useEffect(() => {
     if (
@@ -185,12 +195,15 @@ export default function ReservationsScreen() {
   }, [refreshHistory]);
 
   async function submit() {
+    if(submitLock.current)return;
+    if(!draftReady){setError("Espera la recuperación del borrador y la solicitud anterior.");return;}
     setError("");
     setMessage("");
     if (!session) {
       setError("Inicia sesión desde Mi cuenta para enviar una solicitud.");
       return;
     }
+    if(!pendingRequest.current && !quoteSelectionMatches(selection,{ownerEmail:session.email,items:preorder?Object.entries(cart.items).map(([menuItemId,quantity])=>({menuItemId,quantity})):[],requestedFor:restaurantInstant(requestedAt)??"",guests:Number(guests),preorder})){setError("Cotiza y acepta el resultado antes de continuar.");return;}
     const instant = restaurantInstant(requestedAt);
     const count = Number(guests);
     if (!Number.isInteger(count) || count < 1 || count > 50) {
@@ -206,7 +219,7 @@ export default function ReservationsScreen() {
       return;
     }
     const timeError = currentPolicy
-      ? reservationTimeError(requestedAt, Date.now(), currentPolicy)
+      ? reservationTimeError(requestedAt, Date.now(), currentPolicy, count)
       : null;
     if (!pendingRequest.current && timeError) {
       setError(timeError);
@@ -218,12 +231,15 @@ export default function ReservationsScreen() {
         guests: count,
         requestedAt: instant,
         preorder,
+        items: selection!.items, quoteId: selection!.quoteId,
         notes: notes.trim() || null,
       });
     if (!pendingRequest.current || pendingRequest.current.body !== body)
       pendingRequest.current = { body, key: createRequestKey() };
+    submitLock.current=true;
     setBusy(true);
     try {
+      if(Platform.OS!=="web")await SecureStore.setItemAsync(pendingStorageKey,JSON.stringify(pendingRequest.current));
       const result = await request<ReservationResult>(
         "/api/v1/client/reservations",
         {
@@ -232,7 +248,9 @@ export default function ReservationsScreen() {
           body,
         },
       );
+      if(Platform.OS!=="web")await SecureStore.deleteItemAsync(pendingStorageKey);
       pendingRequest.current = null;
+      setPendingRestored(false);
       if (Platform.OS !== "web") {
         try {
           await SecureStore.deleteItemAsync(reservationDraftKey);
@@ -260,6 +278,7 @@ export default function ReservationsScreen() {
         e instanceof Error ? e.message : "No se pudo enviar la solicitud.",
       );
     } finally {
+      submitLock.current=false;
       setBusy(false);
     }
   }
@@ -311,16 +330,17 @@ export default function ReservationsScreen() {
             automáticamente al recuperar conexión.
           </Notice>
         ) : null}
-        {draftError ? <Notice tone="error">{draftError}</Notice> : null}
+        {draftError ? <><Notice tone="error">{draftError}</Notice><Button title="Reintentar recuperación" secondary onPress={()=>setRecoveryRefresh(value=>value+1)}/></> : null}
         <Card>
           <ReservationDateTime
             value={requestedAt}
             onChange={setRequestedAt}
-            disabled={busy}
+            disabled={busy || pendingRestored}
             policy={currentPolicy}
+            guests={Number(guests)}
             helper={
               currentPolicy
-                ? `Solicita con ${currentPolicy.minimumNoticeHours} horas de anticipación, entre ${currentPolicy.firstRequestTime} y ${currentPolicy.lastRequestTime}. Es una ventana de solicitudes, no disponibilidad confirmada.`
+                ? `Mínimo ${currentPolicy.minimumNoticeMinutes} min + ${currentPolicy.additionalNoticeMinutes} min por cada ${currentPolicy.additionalGuestGroupSize} personas sobre ${currentPolicy.baseGuests}. Llegada hasta ${currentPolicy.lastRequestTime}; en la frontera, preorden completa. Fuera de apertura requiere revisión.`
                 : "Elige tu fecha; consulta la política antes de enviar. La reserva requiere confirmación del equipo."
             }
           />
@@ -333,7 +353,7 @@ export default function ReservationsScreen() {
             <Button
               title="Actualizar política"
               secondary
-              disabled={busy}
+              disabled={busy || pendingRestored}
               onPress={() => setPolicyRefresh((value) => value + 1)}
             />
           ) : null}
@@ -369,7 +389,7 @@ export default function ReservationsScreen() {
             label="Solicitudes especiales (opcional)"
             value={notes}
             onChangeText={setNotes}
-            editable={!busy}
+            editable={!busy && !pendingRestored}
             placeholder="Cuéntanos cómo podemos ayudarte"
             multiline
             numberOfLines={3}
@@ -383,13 +403,13 @@ export default function ReservationsScreen() {
                 : "¿Requieres preorden? No"
             }
             secondary
-            disabled={busy}
+            disabled={busy || pendingRestored}
             onPress={() => setPreorder(!preorder)}
           />
           {preorder ? (
             <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
-              Esto avisa al equipo para evaluar la solicitud; aún no agrega
-              productos.
+              Declaro completa la preorden seleccionada del carrito. No crea
+              un pedido ni entra a cocina; requiere conversión operativa explícita.
             </Text>
           ) : null}
           {error ? <Notice tone="error">{error}</Notice> : null}
@@ -405,8 +425,11 @@ export default function ReservationsScreen() {
               onPress={() => router.push("/(tabs)/account")}
             />
           ) : null}
+          {!pendingRestored ? <CoreQuote items={preorder?Object.entries(cart.items).map(([menuItemId,quantity])=>({menuItemId,quantity})):[]}
+            requestedFor={restaurantInstant(requestedAt)??""} guests={Number(guests)} preorder={preorder} onSelection={setSelection}/>:null}
+          {pendingRestored?<Notice>Hay una solicitud de resultado incierto. Reintenta la misma clave y contenido; no se envía automáticamente.</Notice>:null}
           <Button
-            title="Enviar solicitud de reserva"
+            title={pendingRestored?"Reintentar la misma solicitud":"Enviar solicitud de reserva"}
             busy={busy}
             onPress={submit}
           />

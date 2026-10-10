@@ -1,3 +1,5 @@
+import {CoreQuote,type QuoteSelection} from "@/components/core-quote";
+import {quoteSelectionMatches} from "@/lib/quote-selection";
 import { randomUUID } from "expo-crypto";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useRef, useState } from "react";
@@ -44,6 +46,7 @@ export default function CartScreen() {
   const menu = useMenu();
   const { session, ready: sessionReady, request } = useSession();
   const [requestedFor, setRequestedFor] = useState("");
+  const [selection,setSelection]=useState<QuoteSelection|null>(null);
   const [selectionNow, setSelectionNow] = useState(() => Date.now());
   const [customerNote, setCustomerNote] = useState(
     typeof draftNote === "string" ? draftNote.slice(0, 500) : "",
@@ -104,6 +107,10 @@ export default function CartScreen() {
       return;
     }
     const instant = restaurantInstant(requestedFor);
+    if (!cart.attempt && !quoteSelectionMatches(selection,{ownerEmail:session.email,items:entries.map(({id,quantity})=>({menuItemId:id,quantity})),requestedFor:instant??"",fulfillment:"PICKUP"})) {
+      setError("Cotiza y acepta el resultado del servidor antes de continuar.");
+      return;
+    }
     const timeError = pickupTimeError(requestedFor, Date.now(), preparation);
     if (!cart.attempt && timeError) {
       setError(timeError);
@@ -131,10 +138,8 @@ export default function CartScreen() {
         body: {
           requestedFor: instant!,
           customerNote: customerNote.trim() || undefined,
-          items: entries.map(({ id, quantity }) => ({
-            menuItemId: id,
-            quantity,
-          })),
+          items: selection!.items,
+          quoteId: selection!.quoteId,
         },
       };
       attemptKey = attempt.key;
@@ -387,6 +392,8 @@ export default function CartScreen() {
                       servidor. No se enviará automáticamente.
                     </Notice>
                   ) : null}
+                  <CoreQuote items={entries.map(({id,quantity})=>({menuItemId:id,quantity}))}
+                    requestedFor={restaurantInstant(requestedFor)??""} fulfillment="PICKUP" onSelection={setSelection}/>
                   <Button
                     title="Enviar solicitud de pickup"
                     busy={sending}

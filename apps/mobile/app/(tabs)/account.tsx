@@ -12,6 +12,7 @@ import {
   Skeleton,
 } from "@/components/ui";
 import { Brand } from "@/components/brand";
+import { PhoneVerification } from "@/components/phone-verification";
 import { ApiError, ClientProfile, ClientSession } from "@/lib/api";
 import {
   clientProfileSchema,
@@ -495,6 +496,7 @@ function ProfilePanel({ email, offline }: { email: string; offline: boolean }) {
   return (
     <>
       <Heading eyebrow="Tu perfil">Mi cuenta</Heading>
+      <PhoneVerification phone={profile?.phone??""}/>
       <Card>
         <Text className="font-sans text-xl font-extrabold text-foreground">
           Perfil Cliente
@@ -551,7 +553,7 @@ function ProfilePanel({ email, offline }: { email: string; offline: boolean }) {
                     onBlur={field.onBlur}
                     keyboardType="phone-pad"
                     autoComplete="tel"
-                    maxLength={9}
+                    maxLength={25}
                     editable={!busy}
                   />
                 </>

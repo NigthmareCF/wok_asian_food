@@ -48,6 +48,12 @@ export const reservationPolicySchema = z
   .object({
     timeZone: z.literal(restaurantTimeZone),
     minimumNoticeHours: z.number().int().min(0).max(168),
+    minimumNoticeMinutes: z.number().int().min(0).max(10080),
+    baseGuests: z.number().int().positive(),
+    additionalGuestGroupSize: z.number().int().positive(),
+    additionalNoticeMinutes: z.number().int().min(0),
+    completePreorderAt: policyTime,
+    outsideHoursRequiresReview: z.boolean(),
     firstRequestTime: policyTime,
     lastRequestTime: policyTime,
     preorderRecommendedAfter: policyTime,
@@ -61,11 +67,15 @@ export function reservationTimeError(
   value: string,
   now: number,
   policy: ReservationPolicy,
+  guests = 2,
 ): string | null {
   const instant = restaurantInstant(value);
   if (!instant) return "Elige un día y una hora válidos.";
-  if (Date.parse(instant) < now + policy.minimumNoticeHours * 3600000)
-    return `Solicita con al menos ${policy.minimumNoticeHours} horas de anticipación.`;
+  if (!Number.isInteger(guests) || guests < 1 || guests > 50) return "Indica entre 1 y 50 personas.";
+  const notice = policy.minimumNoticeMinutes + policy.additionalNoticeMinutes *
+    Math.ceil(Math.max(guests - policy.baseGuests, 0) / policy.additionalGuestGroupSize);
+  if (Date.parse(instant) < now + notice * 60000)
+    return `Solicita con al menos ${notice} minutos de anticipación para tu grupo.`;
   const time = value.slice(11);
   if (time < policy.firstRequestTime || time > policy.lastRequestTime)
     return `La política admite solicitudes entre ${policy.firstRequestTime} y ${policy.lastRequestTime}; no confirma disponibilidad.`;

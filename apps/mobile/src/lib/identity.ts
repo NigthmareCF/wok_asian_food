@@ -19,6 +19,7 @@ export const identitySchemas = {
 export const emailSchema = email;
 const guatemalaPhone = /^(?:\+?502[ .-]?)?[0-9]{4}[ .-][0-9]{4}$/;
 export function formatGuatemalaPhoneInput(value: string): string {
+  if(value.trim().startsWith("+"))return value.trim().replace(/[^+0-9]/g,"").slice(0,16);
   let digits = value.replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("502")) digits = digits.slice(3);
   digits = digits.slice(0, 8);
@@ -27,9 +28,12 @@ export function formatGuatemalaPhoneInput(value: string): string {
 export function isGuatemalaPhone(value: string): boolean {
   return guatemalaPhone.test(value.trim());
 }
+export function isInternationalPhone(value: string): boolean {
+  return /^\+[1-9][0-9]{6,14}$/.test(value.replace(/[() .-]/g,""));
+}
 export const profileSchema = z.object({
   displayName: name,
-  phone: z.string().trim().regex(/^$|^(?:\+?502[ .-]?)?[0-9]{4}[ .-][0-9]{4}$/, "Ingresa los 8 dígitos de Guatemala en grupos de cuatro."),
+  phone: z.string().trim().regex(/^$|^\+[1-9][0-9]{6,14}$|^(?:\+?502[ .-]?)?[0-9]{4}[ .-][0-9]{4}$/, "Para verificar posesión usa + y el código internacional completo."),
 });
 export const tokenPairSchema = z.object({
   accessToken: z.string().min(1), refreshToken: z.string().min(1),

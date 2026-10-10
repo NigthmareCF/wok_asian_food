@@ -58,6 +58,7 @@ export default function RootLayout() {
           name="addresses"
           options={{ title: "Direcciones", headerShown: true }}
         />
+        <Stack.Screen name="core" options={{...catalogHeader,title:"Sustituciones y documentos"}}/>
       </Stack>
     </SessionProvider>
   );

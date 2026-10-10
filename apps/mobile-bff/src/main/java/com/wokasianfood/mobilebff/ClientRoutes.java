@@ -25,6 +25,27 @@ final class ClientRoutes {
         add("POST", "/api/v1/client/conversations", false, false);
         add("GET", "/api/v1/client/conversations/" + ID + "/messages", false, false);
         add("POST", "/api/v1/client/conversations/" + ID + "/messages", false, true);
+        // Contratos Cliente explícitos; ownership y estado se revalidan en Core.
+        add("GET", "/api/v1/public/service-policy", true, false);
+        add("GET", "/api/v1/public/menu/" + ID + "/modifiers", true, false);
+        add("POST", "/api/v1/client/(order-quotes|reservation-quotes)", false, true);
+        add("GET", "/api/v1/client/(order-quotes|reservation-quotes)/" + ID, false, false);
+        add("GET", "/api/v1/client/delivery-requests", false, false);
+        add("POST", "/api/v1/client/delivery-requests", false, true);
+        add("GET", "/api/v1/client/delivery-requests/" + ID, false, false);
+        add("GET", "/api/v1/client/delivery-requests/" + ID + "/tracking", false, false);
+        add("GET", "/api/v1/client/addresses", false, false);
+        add("POST", "/api/v1/client/addresses", false, false);
+        add("PUT", "/api/v1/client/addresses/" + ID, false, false);
+        add("DELETE", "/api/v1/client/addresses/" + ID, false, false);
+        add("GET", "/api/v1/client/phone-verification", false, false);
+        add("POST", "/api/v1/client/phone-verification", false, false);
+        add("POST", "/api/v1/client/phone-verification/confirm", false, false);
+        add("GET", "/api/v1/client/substitutions", false, false);
+        add("POST", "/api/v1/client/(substitutions|preorder-substitutions)/" + ID + "/decision", false, true);
+        add("GET", "/api/v1/client/order-requests/" + ID + "/documents/(PREBILL|RECEIPT)", false, false);
+        add("GET", "/api/v1/client/order-requests/" + ID + "/change-requests", false, false);
+        add("POST", "/api/v1/client/order-requests/" + ID + "/change-requests", false, true);
     }
 
     Route find(String method, String path) {
