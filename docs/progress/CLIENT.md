@@ -1,5 +1,18 @@
 # Progreso del canal Cliente
 
+## 2026-10-10 — Recuperación del flujo de pickup Cliente → Operativo
+
+- El agregado al carrito ahora espera la resolución de identidad si se hace click antes de terminar la carga de sesión; evita descartar el primer click y confundir el resultado con un límite del carrito.
+- Pickup ya no limita la programación a tres horas. La interfaz propone la siguiente franja estándar abierta y Spring valida fecha, preparación y horario contra `wok.business_hours`.
+- Recorrido comprobado en la base aislada `wokpr12demo`: Cliente autenticado envió solicitud (202), Operativo la vio y aceptó (200), se creó el pedido y la comanda, Cocina lo pasó a `PREPARING` y `READY`, y Cliente consultó el estado actualizado.
+- Build de producción Web y API completado. Pruebas Web del catálogo/carrito, checkout y horario pickup: 39/39. El build local directo con `npm run build:web` no sirve en este worktree temporal porque su `node_modules` es un symlink externo; la compilación equivalente de Docker sí pasó.
+- Los métodos HTTP incorrectos de una ruta ahora responden 405 con `Allow`, no 500 genérico; se cubre en `ApiErrorHandlerTest`.
+
+## 2026-10-10 — Fotos del menú y ubicación publicada
+
+- El catálogo y la portada Web muestran las fotos entregadas, con respaldo por nombre de producto cuando `image_reference` está vacío. `/location` abre el enlace de Google Maps compartido por el propietario; no se inventaron dirección ni horario.
+- La API conserva su contrato actual. Prueba de componente Web pendiente porque falta `@vitejs/plugin-react` en las dependencias instaladas del entorno; lint Web había pasado antes de retirar el enlace temporal a `node_modules`.
+
 ## 2026-09-26 — PR #16: solicitudes de reserva pendientes de validación
 
 - Coordinación confirma que el frontend recopila fecha, hora, personas, intención de preorden y notas; la disponibilidad y la aceptación o rechazo corresponden al restaurante. No existe un límite fijo de 21:30 ni se inventan horarios oficiales o respuestas.

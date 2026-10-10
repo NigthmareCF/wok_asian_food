@@ -441,7 +441,9 @@ describe("pickup checkout", () => {
         .getByRole("button", { name: "Enviar solicitud para recoger" })
         .closest("form")!,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("próximas 3 horas");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "posterior a la preparación estimada",
+    );
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(createLiveCartStore().getSnapshot()).toHaveLength(1);
   });

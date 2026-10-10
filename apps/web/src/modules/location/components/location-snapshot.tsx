@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Compass,
   MapPin,
+  Navigation,
   NavigationOff,
   ShieldOff,
 } from "lucide-react";
@@ -50,9 +51,16 @@ export function LocationSnapshot({
           <h2>
             {snapshot.address
               ? "Dirección"
-              : "Ubicación pendiente de confirmación"}
+              : canOpenNavigation
+                ? "Ubicación disponible en Google Maps"
+                : "Ubicación pendiente de confirmación"}
           </h2>
-          <p>{snapshot.address ?? "Aún no hay una dirección publicada."}</p>
+          <p>
+            {snapshot.address ??
+              (canOpenNavigation
+                ? "Consulta la ubicación y las indicaciones en Google Maps."
+                : "Aún no hay una dirección publicada.")}
+          </p>
         </div>
       </article>
 
@@ -65,9 +73,17 @@ export function LocationSnapshot({
       </article>
 
       <article className={styles.card}>
-        <NavigationOff aria-hidden="true" className={styles.icon} size={28} />
+        {canOpenNavigation ? (
+          <Navigation aria-hidden="true" className={styles.icon} size={28} />
+        ) : (
+          <NavigationOff aria-hidden="true" className={styles.icon} size={28} />
+        )}
         <div>
-          <h2>{providerDetails.title}</h2>
+          <h2>
+            {canOpenNavigation
+              ? "Google Maps disponible"
+              : providerDetails.title}
+          </h2>
           <p>{providerDetails.description}</p>
         </div>
       </article>

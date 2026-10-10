@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   CalendarDays,
@@ -145,17 +146,17 @@ export function ClientHome() {
             ) : (
               <div className={styles.products}>
                 {selection.map((product) => {
-                  const imageUrl = safeImageUrl(
-                    "imageUrl" in product ? product.imageUrl : undefined,
-                  );
+                  const imageUrl = safeImageUrl(product.imageReference);
                   return (
                     <article className={styles.product} key={product.id}>
                       {imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <Image
                           className={styles.productImage}
                           src={imageUrl}
                           alt={product.name}
+                          width={1000}
+                          height={1125}
+                          sizes="(max-width: 700px) 90vw, (max-width: 1100px) 45vw, 30vw"
                         />
                       ) : (
                         <div className={styles.placeholder}>

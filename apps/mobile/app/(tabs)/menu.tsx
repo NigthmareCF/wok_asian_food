@@ -272,6 +272,7 @@ export default function MenuScreen() {
                   <ProductImage
                     reference={item.product.imageReference}
                     name={item.product.name}
+                    compact
                   />
                   <Text className="font-sans text-xl font-extrabold text-foreground">
                     {item.product.name}

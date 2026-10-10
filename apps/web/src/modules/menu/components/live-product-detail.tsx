@@ -56,11 +56,11 @@ export function LiveProductDetail({ productId }: { productId: string }) {
             precio y disponibilidad al procesar la solicitud.
           </p>
           <Button
-            onClick={() =>
+            onClick={async () =>
               setFeedback(
-                add(product)
+                (await add(product))
                   ? `${product.name} agregado al carrito.`
-                  : "No se pudo agregar: revisa el límite de productos y unidades del carrito.",
+                  : "No se pudo validar tu sesión o se alcanzó el límite del carrito. Intenta de nuevo.",
               )
             }
           >

@@ -1,8 +1,5 @@
 const SERVICE_TIME_ZONE = "America/Guatemala";
 const SERVICE_OFFSET = "-06:00";
-const OPEN_MINUTE = 14 * 60;
-const CLOSE_MINUTE = 22 * 60;
-const MAX_ADVANCE_MS = 3 * 60 * 60 * 1000;
 const REVIEW_BUFFER_MS = 10 * 60 * 1000;
 
 type Parts = {
@@ -52,7 +49,6 @@ export function pickupInputToInstant(value: string) {
 
 export type PickupWindow = {
   min: string;
-  max: string;
   defaultValue: string;
 };
 
@@ -63,23 +59,30 @@ export function nextPickupWindow(
   const earliestMs =
     now.getTime() + Math.max(preparationSeconds, 0) * 1000 + REVIEW_BUFFER_MS;
   const roundedMs = Math.ceil(earliestMs / (5 * 60 * 1000)) * 5 * 60 * 1000;
-  const horizonMs = now.getTime() + MAX_ADVANCE_MS;
   const localNow = parts(now);
-  if (localNow.weekday === "Mon") return null;
-
   const pad = (value: number) => String(value).padStart(2, "0");
-  const day = `${localNow.year}-${pad(localNow.month)}-${pad(localNow.day)}`;
-  const openingMs = new Date(`${day}T14:00:00${SERVICE_OFFSET}`).getTime();
-  const closingMs = new Date(`${day}T22:00:00${SERVICE_OFFSET}`).getTime();
-  const minimumMs = Math.max(roundedMs, openingMs);
-  const maximumMs = Math.min(horizonMs, closingMs - 60_000);
-  if (minimumMs > maximumMs) return null;
-
-  const minimum = new Date(minimumMs);
-  const maximum = new Date(maximumMs);
+  const localDate = new Date(Date.UTC(localNow.year, localNow.month - 1, localNow.day));
+  let minimum: Date | null = null;
+  for (let offset = 0; offset < 8; offset++) {
+    const day = new Date(localDate);
+    day.setUTCDate(day.getUTCDate() + offset);
+    const date = `${day.getUTCFullYear()}-${pad(day.getUTCMonth() + 1)}-${pad(day.getUTCDate())}`;
+    const weekday = new Date(`${date}T12:00:00${SERVICE_OFFSET}`).toLocaleDateString("en-US", {
+      timeZone: SERVICE_TIME_ZONE,
+      weekday: "short",
+    });
+    if (weekday === "Mon") continue;
+    const openingMs = new Date(`${date}T14:00:00${SERVICE_OFFSET}`).getTime();
+    const closingMs = new Date(`${date}T22:00:00${SERVICE_OFFSET}`).getTime();
+    const candidate = Math.max(roundedMs, openingMs);
+    if (candidate < closingMs) {
+      minimum = new Date(candidate);
+      break;
+    }
+  }
+  if (!minimum) return null;
   return {
     min: inputValue(minimum),
-    max: inputValue(maximum),
     defaultValue: inputValue(minimum),
   };
 }
@@ -87,8 +90,11 @@ export function nextPickupWindow(
 export function isWithinPickupWindow(value: string, window: PickupWindow) {
   const instant = pickupInputToInstant(value);
   const minimum = pickupInputToInstant(window.min);
-  const maximum = pickupInputToInstant(window.max);
+  if (!instant || !minimum || instant < minimum) return false;
+  const local = parts(instant);
   return Boolean(
-    instant && minimum && maximum && instant >= minimum && instant <= maximum,
+    local.weekday !== "Mon" &&
+    local.hour >= 14 &&
+      local.hour < 22,
   );
 }

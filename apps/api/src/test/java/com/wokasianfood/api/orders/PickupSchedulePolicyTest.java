@@ -20,18 +20,18 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
 class PickupSchedulePolicyTest {
-    private static final Instant NOW = Instant.parse("2026-10-05T02:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-10-04T18:00:00Z");
 
     @Test
-    void acceptsAPreparationSafeTimeInsideBusinessHoursAndThreeHours() throws Exception {
+    void acceptsAPreparationSafeTimeInsideBusinessHours() throws Exception {
         PickupSchedulePolicy policy = policyWithHours();
-        assertDoesNotThrow(() -> policy.validate(NOW.plusSeconds(60 * 60), 20 * 60));
+        assertDoesNotThrow(() -> policy.validate(NOW.plusSeconds(4 * 60 * 60), 20 * 60));
     }
 
     @Test
-    void rejectsRequestsBeyondThreeHours() throws Exception {
+    void rejectsRequestsBeforeOpeningTime() throws Exception {
         AuthException error = assertThrows(AuthException.class,
-                () -> policyWithHours().validate(NOW.plusSeconds(4 * 60 * 60), 60));
+                () -> policyWithHours().validate(NOW.plusSeconds(60 * 60), 60));
         assertEquals(422, error.status());
     }
 

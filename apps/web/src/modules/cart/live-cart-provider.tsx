@@ -6,13 +6,17 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createLiveCartStore, type LiveCartItem } from "./live-cart-storage";
+import { clientIdentityStore } from "@/modules/clients/client-identity-store";
 import { useClientIdentity } from "@/modules/clients/use-client-identity";
 
 type LiveCartContextValue = Pick<
   ReturnType<typeof createLiveCartStore>,
-  "add" | "setQuantity" | "remove" | "complete"
+  "setQuantity" | "remove" | "complete"
 > & { items: readonly LiveCartItem[] };
-const LiveCartContext = createContext<LiveCartContextValue | null>(null);
+type LiveCartContextValueWithAdd = LiveCartContextValue & {
+  add: (product: Parameters<ReturnType<typeof createLiveCartStore>["add"]>[0]) => Promise<boolean>;
+};
+const LiveCartContext = createContext<LiveCartContextValueWithAdd | null>(null);
 
 export function LiveCartProvider({ children }: { children: React.ReactNode }) {
   const { identity } = useClientIdentity();
@@ -26,7 +30,13 @@ export function LiveCartProvider({ children }: { children: React.ReactNode }) {
     <LiveCartContext
       value={{
         items,
-        add: (product) => store.add(product, identity),
+        add: async (product) => {
+          let currentIdentity = identity;
+          if (currentIdentity.status === "unverified") {
+            currentIdentity = await clientIdentityStore.refresh();
+          }
+          return store.add(product, currentIdentity);
+        },
         setQuantity: (id, quantity) =>
           store.setQuantity(id, quantity, identity),
         remove: (id) => store.remove(id, identity),

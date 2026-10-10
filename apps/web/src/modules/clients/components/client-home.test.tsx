@@ -231,7 +231,7 @@ describe("Client home with public menu", () => {
     ["http://images.example.com/gyozas.jpg", false],
     ["https://user:secret@images.example.com/gyozas.jpg", false],
     [null, false],
-  ])("uses only safe catalog images: %s", async (imageUrl, visible) => {
+  ])("uses only safe catalog images: %s", async (imageReference, visible) => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -240,7 +240,7 @@ describe("Client home with public menu", () => {
           categories: [
             {
               ...menu.categories[0],
-              items: [{ ...menu.categories[0].items[0], imageUrl }],
+              items: [{ ...menu.categories[0].items[0], imageReference }],
             },
           ],
         }),
@@ -251,7 +251,7 @@ describe("Client home with public menu", () => {
     if (visible)
       expect(screen.getByRole("img", { name: "Gyozas" })).toHaveAttribute(
         "src",
-        imageUrl,
+        imageReference,
       );
     else {
       expect(screen.queryByRole("img")).not.toBeInTheDocument();

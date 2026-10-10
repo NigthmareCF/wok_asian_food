@@ -136,7 +136,7 @@ function VerifiedPickupCheckout({ scope }: { scope: ClientIdentity }) {
         !isWithinPickupWindow(effectiveRequestedFor, pickupWindow)
       ) {
         setError(
-          "Elige un horario disponible dentro de las próximas 3 horas y del servicio de 14:00 a 22:00.",
+          "Elige un horario posterior a la preparación estimada y dentro del servicio del restaurante.",
         );
         return;
       }
@@ -373,13 +373,12 @@ function VerifiedPickupCheckout({ scope }: { scope: ClientIdentity }) {
                     label="Fecha y hora para recoger"
                     help={
                       pickupWindow
-                        ? "Horario de Guatemala. Incluye preparación y margen de revisión; puedes programar dentro de las próximas 3 horas, entre 14:00 y 22:00."
-                        : "No hay horarios disponibles durante las próximas 3 horas."
+                        ? "Horario de Guatemala. Incluye preparación y margen de revisión; el restaurante confirmará disponibilidad para la fecha elegida."
+                        : "No encontramos un horario próximo. Intenta nuevamente más tarde."
                     }
                     type="datetime-local"
                     required
                     min={pickupWindow?.min}
-                    max={pickupWindow?.max}
                     disabled={!pickupWindow}
                     value={effectiveRequestedFor}
                     onChange={(event) => setRequestedFor(event.target.value)}

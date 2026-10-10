@@ -1,5 +1,11 @@
 # Progreso de planificación móvil
 
+## 2026-10-10 — Fotos del menú y acceso a ubicación
+
+- Se empaquetaron las fotos como WebP y el cliente móvil resuelve referencias locales del catálogo a esos recursos, manteniendo soporte para imágenes HTTPS externas.
+- Inicio abre una pantalla Ubicación que lanza el enlace de Google Maps proporcionado por el propietario. No se solicitaron permisos de ubicación del teléfono.
+- Lint, typecheck y pruebas móviles no se pudieron completar en este entorno porque faltan dependencias Expo/Jiti en `node_modules`; no se declara validación en dispositivo.
+
 ## 2026-10-06 — Inicio visual centrado en platillos
 
 - Inicio ahora sigue el orden aprobado: logo oficial, hero fotográfico de 280 px, carrusel «Los más antojables», enlace discreto al menú, tres accesos compactos y servicios publicados al final. Se conservaron sesión, consultas, refresco y rutas existentes.

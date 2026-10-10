@@ -2,7 +2,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LiveMenuCatalog } from "./live-menu-catalog";
-import { LiveCartProvider } from "@/modules/cart/live-cart-provider";
+import {
+  LiveCartProvider,
+  useLiveCart,
+} from "@/modules/cart/live-cart-provider";
 
 const menu = {
   asOf: "2026-10-02T12:00:00Z",
@@ -17,6 +20,7 @@ const menu = {
           description: "Del catálogo real",
           price: 42.5,
           currency: "GTQ",
+          imageReference: "/menu/dishes/maki-atun.webp",
           estimatedPreparationSeconds: 120,
         },
       ],
@@ -44,6 +48,8 @@ describe("live menu", () => {
       await screen.findByRole("heading", { name: "Atún" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/42.50/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Atún" }).getAttribute("src"))
+      .toContain("maki-atun.webp");
     await user.type(screen.getByRole("searchbox"), "ATUN");
     expect(screen.getAllByRole("article")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Bebidas" }));
@@ -90,7 +96,30 @@ describe("live menu", () => {
       await screen.findByText("El menú aún no tiene productos."),
     ).toBeInTheDocument();
   });
+
+  it("adds a menu item to the cart after the visitor session is resolved", async () => {
+    installMenuFetch(vi.fn().mockResolvedValue(Response.json(menu)));
+    const user = userEvent.setup();
+    render(
+      <LiveCartProvider>
+        <LiveMenuCatalog />
+        <CartCount />
+      </LiveCartProvider>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Agregar Atún al carrito" }),
+    );
+
+    expect(await screen.findByText("1 producto en el carrito")).toBeInTheDocument();
+    expect(screen.getByText("Atún agregado al carrito.")).toBeInTheDocument();
+  });
 });
+
+function CartCount() {
+  const { items } = useLiveCart();
+  return <p>{items.length} producto en el carrito</p>;
+}
 
 function installMenuFetch(menuFetch: typeof fetch) {
   vi.stubGlobal("fetch", (input: RequestInfo | URL, options?: RequestInit) => {

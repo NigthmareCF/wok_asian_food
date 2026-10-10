@@ -13,24 +13,23 @@ describe("pickup scheduling window", () => {
     );
     expect(window).toEqual({
       min: "2026-10-04T20:30",
-      max: "2026-10-04T21:59",
       defaultValue: "2026-10-04T20:30",
     });
   });
 
-  it("uses opening time when the restaurant opens inside the three-hour horizon", () => {
+  it("uses the next opening time when the restaurant is closed", () => {
     expect(
       nextPickupWindow(10 * 60, new Date("2026-10-04T12:30:00-06:00"))?.min,
     ).toBe("2026-10-04T14:00");
   });
 
-  it("returns no slot on Monday or after the daily horizon", () => {
+  it("moves to the next business day on Monday or after closing", () => {
     expect(
       nextPickupWindow(60, new Date("2026-10-05T15:00:00-06:00")),
-    ).toBeNull();
+    ).toMatchObject({ min: "2026-10-06T14:00" });
     expect(
       nextPickupWindow(60, new Date("2026-10-04T22:05:00-06:00")),
-    ).toBeNull();
+    ).toMatchObject({ min: "2026-10-06T14:00" });
   });
 
   it("parses Guatemala local input and rejects values outside the window", () => {
@@ -39,6 +38,7 @@ describe("pickup scheduling window", () => {
       "2026-10-05T00:00:00.000Z",
     );
     expect(isWithinPickupWindow("2026-10-04T20:00", window)).toBe(true);
-    expect(isWithinPickupWindow("2026-10-04T21:30", window)).toBe(false);
+    expect(isWithinPickupWindow("2026-10-04T21:30", window)).toBe(true);
+    expect(isWithinPickupWindow("2026-10-04T22:00", window)).toBe(false);
   });
 });

@@ -10,19 +10,29 @@ import { LocationSnapshot } from "./location-snapshot";
 afterEach(cleanup);
 
 describe("LocationSnapshot", () => {
-  it("keeps navigation disabled while the provider is pending without a URL", () => {
+  it("opens the restaurant location supplied by the owner", () => {
     render(<LocationSnapshot snapshot={locationFixture} />);
 
-    expect(
-      screen.getByText("Ubicación pendiente de confirmación"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Proveedor de navegación pendiente"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "CÓMO LLEGAR" })).toBeDisabled();
+    expect(screen.getByText("Google Maps disponible")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CÓMO LLEGAR" })).toHaveAttribute(
+      "href",
+      "https://maps.app.goo.gl/R3Rbp29S6RZkE257A",
+    );
     expect(
       screen.getByRole("link", { name: "Volver al inicio" }),
     ).toHaveAttribute("href", "/");
+  });
+
+  it("keeps navigation disabled while the provider is pending without a URL", () => {
+    render(
+      <LocationSnapshot
+        snapshot={{
+          navigationProviderState: "pending",
+          permissionState: "not-requested",
+        }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "CÓMO LLEGAR" })).toBeDisabled();
   });
 
   it("opens a safe example URL in another tab when navigation is available", () => {
@@ -33,9 +43,7 @@ describe("LocationSnapshot", () => {
     };
     render(<LocationSnapshot snapshot={snapshot} />);
 
-    expect(
-      screen.getByText("Proveedor de navegación disponible"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Google Maps disponible")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CÓMO LLEGAR" })).toHaveAttribute(
       "href",
       "https://example.com/navigation",

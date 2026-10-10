@@ -58,6 +58,10 @@ export default function RootLayout() {
           name="addresses"
           options={{ title: "Direcciones", headerShown: true }}
         />
+        <Stack.Screen
+          name="location"
+          options={{ title: "Ubicación", headerShown: true }}
+        />
       </Stack>
     </SessionProvider>
   );

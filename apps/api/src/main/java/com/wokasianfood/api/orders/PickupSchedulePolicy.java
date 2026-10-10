@@ -14,8 +14,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 class PickupSchedulePolicy {
-    static final Duration MAX_ADVANCE = Duration.ofHours(3);
-
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
@@ -36,10 +34,6 @@ class PickupSchedulePolicy {
             throw new AuthException(422,
                     "El horario solicitado es anterior al tiempo mínimo de preparación indicado.");
         }
-        if (requestedFor.isAfter(now.plus(MAX_ADVANCE))) {
-            throw new AuthException(422, "Solo puedes programar la recogida dentro de las próximas 3 horas.");
-        }
-
         List<BusinessWindow> windows = jdbc.query("""
             SELECT opens_at, closes_at, timezone_name
             FROM wok.business_hours

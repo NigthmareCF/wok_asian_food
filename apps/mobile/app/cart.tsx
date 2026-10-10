@@ -276,6 +276,7 @@ export default function CartScreen() {
                 <ProductImage
                   reference={entry.product.imageReference}
                   name={entry.product.name}
+                  compact
                 />
                 <Text className="font-sans text-lg font-extrabold text-foreground">
                   {entry.product.name}

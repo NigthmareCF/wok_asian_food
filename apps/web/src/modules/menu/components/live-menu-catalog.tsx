@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { usePublicMenu } from "../use-public-menu";
@@ -102,6 +103,26 @@ export function LiveMenuCatalog() {
                 aria-labelledby={`live-product-${item.id}`}
               >
                 <p className={styles.cardContext}>{item.categoryName}</p>
+                {item.imageReference &&
+                item.imageReference.startsWith("/menu/dishes/") ? (
+                  <Image
+                    className={styles.productImage}
+                    src={item.imageReference}
+                    alt={item.name}
+                    width={1000}
+                    height={1125}
+                    sizes="(max-width: 700px) 90vw, (max-width: 1100px) 45vw, 30vw"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div
+                    className={styles.productImagePlaceholder}
+                    aria-label={`Imagen no disponible para ${item.name}`}
+                    role="img"
+                  >
+                    WOK
+                  </div>
+                )}
                 <div className={styles.cardTitle}>
                   <h3 id={`live-product-${item.id}`}>{item.name}</h3>
                   <strong>
@@ -130,13 +151,14 @@ export function LiveMenuCatalog() {
                   </Link>
                   <Button
                     aria-label={`Agregar ${item.name} al carrito`}
-                    onClick={() =>
+                    onClick={async () => {
+                      const added = await add(item);
                       setAnnouncement(
-                        add(item)
+                        added
                           ? `${item.name} agregado al carrito.`
-                          : "Se alcanzó el límite de 100 unidades por producto o 50 productos en el carrito.",
-                      )
-                    }
+                          : "No se pudo validar tu sesión o se alcanzó el límite del carrito. Intenta de nuevo.",
+                      );
+                    }}
                   >
                     Agregar al carrito
                   </Button>

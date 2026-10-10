@@ -1,0 +1,1106 @@
+{
+  "schema_version": 1,
+  "project": "WOK Asian Food",
+  "scope": "Transcripción de ocho fotos. No contiene procedimientos inventados.",
+  "units": {
+    "g": "gramos",
+    "oz": "onzas; masa o volumen pendiente cuando no se especifica",
+    "fl_oz": "onzas fluidas; estándar por confirmar",
+    "lb": "libras",
+    "u": "unidad",
+    "porcion": "porción con tamaño pendiente"
+  },
+  "recipes": [
+    {
+      "id": "REC001",
+      "name": "Cerdo",
+      "source": "1000145410.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "",
+      "ingredients": [
+        {
+          "ingredient": "Lomo de cinta de cerdo",
+          "quantity": 6,
+          "unit": "oz",
+          "raw": "6 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz",
+          "quantity": 4,
+          "unit": "oz",
+          "raw": "4 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Mix de vegetales",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Salsa de soya",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "Pendiente confirmar si las oz son onzas fluidas.",
+          "status": "por_confirmar_unidad"
+        },
+        {
+          "ingredient": "Salsa agridulce",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "Pendiente confirmar si las oz son onzas fluidas.",
+          "status": "por_confirmar_unidad"
+        }
+      ]
+    },
+    {
+      "id": "REC002",
+      "name": "Pollo naranja",
+      "source": "1000145410.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "",
+      "ingredients": [
+        {
+          "ingredient": "Filete de pechuga de pollo",
+          "quantity": 6,
+          "unit": "oz",
+          "raw": "6 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz",
+          "quantity": 4,
+          "unit": "oz",
+          "raw": "4 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Mix de vegetales",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Salsa de soya",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "Pendiente confirmar si las oz son onzas fluidas.",
+          "status": "por_confirmar_unidad"
+        },
+        {
+          "ingredient": "Salsa naranja",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "Pendiente confirmar si las oz son onzas fluidas.",
+          "status": "por_confirmar_unidad"
+        }
+      ]
+    },
+    {
+      "id": "REC003",
+      "name": "Pollo teriyaki",
+      "source": "1000145411.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "",
+      "ingredients": [
+        {
+          "ingredient": "Filete de pechuga de pollo",
+          "quantity": 6,
+          "unit": "oz",
+          "raw": "6 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz",
+          "quantity": 4,
+          "unit": "oz",
+          "raw": "4 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Mix de vegetales",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Salsa de soya",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "Pendiente confirmar si las oz son onzas fluidas.",
+          "status": "por_confirmar_unidad"
+        },
+        {
+          "ingredient": "Salsa teriyaki",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "Pendiente confirmar si las oz son onzas fluidas.",
+          "status": "por_confirmar_unidad"
+        }
+      ]
+    },
+    {
+      "id": "REC004",
+      "name": "Ramen",
+      "source": "1000145411.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "",
+      "ingredients": [
+        {
+          "ingredient": "Lomo de cinta de cerdo",
+          "quantity": 4,
+          "unit": "oz",
+          "raw": "4 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Huevo duro",
+          "quantity": 1,
+          "unit": "u",
+          "raw": "1 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Fideo de harina",
+          "quantity": 2,
+          "unit": "porcion",
+          "raw": "2 porciones (u)",
+          "note": "Confirmar tamaño de cada porción.",
+          "status": "por_confirmar"
+        },
+        {
+          "ingredient": "Maíz dulce amarillo",
+          "quantity": 1,
+          "unit": "oz",
+          "raw": "1 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Brote de alfalfa",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Fideo de zanahoria",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Base caldo",
+          "quantity": 5,
+          "unit": "fl_oz",
+          "raw": "5 oz FL",
+          "note": "",
+          "status": "transcrito"
+        }
+      ]
+    },
+    {
+      "id": "REC005",
+      "name": "Ura aguacate",
+      "source": "1000145412.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "La hoja titula el grupo Sushi.",
+      "ingredients": [
+        {
+          "ingredient": "Alga nori",
+          "quantity": 1,
+          "unit": "u",
+          "raw": "1 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Zanahoria",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Pepino",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Queso crema",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "¿10 o 40 gr?",
+          "note": "Confirmado por el usuario el 2026-10-10.",
+          "status": "confirmado_usuario",
+          "confirmation_source": "usuario:2026-10-10"
+        },
+        {
+          "ingredient": "Surimi",
+          "quantity": 25,
+          "unit": "g",
+          "raw": "25 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Aguacate",
+          "quantity": 0.5,
+          "unit": "u",
+          "raw": "0.5 u",
+          "note": "",
+          "status": "transcrito"
+        }
+      ]
+    },
+    {
+      "id": "REC006",
+      "name": "Ura atún",
+      "source": "1000145412.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "",
+      "ingredients": [
+        {
+          "ingredient": "Alga nori",
+          "quantity": 1,
+          "unit": "u",
+          "raw": "1 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Zanahoria",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Pepino",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Aguacate",
+          "quantity": 0.5,
+          "unit": "u",
+          "raw": "0.5 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Queso crema",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Filete de atún",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "",
+          "status": "transcrito"
+        }
+      ]
+    },
+    {
+      "id": "REC007",
+      "name": "Ura salmón",
+      "source": "1000145413.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "",
+      "ingredients": [
+        {
+          "ingredient": "Alga nori",
+          "quantity": 1,
+          "unit": "u",
+          "raw": "1 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Surimi",
+          "quantity": 25,
+          "unit": "g",
+          "raw": "25 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Aguacate",
+          "quantity": 0.5,
+          "unit": "u",
+          "raw": "0.5 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Queso crema",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Filete de salmón",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Jalapeño",
+          "quantity": 30,
+          "unit": "g",
+          "raw": "30 g",
+          "note": "",
+          "status": "transcrito"
+        }
+      ]
+    },
+    {
+      "id": "REC008",
+      "name": "Maki atún",
+      "source": "1000145413.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "",
+      "ingredients": [
+        {
+          "ingredient": "Alga nori",
+          "quantity": 1,
+          "unit": "u",
+          "raw": "1 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Zanahoria",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Pepino",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Filete de atún",
+          "quantity": 2,
+          "unit": "oz",
+          "raw": "2 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Queso crema",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        }
+      ]
+    },
+    {
+      "id": "REC009",
+      "name": "Maki camarón",
+      "source": "1000145414.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "",
+      "ingredients": [
+        {
+          "ingredient": "Alga nori",
+          "quantity": 1,
+          "unit": "u",
+          "raw": "1 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Zanahoria",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Pepino",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Camarón",
+          "quantity": 4,
+          "unit": "u",
+          "raw": "4 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Queso crema",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        }
+      ]
+    },
+    {
+      "id": "REC010",
+      "name": "Gamba Roll",
+      "source": "1000145414.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "Nombre manuscrito parece Gamba Roll; confirmar nombre comercial.",
+      "ingredients": [
+        {
+          "ingredient": "Alga nori",
+          "quantity": 1,
+          "unit": "u",
+          "raw": "1 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Aguacate",
+          "quantity": 0.5,
+          "unit": "u",
+          "raw": "0.5 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Camarón",
+          "quantity": 4,
+          "unit": "u",
+          "raw": "4 u",
+          "note": "Confirmado por el usuario el 2026-10-10.",
+          "status": "confirmado_usuario",
+          "confirmation_source": "usuario:2026-10-10"
+        },
+        {
+          "ingredient": "Queso crema",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Salsa agridulce",
+          "quantity": 1,
+          "unit": "oz",
+          "raw": "1 oz",
+          "note": "Pendiente confirmar si las oz son onzas fluidas.",
+          "status": "por_confirmar_unidad"
+        }
+      ]
+    },
+    {
+      "id": "REC011",
+      "name": "Onigiri",
+      "source": "1000145415.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "Manuscrito: Oniguiri.",
+      "ingredients": [
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 150,
+          "unit": "g",
+          "raw": "150 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Surimi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 gr",
+          "note": "Cantidad con trazo superpuesto; lectura probable 50.",
+          "status": "por_confirmar"
+        }
+      ]
+    },
+    {
+      "id": "REC012",
+      "name": "Panko",
+      "source": "1000145415.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "No aparecen panko, alga, huevo ni aceite en esta lista.",
+      "ingredients": [
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Aguacate",
+          "quantity": 0.5,
+          "unit": "u",
+          "raw": "Fracción sobrescrita: ¿1/2 u?",
+          "note": "Confirmado por el usuario el 2026-10-10.",
+          "status": "confirmado_usuario",
+          "confirmation_source": "usuario:2026-10-10"
+        },
+        {
+          "ingredient": "Surimi",
+          "quantity": 25,
+          "unit": "g",
+          "raw": "25 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Filete de atún",
+          "quantity": 1,
+          "unit": "oz",
+          "raw": "1 oz",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Queso crema",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        }
+      ]
+    },
+    {
+      "id": "REC013",
+      "name": "Camarón crunchy",
+      "source": "1000145415.jpg",
+      "yield_quantity": null,
+      "yield_unit": null,
+      "procedure": null,
+      "preparation_minutes": null,
+      "status": "pendiente_validacion",
+      "note": "Manuscrito parece camarón crunchy. No aparece empanizado ni aceite.",
+      "ingredients": [
+        {
+          "ingredient": "Alga nori",
+          "quantity": 1,
+          "unit": "u",
+          "raw": "1 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Arroz para sushi",
+          "quantity": 50,
+          "unit": "g",
+          "raw": "50 g",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Camarón",
+          "quantity": 4,
+          "unit": "u",
+          "raw": "4 u",
+          "note": "",
+          "status": "transcrito"
+        },
+        {
+          "ingredient": "Queso crema",
+          "quantity": 10,
+          "unit": "g",
+          "raw": "10 g",
+          "note": "",
+          "status": "transcrito"
+        }
+      ]
+    }
+  ],
+  "purchases": [
+    {
+      "id": "COM001",
+      "ingredient": "Salsa de soya",
+      "presentation": "Galón",
+      "quantity": 128,
+      "unit": "oz",
+      "raw": "128 oz",
+      "note": "Confirmar si son onzas fluidas.",
+      "source": "1000145416.jpg",
+      "status": "por_confirmar"
+    },
+    {
+      "id": "COM002",
+      "ingredient": "Salsa agridulce",
+      "presentation": "1/2 lt",
+      "quantity": 15,
+      "unit": "oz",
+      "raw": "¿15 o 25 oz?",
+      "note": "Confirmado por el usuario el 2026-10-10. Pendiente confirmar onzas fluidas.",
+      "source": "1000145416.jpg",
+      "status": "por_confirmar_unidad",
+      "confirmation_source": "usuario:2026-10-10"
+    },
+    {
+      "id": "COM003",
+      "ingredient": "Queso crema",
+      "presentation": "310 gr",
+      "quantity": 310,
+      "unit": "g",
+      "raw": "310 gr",
+      "note": "Cantidad tomada de presentación; columna cantidad vacía.",
+      "source": "1000145416.jpg",
+      "status": "por_confirmar"
+    },
+    {
+      "id": "COM004",
+      "ingredient": "Alga nori",
+      "presentation": "1 pq",
+      "quantity": 100,
+      "unit": "u",
+      "raw": "100 u",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM005",
+      "ingredient": "Arroz para sushi",
+      "presentation": "1 saco",
+      "quantity": 40,
+      "unit": "lb",
+      "raw": "40 lb (18,160 gr)",
+      "note": "Equivalencia manuscrita 18,160 g; conservar aparte, no usar como conversión exacta.",
+      "source": "1000145416.jpg",
+      "status": "por_confirmar"
+    },
+    {
+      "id": "COM006",
+      "ingredient": "Camarón",
+      "presentation": "Caja",
+      "quantity": 64,
+      "unit": "u",
+      "raw": "64 u",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM007",
+      "ingredient": "Filete de atún",
+      "presentation": "Medallón",
+      "quantity": 300,
+      "unit": "g",
+      "raw": "300 gr (10 oz)",
+      "note": "Equivalencia manuscrita 10 oz no coincide exactamente con 300 g.",
+      "source": "1000145416.jpg",
+      "status": "por_confirmar"
+    },
+    {
+      "id": "COM008",
+      "ingredient": "Surimi",
+      "presentation": "1 pq",
+      "quantity": 454,
+      "unit": "g",
+      "raw": "¿454 gr?",
+      "note": "Confirmado por el usuario el 2026-10-10.",
+      "source": "1000145416.jpg",
+      "status": "confirmado_usuario",
+      "confirmation_source": "usuario:2026-10-10"
+    },
+    {
+      "id": "COM009",
+      "ingredient": "Aguacate",
+      "presentation": "Caja",
+      "quantity": 60,
+      "unit": "u",
+      "raw": "60 u",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM010",
+      "ingredient": "Zanahoria",
+      "presentation": "Bolsa",
+      "quantity": 600,
+      "unit": "g",
+      "raw": "600 gr",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM011",
+      "ingredient": "Pepino",
+      "presentation": "Bandeja",
+      "quantity": 450,
+      "unit": "g",
+      "raw": "450 gr",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM012",
+      "ingredient": "Salmón",
+      "presentation": "Bolsa",
+      "quantity": 600,
+      "unit": "g",
+      "raw": "600 gr",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM013",
+      "ingredient": "Brote de alfalfa",
+      "presentation": "1 pq",
+      "quantity": 50,
+      "unit": "g",
+      "raw": "50 gr",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM014",
+      "ingredient": "Maíz dulce B y B",
+      "presentation": "1 lata",
+      "quantity": 310,
+      "unit": "g",
+      "raw": "310 gr",
+      "note": "Confirmar peso neto o drenado.",
+      "source": "1000145416.jpg",
+      "status": "por_confirmar"
+    },
+    {
+      "id": "COM015",
+      "ingredient": "Fideo de harina",
+      "presentation": "Bolsa",
+      "quantity": 6,
+      "unit": "u",
+      "raw": "6 u",
+      "note": "Confirmar si cada unidad equivale a una porción del ramen.",
+      "source": "1000145416.jpg",
+      "status": "por_confirmar"
+    },
+    {
+      "id": "COM016",
+      "ingredient": "Huevo",
+      "presentation": "Cartón",
+      "quantity": 30,
+      "unit": "u",
+      "raw": "30 u",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM017",
+      "ingredient": "Mix de vegetales",
+      "presentation": "Bolsa",
+      "quantity": 1000,
+      "unit": "g",
+      "raw": "1000 gr",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM018",
+      "ingredient": "Arroz",
+      "presentation": "Bolsa",
+      "quantity": 400,
+      "unit": "g",
+      "raw": "400 gr",
+      "note": "",
+      "source": "1000145416.jpg",
+      "status": "transcrito"
+    },
+    {
+      "id": "COM019",
+      "ingredient": "Filete de pechuga de pollo",
+      "presentation": "Bolsa",
+      "quantity": 4500,
+      "unit": "g",
+      "raw": "4,500 gr (¿150 oz?)",
+      "note": "Confirmado por el usuario el 2026-10-10. Registro del recetario: 4500 g o 150 oz; conservar ambas cantidades sin tratarlas como conversión exacta.",
+      "source": "1000145417.jpg",
+      "status": "confirmado_usuario",
+      "confirmation_source": "usuario:2026-10-10",
+      "alternative_quantity": 150,
+      "alternative_unit": "oz",
+      "alternative_quantity_status": "confirmado_usuario"
+    },
+    {
+      "id": "COM020",
+      "ingredient": "Lomo de cinta de cerdo",
+      "presentation": "Lomo",
+      "quantity": 4000,
+      "unit": "g",
+      "raw": "4,000 gr (¿133 oz?)",
+      "note": "Confirmado por el usuario el 2026-10-10. Registro del recetario: 4000 g o 133 oz; conservar ambas cantidades sin tratarlas como conversión exacta.",
+      "source": "1000145417.jpg",
+      "status": "confirmado_usuario",
+      "confirmation_source": "usuario:2026-10-10",
+      "alternative_quantity": 133,
+      "alternative_unit": "oz",
+      "alternative_quantity_status": "confirmado_usuario"
+    },
+    {
+      "id": "COM021",
+      "ingredient": "Base caldo",
+      "presentation": "Lata",
+      "quantity": 128,
+      "unit": "fl_oz",
+      "raw": "128 oz FL",
+      "note": "",
+      "source": "1000145417.jpg",
+      "status": "transcrito"
+    }
+  ],
+  "questions": [
+    {
+      "id": "Q01",
+      "topic": "Cantidades por receta",
+      "question": "¿Cada lista corresponde a un plato, un rollo o un lote? ¿Cuántas piezas/porciones rinde?",
+      "answer": null
+    },
+    {
+      "id": "Q02",
+      "topic": "Arroces",
+      "question": "¿Los 50/150 g de arroz para sushi y las 4 oz de arroz se pesan crudos o ya cocidos?",
+      "answer": null
+    },
+    {
+      "id": "Q03",
+      "topic": "Ura aguacate",
+      "question": "¿Queso crema: 10 g o 40 g?",
+      "answer": "Confirmado: 10 g de queso crema."
+    },
+    {
+      "id": "Q04",
+      "topic": "Panko",
+      "question": "¿Aguacate: media unidad u otra fracción? ¿Faltan empanizado, huevo, alga y aceite?",
+      "answer": "Confirmado: 1/2 unidad de aguacate. Pendiente consultar los ingredientes ausentes."
+    },
+    {
+      "id": "Q05",
+      "topic": "Gamba Roll / Onigiri",
+      "question": "¿Gamba lleva 4 camarones? ¿Onigiri lleva 50 g de surimi? Confirmar nombres comerciales.",
+      "answer": "Confirmado: Gamba Roll lleva 4 camarones. Pendientes Onigiri y nombres comerciales."
+    },
+    {
+      "id": "Q06",
+      "topic": "Compra de salsa agridulce",
+      "question": "¿La cantidad es 15 o 25 oz? ¿Es volumen o peso? La presentación dice 1/2 litro.",
+      "answer": "Confirmado: 15 oz por presentación de 1/2 litro. Pendiente tipo de onza."
+    },
+    {
+      "id": "Q07",
+      "topic": "Compra de surimi",
+      "question": "¿El paquete tiene 454 g u otra cantidad?",
+      "answer": "Confirmado: paquete de 454 g."
+    },
+    {
+      "id": "Q08",
+      "topic": "Ramen",
+      "question": "¿Qué peso tiene cada una de las dos porciones de fideo? ¿La bolsa de 6 unidades corresponde a esas porciones? ¿La base caldo es concentrada o lista para servir y lleva 5 fl oz?",
+      "answer": null
+    },
+    {
+      "id": "Q09",
+      "topic": "Compras de carnes",
+      "question": "Confirmar 4,500 g de pollo y 4,000 g de cerdo; sus equivalencias manuscritas en oz son aproximadas/dudosas.",
+      "answer": "Confirmado: pollo 4,500 g o 150 oz; cerdo 4,000 g o 133 oz. Son cantidades del recetario, no una equivalencia exacta."
+    },
+    {
+      "id": "Q10",
+      "topic": "Salsas",
+      "question": "¿Las oz de soya, agridulce, naranja y teriyaki son fl oz o peso? Faltan receta/presentación de naranja y teriyaki.",
+      "answer": null
+    },
+    {
+      "id": "Q11",
+      "topic": "Producciones",
+      "question": "Faltan recetas de arroz cocido, arroz sushi, salsas, caldo y mix vegetal si se producen internamente.",
+      "answer": null
+    },
+    {
+      "id": "Q12",
+      "topic": "Procedimientos",
+      "question": "Faltan pasos, tiempos, rendimiento, mermas, estados crudo/cocido y presentación final de cada platillo.",
+      "answer": null
+    },
+    {
+      "id": "Q13",
+      "topic": "Ingredientes ausentes",
+      "question": "¿Crunchy/Panko requieren empanizado o aceite? ¿Se incluyen acompañamientos, ajonjolí u otros insumos no escritos?",
+      "answer": null
+    },
+    {
+      "id": "Q14",
+      "topic": "Ura salmón / aguacates",
+      "question": "¿Jalapeño son 30 g? ¿Media unidad de aguacate tiene un gramaje estándar?",
+      "answer": null
+    },
+    {
+      "id": "Q15",
+      "topic": "Pesos de compra",
+      "question": "Confirmar 310 g de queso crema, peso neto/drenado del maíz y significado de unidad para nori.",
+      "answer": null
+    }
+  ],
+  "import_policy": {
+    "mode": "draft",
+    "unknown_values": null,
+    "activate_recipes": false,
+    "convert_ambiguous_units": false
+  },
+  "updated_at": "2026-10-10",
+  "corrections_source": "Confirmaciones del usuario en esta conversación"
+}
