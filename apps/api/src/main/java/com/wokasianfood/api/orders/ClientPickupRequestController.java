@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -75,7 +76,8 @@ public class ClientPickupRequestController {
             prepSeconds = Math.addExact(prepSeconds, Math.multiplyExact((long) product.preparationSeconds, quantity));
             subtotal = subtotal.add(product.price.multiply(BigDecimal.valueOf(quantity)));
         }
-        if (prepSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(prepSeconds)))
+        if (prepSeconds > Duration.ofDays(1).toSeconds()
+                || !request.requestedFor().isAfter(Instant.now().plusSeconds(prepSeconds)))
             throw new AuthException(422, "El horario solicitado es anterior al tiempo mínimo de preparación indicado.");
 
         List<UUID> inserted = jdbc.query("""
