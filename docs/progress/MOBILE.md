@@ -286,3 +286,14 @@ SecureStore nativo y memoria Web por cuenta/conversación; aviso explícito de p
 
 - Pendiente: completar las protecciones del reintento y la validación del resultado de la solicitud.
 - No se realizaron aún pruebas en dispositivos, builds nativos ni comprobación de compatibilidad de dependencias para este cambio.
+
+## 2026-10-09 — Reintentos de reservas con resultado validado
+
+- Envío protegido frente a pulsaciones repetidas; cada intento conserva su cuenta, sesión, datos y clave originales.
+- Un resultado incierto bloquea la edición y ofrece reintentar la misma solicitud. No se crean reenvíos automáticos ni persistencia adicional del intento al reiniciar la aplicación.
+- Una evaluación sin envío conserva el formulario editable. Sólo una respuesta validada que acredita el envío lo vacía; esto no confirma la reserva.
+- Un rechazo explícito del primer envío permite corregir el formulario. Si ya hubo incertidumbre, un rechazo posterior no acredita por sí solo el resultado anterior.
+- La restauración tardía y los guardados pendientes no reemplazan los datos bloqueados ni recrean un borrador ya enviado.
+- Verificación observada: 107/107 pruebas móviles, 37/37 de reservas y 14/14 de presentación; lint, typecheck y comprobación del diff pasaron.
+- Dependencias, lockfile, controles de transporte, política, hora de Guatemala y comportamiento de pickup conservados.
+- Compatibilidad no confirmada: la comprobación Expo sin conexión falló por diferencias de versiones en dependencias que no se modificaron y advirtió que la validación offline no es fiable. Pendientes verificación en línea, QA en dispositivos físicos y builds nativos.

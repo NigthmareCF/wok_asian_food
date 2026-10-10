@@ -505,13 +505,15 @@ test("date selector announces real values as text rather than fictitious sliders
 
 test("actual reservation retry preserves its stored instant, serialized body and key", async () => {
   const pending = {
+    owner: "client@example.test",
+    sessionVersion: 1,
     body: JSON.stringify({
       guests: 3,
       requestedAt: "2026-01-01T00:00:00.000Z",
       preorder: false,
       notes: null,
     }),
-    key: "stored-reservation-key",
+    key: "09b7f19c-7ea1-4b55-bb27-8b342fb73f60",
   };
   const requests = [];
   const { default: ReservationsScreen } = presentationModule(
@@ -553,13 +555,25 @@ test("actual reservation retry preserves its stored instant, serialized body and
       },
       "@/providers/session-provider": {
         useSession: () => ({
-          session: { email: "client@example.test" },
+          session: { email: "client@example.test", version: 1 },
           request: async (path, options) => {
             requests.push({ path, options });
-            return { submitted: true, message: "Solicitud recibida" };
+            return {
+              requestId: pending.key,
+              reservationId: "bef0df01-a4cf-4ee9-a9ed-277ac338b7ee",
+              submitted: true,
+              decision: "REQUIRES_HUMAN_APPROVAL",
+              reasonCodes: [],
+              minimumOccupancyMinutes: 105,
+              maximumOccupancyMinutes: 150,
+              message: "Solicitud recibida",
+            };
           },
         }),
       },
+      "@/lib/reservation-attempt": jiti(
+        path.join(root, "src/lib/reservation-attempt.ts"),
+      ),
     },
   );
   const screen = ReservationsScreen();

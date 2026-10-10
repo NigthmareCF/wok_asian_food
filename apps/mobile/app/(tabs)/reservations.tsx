@@ -29,6 +29,11 @@ import {
   stepGuests,
 } from "@/components/reservation-date-time";
 import { ReservationHistoryItem, ReservationResult } from "@/lib/api";
+import {
+  isDefinitiveReservationRejection,
+  reservationAcknowledgement,
+  type ReservationAttempt,
+} from "@/lib/reservation-attempt";
 import { useSession } from "@/providers/session-provider";
 import {
   restaurantInstant,
@@ -77,7 +82,13 @@ function ReservationForm({ owner }: { owner: string }) {
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftError, setDraftError] = useState("");
-  const pendingRequest = useRef<{ body: string; key: string } | null>(null);
+  const pendingRequest = useRef<ReservationAttempt | null>(null);
+  const submitting = useRef(false);
+  const uncertain = useRef(false);
+  const draftGeneration = useRef(0);
+  const [draftEpoch, setDraftEpoch] = useState(0);
+  const [attemptPending, setAttemptPending] = useState(false);
+  const draftLocked = busy || attemptPending;
   const [policy, setPolicy] = useState<{
     owner: string;
     value: ReservationPolicy;
@@ -126,7 +137,7 @@ function ReservationForm({ owner }: { owner: string }) {
             draft.ownerEmail.trim().toLowerCase() === owner &&
             Date.now() - draft.savedAt < reservationDraftLifetimeMs
           ) {
-            if (active) {
+            if (active && !submitting.current && !pendingRequest.current) {
               setGuests(draft.guests);
               setRequestedAt(draft.requestedAt);
               setNotes(draft.notes);
@@ -175,19 +186,22 @@ function ReservationForm({ owner }: { owner: string }) {
       savedAt: Date.now(),
     };
     let active = true;
+    const generation = draftGeneration.current;
+    const isCurrentDraft = () =>
+      active && mounted.current && generation === draftGeneration.current;
     const timer = setTimeout(() => {
       void queueReservationDraftOperation(async () => {
-        if (active && mounted.current)
+        if (isCurrentDraft())
           await SecureStore.setItemAsync(
             reservationDraftKey,
             JSON.stringify(draft),
           );
       })
         .then(() => {
-          if (active && mounted.current) setDraftError("");
+          if (isCurrentDraft()) setDraftError("");
         })
         .catch(() => {
-          if (active && mounted.current)
+          if (isCurrentDraft())
             setDraftError(
               "No se pudo guardar el borrador en este dispositivo.",
             );
@@ -227,75 +241,110 @@ function ReservationForm({ owner }: { owner: string }) {
   }, [refreshHistory]);
 
   async function submit() {
-    if (!mounted.current) return;
-    setError("");
-    setMessage("");
-    if (!session) {
-      setError("Inicia sesión desde Mi cuenta para enviar una solicitud.");
+    if (
+      !mounted.current ||
+      submitting.current ||
+      draftEpoch !== draftGeneration.current
+    )
       return;
-    }
-    const instant = restaurantInstant(requestedAt);
-    const count = Number(guests);
-    if (!Number.isInteger(count) || count < 1 || count > 50) {
-      setError("Indica entre 1 y 50 personas.");
-      return;
-    }
-    if (!pendingRequest.current && !instant) {
-      setError("Indica una fecha y hora válidas.");
-      return;
-    }
-    if (!pendingRequest.current && !currentPolicy) {
-      setError("Consulta la política de solicitudes antes de enviar.");
-      return;
-    }
-    const timeError = currentPolicy
-      ? reservationTimeError(requestedAt, Date.now(), currentPolicy)
-      : null;
-    if (!pendingRequest.current && timeError) {
-      setError(timeError);
-      return;
-    }
-    const body =
-      pendingRequest.current?.body ??
-      JSON.stringify({
-        guests: count,
-        requestedAt: instant,
-        preorder,
-        notes: notes.trim() || null,
-      });
-    if (!pendingRequest.current || pendingRequest.current.body !== body)
-      pendingRequest.current = { body, key: createRequestKey() };
-    setBusy(true);
+    // This barrier precedes React updates and transport, including reentrant calls.
+    submitting.current = true;
     try {
-      const result = await request<ReservationResult>(
+      setError("");
+      setMessage("");
+      if (!session) {
+        setError("Inicia sesión desde Mi cuenta para enviar una solicitud.");
+        return;
+      }
+      let attempt = pendingRequest.current;
+      if (
+        attempt &&
+        (attempt.owner !== owner || attempt.sessionVersion !== session.version)
+      ) {
+        setError("Inicia una nueva sesión antes de enviar una solicitud.");
+        return;
+      }
+      if (!attempt) {
+        const instant = restaurantInstant(requestedAt);
+        const count = Number(guests);
+        if (!Number.isInteger(count) || count < 1 || count > 50) {
+          setError("Indica entre 1 y 50 personas.");
+          return;
+        }
+        if (!instant) {
+          setError("Indica una fecha y hora válidas.");
+          return;
+        }
+        if (!currentPolicy) {
+          setError("Consulta la política de solicitudes antes de enviar.");
+          return;
+        }
+        const timeError = reservationTimeError(
+          requestedAt,
+          Date.now(),
+          currentPolicy,
+        );
+        if (timeError) {
+          setError(timeError);
+          return;
+        }
+        attempt = Object.freeze({
+          owner,
+          sessionVersion: session.version,
+          body: JSON.stringify({
+            guests: count,
+            requestedAt: instant,
+            preorder,
+            notes: notes.trim() || null,
+          }),
+          key: createRequestKey(),
+        });
+        pendingRequest.current = attempt;
+        uncertain.current = false;
+      }
+      setAttemptPending(true);
+      setBusy(true);
+      const acknowledgement = await request<unknown>(
         "/api/v1/client/reservations",
         {
           method: "POST",
-          headers: { "Idempotency-Key": pendingRequest.current.key },
-          body,
+          headers: { "Idempotency-Key": attempt.key },
+          body: attempt.body,
         },
       );
       if (!mounted.current) return;
+      const result = reservationAcknowledgement(acknowledgement, attempt);
+      if (!result)
+        throw new Error(
+          "No pudimos validar el resultado. Reintenta la misma solicitud.",
+        );
       pendingRequest.current = null;
-      if (Platform.OS !== "web") {
-        try {
-          await queueReservationDraftOperation(async () => {
+      uncertain.current = false;
+      setAttemptPending(false);
+      if (result.submitted) {
+        // Invalidate queued saves before native cleanup or React's next render.
+        draftGeneration.current++;
+        setDraftEpoch(draftGeneration.current);
+        if (Platform.OS !== "web") {
+          try {
+            await queueReservationDraftOperation(async () => {
+              if (mounted.current)
+                await SecureStore.deleteItemAsync(reservationDraftKey);
+            });
+          } catch {
             if (mounted.current)
-              await SecureStore.deleteItemAsync(reservationDraftKey);
-          });
-        } catch {
-          if (mounted.current)
-            setDraftError(
-              "La solicitud se envió, pero no pudimos borrar el borrador local.",
-            );
+              setDraftError(
+                "La solicitud se envió, pero no pudimos borrar el borrador local.",
+              );
+          }
         }
+        if (!mounted.current) return;
+        setDraftRestored(false);
+        setGuests("2");
+        setRequestedAt("");
+        setNotes("");
+        setPreorder(false);
       }
-      if (!mounted.current) return;
-      setDraftRestored(false);
-      setGuests("2");
-      setRequestedAt("");
-      setNotes("");
-      setPreorder(false);
       setMessageTone(result.submitted ? "success" : "info");
       setMessage(
         result.message ||
@@ -305,13 +354,27 @@ function ReservationForm({ owner }: { owner: string }) {
       );
       void refreshHistory();
     } catch (e) {
-      if (mounted.current)
+      if (mounted.current) {
+        if (!uncertain.current && isDefinitiveReservationRejection(e)) {
+          pendingRequest.current = null;
+          setAttemptPending(false);
+        } else if (pendingRequest.current) {
+          uncertain.current = true;
+        }
         setError(
           e instanceof Error ? e.message : "No se pudo enviar la solicitud.",
         );
+      }
     } finally {
+      submitting.current = false;
       if (mounted.current) setBusy(false);
     }
+  }
+
+  function changeDraft(update: () => void) {
+    if (!mounted.current || submitting.current || pendingRequest.current)
+      return;
+    update();
   }
 
   async function cancelRequest(reservationId: string) {
@@ -368,8 +431,8 @@ function ReservationForm({ owner }: { owner: string }) {
         <Card>
           <ReservationDateTime
             value={requestedAt}
-            onChange={setRequestedAt}
-            disabled={busy}
+            onChange={(value) => changeDraft(() => setRequestedAt(value))}
+            disabled={draftLocked}
             policy={currentPolicy}
             helper={
               currentPolicy
@@ -398,8 +461,10 @@ function ReservationForm({ owner }: { owner: string }) {
               title="−"
               secondary
               accessibilityLabel="Quitar una persona"
-              disabled={busy || Number(guests) <= 1}
-              onPress={() => setGuests(stepGuests(guests, -1))}
+              disabled={draftLocked || Number(guests) <= 1}
+              onPress={() =>
+                changeDraft(() => setGuests(stepGuests(guests, -1)))
+              }
             />
             <Text
               accessibilityLabel={`${guests} personas`}
@@ -411,8 +476,10 @@ function ReservationForm({ owner }: { owner: string }) {
             <Button
               title="+"
               accessibilityLabel="Agregar una persona"
-              disabled={busy || Number(guests) >= 50}
-              onPress={() => setGuests(stepGuests(guests, 1))}
+              disabled={draftLocked || Number(guests) >= 50}
+              onPress={() =>
+                changeDraft(() => setGuests(stepGuests(guests, 1)))
+              }
             />
           </View>
           <Text className="font-sans text-xs text-muted-foreground">
@@ -421,8 +488,8 @@ function ReservationForm({ owner }: { owner: string }) {
           <Field
             label="Solicitudes especiales (opcional)"
             value={notes}
-            onChangeText={setNotes}
-            editable={!busy}
+            onChangeText={(value) => changeDraft(() => setNotes(value))}
+            editable={!draftLocked}
             placeholder="Cuéntanos cómo podemos ayudarte"
             multiline
             numberOfLines={3}
@@ -436,8 +503,8 @@ function ReservationForm({ owner }: { owner: string }) {
                 : "¿Requieres preorden? No"
             }
             secondary
-            disabled={busy}
-            onPress={() => setPreorder(!preorder)}
+            disabled={draftLocked}
+            onPress={() => changeDraft(() => setPreorder(!preorder))}
           />
           {preorder ? (
             <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
@@ -447,6 +514,12 @@ function ReservationForm({ owner }: { owner: string }) {
           ) : null}
           {error ? <Notice tone="error">{error}</Notice> : null}
           {message ? <Notice tone={messageTone}>{message}</Notice> : null}
+          {attemptPending && !busy ? (
+            <Notice>
+              El resultado aún no está confirmado. Reintenta la misma solicitud
+              con los mismos datos antes de crear otra.
+            </Notice>
+          ) : null}
           <Notice>
             Enviar la solicitud no confirma tu reserva. Espera la respuesta del
             equipo.
@@ -459,8 +532,13 @@ function ReservationForm({ owner }: { owner: string }) {
             />
           ) : null}
           <Button
-            title="Enviar solicitud de reserva"
+            title={
+              attemptPending && !busy
+                ? "Reintentar la misma solicitud"
+                : "Enviar solicitud de reserva"
+            }
             busy={busy}
+            disabled={busy}
             onPress={submit}
           />
         </Card>

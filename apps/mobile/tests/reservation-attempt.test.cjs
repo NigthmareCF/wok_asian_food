@@ -4,6 +4,7 @@ const { test } = require("node:test");
 const vm = require("node:vm");
 const ts = require("typescript");
 const jiti = require("jiti")(__filename);
+const { createApiRequest } = jiti("../src/lib/api-client.ts");
 const owner = "a@example.test";
 const draft = {
   ownerEmail: owner,
@@ -170,12 +171,15 @@ function screenHarness(
     exports,
     Promise,
     Date,
+    Error,
     setTimeout: (fn) => {
       timers.set(++nextTimer, fn);
       return nextTimer;
     },
     clearTimeout: (id) => timers.delete(id),
     require: (name) => {
+      if (name === "@/lib/reservation-attempt")
+        return jiti("../src/lib/reservation-attempt.ts");
       assert.ok(name in imports, `Unexpected dependency: ${name}`);
       return imports[name];
     },
@@ -238,9 +242,17 @@ function screenHarness(
     },
     notesValue: () => find("Field").value,
     dateValue: () => find("ReservationDateTime").value,
+    field: () => find("Field"),
+    selector: () => find("ReservationDateTime"),
+    submitButton: () =>
+      find("Button", (props) =>
+        /Enviar solicitud de reserva|Reintentar la misma solicitud/.test(
+          props.title,
+        ),
+      ),
     button: (title) => find("Button", (props) => props.title === title),
     submit() {
-      return this.button("Enviar solicitud de reserva").onPress();
+      return this.submitButton().onPress();
     },
     notices: () => JSON.stringify(tree),
     runTimers() {
@@ -269,6 +281,435 @@ test("owner, logout and same-owner session switches immediately hide all previou
     assert.ok(!h.notices().includes("Owner A history"));
     await h.settle();
   }
+});
+
+function acknowledgement(options, patch = {}) {
+  return {
+    requestId:
+      options.headers instanceof Headers
+        ? options.headers.get("Idempotency-Key")
+        : options.headers["Idempotency-Key"],
+    reservationId: "bef0df01-a4cf-4ee9-a9ed-277ac338b7ee",
+    submitted: true,
+    decision: "REQUIRES_HUMAN_APPROVAL",
+    reasonCodes: [],
+    minimumOccupancyMinutes: 90,
+    maximumOccupancyMinutes: 120,
+    message: "Solicitud recibida; pendiente de revisión",
+    ...patch,
+  };
+}
+function httpTransport(reply, posts = []) {
+  const api = createApiRequest(
+    "https://restaurant.example.test",
+    false,
+    async (_url, options) => {
+      posts.push(options);
+      return reply(options, posts.length);
+    },
+  );
+  return (_path, options) =>
+    options?.method === "POST"
+      ? api("/api/v1/client/reservations", options)
+      : [];
+}
+
+test("rapid and reentrant screen submissions send only one immutable attempt", async () => {
+  const release = deferred(),
+    posts = [];
+  let click,
+    reentered = false;
+  const h = screenHarness(
+    storage(),
+    (_path, options) => {
+      if (options?.method !== "POST") return [];
+      posts.push(options);
+      if (!reentered) {
+        reentered = true;
+        void click();
+      }
+      return release.promise;
+    },
+    "web",
+  );
+  h.render();
+  await h.settle();
+  h.notes("Original form");
+  h.date(draft.requestedAt);
+  click = h.submitButton().onPress;
+  const first = click(),
+    duplicate = click();
+  release.resolve(acknowledgement(posts[0]));
+  await Promise.all([first, duplicate]);
+  await h.settle();
+  assert.equal(posts.length, 1);
+  assert.equal(h.notesValue(), "");
+  assert.equal(h.dateValue(), "");
+});
+
+test("uncertain screen attempts lock every edit handler and retry the exact body/key", async () => {
+  const posts = [];
+  const h = screenHarness(
+    storage(),
+    httpTransport((options, number) => {
+      if (number === 1) throw new Error("Transport unavailable");
+      return new Response(JSON.stringify(acknowledgement(options)), {
+        status: 202,
+      });
+    }, posts),
+    "web",
+  );
+  h.render();
+  await h.settle();
+  h.notes("Original form");
+  h.date(draft.requestedAt);
+  const notes = h.field().onChangeText,
+    date = h.selector().onChange,
+    guests = h.button("+").onPress;
+  const preorder = h.button("¿Requieres preorden? No").onPress;
+  await h.submit();
+  await h.settle();
+  assert.equal(h.field().editable, false);
+  assert.equal(h.selector().disabled, true);
+  assert.equal(h.button("+").disabled, true);
+  notes("Changed notes");
+  date("2099-10-07T18:00");
+  guests();
+  preorder();
+  h.render();
+  assert.equal(h.notesValue(), "Original form");
+  assert.equal(h.dateValue(), draft.requestedAt);
+  assert.equal(h.submitButton().title, "Reintentar la misma solicitud");
+  await h.submit();
+  await h.settle();
+  assert.equal(posts[1].body, posts[0].body);
+  assert.equal(
+    posts[1].headers.get("Idempotency-Key"),
+    posts[0].headers.get("Idempotency-Key"),
+  );
+  assert.deepEqual(JSON.parse(posts[0].body), {
+    guests: 2,
+    requestedAt: "2099-10-06T18:00:00.000Z",
+    preorder: false,
+    notes: "Original form",
+  });
+  assert.equal(h.notesValue(), "");
+  assert.equal(h.field().editable, true);
+});
+
+for (const decision of ["REJECT", "SUGGEST_OTHER_TIME"]) {
+  test(`validated HTTP200 ${decision} preserves the editable draft and releases the attempt`, async () => {
+    const saved = storage(),
+      posts = [];
+    const h = screenHarness(
+      saved,
+      httpTransport(
+        (options) =>
+          new Response(
+            JSON.stringify(
+              acknowledgement(options, {
+                requestId: options.headers.get("Idempotency-Key"),
+                submitted: false,
+                reservationId: null,
+                decision,
+                message: "Elige otro horario",
+              }),
+            ),
+            { status: 200 },
+          ),
+        posts,
+      ),
+    );
+    h.render();
+    await h.settle();
+    h.notes("Editable draft");
+    h.date(draft.requestedAt);
+    h.runTimers();
+    await h.settle();
+    await h.submit();
+    await h.settle();
+    assert.equal(h.notesValue(), "Editable draft");
+    assert.equal(h.dateValue(), draft.requestedAt);
+    assert.equal(h.field().editable, true);
+    assert.equal(h.submitButton().title, "Enviar solicitud de reserva");
+    assert.ok(saved.value());
+    assert.ok(h.notices().includes("Elige otro horario"));
+    h.notes("Adjusted draft");
+    await h.submit();
+    assert.notEqual(
+      posts[1].headers.get("Idempotency-Key"),
+      posts[0].headers.get("Idempotency-Key"),
+    );
+    assert.equal(JSON.parse(posts[1].body).notes, "Adjusted draft");
+  });
+}
+
+for (const status of [400, 403, 413, 415, 422, 429, 408, 409, 418, 500, 503]) {
+  const definitive = [400, 403, 413, 415, 422, 429].includes(status);
+  test(`actual transport HTTP${status} ${definitive ? "releases a rejected fresh attempt" : "retains uncertain exact replay"}`, async () => {
+    const posts = [];
+    const h = screenHarness(
+      storage(),
+      httpTransport(
+        () => new Response("private server detail", { status }),
+        posts,
+      ),
+      "web",
+    );
+    h.render();
+    await h.settle();
+    h.notes("Original form");
+    h.date(draft.requestedAt);
+    await h.submit();
+    await h.settle();
+    assert.equal(h.field().editable, definitive);
+    assert.ok(!h.notices().includes("private server detail"));
+    if (definitive) h.notes("Adjusted form");
+    await h.submit();
+    await h.settle();
+    if (definitive) {
+      assert.notEqual(
+        posts[1].headers.get("Idempotency-Key"),
+        posts[0].headers.get("Idempotency-Key"),
+      );
+      assert.equal(JSON.parse(posts[1].body).notes, "Adjusted form");
+    } else {
+      assert.equal(posts[1].body, posts[0].body);
+      assert.equal(
+        posts[1].headers.get("Idempotency-Key"),
+        posts[0].headers.get("Idempotency-Key"),
+      );
+    }
+  });
+}
+
+for (const malformed of [
+  "invalid-json",
+  "missing-fields",
+  "wrong-request",
+  "inconsistent-submission",
+  "invalid-decision",
+  "invalid-occupancy",
+]) {
+  test(`malformed acknowledgement ${malformed} cannot clear or release the current draft`, async () => {
+    const posts = [];
+    const h = screenHarness(
+      storage(),
+      httpTransport((options) => {
+        const result = acknowledgement(options, {
+          requestId: options.headers.get("Idempotency-Key"),
+        });
+        if (malformed === "missing-fields") delete result.reasonCodes;
+        if (malformed === "wrong-request")
+          result.requestId = "09b7f19c-7ea1-4b55-bb27-8b342fb73f60";
+        if (malformed === "inconsistent-submission")
+          result.reservationId = null;
+        if (malformed === "invalid-decision") result.decision = "CONFIRMED";
+        if (malformed === "invalid-occupancy")
+          result.maximumOccupancyMinutes = 1;
+        return new Response(
+          malformed === "invalid-json" ? "not json" : JSON.stringify(result),
+          { status: 202 },
+        );
+      }, posts),
+      "web",
+    );
+    h.render();
+    await h.settle();
+    h.notes("Original form");
+    h.date(draft.requestedAt);
+    await h.submit();
+    await h.settle();
+    assert.equal(h.notesValue(), "Original form");
+    assert.equal(h.field().editable, false);
+    assert.equal(h.submitButton().title, "Reintentar la misma solicitud");
+    await h.submit();
+    await h.settle();
+    assert.equal(posts[1].body, posts[0].body);
+    assert.equal(
+      posts[1].headers.get("Idempotency-Key"),
+      posts[0].headers.get("Idempotency-Key"),
+    );
+  });
+}
+
+test("HTTP rejection after uncertainty cannot prove the earlier attempt absent", async () => {
+  const posts = [];
+  const h = screenHarness(
+    storage(),
+    httpTransport((_options, number) => {
+      if (number === 1) throw new Error("Lost response");
+      return new Response("", { status: 403 });
+    }, posts),
+    "web",
+  );
+  h.render();
+  await h.settle();
+  h.date(draft.requestedAt);
+  await h.submit();
+  await h.settle();
+  await h.submit();
+  await h.settle();
+  assert.equal(h.field().editable, false);
+  assert.equal(
+    posts[1].headers.get("Idempotency-Key"),
+    posts[0].headers.get("Idempotency-Key"),
+  );
+});
+
+test("renewing the same-owner session cannot replay its former uncertain attempt", async () => {
+  const posts = [];
+  const h = screenHarness(
+    storage(),
+    httpTransport(() => {
+      throw new Error("Lost response");
+    }, posts),
+    "web",
+  );
+  h.render();
+  await h.settle();
+  h.notes("Old session");
+  h.date(draft.requestedAt);
+  await h.submit();
+  await h.settle();
+  const oldRetry = h.submitButton().onPress;
+  h.switch(owner, 2);
+  await h.settle();
+  await oldRetry();
+  assert.equal(posts.length, 1);
+  assert.equal(h.field().editable, true);
+  assert.equal(h.notesValue(), "");
+  h.notes("New session");
+  h.date(draft.requestedAt);
+  await h.submit();
+  await h.settle();
+  assert.notEqual(
+    posts[1].headers.get("Idempotency-Key"),
+    posts[0].headers.get("Idempotency-Key"),
+  );
+  assert.equal(JSON.parse(posts[1].body).notes, "New session");
+});
+
+test("late native draft restoration cannot replace a locked uncertain request's visible form", async () => {
+  const read = deferred(),
+    posts = [];
+  const h = screenHarness(
+    { ...storage(), getItemAsync: () => read.promise },
+    httpTransport(() => {
+      throw new Error("Lost response");
+    }, posts),
+  );
+  h.render();
+  await h.settle();
+  h.notes("Current request");
+  h.date(draft.requestedAt);
+  await h.submit();
+  await h.settle();
+  read.resolve(JSON.stringify(draft));
+  await h.settle();
+  assert.equal(h.notesValue(), "Current request");
+  assert.equal(h.field().editable, false);
+  await h.submit();
+  await h.settle();
+  assert.equal(posts[1].body, posts[0].body);
+});
+
+test("actual aborted transport remains uncertain and keeps the exact replay identity", async () => {
+  const aborted = new AbortController(),
+    posts = [];
+  const api = createApiRequest(
+    "https://restaurant.example.test",
+    false,
+    async (_url, options) => {
+      posts.push(options);
+      return new Promise((_resolve, reject) => {
+        if (options.signal.aborted) reject(new Error("Transport aborted"));
+        else
+          options.signal.addEventListener(
+            "abort",
+            () => reject(new Error("Transport aborted")),
+            { once: true },
+          );
+      });
+    },
+  );
+  const h = screenHarness(
+    storage(),
+    (path, options) =>
+      options?.method === "POST"
+        ? api(path, { ...options, signal: aborted.signal })
+        : [],
+    "web",
+  );
+  h.render();
+  await h.settle();
+  h.date(draft.requestedAt);
+  const pending = h.submit();
+  aborted.abort();
+  await pending;
+  await h.settle();
+  assert.equal(h.field().editable, false);
+  assert.ok(h.notices().includes("No pudimos confirmar el resultado"));
+  await h.submit();
+  await h.settle();
+  assert.equal(
+    posts[1].headers.get("Idempotency-Key"),
+    posts[0].headers.get("Idempotency-Key"),
+  );
+  assert.equal(posts[1].body, posts[0].body);
+});
+
+test("confirmed submission cleanup cannot be undone by a previously scheduled draft save", async () => {
+  const release = deferred(),
+    saved = storage();
+  const h = screenHarness(
+    {
+      ...saved,
+      deleteItemAsync: async (name) => {
+        await release.promise;
+        return saved.deleteItemAsync(name);
+      },
+    },
+    httpTransport(
+      (options) =>
+        new Response(JSON.stringify(acknowledgement(options)), { status: 202 }),
+    ),
+  );
+  h.render();
+  await h.settle();
+  h.notes("Submitted draft");
+  h.date(draft.requestedAt);
+  const pending = h.submit();
+  await h.settle();
+  h.runTimers();
+  release.resolve();
+  await pending;
+  await h.settle();
+  assert.equal(saved.value(), null);
+  assert.equal(h.notesValue(), "");
+  assert.equal(h.field().editable, true);
+});
+
+test("a completed submit handler cannot create a second request before the reset renders", async () => {
+  const posts = [];
+  const h = screenHarness(
+    storage(),
+    httpTransport(
+      (options) =>
+        new Response(JSON.stringify(acknowledgement(options)), { status: 202 }),
+      posts,
+    ),
+    "web",
+  );
+  h.render();
+  await h.settle();
+  h.date(draft.requestedAt);
+  const click = h.submitButton().onPress;
+  await click();
+  await click();
+  assert.equal(posts.length, 1);
+  await h.settle();
+  assert.equal(h.dateValue(), "");
 });
 
 test("normalized owner drafts restore, but an old restore cannot populate a new session", async () => {
