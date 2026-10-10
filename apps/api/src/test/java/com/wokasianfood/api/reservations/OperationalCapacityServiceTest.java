@@ -14,10 +14,10 @@ class OperationalCapacityServiceTest {
         return LocalDateTime.of(2026, 9, 26, hour, minute).atZone(ZONE).toInstant();
     }
 
-    @Test void rejectsLessThanThreeHoursForTableRequests() {
-        var assessment = service.assessTable(2, at(18, 0), at(15, 1), false);
+    @Test void rejectsLessThanTwoHoursForTableRequests() {
+        var assessment = service.assessTable(2, at(18, 0), at(16, 1), false);
         assertEquals(OperationalCapacityService.Decision.REJECT, assessment.decision());
-        assertTrue(assessment.reasonCodes().contains("MINIMUM_NOTICE_3_HOURS"));
+        assertTrue(assessment.reasonCodes().contains("MINIMUM_NOTICE_120_MINUTES"));
     }
 
     @Test void largeGroupAtLastAdmissionRequiresHumanApproval() {
@@ -38,11 +38,17 @@ class OperationalCapacityServiceTest {
         Instant after = Instant.now();
 
         assertEquals("America/Guatemala", policy.timeZone());
-        assertEquals(3, policy.minimumNoticeHours());
-        assertEquals(LocalTime.of(14, 0), policy.firstRequestTime());
+        assertEquals(2, policy.minimumNoticeHours());
+        assertEquals(120, policy.minimumNoticeMinutes());
+        assertEquals(4, policy.baseGuests());
+        assertEquals(2, policy.additionalGuestGroupSize());
+        assertEquals(15, policy.additionalNoticeMinutes());
+        assertEquals(LocalTime.MIDNIGHT, policy.firstRequestTime());
         assertEquals(LocalTime.of(21, 15), policy.lastRequestTime());
         assertEquals(LocalTime.of(20, 30), policy.preorderRecommendedAfter());
-        assertFalse(policy.preorderItemsSupported());
+        assertTrue(policy.preorderItemsSupported());
+        assertTrue(policy.outsideHoursRequiresReview());
+        assertEquals(policy.lastRequestTime(), policy.completePreorderAt());
         assertFalse(policy.asOf().isBefore(before));
         assertFalse(policy.asOf().isAfter(after));
     }
@@ -56,9 +62,9 @@ class OperationalCapacityServiceTest {
 
         assertEquals(OperationalCapacityService.Decision.REJECT,
                 service.assessTable(2, first, noticeBoundary.plusSeconds(1), false).decision());
-        assertFalse(service.assessTable(2, first, noticeBoundary, false).reasonCodes().contains("MINIMUM_NOTICE_3_HOURS"));
-        assertFalse(service.assessTable(2, first, at(10, 0), false).reasonCodes().contains("OUTSIDE_TABLE_WINDOW"));
-        assertTrue(service.assessTable(2, first.minusSeconds(1), at(10, 0), false).reasonCodes().contains("OUTSIDE_TABLE_WINDOW"));
+        assertFalse(service.assessTable(2, first, noticeBoundary, false).reasonCodes().contains("MINIMUM_NOTICE_120_MINUTES"));
+        assertTrue(service.assessTable(2, first, noticeBoundary, false).reasonCodes().contains("OUTSIDE_HOURS_REVIEW"));
+        assertTrue(service.assessTable(2, first.minusSeconds(1), noticeBoundary.minusSeconds(1), false).reasonCodes().contains("OUTSIDE_TABLE_WINDOW"));
 
         Instant last = LocalDateTime.of(2026, 9, 26,
                 policy.lastRequestTime().getHour(), policy.lastRequestTime().getMinute()).atZone(zone).toInstant();
@@ -79,5 +85,17 @@ class OperationalCapacityServiceTest {
         assertEquals(OperationalCapacityService.Decision.REQUIRES_HUMAN_APPROVAL, late.decision());
         assertFalse(service.assessTable(2, threshold.plusSeconds(1), at(10, 0), true)
                 .reasonCodes().contains("PREORDER_RECOMMENDED"));
+    }
+
+    @Test void policyFormulaMatchesGuestBoundariesAndCompletePreorderFrontier() {
+        var policy=service.policy();
+        for(int guests=1;guests<=50;guests++) {
+            long minutes=policy.minimumNoticeMinutes()+policy.additionalNoticeMinutes()*
+                    ((Math.max(guests-policy.baseGuests(),0)+policy.additionalGuestGroupSize()-1)/policy.additionalGuestGroupSize());
+            Instant requested=at(18,0), now=requested.minusSeconds(minutes*60);
+            assertNotEquals(OperationalCapacityService.Decision.REJECT,service.assessTable(guests,requested,now,true).decision());
+            assertEquals(OperationalCapacityService.Decision.REJECT,service.assessTable(guests,requested,now.plusSeconds(1),true).decision());
+        }
+        assertTrue(service.assessTable(2,at(21,15),at(17,0),false).reasonCodes().contains("COMPLETE_PREORDER_REQUIRED"));
     }
 }

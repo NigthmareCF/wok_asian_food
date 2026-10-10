@@ -49,7 +49,7 @@ class ClientDeliveryRequestControllerTest {
         UUID requestId = UUID.randomUUID();
         UUID customerId = UUID.randomUUID();
         var requestedFor = Instant.now().plusSeconds(3600);
-        org.mockito.Mockito.doAnswer(invocation -> {
+        org.mockito.Mockito.lenient().doAnswer(invocation -> {
             String sql = invocation.getArgument(0);
             @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
             ResultSet rs = org.mockito.Mockito.mock(ResultSet.class);
@@ -61,6 +61,8 @@ class ClientDeliveryRequestControllerTest {
                 when(rs.getString("currency_code")).thenReturn("GTQ");
                 when(rs.getString("payment_preference")).thenReturn("CASH_ON_DELIVERY");
                 when(rs.getString("customer_note")).thenReturn("Llamar al llegar");
+                when(rs.getObject("order_id", UUID.class)).thenReturn(null);
+                when(rs.getString("order_status")).thenReturn(null);
             } else {
                 when(rs.getString("name_snapshot")).thenReturn("Pad Thai");
                 when(rs.getInt("quantity")).thenReturn(2);
@@ -101,11 +103,11 @@ class ClientDeliveryRequestControllerTest {
     }
 
     @Test
-    void deliveryRequestRevalidatesCatalogAndPersistsPendingRequestSnapshots() throws Exception {
+    void unverifiedPhoneRejectsDeliveryBeforeCreatingRequest() throws Exception {
         UUID requestId = UUID.randomUUID();
         UUID menuItemId = UUID.randomUUID();
         UUID currencyId = UUID.randomUUID();
-        doReturn(List.of("MANUAL_APPROVAL")).when(jdbc).query(contains("code = 'DELIVERY'"), any(RowMapper.class));
+        org.mockito.Mockito.lenient().doReturn(List.of("MANUAL_APPROVAL")).when(jdbc).query(contains("code = 'DELIVERY'"), any(RowMapper.class));
         org.mockito.Mockito.doAnswer(invocation -> {
             String sql = invocation.getArgument(0);
             @SuppressWarnings("unchecked") RowMapper<Object> mapper = invocation.getArgument(1);
@@ -129,15 +131,9 @@ class ClientDeliveryRequestControllerTest {
                 "Zona 10, Ciudad de Guatemala", "Casa con portón negro", "+502 5555-1234",
                 ClientDeliveryRequestController.PaymentPreference.ONLINE_PAYMENT_REQUESTED,
                 List.of(new ClientDeliveryRequestController.RequestedItem(menuItemId, 2)));
-        var receipt = new ClientDeliveryRequestController(jdbc).submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request);
-
-        assertEquals(requestId, receipt.requestId());
-        assertEquals("DELIVERY", receipt.fulfillmentType());
-        assertEquals("PENDING_REVIEW", receipt.status());
-        assertEquals(new BigDecimal("96.00"), receipt.subtotal());
-        assertEquals(ClientDeliveryRequestController.PaymentPreference.ONLINE_PAYMENT_REQUESTED, receipt.paymentPreference());
-        verify(jdbc).update(contains("INSERT INTO wok.order_request_items"), any(Object[].class));
-        verify(jdbc).update(contains("INSERT INTO wok.order_request_events"), org.mockito.ArgumentMatchers.eq(requestId), org.mockito.ArgumentMatchers.any());
+        var error=assertThrows(AuthException.class,()->new ClientDeliveryRequestController(jdbc).submit(jwt(UUID.randomUUID()), UUID.randomUUID(), request));
+        assertEquals(422,error.status());
+        verify(jdbc,never()).update(contains("order_request_items"),any(Object[].class));
     }
 
     private Jwt jwt(UUID userId) {

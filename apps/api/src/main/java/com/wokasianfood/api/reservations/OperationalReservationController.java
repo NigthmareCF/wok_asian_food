@@ -98,6 +98,7 @@ class ReservationReviewService {
         if (current.rowVersion != expectedVersion)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La solicitud cambió. Actualiza la vista y vuelve a intentarlo.");
 
+        new ReservationCapacityHoldService(jdbc).finish(reservationId,actor,decision==OperationalReservationController.Decision.CONFIRM);
         String nextStatus = decision == OperationalReservationController.Decision.CONFIRM ? "CONFIRMED" : "CANCELLED";
         String cancellationReason = decision == OperationalReservationController.Decision.REJECT ? "STAFF_REJECTED: " + reason : null;
         int updated = jdbc.update("""

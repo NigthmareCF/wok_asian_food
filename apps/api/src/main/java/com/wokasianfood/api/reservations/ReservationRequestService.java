@@ -38,7 +38,7 @@ public class ReservationRequestService {
         Result replay = findReplay(userId, requestId, payloadHash);
         if (replay != null) return replay;
 
-        var assessment = capacity.assessTable(request.guests(), request.requestedAt(), Instant.now(), request.preorder());
+        var assessment = capacity.assessTable(request.guests(), request.requestedAt(), Instant.now(), request.preorder() && !request.items().isEmpty());
         var estimate = assessment.occupancy() == null ? occupancy.estimate(request.guests()) : assessment.occupancy();
         UUID reservationId = null;
         if (assessment.decision() != OperationalCapacityService.Decision.REJECT
@@ -74,6 +74,7 @@ public class ReservationRequestService {
             """, reservationId, userId, requestId, payloadHash, assessment.decision().name(), encodeStrings(assessment.reasonCodes()),
             encodeStrings(List.of("PREORDER=" + request.preorder())), estimate.maximumMinutes(),
             estimate.minimumMinutes(), assessment.publicMessage(), Timestamp.from(request.requestedAt()), request.guests());
+        if(reservationId!=null) new ReservationCapacityHoldService(jdbc).accept(userId,request.quoteId(),reservationId,requestId,request);
         return new Result(requestId, reservationId, reservationId != null, assessment.decision(),
                 assessment.reasonCodes(), estimate.minimumMinutes(), estimate.maximumMinutes(), assessment.publicMessage());
     }
@@ -117,6 +118,7 @@ public class ReservationRequestService {
             INSERT INTO wok.reservation_status_history(reservation_id, from_status, to_status, reason, actor_user_id)
             VALUES (?, 'REQUESTED', 'CANCELLED', 'CANCELLED_BY_CLIENT', ?)
             """, reservationId, userId);
+        new ReservationCapacityHoldService(jdbc).finish(reservationId,userId,false);
         return new CancellationResult(reservationId, "CANCELLED");
     }
 
@@ -163,7 +165,7 @@ public class ReservationRequestService {
 
     private String hashRequest(Request request) {
         String canonical = "reservation-request-v1\n" + request.guests() + "\n" + request.requestedAt()
-                + "\n" + request.preorder() + "\n" + (request.notes() == null ? "" : request.notes());
+                + "\n" + request.preorder() + "\n" + (request.notes() == null ? "" : request.notes()) + "\n" + ReservationQuoteController.normalized(request.items());
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException error) {
@@ -181,7 +183,11 @@ public class ReservationRequestService {
 
     private record ResultRow(UUID reservationId, OperationalCapacityService.Decision decision, List<String> reasons,
                              int minimumMinutes, int maximumMinutes, String message, UUID userId, String payloadHash) {}
-    public record Request(int guests, Instant requestedAt, boolean preorder, String notes) {}
+    public record Request(int guests, Instant requestedAt, boolean preorder, String notes,
+        List<ReservationQuoteController.Line> items,UUID quoteId) {
+        public Request(int guests,Instant requestedAt,boolean preorder,String notes){this(guests,requestedAt,preorder,notes,List.of(),null);}
+        public Request {items=items==null?List.of():List.copyOf(items);}
+    }
     public record Result(UUID requestId, UUID reservationId, boolean submitted,
                          OperationalCapacityService.Decision decision, List<String> reasonCodes,
                          int minimumOccupancyMinutes, int maximumOccupancyMinutes, String message) {}

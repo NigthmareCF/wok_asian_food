@@ -106,6 +106,10 @@ public abstract class PostgresIntegrationTest {
         return send("PATCH", path, token, body, Map.of());
     }
 
+    protected HttpResponse<String> patch(String path, String token, String body, Map<String, String> headers) {
+        return send("PATCH", path, token, body, headers);
+    }
+
     protected HttpResponse<String> send(String method, String path, String token, String body,
                                         Map<String, String> headers) {
         HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(baseUrl() + path));
@@ -127,6 +131,42 @@ public abstract class PostgresIntegrationTest {
         }
     }
 
+    /** Explicit core fixtures. Verification rows here are synthetic database setup, never a production adapter. */
+    private final java.util.Map<String,String> quotedFixtureBodies=new java.util.concurrent.ConcurrentHashMap<>();
+    protected static java.time.Instant nextServiceSlot() {
+        return java.time.LocalDate.now(java.time.ZoneId.of("America/Guatemala")).plusDays(1).atTime(18,0).atZone(java.time.ZoneId.of("America/Guatemala")).toInstant();
+    }
+    protected UUID fixturePrincipal(String token) {
+        try{return UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper().readTree(java.util.Base64.getUrlDecoder().decode(token.split("\\.")[1])).path("sub").asText());}
+        catch(Exception e){throw new IllegalStateException(e);}
+    }
+    protected synchronized String withCoreQuote(String token,String payload,String type) {
+        String cacheKey=token+"|"+type+"|"+payload;
+        if(quotedFixtureBodies.containsKey(cacheKey))return quotedFixtureBodies.get(cacheKey);
+        try {
+            var json=new com.fasterxml.jackson.databind.ObjectMapper();var data=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree(payload);
+            var quote=json.createObjectNode();
+            if(type.equals("RESERVATION")){quote.put("guests",data.path("guests").asInt());quote.put("requestedAt",data.path("requestedAt").asText());quote.put("preorder",data.path("preorder").asBoolean());quote.set("items",data.has("items")?data.path("items"):json.createArrayNode());}
+            else {quote.put("fulfillmentType",type);quote.set("requestedFor",data.path("requestedFor"));quote.set("items",data.path("items"));}
+            var result=post(type.equals("RESERVATION")?"/api/v1/client/reservation-quotes":"/api/v1/client/order-quotes",token,quote.toString(),Map.of("Idempotency-Key",UUID.randomUUID().toString()));
+            if(result.statusCode()<200||result.statusCode()>299)return payload;
+            data.put("quoteId",json.readTree(result.body()).path("quoteId").asText());
+            if(type.equals("RESERVATION")&&!data.has("items"))data.set("items",json.createArrayNode());
+            String body=data.toString();quotedFixtureBodies.put(cacheKey,body);return body;
+        }catch(Exception e){throw new IllegalStateException(e);}
+    }
+    protected void verifiedPhoneFixture(String token,String phone) {
+        UUID user=fixturePrincipal(token);String exact=com.wokasianfood.api.identity.PhoneVerificationService.normalize(phone);
+        jdbc.update("UPDATE wok.users SET phone=? WHERE id=?",phone,user);
+        jdbc.update("INSERT INTO wok.phone_verifications(user_id,phone,verified_at,real_possession) VALUES(?,?,now(),true) ON CONFLICT(user_id) DO UPDATE SET phone=excluded.phone,verified_at=excluded.verified_at,real_possession=true",user,exact);
+    }
+    protected void authorizeReviewFixture(UUID requestId) {
+        UUID admin=createUserWithRole("review-fixture-"+UUID.randomUUID()+"@wok.test","ADMIN");String token=tokenFor(admin);
+        var type=jdbc.queryForObject("SELECT fulfillment_type FROM wok.order_requests WHERE id=?",String.class,requestId);
+        if("DELIVERY".equals(type))assertFixtureSuccess(post("/api/v1/operational/order-requests/"+requestId+"/logistics-confirmation",token,"{\"reason\":\"Logística sintética de prueba\"}",Map.of("Idempotency-Key",UUID.randomUUID().toString())));
+        assertFixtureSuccess(post("/api/v1/operational/order-requests/"+requestId+"/override",token,"{\"reason\":\"Revisión sintética de prueba\"}",Map.of("Idempotency-Key",UUID.randomUUID().toString())));
+    }
+    private void assertFixtureSuccess(HttpResponse<String> result){if(result.statusCode()<200||result.statusCode()>299)throw new IllegalStateException(result.body());}
     protected String baseUrl() {
         return "http://127.0.0.1:" + port;
     }

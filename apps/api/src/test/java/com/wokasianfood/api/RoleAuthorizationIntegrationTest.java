@@ -30,13 +30,19 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
         Instant after = Instant.now();
         assertThat(response.statusCode()).isEqualTo(200);
         var policy = JsonMapper.builder().build().readTree(response.body());
-        assertThat(policy.size()).isEqualTo(7);
+        assertThat(policy.size()).isEqualTo(13);
         assertThat(policy.path("timeZone").asString()).isEqualTo("America/Guatemala");
-        assertThat(policy.path("minimumNoticeHours").asInt()).isEqualTo(3);
-        assertThat(LocalTime.parse(policy.path("firstRequestTime").asString())).isEqualTo(LocalTime.of(14, 0));
+        assertThat(policy.path("minimumNoticeHours").asInt()).isEqualTo(2);
+        assertThat(policy.path("minimumNoticeMinutes").asInt()).isEqualTo(120);
+        assertThat(policy.path("baseGuests").asInt()).isEqualTo(4);
+        assertThat(policy.path("additionalGuestGroupSize").asInt()).isEqualTo(2);
+        assertThat(policy.path("additionalNoticeMinutes").asInt()).isEqualTo(15);
+        assertThat(policy.path("outsideHoursRequiresReview").asBoolean()).isTrue();
+        assertThat(LocalTime.parse(policy.path("completePreorderAt").asString())).isEqualTo(LocalTime.of(21,15));
+        assertThat(LocalTime.parse(policy.path("firstRequestTime").asString())).isEqualTo(LocalTime.MIDNIGHT);
         assertThat(LocalTime.parse(policy.path("lastRequestTime").asString())).isEqualTo(LocalTime.of(21, 15));
         assertThat(LocalTime.parse(policy.path("preorderRecommendedAfter").asString())).isEqualTo(LocalTime.of(20, 30));
-        assertThat(policy.path("preorderItemsSupported").asBoolean()).isFalse();
+        assertThat(policy.path("preorderItemsSupported").asBoolean()).isTrue();
         assertThat(Instant.parse(policy.path("asOf").asString())).isBetween(before, after);
     }
 

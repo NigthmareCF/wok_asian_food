@@ -109,7 +109,8 @@ class KitchenService {
                 rs.getTimestamp("estimated_ready_at") == null ? null : rs.getTimestamp("estimated_ready_at").toInstant(),
                 rs.getString("channel"), rs.getString("dining_table_name"), rs.getString("account_name"),
                 rs.getInt("item_count"), rs.getInt("total_quantity"),
-                rs.getTimestamp("oldest_created_at") == null ? null : rs.getTimestamp("oldest_created_at").toInstant());
+                rs.getTimestamp("oldest_created_at") == null ? null : rs.getTimestamp("oldest_created_at").toInstant(),
+                List.of());
 
     List<TicketView> queue(UUID stationId, String status) {
         return jdbc.query(TICKET_SELECT + """
@@ -119,7 +120,7 @@ class KitchenService {
                  OR t.status = ?
               )
             ORDER BY t.created_at, t.sequence_no
-            """, TICKET_MAPPER, stationId, stationId, status, status);
+            """, TICKET_MAPPER, stationId, stationId, status, status).stream().map(this::withItems).toList();
     }
 
     List<StationLoad> load() {
@@ -246,13 +247,34 @@ class KitchenService {
 
     private TicketView view(UUID ticketId) {
         return jdbc.query(TICKET_SELECT + " WHERE t.id = ?", TICKET_MAPPER, ticketId).stream().findFirst()
+                .map(this::withItems)
                 .orElseThrow(() -> new AuthException(404, "No encontramos la comanda."));
+    }
+
+    private TicketView withItems(TicketView ticket) {
+        List<TicketItemView> items = jdbc.query("""
+                SELECT i.id AS order_item_id, i.name_snapshot, ti.quantity, ti.action,
+                       i.fulfillment, i.notes
+                FROM wok.kitchen_ticket_items ti
+                JOIN wok.order_items i ON i.id = ti.order_item_id
+                WHERE ti.ticket_id = ?
+                ORDER BY ti.created_at, ti.id
+                """, (rs, row) -> new TicketItemView(
+                    rs.getObject("order_item_id", UUID.class), rs.getString("name_snapshot"),
+                    rs.getInt("quantity"), rs.getString("action"), rs.getString("fulfillment"),
+                    rs.getString("notes")), ticket.id());
+        return new TicketView(ticket.id(), ticket.orderId(), ticket.orderCode(), ticket.sequence(), ticket.status(),
+                ticket.rowVersion(), ticket.stationId(), ticket.stationCode(), ticket.claimedBy(), ticket.claimedAt(),
+                ticket.readyAt(), ticket.estimatedReadyAt(), ticket.channel(), ticket.diningTableName(),
+                ticket.accountName(), ticket.itemCount(), ticket.totalQuantity(), ticket.oldestItemAt(), items);
     }
 
     public record TicketView(UUID id, UUID orderId, String orderCode, int sequence, String status, int rowVersion,
                              UUID stationId, String stationCode, UUID claimedBy, Instant claimedAt, Instant readyAt,
                              Instant estimatedReadyAt, String channel, String diningTableName, String accountName,
-                             int itemCount, int totalQuantity, Instant oldestItemAt) {}
+                             int itemCount, int totalQuantity, Instant oldestItemAt, List<TicketItemView> items) {}
+    public record TicketItemView(UUID orderItemId, String name, int quantity, String action, String fulfillment,
+                                 String notes) {}
     public record StationLoad(UUID stationId, String stationCode, int queued, int preparing, int ready,
                               Instant oldestQueuedAt) {}
 }

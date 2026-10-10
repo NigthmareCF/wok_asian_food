@@ -8,6 +8,24 @@ current_step='read Compose network'
 project=$(docker compose config --format json | jq -r '.name')
 network="${project}_app_net"
 
+current_step='require empty isolated fixture database'
+# No sembrar ni ajustar horarios sobre una base que ya contiene usuarios/ventas.
+empty_database=$(docker compose exec -T db sh -c \
+  'psql -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT NOT EXISTS (SELECT 1 FROM wok.users) AND NOT EXISTS (SELECT 1 FROM wok.orders) AND NOT EXISTS (SELECT 1 FROM wok.payments);"' | tr -d '\r')
+[[ "$empty_database" == 't' ]]
+
+current_step='verify pickup schedule boundaries in rollback-only fixture'
+# CI envia SQL por stdin; resolver el include aqui evita depender de mounts del DB.
+while IFS= read -r line; do
+  if [[ "$line" == '\ir ../../.github/scripts/pickup-smoke-window.sql' ]]; then
+    cat .github/scripts/pickup-smoke-window.sql
+  else
+    printf '%s\n' "$line"
+  fi
+done < database/tests/smoke_pickup_window.sql | docker compose exec -T db sh -c \
+  'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > /dev/null
+printf 'PASS seven rollback-only pickup-window boundary checks\n'
+
 current_step='seed demo data'
 docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   < database/seeds/dev_demo.sql > /dev/null
@@ -25,6 +43,15 @@ INSERT INTO user_roles (user_id, role_id)
 SELECT 'b849b4e6-1a03-4e5e-a2ee-8248d8ee3284', id FROM roles WHERE code = 'CLIENT';
 INSERT INTO customer_profiles (user_id, full_name)
 VALUES ('b849b4e6-1a03-4e5e-a2ee-8248d8ee3284', 'Client Flow');
+INSERT INTO users (id, email, display_name, status, email_verified_at)
+VALUES ('09a29fc4-eef8-43e6-bb88-f37158c2cbe9', 'client-other@wok.demo', 'Client Other', 'ACTIVE', now());
+INSERT INTO user_credentials (user_id, password_hash)
+SELECT '09a29fc4-eef8-43e6-bb88-f37158c2cbe9', password_hash
+FROM user_credentials WHERE user_id = 'c9b8f7d9-1f27-4f05-b79a-580fe34165a2';
+INSERT INTO user_roles (user_id, role_id)
+SELECT '09a29fc4-eef8-43e6-bb88-f37158c2cbe9', id FROM roles WHERE code = 'CLIENT';
+INSERT INTO customer_profiles (user_id, full_name)
+VALUES ('09a29fc4-eef8-43e6-bb88-f37158c2cbe9', 'Client Other');
 SQL
 
 request() {
@@ -47,6 +74,8 @@ expect_status() {
       "$current_step" "$1" "$http_status" "$http_body" >&2
     exit 1
   fi
+  # Evidencia sin cuerpos, cookies ni tokens.
+  printf 'PASS HTTP %s %s\n' "$http_status" "$current_step"
 }
 
 db_value() {
@@ -66,16 +95,109 @@ request POST /api/v1/auth/login '' \
 expect_status 200
 client_token=$(jq -er '.accessToken' <<< "$http_body")
 
+request POST /api/v1/auth/login '' \
+  '{"email":"client-other@wok.demo","password":"DemoOperativo2026","clientType":"WEB"}'
+expect_status 200
+other_client_token=$(jq -er '.accessToken' <<< "$http_body")
+
 request GET /api/v1/operational/tables
 expect_status 401
 request GET /api/v1/operational/tables "$client_token"
 expect_status 403
 request GET /api/v1/operational/kitchen/tickets "$client_token"
 expect_status 403
+request GET /api/v1/client/order-requests
+expect_status 401
+request GET /api/v1/client/order-requests "$operational_token"
+expect_status 403
 
 table_id=$(db_value "SELECT id FROM wok.dining_tables WHERE name = 'Mesa 01';")
 menu_item_id=$(db_value "SELECT id FROM wok.menu_items WHERE name = 'Gyozas de cerdo';")
 [[ -n "$table_id" && -n "$menu_item_id" ]]
+
+preparation_seconds=$(db_value "SELECT estimated_preparation_seconds FROM wok.menu_items WHERE id = '$menu_item_id';")
+[[ "$preparation_seconds" =~ ^[0-9]+$ ]]
+(( preparation_seconds + 120 <= 3 * 60 * 60 - 60 ))
+
+select_pickup_window() {
+  local now_utc
+  now_utc=$(db_value "SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"');")
+  docker compose exec -T db sh -c \
+    'psql -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v now_utc="$1" -v preparation_seconds="$2"' \
+    sh "$now_utc" "$preparation_seconds" < .github/scripts/pickup-smoke-window.sql | tr -d '\r'
+}
+
+current_step='select pickup within real service window'
+requested_for=$(select_pickup_window)
+if [[ -z "$requested_for" ]]; then
+  current_step='prepare deterministic hours only in empty isolated smoke database'
+  # Solo fixture de esta base nueva: cubre lunes y cruces de medianoche.
+  db_value "UPDATE wok.business_hours SET active = false WHERE service_type = 'RESTAURANT';
+    INSERT INTO wok.business_hours(service_type, weekday, opens_at, closes_at, timezone_name)
+    SELECT 'RESTAURANT', day, '00:00', '23:59:59', 'America/Guatemala'
+    FROM generate_series(1,7) AS day;" > /dev/null
+  requested_for=$(select_pickup_window)
+  printf 'PASS isolated deterministic service-hours fixture\n'
+else
+  printf 'PASS existing service-hours window\n'
+fi
+[[ -n "$requested_for" ]]
+
+# El mismo timestamp cumple preparación/máximo; cerrar el servicio debe rechazarlo.
+# Restaurar la configuración antes del recorrido válido, sin aceptar422 como éxito.
+current_step='negative pickup outside service window'
+restore_hours=$(db_value "SELECT string_agg(format('UPDATE wok.business_hours SET active = %L WHERE id = %L;', active, id), E'\n') FROM wok.business_hours WHERE service_type = 'RESTAURANT';")
+db_value "UPDATE wok.business_hours SET active = false WHERE service_type = 'RESTAURANT';" > /dev/null
+negative_pickup_json=$(jq -nc --arg item "$menu_item_id" --arg requested_for "$requested_for" \
+  '{requestedFor:$requested_for,items:[{menuItemId:$item,quantity:1}]}')
+negative_pickup_key='85ea0654-a18e-4921-a7ed-36f1fef2ed13'
+request POST /api/v1/client/order-requests "$client_token" "$negative_pickup_json" "$negative_pickup_key"
+expect_status 422
+jq -e '.message | contains("horario debe estar dentro del servicio")' <<< "$http_body" > /dev/null
+[[ "$(db_value "SELECT count(*) FROM wok.order_requests WHERE idempotency_key = '$negative_pickup_key';")" == '0' ]]
+db_value "$restore_hours" > /dev/null
+printf 'PASS outside-service rejection and zero persisted requests\n'
+requested_for=$(select_pickup_window)
+[[ -n "$requested_for" ]]
+pickup_request_json=$(jq -nc --arg item "$menu_item_id" --arg requested_for "$requested_for" \
+  '{requestedFor:$requested_for,customerNote:"Smoke security flow",items:[{menuItemId:$item,quantity:1}]}')
+pickup_idempotency_key='85ea0654-a18e-4921-a7ed-36f1fef2ed12'
+request POST /api/v1/client/order-requests "$operational_token" "$pickup_request_json" "$pickup_idempotency_key"
+expect_status 403
+request POST /api/v1/client/order-requests "$client_token" "$pickup_request_json" "$pickup_idempotency_key"
+expect_status 202
+pickup_request_id=$(jq -er '.requestId' <<< "$http_body")
+
+request GET "/api/v1/client/order-requests/$pickup_request_id" "$client_token"
+expect_status 200
+jq -e '.status == "PENDING_REVIEW" and .orderId == null and .orderStatus == null' <<< "$http_body" > /dev/null
+request GET "/api/v1/client/order-requests/$pickup_request_id" "$other_client_token"
+expect_status 404
+
+request POST "/api/v1/operational/order-requests/$pickup_request_id/decision" "$operational_token" \
+  '{"action":"ACCEPT"}'
+expect_status 200
+pickup_order_id=$(jq -er 'select(.status == "ACCEPTED") | .orderId' <<< "$http_body")
+
+request GET "/api/v1/client/order-requests/$pickup_request_id" "$client_token"
+expect_status 200
+jq -e --arg order "$pickup_order_id" \
+  '.status == "ACCEPTED" and .orderId == $order and .orderStatus == "SENT"' <<< "$http_body" > /dev/null
+
+request GET /api/v1/operational/kitchen/tickets "$operational_token"
+expect_status 200
+pickup_ticket_id=$(jq -er --arg order "$pickup_order_id" \
+  '.[] | select(.orderId == $order and .status == "QUEUED") | .id' <<< "$http_body")
+request POST "/api/v1/operational/kitchen/tickets/$pickup_ticket_id/claim" "$operational_token"
+expect_status 200
+pickup_ticket_version=$(jq -er 'select(.status == "PREPARING") | .rowVersion' <<< "$http_body")
+request PATCH "/api/v1/operational/kitchen/tickets/$pickup_ticket_id/status" "$operational_token" \
+  "$(jq -nc --argjson version "$pickup_ticket_version" '{status:"READY",expectedVersion:$version}')"
+expect_status 200
+
+request GET "/api/v1/client/order-requests/$pickup_request_id" "$client_token"
+expect_status 200
+jq -e '.orderStatus == "READY"' <<< "$http_body" > /dev/null
 
 request POST "/api/v1/operational/tables/$table_id/open" "$operational_token"
 expect_status 200
@@ -127,6 +249,47 @@ served_version=$(jq -er 'select(.status == "SERVED") | .rowVersion' <<< "$http_b
 
 request PATCH "/api/v1/operational/orders/$order_id/status" "$operational_token" \
   "$(jq -nc --argjson version "$served_version" '{status:"CLOSED",expectedVersion:$version}')"
+expect_status 409
+request POST "/api/v1/operational/tables/$table_id/close" "$operational_token"
+expect_status 409
+
+payment_key='9a646dd1-2026-49fa-844f-006000000001'
+request POST "/api/v1/operational/accounts/$account_id/payments" '' \
+  '{"method":"TRANSFER","amount":50}' "$payment_key"
+expect_status 401
+request POST "/api/v1/operational/accounts/$account_id/payments" "$client_token" \
+  '{"method":"TRANSFER","amount":50}' "$payment_key"
+expect_status 403
+request POST "/api/v1/operational/tables/$table_id/close" ''
+expect_status 401
+request POST "/api/v1/operational/tables/$table_id/close" "$client_token"
+expect_status 403
+
+request POST "/api/v1/operational/accounts/$account_id/payments" "$operational_token" \
+  '{"method":"TRANSFER","amount":50}' "$payment_key"
+expect_status 201
+payment_id=$(jq -er 'select(.amount == 50 and .balance == 86 and .accountStatus == "OPEN") | .paymentId' <<< "$http_body")
+request POST "/api/v1/operational/accounts/$account_id/payments" "$operational_token" \
+  '{"method":"TRANSFER","amount":50}' "$payment_key"
+expect_status 201
+jq -e --arg id "$payment_id" '.paymentId == $id and .idempotentReplay == true' <<< "$http_body" > /dev/null
+[[ "$(db_value "SELECT count(*) FROM wok.payments WHERE account_id = '$account_id';")" == '1' ]]
+request PATCH "/api/v1/operational/orders/$order_id/status" "$operational_token" \
+  "$(jq -nc --argjson version "$served_version" '{status:"CLOSED",expectedVersion:$version}')"
+expect_status 409
+request POST "/api/v1/operational/tables/$table_id/close" "$operational_token"
+expect_status 409
+
+request POST "/api/v1/operational/accounts/$account_id/payments" "$operational_token" \
+  '{"method":"TRANSFER"}' '9a646dd1-2026-49fa-844f-006000000002'
+expect_status 201
+jq -e '.amount == 86 and .balance == 0 and .accountStatus == "PAID"' <<< "$http_body" > /dev/null
+request GET "/api/v1/operational/accounts/$account_id" "$operational_token"
+expect_status 200
+jq -e '.total == 136 and .paid == 136 and .balance == 0 and (.payments | length) == 2' <<< "$http_body" > /dev/null
+
+request PATCH "/api/v1/operational/orders/$order_id/status" "$operational_token" \
+  "$(jq -nc --argjson version "$served_version" '{status:"CLOSED",expectedVersion:$version}')"
 expect_status 200
 jq -e '.status == "CLOSED"' <<< "$http_body" > /dev/null
 
@@ -134,4 +297,4 @@ request POST "/api/v1/operational/tables/$table_id/close" "$operational_token"
 expect_status 200
 jq -e '.status == "CLEANING"' <<< "$http_body" > /dev/null
 
-printf 'Operational HTTP/PostgreSQL flow passed: table, order, replay, kitchen, roles and close.\n'
+printf 'Operational HTTP/PostgreSQL flow passed: client ownership, pickup tracking, table, order, replay, kitchen, roles, partial/full payment and zero-balance close.\n'

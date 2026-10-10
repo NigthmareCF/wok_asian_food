@@ -40,6 +40,14 @@ public class InventoryReservationService {
                 SELECT COALESCE(SUM(quantity), 0) FROM wok.inventory_reservations
                 WHERE item_id = ? AND status = 'ACTIVE'
                 """, BigDecimal.class, itemId);
+            BigDecimal held = jdbc.queryForObject("""
+                SELECT COALESCE(sum(i.quantity),0) + COALESCE((SELECT sum(ri.quantity)
+                 FROM wok.reservation_capacity_hold_inventory ri JOIN wok.reservation_capacity_holds rh ON rh.id=ri.hold_id
+                 WHERE ri.item_id=? AND rh.status='ACTIVE' AND rh.expires_at>now()),0) FROM wok.order_capacity_hold_inventory i
+                JOIN wok.order_capacity_holds h ON h.id=i.hold_id
+                WHERE i.item_id=? AND h.status='ACTIVE' AND h.expires_at>now()
+                """,BigDecimal.class,itemId,itemId);
+            reserved = (reserved == null ? BigDecimal.ZERO : reserved).add(held);
             BigDecimal need = required.get(itemId);
             if (onHand.subtract(reserved == null ? BigDecimal.ZERO : reserved).compareTo(need) < 0)
                 throw new AuthException(409, "No hay stock suficiente para " + itemName(itemId) + ".");
@@ -110,21 +118,7 @@ public class InventoryReservationService {
     }
 
     private Map<UUID, BigDecimal> requirements(List<Line> lines) {
-        Map<UUID, BigDecimal> required = new LinkedHashMap<>();
-        for (Line line : lines) {
-            List<Component> components = jdbc.query("""
-                SELECT rc.component_item_id, rc.quantity
-                FROM wok.item_recipe_components rc
-                JOIN wok.menu_items mi ON mi.item_id = rc.parent_item_id
-                WHERE mi.id = ?
-                """, (rs, row) -> new Component(rs.getObject("component_item_id", UUID.class),
-                    rs.getBigDecimal("quantity")), line.menuItemId());
-            for (Component component : components) {
-                BigDecimal needed = component.quantity().multiply(BigDecimal.valueOf(line.quantity()));
-                required.merge(component.itemId(), needed, BigDecimal::add);
-            }
-        }
-        return required;
+        return InventoryRequirements.calculate(jdbc, lines);
     }
 
     private BigDecimal lockBalance(UUID itemId) {
@@ -141,7 +135,10 @@ public class InventoryReservationService {
         return names.isEmpty() ? itemId.toString() : names.getFirst();
     }
 
-    public record Line(UUID menuItemId, int quantity) {}
+    public record Line(UUID menuItemId, int quantity, List<UUID> modifierIds) {
+        public Line(UUID menuItemId,int quantity) { this(menuItemId,quantity,List.of()); }
+        public Line { modifierIds=modifierIds==null?List.of():List.copyOf(modifierIds); }
+    }
     private record Component(UUID itemId, BigDecimal quantity) {}
     private record Reservation(UUID itemId, BigDecimal quantity) {}
 }

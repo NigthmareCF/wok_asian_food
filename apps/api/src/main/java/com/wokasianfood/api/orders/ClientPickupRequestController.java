@@ -42,8 +42,12 @@ public class ClientPickupRequestController {
             rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
             rs.getInt("estimated_preparation_seconds"));
     private final JdbcTemplate jdbc;
+    private final PickupSchedulePolicy schedule;
 
-    public ClientPickupRequestController(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    public ClientPickupRequestController(JdbcTemplate jdbc, PickupSchedulePolicy schedule) {
+        this.jdbc = jdbc;
+        this.schedule = schedule;
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -75,8 +79,7 @@ public class ClientPickupRequestController {
             prepSeconds = Math.addExact(prepSeconds, Math.multiplyExact((long) product.preparationSeconds, quantity));
             subtotal = subtotal.add(product.price.multiply(BigDecimal.valueOf(quantity)));
         }
-        if (prepSeconds > 86_400 || !request.requestedFor().isAfter(Instant.now().plusSeconds(prepSeconds)))
-            throw new AuthException(422, "El horario solicitado es anterior al tiempo mínimo de preparación indicado.");
+        schedule.validate(request.requestedFor(), 0);
 
         List<UUID> inserted = jdbc.query("""
             INSERT INTO wok.order_requests
@@ -100,12 +103,15 @@ public class ClientPickupRequestController {
                 VALUES (?, ?, ?, ?, ?, ?)
                 """, requestId, product.id, product.name, lines.get(i).quantity(), product.price, product.currencyId);
         }
+        RequestQuoteBridge.consume(jdbc,customerId,request.quoteId(),"PICKUP",request.requestedFor(),
+            lines.stream().map(line->new ClientOrderQuoteController.QuoteLineRequest(line.menuItemId(),line.quantity(),line.modifierIds())).toList(),
+            subtotal,currencyId,requestId);
         jdbc.update("""
             INSERT INTO wok.order_request_events(order_request_id, event_type, actor_user_id)
             VALUES (?, 'SUBMITTED', ?)
             """, requestId, customerId);
         return new PickupRequestReceipt(requestId, "PENDING_REVIEW", request.requestedFor(), subtotal,
-                currencyId, currencyCode, false,
+                currencyId, currencyCode, null, null, false,
                 "Recibimos tu solicitud. El equipo debe confirmar disponibilidad y horario antes de aceptarla.");
     }
 
@@ -113,8 +119,10 @@ public class ClientPickupRequestController {
     public List<PickupRequestReceipt> history(@AuthenticationPrincipal Jwt jwt) {
         UUID customerId = UUID.fromString(jwt.getSubject());
         return jdbc.query("""
-            SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code
+            SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code,
+                   r.order_id, o.status AS order_status
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
             WHERE r.customer_user_id = ? AND r.fulfillment_type = 'PICKUP'
             ORDER BY r.created_at DESC, r.id DESC LIMIT 50
             """, ClientPickupRequestController::receiptFromJoinedCurrency, customerId);
@@ -125,13 +133,15 @@ public class ClientPickupRequestController {
         UUID customerId = UUID.fromString(jwt.getSubject());
         List<PickupRequestDetails> found = jdbc.query("""
             SELECT r.id, r.status, r.requested_for, r.subtotal, r.currency_id, c.code AS currency_code,
-                   r.customer_note
+                   r.customer_note, r.order_id, o.status AS order_status
             FROM wok.order_requests r JOIN wok.currencies c ON c.id = r.currency_id
+            LEFT JOIN wok.orders o ON o.id = r.order_id
             WHERE r.id = ? AND r.customer_user_id = ? AND r.fulfillment_type = 'PICKUP'
             """, (rs, row) -> new PickupRequestDetails(rs.getObject("id", UUID.class), rs.getString("status"),
                 rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
                 rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
-                rs.getString("customer_note"), List.of()), requestId, customerId);
+                rs.getString("customer_note"), rs.getObject("order_id", UUID.class),
+                rs.getString("order_status"), List.of()), requestId, customerId);
         if (found.isEmpty()) throw new AuthException(404, "No encontramos esa solicitud.");
         List<PickupRequestLine> items = jdbc.query("""
             SELECT name_snapshot, quantity, unit_price, line_total, currency_id
@@ -140,7 +150,8 @@ public class ClientPickupRequestController {
                 rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"), rs.getObject("currency_id", UUID.class)), requestId);
         PickupRequestDetails request = found.getFirst();
         return new PickupRequestDetails(request.requestId(), request.status(), request.requestedFor(),
-                request.subtotal(), request.currencyId(), request.currency(), request.customerNote(), items);
+                request.subtotal(), request.currencyId(), request.currency(), request.customerNote(),
+                request.orderId(), request.orderStatus(), items);
     }
 
     @GetMapping("/{requestId}/tracking")
@@ -186,6 +197,7 @@ public class ClientPickupRequestController {
             INSERT INTO wok.order_request_events(order_request_id, event_type, actor_user_id, reason)
             VALUES (?, 'CANCELLED', ?, 'CANCELLED_BY_CLIENT')
             """, requestId, customerId);
+        new OrderCapacityHoldService(jdbc,12).finish(requestId,OrderCapacityHoldService.EndState.RELEASED);
         return new OrderRequestState(requestId, "CANCELLED");
     }
 
@@ -202,7 +214,9 @@ public class ClientPickupRequestController {
                 WHERE mi.id = ? AND mi.status = 'ACTIVE' AND mi.visibility = 'PUBLIC' AND i.active = true
                 """, PRODUCT_MAPPER, line.menuItemId());
             if (matches.isEmpty()) return List.of();
-            products.add(matches.getFirst());
+            Product product=matches.getFirst();
+            products.add(new Product(product.id(),product.name(),RequestQuoteBridge.price(jdbc,product.id(),product.price(),line.modifierIds()),
+                product.currencyId(),product.currencyCode(),product.preparationSeconds()));
         }
         return products;
     }
@@ -217,7 +231,7 @@ public class ClientPickupRequestController {
 
     private String fingerprint(Instant requestedFor, String note, List<RequestedItem> lines) {
         String canonical = requestedFor.toString() + "\n" + (note == null ? "" : note) + "\n" +
-                lines.stream().map(line -> line.menuItemId() + ":" + line.quantity()).reduce((a, b) -> a + "\n" + b).orElse("");
+                lines.stream().map(line -> line.menuItemId() + ":" + line.quantity() + ":" + line.modifierIds()).reduce((a, b) -> a + "\n" + b).orElse("");
         try {
             byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -236,7 +250,7 @@ public class ClientPickupRequestController {
                     throw new AuthException(409, "La clave de solicitud ya se usó con otros datos.");
                 return new PickupRequestReceipt(rs.getObject("id", UUID.class), rs.getString("status"),
                         rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
-                        rs.getObject("currency_id", UUID.class), rs.getString("currency_code"), replay,
+                        rs.getObject("currency_id", UUID.class), rs.getString("currency_code"), null, null, replay,
                         "Recibimos tu solicitud. El equipo debe confirmar disponibilidad y horario antes de aceptarla.");
             }, customerId, idempotencyKey);
         return found.isEmpty() ? null : found.getFirst();
@@ -245,20 +259,29 @@ public class ClientPickupRequestController {
     private static PickupRequestReceipt receiptFromJoinedCurrency(ResultSet rs, int row) throws SQLException {
         return new PickupRequestReceipt(rs.getObject("id", UUID.class), rs.getString("status"),
                 rs.getTimestamp("requested_for").toInstant(), rs.getBigDecimal("subtotal"),
-                rs.getObject("currency_id", UUID.class), rs.getString("currency_code"), false,
+                rs.getObject("currency_id", UUID.class), rs.getString("currency_code"),
+                rs.getObject("order_id", UUID.class), rs.getString("order_status"), false,
                 "El equipo debe confirmar disponibilidad y horario antes de aceptar la solicitud.");
     }
 
     public record PickupRequest(@NotNull Instant requestedFor, @Size(max = 500) String customerNote,
-            @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items) {}
-    public record RequestedItem(@NotNull UUID menuItemId, @Positive int quantity) {}
+            @NotEmpty @Size(max = 20) List<@Valid RequestedItem> items, UUID quoteId) {
+        public PickupRequest(Instant requestedFor,String customerNote,List<RequestedItem> items) {this(requestedFor,customerNote,items,null);}
+    }
+    public record RequestedItem(@NotNull UUID menuItemId, @Positive @jakarta.validation.constraints.Max(50) int quantity,
+            @Size(max=30) List<@NotNull UUID> modifierIds) {
+        public RequestedItem(UUID id,int quantity) { this(id,quantity,List.of()); }
+        public RequestedItem { modifierIds=modifierIds==null?List.of():modifierIds.stream().sorted().toList(); }
+    }
     public record PickupRequestReceipt(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
-            UUID currencyId, String currency, boolean idempotentReplay, String message) {}
+            UUID currencyId, String currency, UUID orderId, String orderStatus, boolean idempotentReplay,
+            String message) {}
     public record OrderRequestState(UUID requestId, String status) {}
     public record PickupTracking(UUID requestId, String requestStatus, String orderStatus,
                                  Instant estimatedReadyAt, Instant asOf) {}
     public record PickupRequestDetails(UUID requestId, String status, Instant requestedFor, BigDecimal subtotal,
-            UUID currencyId, String currency, String customerNote, List<PickupRequestLine> items) {}
+            UUID currencyId, String currency, String customerNote, UUID orderId, String orderStatus,
+            List<PickupRequestLine> items) {}
     public record PickupRequestLine(String name, int quantity, BigDecimal unitPrice, BigDecimal lineTotal, UUID currencyId) {}
     private record Product(UUID id, String name, BigDecimal price, UUID currencyId, String currencyCode,
             int preparationSeconds) {}
