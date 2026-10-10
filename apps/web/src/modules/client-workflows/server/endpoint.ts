@@ -10,6 +10,7 @@ type Options = {
   parse?: (v: unknown) => unknown;
   validate: (v: unknown) => boolean;
   normalize?: (v: unknown) => unknown;
+  emptyResponse?: boolean;
   idempotent?: boolean;
   requestId?: boolean;
   errorMessages?: Partial<Record<number, string>>;
@@ -100,6 +101,11 @@ export async function endpoint(request: NextRequest, options: Options) {
         messages[response.status] ? response.status : 503,
       );
     }
+    if (options.emptyResponse || response.status === 204)
+      return new NextResponse(null, {
+        status: response.status,
+        headers: { "Cache-Control": "no-store" },
+      });
     const upstream: unknown = await response.json();
     const body = options.normalize ? options.normalize(upstream) : upstream;
     if (!options.validate(body)) throw new Error("Invalid upstream response");
