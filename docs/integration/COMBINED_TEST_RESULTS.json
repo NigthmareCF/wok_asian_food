@@ -1,0 +1,61 @@
+{
+  "base": "1339d740320741050b1131dd9880491d1adffefc",
+  "branch": "feature/integration-compatible-core",
+  "uncommitted": true,
+  "api": {
+    "tests": 273,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "mobileBff": {
+    "tests": 30,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "web": {
+    "tests": 897,
+    "files": 108,
+    "passed": true
+  },
+  "mobile": {
+    "tests": 109,
+    "passed": true
+  },
+  "smoke": {
+    "httpChecks": 51,
+    "sqlBoundaryChecks": 7,
+    "passed": true
+  },
+  "webBuild": "passed",
+  "lintAndTypes": "passed for web and mobile",
+  "security": {
+    "production": {
+      "info": 0,
+      "low": 0,
+      "moderate": 3,
+      "high": 23,
+      "critical": 0,
+      "total": 26
+    },
+    "webWorkspace": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 2,
+      "critical": 0,
+      "total": 2
+    },
+    "gate": "passed with existing documented exceptions",
+    "gateTests": 8
+  },
+  "deployment": "blocked pending migration inventory; DELIVERY acceptance remains disabled",
+  "mobileExports": {
+    "android": "passed",
+    "ios": "passed",
+    "web": "passed; 17 routes"
+  },
+  "migrationInventoryQuery": "verified on disposable PostgreSQL: 27 migrations, zero failures",
+  "nativeEas": "not run"
+}

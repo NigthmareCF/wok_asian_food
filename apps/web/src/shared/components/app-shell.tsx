@@ -174,6 +174,15 @@ export function AppShell({
               <Link
                 aria-label={item.label}
                 aria-current={active ? "page" : undefined}
+                data-mobile-primary={
+                  context === "client" &&
+                  [
+                    "/client",
+                    "/client/menu",
+                    "/client/orders",
+                    "/client/profile",
+                  ].includes(item.route)
+                }
                 href={item.route}
                 key={item.route}
                 title={
@@ -203,15 +212,6 @@ export function AppShell({
             >
               <LogOut aria-hidden="true" size={18} />
             </button>
-          </div>
-        ) : null}
-        {context === "operational" ? (
-          <div className="sidebar__context">
-            <span className="live-dot" aria-hidden="true" />
-            <div>
-              <strong>Servicio normal</strong>
-              <small>Estado del servicio simulado</small>
-            </div>
           </div>
         ) : null}
       </aside>

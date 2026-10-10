@@ -1,0 +1,262 @@
+{
+  "branch": "codex/integration-pr32-40",
+  "head": "bbcb773b7f19804d54d04e69bc2d2410e46364a2",
+  "base": "9eab32352b33adc0d4b6a77f6ebee21e9724ed98",
+  "sourcePr35": "01f1143545f0f9b73658cbb7d0000d912a6056ff",
+  "sourcePr40": "b39fb08719cef235bc087dfef87fadfaabdc264d",
+  "sourcePr36": "fb243d68f208122bd3c8ce4588cf00ec37327d23",
+  "consultedPr47": "786a807f3a820c7c6555c2f16d9d1244f31c3759",
+  "consultedPr48": "00ad174ae0149d7acb2ca68e4bf3ef4d8163096f",
+  "observedDevelopment": "1339d740320741050b1131dd9880491d1adffefc",
+  "status": "uncommitted local candidate; this manifest excludes itself",
+  "files": [
+    {
+      "path": ".github/scripts/operational-flow-smoke.sh",
+      "sha256": "8ac171d2126aea1628a61e90451e3a3062a0eb9e756af224fe37b95d7aa138e3"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/customers/CustomerAddressController.java",
+      "sha256": "bcc10369c0131cdf8a03abcafd93d7dee8092742a530842e764abb5767429116"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/orders/ClientPickupRequestController.java",
+      "sha256": "7690f2f6ab0778e298a4d8a4c6862fbaab78fcd3fbbddf6f5e6600a788bd18f7"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/orders/OperationalOrderController.java",
+      "sha256": "d8a432fd509212bc4f42ae908a4c4d4dbeaf6d2c59771b172d42d74fbc457cda"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/orders/OperationalOrderRequestController.java",
+      "sha256": "a8a14334f4c01d66511b58b616af86bd55e0e33776bae9eada6f23d7cae4bab5"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/reservations/ClientReservationController.java",
+      "sha256": "c723e3d755be6fc8ae392c77278a0759bcd8d4cdeb8a396e3414700dfecf9781"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/reservations/OperationalCapacityService.java",
+      "sha256": "15cd4eea9605b48870a35369cba3a49e4c261c11c165e687416ae222fcc6e96e"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/reservations/OperationalReservationController.java",
+      "sha256": "219253605901725202cfe070c3d16c830d0c0b6a59ae51017b714bb4732dcd76"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/reservations/ReservationRequestService.java",
+      "sha256": "a11d0d3f1210e4e9e37235d28fa2a8546617095c767c55d04db2275614eea928"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/SqlContractsIntegrationTest.java",
+      "sha256": "37d5a2effa77f53e87400bbda23dc12a129f13c8d2e6427b4c58066c96b38d1a"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/customers/ProfileResourcesIntegrationTest.java",
+      "sha256": "9878d9a58ae66c4d07e4ffabfedb1f2f47841994201613305917ceb5f22ad8f0"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/operational/OperationalFlowIntegrationTest.java",
+      "sha256": "17027317e5cbcac7d8a532632be9872d4dc46f05f3af18758fe5124f993bde96"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/operational/OrderRequestDecisionIntegrationTest.java",
+      "sha256": "6a28c3d5f8c5eabd7a5e52ea82504212984460756c4838343c52e9592d7fa34b"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/operational/WebFindingBoundaryIntegrationTest.java",
+      "sha256": "bb6e7bea6a847265d0117bf369fe9574977a58bc9145461d8a0f88122076687d"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/orders/OperationalOrderRequestQueryTest.java",
+      "sha256": "fe3c734a7f11e2f975364b43b3aadd287294e12a13e75884b4a08924ba795c86"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/orders/OrderServiceTest.java",
+      "sha256": "a47e6ef26bb1bc7a9d1644b4c95daa1a10b1b35cd01f4073f404462bbc1424fb"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/orders/PickupCompatibilityIntegrationTest.java",
+      "sha256": "bb764bd54066cbc30fd648e99e9974a6aa3d2960d65df3ae6ade36878c836ba4"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/reservations/OperationalCapacityServiceTest.java",
+      "sha256": "4c59ad0eb77a1088011fac66113b540c1fa716c585d8c2e4e7e9010728f1e1cd"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/reservations/ReservationCapabilityIntegrationTest.java",
+      "sha256": "b77c0541d01921eda6b360a2090906770c13e21f2aa6ba40d39c8a05bc07bca0"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/reservations/ReservationDecisionIntegrationTest.java",
+      "sha256": "0c0d2b7b53ff3f07548637c1f0bff03a4bc63095a4bac3da48e47ba9e55393e4"
+    },
+    {
+      "path": "apps/mobile-bff/.gitignore",
+      "sha256": "306fd52e74fca6746e12acc750f232de15e71da917756a1270d74c91f5eb7368"
+    },
+    {
+      "path": "apps/mobile-bff/pom.xml",
+      "sha256": "a1ef27dbefbe154f8ebcb58524877845daf6abb86870135c5a2625079cc0ef46"
+    },
+    {
+      "path": "apps/mobile-bff/src/main/java/com/wokasianfood/mobilebff/BffErrors.java",
+      "sha256": "23bde21e2122d48d01e0951f3fff506bd2e8ff3468140d4e2be1710dfbc04e61"
+    },
+    {
+      "path": "apps/mobile-bff/src/main/java/com/wokasianfood/mobilebff/BffFailure.java",
+      "sha256": "45443a5f8162407b0f42104ac2e62f5de839cd694329a2e89017c5b4ccf33335"
+    },
+    {
+      "path": "apps/mobile-bff/src/main/java/com/wokasianfood/mobilebff/BffSecurity.java",
+      "sha256": "6dd00143d8aff6406534186bb9431002b27445eef2c45d3d4c9232ca4d4a8927"
+    },
+    {
+      "path": "apps/mobile-bff/src/main/java/com/wokasianfood/mobilebff/ClientRoutes.java",
+      "sha256": "e4412666116a74df1da860c5db6ec73a2e7b7b41b9eba2401b60fa23d07c8dbc"
+    },
+    {
+      "path": "apps/mobile-bff/src/main/java/com/wokasianfood/mobilebff/CoreApiClient.java",
+      "sha256": "00354e97edc2fd499c90d1e710df2ff1a73f17c06871b927b49d11c146fb2efe"
+    },
+    {
+      "path": "apps/mobile-bff/src/main/java/com/wokasianfood/mobilebff/MobileBffApplication.java",
+      "sha256": "b60312babd1b5dbe286732e61ba22153a9c417c29f89c77fea09fa671f7f04d3"
+    },
+    {
+      "path": "apps/mobile-bff/src/main/java/com/wokasianfood/mobilebff/RequestLimits.java",
+      "sha256": "40d70c4a3504b4fe8a7b1f52bb3b574e057d57b4dca545213b8b867e54fce4b4"
+    },
+    {
+      "path": "apps/mobile-bff/src/main/resources/application.yml",
+      "sha256": "aa1e05d025d698c8ee568eda072aa12cf9458128b30252920def1f616a1a3273"
+    },
+    {
+      "path": "apps/mobile-bff/src/test/java/com/wokasianfood/mobilebff/BffIntegrationTest.java",
+      "sha256": "a2522779e040249c348c925c3c4582d37b6022b2ecc8c2d0b3c72b819bb881a7"
+    },
+    {
+      "path": "apps/mobile-bff/src/test/java/com/wokasianfood/mobilebff/BoundaryTest.java",
+      "sha256": "09efc841a43457785391bd22e5d1c6942f8a43e044baaf8f4f644cfd6950b603"
+    },
+    {
+      "path": "apps/mobile/app/(tabs)/orders.tsx",
+      "sha256": "f24ae647b4dd6bbc62b4f1b1dd7727401c5d573da631912f7cec509498a7ac8b"
+    },
+    {
+      "path": "apps/mobile/app/(tabs)/reservations.tsx",
+      "sha256": "21eb0e3609fa653e8db9170aefd41db1cc4488991dbc3f112dff83d31be40506"
+    },
+    {
+      "path": "apps/mobile/src/lib/api.ts",
+      "sha256": "35a79d4402af1071eb48c829d2c5560f0e04b99bb5080cc50c458730fbfa34ac"
+    },
+    {
+      "path": "apps/mobile/src/lib/reservation-policy.ts",
+      "sha256": "b173a0177ab272733f1fa737b0270c44765d28176df0745f55b00197b50c2532"
+    },
+    {
+      "path": "apps/mobile/tests/reservation-policy.test.cjs",
+      "sha256": "2f63179de18fecaa8635c8af238b44100b6fd51bbee3b9cac50da1d62bcea68a"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/addresses/[addressId]/route.ts",
+      "sha256": "833412a648c9a44b56b68ea0f40dcb777cc9e4a79da7774c6d71289e2f629d35"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/addresses/route.ts",
+      "sha256": "e932f57bc84dae0c24026e49813bd04b8bfc9c62f4d83984a19c8fb6ee7e186b"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/profile-resources.test.ts",
+      "sha256": "10f6bffeecda3140616e352abd415047154a1eea24f02b2d90ad1cc38475ed4b"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/sessions/[sessionId]/route.ts",
+      "sha256": "0bb76f10b9006c28142c364c3fff23f312040184820dfc6e2b26c61c00a532b9"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/sessions/route.ts",
+      "sha256": "68e1ec5ebc3d140e102ca42f86ae398ff7d8889aed01bb6e0cae85872a4df4a1"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/order-requests/operational-order-requests.test.ts",
+      "sha256": "a9660978e701518770c678585ab98728abd76547fb93811b02169840163f00f7"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/order-requests/route.ts",
+      "sha256": "49bdc3aca80b36efd2915e0f8960911f8e35925ece21c99900e0fbcf192af681"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/server/endpoint.ts",
+      "sha256": "7b68a8c16322e8070eff3da8ee58cbbe287db5fecc4ad352a740667d681ed964"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/live-profile.test.tsx",
+      "sha256": "27d2a33bd0d93f0af1443b103c234bd99f763e05d5c3d9242eec73c9b10f8bd6"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/live-profile.tsx",
+      "sha256": "3010a82e4696f3967d3dea8b842fce63dd82d0599783c3cf501ab6256ed9d013"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/profile-resources.test.tsx",
+      "sha256": "1ddd3d60bc3091ab3e142fcca2cf73a690ab77b9eac62f5c5143540f58b99d22"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/profile-resources.tsx",
+      "sha256": "0ab45b29da9dfe059433d6b4a211375bfdf94786b131a8124dc3672aff024b76"
+    },
+    {
+      "path": "apps/web/src/modules/profile/address-contract.ts",
+      "sha256": "3393f3432b3ecf311295ddd0ca8f434ca2647864ec15ff889424d10e9e74021e"
+    },
+    {
+      "path": "apps/web/src/modules/profile/session-contract.ts",
+      "sha256": "b96406c59722af774863a2895843ed97818040d162b882ba8561add9112b2251"
+    },
+    {
+      "path": "docs/integration/CANDIDATE_STATUS.md",
+      "sha256": "daf9d9a6fc5300820b92a583f4d0ad47cefb245eec1b8a0a5c97e3eff58342ed"
+    },
+    {
+      "path": "docs/integration/CANONICAL_BUSINESS_POLICY.md",
+      "sha256": "ff01c51b8c0c39f130b07eb93838f4c322d85a4e13ae4f4894047e0c24b22e66"
+    },
+    {
+      "path": "docs/integration/PR32-40_COORDINATION.md",
+      "sha256": "c51ee550330ccfac2c41c34df765a40702dd6a8285229f21c64535646c078545"
+    },
+    {
+      "path": "docs/integration/TEST_RESULTS.json",
+      "sha256": "faaa7817448f7b7c74945ed2bf02c10d93ead5025427a341705d34528fcab83f"
+    },
+    {
+      "path": "docs/integration/evidence/LOCAL_FLYWAY_HISTORY.json",
+      "sha256": "0af9c191ba72d24c655579a88f1b07af8df9e331ad8af13333e16ab189f57b83"
+    },
+    {
+      "path": "docs/integration/evidence/MIGRATION_CHECKSUM_COMPARISON.json",
+      "sha256": "b7d8ca0f0f55e5751e0e534c979121cd20a8c1141bdedd76774ecab22f9b78c4"
+    },
+    {
+      "path": "docs/integration/evidence/RECENT_PR_HEADS.json",
+      "sha256": "80c93943c6e01ff117d659c8e2be216babdbbacbf9ec433375017397bacb95a5"
+    },
+    {
+      "path": "docs/integration/proposals/cash-movement-traceability-check.sql",
+      "sha256": "53abed30ced9adf4d33d84ebacc8480e0524a9d3bebc9681789f2b965bab105c"
+    },
+    {
+      "path": "docs/integration/proposals/cash-movement-traceability.sql",
+      "sha256": "35d8a6265d7d67ae14947832fc63b804e3f2d4e5be6a339493758a1fa3949414"
+    },
+    {
+      "path": "docs/progress/CLIENT.md",
+      "sha256": "490c9e7b58a0fa7212a41b5b42e28456a4d21c4bbf9fb5e4643fb231de92958a"
+    },
+    {
+      "path": "docs/progress/OPERATIONAL.md",
+      "sha256": "c6c4c61860c8e4e9ea6aa16a3ce22f40c9ed9508d35552b036354a15fe614229"
+    }
+  ]
+}

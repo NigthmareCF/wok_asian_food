@@ -18,7 +18,7 @@ describe("Client orders", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver menú" })).toHaveAttribute(
       "href",
-      "/menu",
+      "/client/menu",
     );
   });
   it("lists and tracks the same local order without exposing state controls", () => {

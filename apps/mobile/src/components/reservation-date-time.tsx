@@ -127,6 +127,7 @@ export function ReservationDateTime({
   helper = "Selecciona un día y una hora. El restaurante revisará y confirmará tu solicitud.",
   policy,
   earliest,
+  guests = 4,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -135,6 +136,7 @@ export function ReservationDateTime({
   helper?: string;
   policy?: ReservationPolicy;
   earliest?: number;
+  guests?: number;
 }) {
   const now = new Date();
   const { colors } = useUiTheme();
@@ -147,7 +149,7 @@ export function ReservationDateTime({
   const range = `${restaurantDateLabel(days[0].value, { day: "numeric", month: "short" })} – ${restaurantDateLabel(days[6].value, { day: "numeric", month: "short", year: "numeric" })}`;
   const selectionError =
     policy && hasTime
-      ? reservationTimeError(value, now.getTime(), policy)
+      ? reservationTimeError(value, now.getTime(), policy, guests)
       : null;
   const tooEarly =
     earliest !== undefined &&
@@ -285,6 +287,7 @@ export function ReservationDateTime({
                   selectReservationTime(value, suggested, now),
                   now.getTime(),
                   policy,
+                  guests,
                 ),
               ) ||
               Boolean(

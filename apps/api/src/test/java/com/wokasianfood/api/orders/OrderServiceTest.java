@@ -26,7 +26,7 @@ class OrderServiceTest {
     private UUID insertedOrderId;
 
     private OrderService service() {
-        return new OrderService(jdbc, idempotency, reservations);
+        return new OrderService(jdbc, idempotency, reservations, new com.wokasianfood.api.accounts.AccountFinancialTotalsService(jdbc));
     }
 
     @Test
@@ -80,7 +80,7 @@ class OrderServiceTest {
         UUID orderId = UUID.randomUUID();
         when(jdbc.query(contains("request_fingerprint = ?"), any(RowMapper.class), eq(actor), eq(idempotencyKey),
                 any(String.class))).thenReturn(List.of(orderId));
-        stubDetails(orderId, menuItemId, tableId);
+        stubDetails(orderId, menuItemId, tableId, accountId);
 
         var request = new OperationalOrderController.OpenOrderRequest(accountId, "DINE_IN", 2, null,
                 List.of(new OperationalOrderController.OrderLineRequest(menuItemId, 1, "DINE_IN", null)));
@@ -190,7 +190,7 @@ class OrderServiceTest {
     @Test
     void rejectsMissingOrderOnStatusChange() {
         UUID orderId = UUID.randomUUID();
-        when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
+        when(jdbc.query(contains("SELECT account_id FROM wok.orders WHERE id = ?"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of());
 
         AuthException error = assertThrows(AuthException.class, () -> service()
@@ -203,6 +203,7 @@ class OrderServiceTest {
     @Test
     void rejectsSkippedStateTransition() {
         UUID orderId = UUID.randomUUID();
+        stubOrderAccount(orderId);
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.SENT));
 
@@ -219,6 +220,7 @@ class OrderServiceTest {
         UUID actor = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID requestId = UUID.randomUUID();
+        stubOrderAccount(orderId);
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.SENT));
         when(jdbc.update(contains("SET status = ?"), eq("PREPARING"), eq("PREPARING"), eq(actor), eq(orderId),
@@ -242,6 +244,7 @@ class OrderServiceTest {
         UUID actor = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         UUID ticketId = UUID.randomUUID();
+        stubOrderAccount(orderId);
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.PREPARING));
         when(jdbc.update(contains("SET status = ?"), eq("CANCELLED"), eq("CANCELLED"), eq(actor), eq(orderId),
@@ -265,6 +268,7 @@ class OrderServiceTest {
     @Test
     void reportsStaleVersionAsConflict() {
         UUID orderId = UUID.randomUUID();
+        stubOrderAccount(orderId);
         when(jdbc.query(contains("SELECT status FROM wok.orders WHERE id = ? FOR UPDATE"), any(RowMapper.class),
                 eq(orderId))).thenReturn(List.of(OrderService.OrderStatus.READY));
         when(jdbc.update(contains("SET status = ?"), eq("SERVED"), eq("SERVED"), any(UUID.class), eq(orderId),
@@ -311,6 +315,14 @@ class OrderServiceTest {
                 eq(stationId));
     }
 
+    private void stubOrderAccount(UUID orderId) {
+        UUID accountId = UUID.randomUUID();
+        when(jdbc.query(contains("SELECT account_id FROM wok.orders WHERE id = ?"), any(RowMapper.class),
+                eq(orderId))).thenReturn(List.of(accountId));
+        when(jdbc.query(contains("FROM wok.order_accounts WHERE id = ? FOR UPDATE"), any(RowMapper.class),
+                eq(accountId))).thenReturn(List.of(new OrderService.Account(accountId, null, "OPEN")));
+    }
+
     private void stubHappyPath(UUID accountId, UUID tableId, UUID menuItemId, UUID currencyId, UUID stationId,
                               UUID summaryId, UUID actor, UUID idempotencyKey) {
         stubHappyPath(accountId, tableId, menuItemId, currencyId, stationId, List.of(), List.of(), actor, idempotencyKey);
@@ -353,8 +365,15 @@ class OrderServiceTest {
     }
 
     private void stubDetails(UUID orderId, UUID menuItemId, UUID tableId) {
+        stubDetails(orderId, menuItemId, tableId, UUID.randomUUID());
+    }
+
+    private void stubDetails(UUID orderId, UUID menuItemId, UUID tableId, UUID accountId) {
         when(jdbc.query(contains("JOIN wok.currencies c ON c.id = o.currency_id"), any(RowMapper.class), any(UUID.class)))
-                .thenReturn(List.of(summary(orderId, "SENT", 1)));
+                .thenReturn(List.of(new OrderService.OrderSummary(orderId, "ORD-REPLAY", "SENT", "DINE_IN",
+                        new BigDecimal("20.50"), BigDecimal.ZERO, new BigDecimal("20.50"), 2,
+                        Instant.parse("2026-09-30T12:00:00Z"), null, 1, UUID.randomUUID(), "GTQ",
+                        tableId, "Mesa 01", accountId, "Cuenta 1", 1)));
         when(jdbc.query(contains("JOIN wok.preparation_areas pa ON pa.id = i.preparation_area_id"), any(RowMapper.class),
                 any(UUID.class)))
                 .thenReturn(List.of(new OrderService.OrderLine(menuItemId, "Pad Thai", 2, new BigDecimal("10.25"),

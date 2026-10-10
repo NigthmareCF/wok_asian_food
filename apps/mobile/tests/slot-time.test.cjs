@@ -51,6 +51,8 @@ test("request policy uses the real wire field and inclusive table boundaries", (
   const policy = reservationPolicySchema.parse({
     timeZone: "America/Guatemala",
     minimumNoticeHours: 3,
+    minimumNoticeMinutes: 180,
+    additionalPairMinutes: 15,
     firstRequestTime: "14:00:00",
     lastRequestTime: "21:15:00",
     preorderRecommendedAfter: "20:30:00",

@@ -1,0 +1,492 @@
+{
+  "date": "2026-10-09",
+  "timezone": "America/Guatemala",
+  "branch": "codex/integration-pr32-40",
+  "head": "bbcb773b7f19804d54d04e69bc2d2410e46364a2",
+  "scope": "Uncommitted delta identified by CANDIDATE_FILES.json; no integration approval",
+  "backend": {
+    "totals": {
+      "tests": 268,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "suites": [
+      {
+        "name": "com.wokasianfood.api.accounts.AccountFinancialTotalsServiceTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.accounts.FinancialAccountIntegrationTest",
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.cash.CashSessionIntegrationTest",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.catalog.PublicMenuControllerTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.customers.CustomerAddressControllerTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.customers.ProfileResourcesIntegrationTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.ApiErrorHandlerTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.AuthDtosValidationTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.AuthHardeningTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.AuthServiceRefreshTest",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.ChallengeServiceTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.ClientProfileServiceTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.ClientSessionsServiceTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.CurrentUserAndCorsTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.DemoSeedPasswordTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.SessionTokenValidationTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.TokenServiceTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.identity.VerificationResendTest",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.inventory.InventoryIntegrationTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.inventory.InventoryOrderIntegrationTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.invoices.InvoiceIntegrationTest",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.kitchen.KitchenServiceTest",
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.messaging.CustomerMessagingServiceTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.operational.ClientWebPersistenceIntegrationTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.operational.OperationalFlowIntegrationTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.operational.OrderRequestDecisionIntegrationTest",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.operational.WebFindingBoundaryIntegrationTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.orders.ClientDeliveryRequestControllerTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.orders.ClientPickupRequestControllerTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.orders.OperationalOrderRequestQueryTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.orders.OrderServiceTest",
+        "tests": 13,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.orders.PickupCompatibilityIntegrationTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.orders.PickupSchedulePolicyTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.payments.FinancialLifecycleIntegrationTest",
+        "tests": 32,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.payments.PaymentAttemptCompatibilityIntegrationTest",
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.payments.PaymentAttemptIntegrationTest",
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.payments.PaymentAttemptResolutionIntegrationTest",
+        "tests": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.payments.PaymentAttemptResolutionMigrationIntegrationTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.payments.PaymentIntegrationTest",
+        "tests": 9,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.PermissionAuthorizationIntegrationTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.production.ProductionIntegrationTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.reservations.OperationalCapacityServiceTest",
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.reservations.ReservationCapabilityIntegrationTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.reservations.ReservationDecisionIntegrationTest",
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.reservations.ReservationHistoryQueryTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.reservations.ReservationRequestCancellationTest",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.RoleAuthorizationIntegrationTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.SecurityCompositionIntegrationTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.SqlContractsIntegrationTest",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.support.NodeRuntimeTest",
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.api.tables.TableServiceTest",
+        "tests": 8,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "command": "apps/api/mvnw.cmd -o verify -Dwok.web.test.dir=../../apps/web -Dwok.web.next.bin=../../node_modules/next/dist/bin/next",
+    "exitCode": 0
+  },
+  "mobileBff": {
+    "totals": {
+      "tests": 26,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "suites": [
+      {
+        "name": "com.wokasianfood.mobilebff.BffIntegrationTest",
+        "tests": 24,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "name": "com.wokasianfood.mobilebff.BoundaryTest",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    ],
+    "command": "../api/mvnw.cmd -o verify from apps/mobile-bff",
+    "exitCode": 0,
+    "core": "HTTP stub; API and Next real integration is covered separately"
+  },
+  "web": {
+    "tests": 863,
+    "testFiles": 97,
+    "failures": 0,
+    "command": "npm run test",
+    "exitCode": 0,
+    "lintExitCode": 0,
+    "typecheckExitCode": 0,
+    "typecheckAfterGeneratedDeclarationRestoreExitCode": 0,
+    "productionBuildExitCode": 0,
+    "changedFilesFormatExitCode": 0
+  },
+  "mobile": {
+    "tests": 20,
+    "failures": 0,
+    "skipped": 0,
+    "command": "npm run test --workspace mobile",
+    "exitCode": 0,
+    "lintExitCode": 0,
+    "typecheckExitCode": 0,
+    "nativeBuild": "not run"
+  },
+  "sql": {
+    "versionedContracts": 12,
+    "exitCode": 0,
+    "activeMigrationCount": 27,
+    "proposal": "PR47 cash traceability DDL and checks executed after V1–V27, transaction rolled back; no active version assigned",
+    "candidateConstraints": "not run; different schema baseline"
+  },
+  "smoke": {
+    "project": "wokcandidate-pr32-40",
+    "persistentProject": "wok untouched",
+    "httpChecks": 44,
+    "pickupRollbackBoundaryChecks": 7,
+    "exitCode": 0,
+    "scope": "PICKUP/table/order/kitchen/roles/idempotency/partial and full payment/zero balance close; DELIVERY not certified"
+  },
+  "visual": {
+    "page": "/client/profile",
+    "fixture": "isolated synthetic smoke client",
+    "widths": [
+      390,
+      768,
+      1280,
+      1440
+    ],
+    "documentWidths": [
+      375,
+      753,
+      1265,
+      1425
+    ],
+    "horizontalOverflow": false,
+    "scope": "profile/address empty form/sessions; not exhaustive keyboard/touch/error/loading or native verification"
+  },
+  "failed": [
+    {
+      "command": "npm run format:check",
+      "exitCode": 1,
+      "files": 500,
+      "reason": "Pre-existing unformatted/CRLF files; changed Web files pass; original next.config.ts/vitest.config.ts reproduced"
+    }
+  ],
+  "repairedRuns": [
+    "Vitest sandbox cache EPERM; rerun outside sandbox passes",
+    "Mockito redundant fixture; removed duplicate stubbing",
+    "Invalid fixture fingerprint; replaced with valid 64-character value",
+    "Shared test database list assumption; verify own request plus every filter result",
+    "BFF expected principal required; fixture supplies current actor",
+    "Windows smoke CRLF include; strip CR before exact include comparison"
+  ],
+  "notRun": [
+    "Remote CI for a candidate commit",
+    "EAS/native device/emulator build",
+    "Complete DELIVERY smoke",
+    "Upgrade from unknown persistent deployment histories",
+    "Full responsive/keyboard/touch matrix for all channels"
+  ],
+  "preserved": {
+    "originalBranch": "feature/barrera-table-orders",
+    "originalHead": "bbcb773b7f19804d54d04e69bc2d2410e46364a2",
+    "originalClean": true,
+    "lockfileGitBlob": "f62320fd4d4aca9a5aa86f59ed413c836e503cbf",
+    "stashPreserved": true,
+    "activeMigrationsUnmodified": true,
+    "commits": 0,
+    "pushes": 0,
+    "merges": 0
+  }
+}

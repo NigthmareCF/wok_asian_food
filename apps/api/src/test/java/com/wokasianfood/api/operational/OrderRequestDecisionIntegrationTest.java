@@ -8,6 +8,8 @@ import com.wokasianfood.api.support.PostgresIntegrationTest;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -17,13 +19,63 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
 
     @Test
+    void listsRequestsWithCompatibleSummaryAndStrictCombinedFilters() {
+        UUID menuItemId = seedMenuItem("Wok List", "20.00", "WOK_LIST", 60);
+        String customer = tokenForRole("CLIENT");
+        String operator = tokenForRole("OPERATIONAL");
+        String requestId = submit(customer, menuItemId, 1,
+                Instant.now().plusSeconds(900).toString()).path("requestId").asText();
+
+        for (String query : new String[] { "", "?type=PICKUP",
+                "?status=PENDING_REVIEW&type=PICKUP" }) {
+            JsonNode requests = body(get("/api/v1/operational/order-requests" + query, operator));
+            assertThat(requests.isArray()).isTrue();
+            assertThat(requests.valueStream()
+                    .anyMatch(request -> requestId.equals(request.path("requestId").asText())))
+                    .as("request listed for query %s", query).isTrue();
+        }
+
+        JsonNode rejected = body(get("/api/v1/operational/order-requests?status=REJECTED", operator));
+        assertThat(rejected.valueStream()
+                .noneMatch(request -> requestId.equals(request.path("requestId").asText()))).isTrue();
+        assertThat(get("/api/v1/operational/order-requests?status=INVALID", operator).statusCode())
+                .isEqualTo(400);
+        assertThat(get("/api/v1/operational/order-requests", customer).statusCode()).isEqualTo(403);
+        for (String query : new String[] { "?status=", "?status=%20pending_review%20", "?type=",
+                "?type=INVALID", "?status=PENDING_REVIEW&type=INVALID" }) {
+            assertThat(get("/api/v1/operational/order-requests" + query, operator).statusCode())
+                    .as("invalid filter %s", query).isEqualTo(400);
+        }
+        JsonNode deliveries = body(get("/api/v1/operational/order-requests?type=DELIVERY", operator));
+        assertThat(deliveries.valueStream()
+                .noneMatch(request -> requestId.equals(request.path("requestId").asText()))).isTrue();
+        String detailPath = "/api/v1/operational/order-requests/" + requestId;
+        JsonNode detail = body(get(detailPath, operator));
+        assertThat(detail.path("requestId").asText()).isEqualTo(requestId);
+        assertThat(detail.path("customerNote").asText()).isEqualTo("prueba");
+        assertThat(detail.path("lines").get(0).path("name").asText()).isEqualTo("Wok List");
+        assertThat(detail.path("lines").get(0).path("currencyId").asText()).isNotBlank();
+        assertThat(get(detailPath, customer).statusCode()).isEqualTo(403);
+        assertThat(get("/api/v1/operational/order-requests/" + UUID.randomUUID(), operator).statusCode())
+                .isEqualTo(404);
+    }
+
+    @Test
     void acceptsPickupRequestCreatingOrderAndReplaysDecision() {
         UUID menuItemId = seedMenuItem("Wok Pickup", "25.00", "WOK_DECISION", 120);
-        JsonNode submitted = submit(tokenForRole("CLIENT"), menuItemId, 2, Instant.now().plusSeconds(900).toString());
+        String customer = tokenForRole("CLIENT");
+        JsonNode submitted = submit(customer, menuItemId, 2, Instant.now().plusSeconds(900).toString());
         UUID requestId = UUID.fromString(submitted.path("requestId").asText());
         assertThat(submitted.path("status").asText()).isEqualTo("PENDING_REVIEW");
 
         String operator = tokenForRole("OPERATIONAL");
+        JsonNode pending = body(get("/api/v1/operational/order-requests?status=PENDING_REVIEW", operator));
+        JsonNode listedRequest = pending.valueStream()
+                .filter(request -> request.path("requestId").asText().equals(requestId.toString()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(listedRequest.path("items").get(0).path("name").asText()).isEqualTo("Wok Pickup");
+        assertThat(get("/api/v1/operational/order-requests", customer).statusCode()).isEqualTo(403);
         JsonNode decision = body(post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
                 """
                 {"action":"ACCEPT"}
@@ -47,6 +99,11 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
                 orderId)).isEqualTo("TAKEAWAY");
         assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class, requestId))
                 .isEqualTo(orderId);
+        JsonNode clientDetail = body(get("/api/v1/client/order-requests/" + requestId, customer));
+        assertThat(clientDetail.path("orderId").asText()).isEqualTo(orderId.toString());
+        assertThat(clientDetail.path("orderStatus").asText()).isEqualTo("SENT");
+        assertThat(get("/api/v1/client/order-requests/" + requestId, tokenForRole("CLIENT")).statusCode())
+                .isEqualTo(404);
         assertThat(count("""
                 SELECT count(*) FROM wok.order_request_events
                 WHERE order_request_id = ? AND event_type = 'ACCEPTED'
@@ -158,6 +215,17 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     }
 
     private JsonNode submit(String token, UUID menuItemId, int quantity, String requestedFor) {
+        var local = Instant.parse(requestedFor).atZone(ZoneId.of("America/Guatemala"));
+        LocalTime requestedTime = local.toLocalTime();
+        LocalTime opensAt = requestedTime.isBefore(LocalTime.of(1, 0))
+                ? LocalTime.MIDNIGHT : requestedTime.minusHours(1);
+        LocalTime closesAt = requestedTime.isAfter(LocalTime.of(22, 59))
+                ? LocalTime.of(23, 59, 59) : requestedTime.plusHours(1);
+        jdbc.update("""
+                INSERT INTO wok.business_hours
+                    (service_type, weekday, opens_at, closes_at, timezone_name)
+                VALUES ('RESTAURANT', ?, ?, ?, 'America/Guatemala')
+                """, local.getDayOfWeek().getValue(), opensAt, closesAt);
         return body(post("/api/v1/client/order-requests", token, """
                 {"requestedFor":"%s","customerNote":"prueba","items":[{"menuItemId":"%s","quantity":%d}]}
                 """.formatted(requestedFor, menuItemId, quantity),

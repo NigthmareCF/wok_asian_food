@@ -273,3 +273,32 @@ SecureStore nativo y memoria Web por cuenta/conversación; aviso explícito de p
 - Perfil, direcciones y pantalla histórica de entrega conservan normalización Guatemala: ocho dígitos agrupados y prefijo +502 opcional. Delivery/direcciones siguen fuera de esta entrega y sus rutas no se habilitan en el BFF.
 - Corrección documental: Core actual acepta hasta20 platillos distintos por solicitud, no100. Se conserva el guard de20 líneas del carrito por autorización explícita, sin ampliar límites API. Precio, capacidad, inventario y aceptación siguen siendo decisiones del servidor.
   Se reutilizaron dependencias instaladas; no se modificó el lockfile ni se instalaron paquetes. Los exports históricos Android/Web no son APK ni prueba física.
+
+## 2026-10-09 — Reservas aisladas por cuenta y sesión
+
+- Formulario, historial y avisos se reinician al cambiar de cuenta, iniciar una nueva sesión o cerrarla.
+- Las respuestas anteriores no modifican la sesión actual; las operaciones del borrador local permanecen ordenadas entre sesiones.
+- Se conservan la selección según política, la hora de Guatemala y la cancelación de solicitudes pendientes.
+
+- Verificación observada: 80/80 pruebas móviles, 10/10 de ciclo de reservas y 14/14 de presentación.
+- Lint, typecheck y comprobación del diff pasaron después de la normalización acotada.
+- Versiones de dependencias y lockfile sin cambios; se reutilizó la instalación existente.
+
+- Pendiente: completar las protecciones del reintento y la validación del resultado de la solicitud.
+- No se realizaron aún pruebas en dispositivos, builds nativos ni comprobación de compatibilidad de dependencias para este cambio.
+
+## 2026-10-09 — Reintentos de reservas con resultado validado
+
+- Envío protegido frente a pulsaciones repetidas; cada intento conserva su cuenta, sesión, datos y clave originales.
+- Un resultado incierto bloquea la edición y ofrece reintentar la misma solicitud. No se crean reenvíos automáticos ni persistencia adicional del intento al reiniciar la aplicación.
+- Una evaluación sin envío conserva el formulario editable. Sólo una respuesta validada que acredita el envío lo vacía; esto no confirma la reserva.
+- Un rechazo explícito del primer envío permite corregir el formulario. Si ya hubo incertidumbre, un rechazo posterior no acredita por sí solo el resultado anterior.
+- La restauración tardía y los guardados pendientes no reemplazan los datos bloqueados ni recrean un borrador ya enviado.
+- Verificación observada: 107/107 pruebas móviles, 37/37 de reservas y 14/14 de presentación; lint, typecheck y comprobación del diff pasaron.
+- Dependencias, lockfile, controles de transporte, política, hora de Guatemala y comportamiento de pickup conservados.
+- Compatibilidad no confirmada: la comprobación Expo sin conexión falló por diferencias de versiones en dependencias que no se modificaron y advirtió que la validación offline no es fiable. Pendientes verificación en línea, QA en dispositivos físicos y builds nativos.
+
+## 2026-10-09 — Candidato combinado verificado
+
+- Responsable confirma conservar PR36/50 y excluir PR34. Bundles Android e iOS Hermes y exportación web móvil con 17 rutas aprobados; 109 pruebas, lint y tipos pasan. No equivale a compilación firmada o QA físico.
+- Compatibilidad Expo comprobada en línea. Overrides de parser CSS y UUID reducen los avisos; puerta de seguridad local pasa con excepciones existentes y caducidad obligatoria.

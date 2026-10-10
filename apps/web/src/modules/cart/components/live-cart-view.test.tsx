@@ -1,8 +1,9 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { clientIdentityStore } from "@/modules/clients/client-identity-store";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveCartProvider } from "../live-cart-provider";
-import { createLiveCartStore, liveCartStorageKey } from "../live-cart-storage";
+import { createLiveCartStore, liveCartOwnerKey } from "../live-cart-storage";
 import { LiveMenuCatalog } from "@/modules/menu/components/live-menu-catalog";
 import { LiveCartView } from "./live-cart-view";
 import { LiveCartLink } from "./cart-link";
@@ -26,7 +27,7 @@ afterEach(() => {
 
 describe("catalog cart integration", () => {
   it("adds from the API catalog, updates the counter, survives remount, changes quantity and removes", async () => {
-    vi.stubGlobal(
+    installFetch(
       "fetch",
       vi.fn().mockImplementation(() => Promise.resolve(Response.json(menu))),
     );
@@ -69,12 +70,12 @@ describe("catalog cart integration", () => {
 
   it("uses fresh API prices instead of browser values and keeps removed catalog items visible", async () => {
     window.sessionStorage.setItem(
-      liveCartStorageKey,
+      liveCartOwnerKey(clientIdentityStore.getSnapshot()),
       JSON.stringify([
         { productId: product.id, name: product.name, quantity: 2, price: 0.01 },
       ]),
     );
-    vi.stubGlobal(
+    installFetch(
       "fetch",
       vi
         .fn()
@@ -114,7 +115,7 @@ describe("catalog cart integration", () => {
 
   it("keeps the draft during API failure and recovers on retry", async () => {
     createLiveCartStore().add(product);
-    vi.stubGlobal(
+    installFetch(
       "fetch",
       vi
         .fn()
@@ -137,7 +138,9 @@ describe("catalog cart integration", () => {
     );
     window.dispatchEvent(new Event("wok:logout"));
     await waitFor(() =>
-      expect(screen.getByText("Tu pedido está vacío")).toBeInTheDocument(),
+      expect(
+        screen.getByText("Verifica tu sesión para consultar el carrito."),
+      ).toBeInTheDocument(),
     );
   });
 });
@@ -157,7 +160,7 @@ describe("live draft validation", () => {
       ],
     ]) {
       window.sessionStorage.setItem(
-        liveCartStorageKey,
+        liveCartOwnerKey(clientIdentityStore.getSnapshot()),
         JSON.stringify(entries),
       );
       expect(createLiveCartStore().getSnapshot()).toEqual([]);
@@ -174,4 +177,84 @@ describe("live draft validation", () => {
     store.setQuantity(product.id, 1.5);
     expect(store.getSnapshot()[0].quantity).toBe(100);
   });
+});
+
+let sessionOwner: string | null = "client-test";
+function installFetch(_name: string, fetcher: typeof fetch) {
+  vi.stubGlobal("fetch", (url: RequestInfo | URL, options?: RequestInit) =>
+    url === "/bff/auth/session"
+      ? Promise.resolve(
+          sessionOwner
+            ? Response.json({ user: { userId: sessionOwner } })
+            : Response.json({}, { status: 401 }),
+        )
+      : fetcher(url, options),
+  );
+}
+beforeEach(async () => {
+  sessionOwner = "client-test";
+  installFetch("fetch", vi.fn());
+  await clientIdentityStore.refresh();
+});
+
+it("keeps the public menu and visitor cart separate when logging in", async () => {
+  sessionOwner = null;
+  installFetch(
+    "fetch",
+    vi.fn(async () => Response.json(menu)),
+  );
+  await clientIdentityStore.refresh();
+  const user = userEvent.setup();
+  const view = render(
+    <LiveCartProvider>
+      <LiveCartLink />
+      <LiveMenuCatalog />
+    </LiveCartProvider>,
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Agregar Gyozas al carrito" }),
+  );
+  expect(
+    screen.getByRole("link", { name: "Tu pedido, 1 artículos" }),
+  ).toBeInTheDocument();
+  sessionOwner = "client-test";
+  await act(async () => {
+    await clientIdentityStore.refresh();
+  });
+  expect(
+    screen.getByRole("link", { name: "Tu pedido, 0 artículos" }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Gyozas" })).toBeInTheDocument();
+  sessionOwner = null;
+  await act(async () => {
+    await clientIdentityStore.refresh();
+  });
+  expect(
+    screen.getByRole("link", { name: "Tu pedido, 1 artículos" }),
+  ).toBeInTheDocument();
+  view.unmount();
+});
+
+it("keeps the public menu usable while private identity cannot be verified", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: RequestInfo | URL) => {
+      if (url === "/bff/auth/session") throw new Error("Session unavailable");
+      return Response.json(menu);
+    }),
+  );
+  await clientIdentityStore.refresh();
+  render(
+    <LiveCartProvider>
+      <LiveMenuCatalog />
+      <LiveCartLink />
+    </LiveCartProvider>,
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Gyozas" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "Tu pedido, 0 artículos" }),
+  ).toBeInTheDocument();
+  expect(createLiveCartStore().add(product)).toBe(false);
 });

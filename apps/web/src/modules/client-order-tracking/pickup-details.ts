@@ -21,6 +21,14 @@ export const pickupStatusLabels: Record<string, string> = {
   CANCELLED: "Cancelada",
   EXPIRED: "Vencida",
 };
+export const pickupOrderStatusLabels: Record<string, string> = {
+  SENT: "Pedido enviado a cocina",
+  PREPARING: "En preparación",
+  READY: "Listo para recoger",
+  SERVED: "Entregado",
+  CLOSED: "Pedido cerrado",
+  CANCELLED: "Pedido cancelado",
+};
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object";
 const amount = (value: unknown): value is number =>

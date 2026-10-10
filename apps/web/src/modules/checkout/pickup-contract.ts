@@ -9,6 +9,8 @@ export type PickupReceipt = {
   requestedFor: string;
   subtotal: number;
   currency: string;
+  orderId?: string | null;
+  orderStatus?: string | null;
   idempotentReplay: boolean;
 };
 export const isUuid = (value: unknown): value is string =>
@@ -70,6 +72,23 @@ export function isPickupReceipt(value: unknown): value is PickupReceipt {
     value.subtotal >= 0 &&
     typeof value.currency === "string" &&
     /^[A-Z]{3}$/.test(value.currency) &&
+    (value.orderId === undefined ||
+      value.orderId === null ||
+      isUuid(value.orderId)) &&
+    (value.orderStatus === undefined ||
+      value.orderStatus === null ||
+      (typeof value.orderStatus === "string" &&
+        [
+          "SENT",
+          "PREPARING",
+          "READY",
+          "SERVED",
+          "CLOSED",
+          "CANCELLED",
+        ].includes(value.orderStatus))) &&
+    ((value.orderId === undefined && value.orderStatus === undefined) ||
+      (value.orderId === null && value.orderStatus === null) ||
+      (isUuid(value.orderId) && typeof value.orderStatus === "string")) &&
     typeof value.idempotentReplay === "boolean"
   );
 }

@@ -113,6 +113,29 @@ class InventoryIntegrationTest extends PostgresIntegrationTest {
         return itemId;
     }
 
+    @Test
+    void recipeChangesPreserveCompleteHistoricalSnapshotsAndRejectedChangesDoNotEraseThem() throws Exception {
+        String token = tokenForRole("OPERATIONAL");
+        UUID parent = createItem("RECIPE", "Receta ficticia", true, "0");
+        UUID component = createItem("COMPONENT", "Ingrediente ficticio", true, "0");
+        String path = "/api/v1/operational/inventory/items/" + parent + "/recipe";
+        UUID first = UUID.randomUUID(), second = UUID.randomUUID();
+        body(send("PUT", path, token, "{\"components\":[{\"componentItemId\":\"" + component + "\",\"quantity\":2}]}",
+                Map.of("X-Request-Id", first.toString())));
+        body(send("PUT", path, token, "{\"components\":[{\"componentItemId\":\"" + component + "\",\"quantity\":3}]}",
+                Map.of("X-Request-Id", second.toString())));
+        JsonNode original = json.readTree(jdbc.queryForObject(
+                "SELECT after_data::text FROM wok.audit_logs WHERE request_id = ? AND action = 'ITEM_RECIPE_UPDATED'", String.class, first));
+        JsonNode before = json.readTree(jdbc.queryForObject(
+                "SELECT before_data::text FROM wok.audit_logs WHERE request_id = ? AND action = 'ITEM_RECIPE_UPDATED'", String.class, second));
+        assertThat(before).isEqualTo(original);
+        assertThat(original.path("components").get(0).path("quantity").decimalValue()).isEqualByComparingTo("2");
+        assertThat(body(get(path, token)).path("components").get(0).path("quantity").decimalValue()).isEqualByComparingTo("3");
+        assertThat(send("PUT", path, token, "{\"components\":[{\"componentItemId\":\"" + parent + "\",\"quantity\":1}]}", Map.of()).statusCode()).isEqualTo(422);
+        assertThat(count("SELECT count(*) FROM wok.audit_logs WHERE entity_id = ? AND action = 'ITEM_RECIPE_UPDATED' AND actor_user_id IS NOT NULL AND created_at IS NOT NULL", parent)).isEqualTo(2);
+        assertThat(body(get(path, token)).path("components").get(0).path("quantity").decimalValue()).isEqualByComparingTo("3");
+    }
+
     private String uniqueCode(String prefix) {
         return (prefix + "_" + UUID.randomUUID().toString().substring(0, 8)).toUpperCase();
     }

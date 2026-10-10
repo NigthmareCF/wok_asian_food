@@ -1,0 +1,242 @@
+[
+  {
+    "number": 48,
+    "state": "open",
+    "title": "fix(api): reconcilia aceptación operativa delivery",
+    "head": "fix/pr38-delivery-reconciliation",
+    "sha": "00ad174ae0149d7acb2ca68e4bf3ef4d8163096f",
+    "updated": "2026-10-10T02:55:04Z"
+  },
+  {
+    "number": 47,
+    "state": "open",
+    "title": "fix(db): reconcilia migración de trazabilidad financiera",
+    "head": "fix/pr35-order-contract-reconciliation",
+    "sha": "786a807f3a820c7c6555c2f16d9d1244f31c3759",
+    "updated": "2026-10-10T02:41:37Z"
+  },
+  {
+    "number": 46,
+    "state": "open",
+    "title": "fix(deps): corrige vulnerabilidades bloqueantes de producción",
+    "head": "fix/dependency-security-audit",
+    "sha": "ba6187e23111274ec2aac4eaffef9734bc0f04b2",
+    "updated": "2026-10-10T00:51:49Z"
+  },
+  {
+    "number": 45,
+    "state": "open",
+    "title": "feat(web): conecta dashboards y documenta funciones pendientes",
+    "head": "feature/chan-reports-audit-contracts",
+    "sha": "5b9c80fd160f5f0f215814d5665232f2fdf752f1",
+    "updated": "2026-10-09T09:46:39Z"
+  },
+  {
+    "number": 44,
+    "state": "open",
+    "title": "feat(web): conecta inventario recetas y producción",
+    "head": "feature/chan-inventory-production-contracts",
+    "sha": "3d3c70ab8975d5afe1ba1dda4772067de266340d",
+    "updated": "2026-10-09T07:23:41Z"
+  },
+  {
+    "number": 43,
+    "state": "open",
+    "title": "feat(web): conecta caja cuentas y pagos operativos",
+    "head": "feature/chan-cash-payments-contracts",
+    "sha": "7a9189e5497c178cb54d5c80f5ce6329f84e57ed",
+    "updated": "2026-10-09T07:06:59Z"
+  },
+  {
+    "number": 42,
+    "state": "open",
+    "title": "docs(web): registra bloqueo del menú administrativo",
+    "head": "feature/chan-menu-admin-contracts",
+    "sha": "cdea8b363f34a8b96ea3a00017a94a77b1bab4c5",
+    "updated": "2026-10-09T06:33:46Z"
+  },
+  {
+    "number": 41,
+    "state": "open",
+    "title": "feat(web): conecta usuarios y capacidades administrativas",
+    "head": "feature/chan-admin-contracts",
+    "sha": "bfffad537a952c0758925b05bbaa51d1ce8eba72",
+    "updated": "2026-10-09T06:24:25Z"
+  },
+  {
+    "number": 40,
+    "state": "open",
+    "title": "feat(web): conecta perfil direcciones y sesiones cliente",
+    "head": "feature/chan-client-profile-contracts",
+    "sha": "b39fb08719cef235bc087dfef87fadfaabdc264d",
+    "updated": "2026-10-09T05:56:24Z"
+  },
+  {
+    "number": 39,
+    "state": "open",
+    "title": "feat(operational): integra flujos web y mejoras de Barrera",
+    "head": "feature/barrera-table-orders",
+    "sha": "bbcb773b7f19804d54d04e69bc2d2410e46364a2",
+    "updated": "2026-10-09T04:59:34Z"
+  },
+  {
+    "number": 38,
+    "state": "open",
+    "title": "feat(api): habilita aceptación de solicitudes delivery",
+    "head": "feature/chan-delivery-contracts",
+    "sha": "2768be3f39394ad8d6b55dc6e37c816a89c95f35",
+    "updated": "2026-10-09T03:58:27Z"
+  },
+  {
+    "number": 37,
+    "state": "open",
+    "title": "feat: integra flujos web reales y endurece pedidos, pagos y caja",
+    "head": "feature/web-integrated-delivery-finance",
+    "sha": "6df0ed4cebf1f20617796a47908959635f7488e6",
+    "updated": "2026-10-10T03:16:14Z"
+  },
+  {
+    "number": 36,
+    "state": "closed",
+    "title": "feat(mobile): mobile redesign + BFF + API reservation/pickup contracts (14 chained units)",
+    "head": "feat/mobile-complete-reviewed",
+    "sha": "fb243d68f208122bd3c8ce4588cf00ec37327d23",
+    "updated": "2026-10-10T03:09:15Z"
+  },
+  {
+    "number": 35,
+    "state": "open",
+    "title": "feat(api): fortalece contratos y reglas operativas",
+    "head": "feature/chan-order-contracts",
+    "sha": "01f1143545f0f9b73658cbb7d0000d912a6056ff",
+    "updated": "2026-10-08T00:40:18Z"
+  },
+  {
+    "number": 34,
+    "state": "open",
+    "title": "Revert \"fix(mobile): BFF routes/controller/tests + cart/menu flows and UI/state fixes\"",
+    "head": "revert-33-fix/mobile-corrections",
+    "sha": "c55e07c9ee5ee89afe9d7e317241f2cb43bf42e0",
+    "updated": "2026-10-08T00:03:48Z"
+  },
+  {
+    "number": 33,
+    "state": "closed",
+    "title": "fix(mobile): BFF routes/controller/tests + cart/menu flows and UI/state fixes",
+    "head": "fix/mobile-corrections",
+    "sha": "4b25f3be9c6c9158af998b321f60f319a1580ca6",
+    "updated": "2026-10-06T22:54:39Z"
+  },
+  {
+    "number": 32,
+    "state": "open",
+    "title": "feat(mobile): sync design tokens + NativeWind setup and mobile UI alignment",
+    "head": "feature/mobile-design-tokens",
+    "sha": "9997cf0e5bc9d7be1607c00a1581c27da9bd5e36",
+    "updated": "2026-10-08T00:03:14Z"
+  },
+  {
+    "number": 31,
+    "state": "closed",
+    "title": "fix: aplica permisos reales en navegación y documenta auditoría QA",
+    "head": "release/qa-security",
+    "sha": "fa6804117a3cbe00b85e42fa1ac7060b9305c4ad",
+    "updated": "2026-10-05T03:01:51Z"
+  },
+  {
+    "number": 30,
+    "state": "closed",
+    "title": "feat(api): facturacion electronica mock con outbox",
+    "head": "feature/invoices-outbox",
+    "sha": "206fec8639f50969062d0a3aff7d9d19018d35d7",
+    "updated": "2026-10-03T13:44:26Z"
+  },
+  {
+    "number": 29,
+    "state": "closed",
+    "title": "feat(api): pagos mixtos, propina y conciliacion de caja",
+    "head": "feature/mixed-payments-tips",
+    "sha": "0b60d77a4db72798b3eceadb3ef6e953a08693b5",
+    "updated": "2026-10-03T13:41:17Z"
+  },
+  {
+    "number": 28,
+    "state": "closed",
+    "title": "feat(api): inventario base y produccion por lotes",
+    "head": "feature/inventory-production",
+    "sha": "0a94bd9b43f417c30d06964585936d7df18a62db",
+    "updated": "2026-10-03T13:38:06Z"
+  },
+  {
+    "number": 27,
+    "state": "closed",
+    "title": "feat(api): cobro simple de cuenta y cierre de caja",
+    "head": "feature/cash-simple-closing",
+    "sha": "a070c61f5cdd4d998569095424421789a1f43aaf",
+    "updated": "2026-10-03T13:31:46Z"
+  },
+  {
+    "number": 26,
+    "state": "closed",
+    "title": "feat(api): inventario base y produccion por lotes",
+    "head": "feature/inventory-production",
+    "sha": "d9ce677166ed215116e64b538751e5ab5158e65f",
+    "updated": "2026-10-03T05:12:48Z"
+  },
+  {
+    "number": 25,
+    "state": "closed",
+    "title": "fix(api): protege decisiones e idempotencia operativa",
+    "head": "fix/operational-request-safety",
+    "sha": "a1b05b9688c112064ec34b015eea1f62d321b5b9",
+    "updated": "2026-10-03T13:34:57Z"
+  },
+  {
+    "number": 24,
+    "state": "closed",
+    "title": "Feature/cash simple closing",
+    "head": "feature/cash-simple-closing",
+    "sha": "584fd84fe1ec1f0f7364b5e3f15850473d332055",
+    "updated": "2026-10-03T05:07:18Z"
+  },
+  {
+    "number": 23,
+    "state": "closed",
+    "title": "feat(web): conecta catálogo, solicitudes, reservas y mensajería con API",
+    "head": "feature/frontend-backend-integration",
+    "sha": "3e18b740ed3a4df6b5f2aeb73ffa33219da58557",
+    "updated": "2026-10-03T13:28:56Z"
+  },
+  {
+    "number": 22,
+    "state": "closed",
+    "title": "security: controla excepcion temporal de Expo",
+    "head": "fix/dependency-security-gate",
+    "sha": "d554d2344f63afbdae1eface06c995e2a4eaf31d",
+    "updated": "2026-10-02T22:30:10Z"
+  },
+  {
+    "number": 21,
+    "state": "closed",
+    "title": "fix: corrige navegacion y sesiones web con backend",
+    "head": "fix/web-navigation-session",
+    "sha": "bac8805ee47b29f600d8e9f291742410b46aa4ed",
+    "updated": "2026-10-02T21:26:34Z"
+  },
+  {
+    "number": 20,
+    "state": "closed",
+    "title": "security: actualiza dependencias compatibles",
+    "head": "chore/dependency-audit",
+    "sha": "fb469002786d7d30dd691755faaf61d82b151c04",
+    "updated": "2026-10-02T14:02:22Z"
+  },
+  {
+    "number": 19,
+    "state": "closed",
+    "title": "Feature/backend operational and auth hardening",
+    "head": "feature/backend-operational-and-auth-hardening",
+    "sha": "2286d44e3dfce7fa6e82b7b0facc2d1cec143418",
+    "updated": "2026-10-02T21:26:34Z"
+  }
+]

@@ -1,0 +1,1434 @@
+{
+  "branch": "feature/integration-compatible-core",
+  "base": "1339d740320741050b1131dd9880491d1adffefc",
+  "uncommitted": true,
+  "excludes": [
+    "docs/integration/COMBINED_FILES.json"
+  ],
+  "files": [
+    {
+      "path": ".github/scripts/audit-production-dependencies.mjs",
+      "sha256": "3e8e7ca64219e280a38f56382398abbec5dcaa7c9565ed4a2cf21795856ba2ec"
+    },
+    {
+      "path": ".github/scripts/audit-production-dependencies.test.mjs",
+      "sha256": "4ca7f795970914abf0ab30a5b2f43868b6bfefb7cf0dacfdd59187b034d21b17"
+    },
+    {
+      "path": ".github/scripts/operational-flow-smoke.sh",
+      "sha256": "5245ebc163aeebdec2fd524dcffbe6aef60184dd7f620c4d851199856f1bc35e"
+    },
+    {
+      "path": ".github/scripts/pickup-smoke-window.sql",
+      "sha256": "fb26cca1ecbde91c299b5eba82d7d53ffda5456cd6da289d9021d20f50df8030"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/accounts/AccountFinancialTotalsService.java",
+      "sha256": "dd5007a7db06f41393a160a779b224b18e7251a359cb2464bff0dca51a7b5773"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/accounts/OperationalAccountController.java",
+      "sha256": "2c77e6fa4cf4a119b8c5652140e21df91cccd7fe773d31d6de63cfeff1ea9d29"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/cash/CashSessionController.java",
+      "sha256": "2a268592aac27192d75ff5104d7cd3d16a30cd1d7eec0bdb1726188cb9d13ccf"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/customers/CustomerAddressController.java",
+      "sha256": "54ad5d72a307db00de1ab7c8f8014d7dc952d9f57dd55668d29db96e35a814f8"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/inventory/InventoryController.java",
+      "sha256": "c16563f8a57b15932095dfc2463ef6bb9228d5606fc15cadfc0a4af0ad04fb04"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/kitchen/KitchenController.java",
+      "sha256": "2de5b8924901b64884ca77af06acae76ee7a30044404e34ff648191bb4620f71"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/orders/ClientPickupRequestController.java",
+      "sha256": "7690f2f6ab0778e298a4d8a4c6862fbaab78fcd3fbbddf6f5e6600a788bd18f7"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/orders/OperationalOrderController.java",
+      "sha256": "ac34d9018cc6872a42829854cc048a05be93e14720b858259e0e1cfd1a886660"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/orders/OperationalOrderRequestController.java",
+      "sha256": "b77316487409317925080377acd17546a4c203c8bb1777773af42a4ff2737f87"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/orders/PickupSchedulePolicy.java",
+      "sha256": "f9ca0d61c472c7b0feefa9aa9c137978791d04f794da0f76b349c00a3f3de196"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/payments/PaymentAttemptController.java",
+      "sha256": "4748795808bd2d96fb137b7c3b62fbb0b0753db6ddb11b832f66c1701d213783"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/payments/PaymentAttemptResolutionController.java",
+      "sha256": "487f01fa2e7065817548eead795348297247d4396ef7f27e1d413d658a28f784"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/payments/PaymentAttemptResolutionService.java",
+      "sha256": "18866339b01228019acf58f4e402249c770f8532942a2d060e4dcb62f2f46d7f"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/payments/PaymentAttemptService.java",
+      "sha256": "b9bcf179e4f11c1000045c2706376b7ca3a04fc6b52934920bbefd4473d957ac"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/payments/PaymentController.java",
+      "sha256": "fd15c263f1a424fdc07e05196653eb51927a48d8ac7bd7cd1351b6dda90b1099"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/reservations/OperationalCapacityService.java",
+      "sha256": "15cd4eea9605b48870a35369cba3a49e4c261c11c165e687416ae222fcc6e96e"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/reservations/OperationalReservationController.java",
+      "sha256": "091d51898462c195466f5a468ba6e1fd46173748b993e01593f1aaa08cbaff5b"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/reservations/ReservationRequestService.java",
+      "sha256": "4cfe817c4209f9a906f423d003c51d1e42285671b22a4b18710d7d2287ac8b7e"
+    },
+    {
+      "path": "apps/api/src/main/java/com/wokasianfood/api/tables/OperationalTableController.java",
+      "sha256": "d36a6dacd1c760cf0d23e378840564357624fa59343e1bf62e8f843ca136a0b9"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/RoleAuthorizationIntegrationTest.java",
+      "sha256": "995d7830881cfe235a24c2315e5766aeb29dc3db3e4619406aeaf7a0b3926a13"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/SqlContractsIntegrationTest.java",
+      "sha256": "37d5a2effa77f53e87400bbda23dc12a129f13c8d2e6427b4c58066c96b38d1a"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/accounts/AccountFinancialTotalsServiceTest.java",
+      "sha256": "bdd5ca41e6b8322b63be1d401d1bf0cf41884b65ea599cdf8efd83e3e4c952ce"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/accounts/FinancialAccountIntegrationTest.java",
+      "sha256": "5d817f05fe499995aa7955bf2a901eb61475d39183d3597f1ab43c4274bb9c45"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/cash/CashSessionIntegrationTest.java",
+      "sha256": "7cf310f52972f5a5d79bc3ec8d79e9e56c494c5bab0cf1ec289563b4b86206f0"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/customers/ProfileResourcesIntegrationTest.java",
+      "sha256": "9878d9a58ae66c4d07e4ffabfedb1f2f47841994201613305917ceb5f22ad8f0"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/inventory/InventoryIntegrationTest.java",
+      "sha256": "f11733a9aaec128cde4bd81630aed872d8fe9df9cd5df5219c7edd7217a2c213"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/kitchen/KitchenServiceTest.java",
+      "sha256": "2ab47956124cc60993558cc94c7cdc98898d757845f3bb4406ce7b1d24426d40"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/operational/ClientWebPersistenceIntegrationTest.java",
+      "sha256": "c4eab37d754d2969f739958e36cd51299bd1c26490a97216cf4bb6a96953bb62"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/operational/OperationalFlowIntegrationTest.java",
+      "sha256": "e7c76a3506f12d7e597e988c9de98a065bf1efc153c69a5880482cf70344efa0"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/operational/OrderRequestDecisionIntegrationTest.java",
+      "sha256": "2ff5b8cd917f1c8ff6308496324e6aee8722c428b39487f1e519416761cef229"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/operational/WebFindingBoundaryIntegrationTest.java",
+      "sha256": "e2ef093411d3fa004c62b9e1a8ea3eaa95df11c3b03db6c208f757a60cd3b387"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/orders/ClientPickupRequestControllerTest.java",
+      "sha256": "fc8dd0a96f1d1e2084d3909fd1ed6fa78d48ffb77422714edbfc4436b54eadea"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/orders/OperationalOrderRequestQueryTest.java",
+      "sha256": "fe3c734a7f11e2f975364b43b3aadd287294e12a13e75884b4a08924ba795c86"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/orders/OrderServiceTest.java",
+      "sha256": "c4639733e61fdcf5eee6f0054c384ae24f6846a860ef5665d02efccc4d49a71b"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/orders/PickupCompatibilityIntegrationTest.java",
+      "sha256": "bb764bd54066cbc30fd648e99e9974a6aa3d2960d65df3ae6ade36878c836ba4"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/orders/PickupSchedulePolicyTest.java",
+      "sha256": "a6259af2749aced91e9b9eb3f4c396915c885f55023a1e7710bfb552f59509cb"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/payments/FinancialLifecycleIntegrationTest.java",
+      "sha256": "565338dd6c2c697c02ab257fa482929a21b3b2d62197f7c4d958f337d248edc9"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/payments/PaymentAttemptCompatibilityIntegrationTest.java",
+      "sha256": "ffee77af13d275768221f7a8406fbb20dd828e9282139245eedc0f5edf29fa25"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/payments/PaymentAttemptIntegrationTest.java",
+      "sha256": "88f6c8192d3857141145793397b73454dd49546a7868db3547aaf708ffe9a09a"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/payments/PaymentAttemptResolutionIntegrationTest.java",
+      "sha256": "359406b0650415374d9bab0eebe5d543e0d635315cabf5f61b0bcff3156db204"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/payments/PaymentAttemptResolutionMigrationIntegrationTest.java",
+      "sha256": "e2b975512c387b799cc70e909ad6fea929dfe12010037eac8a85bbfe0a0a8c7c"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/reservations/OperationalCapacityServiceTest.java",
+      "sha256": "9eabc1f1a0787c027e6c68fc607316970fa6d57468dd8f0728bac1890a2d6a62"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/reservations/ReservationCapabilityIntegrationTest.java",
+      "sha256": "b77c0541d01921eda6b360a2090906770c13e21f2aa6ba40d39c8a05bc07bca0"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/reservations/ReservationDecisionIntegrationTest.java",
+      "sha256": "0c0d2b7b53ff3f07548637c1f0bff03a4bc63095a4bac3da48e47ba9e55393e4"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/support/NodeRuntime.java",
+      "sha256": "0df3a36055e8a06b17da4077840c4a7215c848a7caa4fdcec75d5bd08a9999b0"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/support/NodeRuntimeTest.java",
+      "sha256": "53876676e1db0a0e5d8a638982097991294f4e0bc81ccef148f907abeb98c82f"
+    },
+    {
+      "path": "apps/api/src/test/java/com/wokasianfood/api/tables/TableServiceTest.java",
+      "sha256": "d5b431959ee70f3ac0542366c62367365c4578b7136f37e2cdafaf6faba12dcc"
+    },
+    {
+      "path": "apps/mobile/app/(tabs)/orders.tsx",
+      "sha256": "d13e88c081244f829f8bac36e2174fe51eff70eebe64b52ad982a2af7f92b348"
+    },
+    {
+      "path": "apps/mobile/app/(tabs)/reservations.tsx",
+      "sha256": "02664dade3cb1c2b0081e4f9b9a38c21c1fafde7a7f6b4f6025f5a82f06103de"
+    },
+    {
+      "path": "apps/mobile/src/components/reservation-date-time.tsx",
+      "sha256": "a6f325bc4ff6bde68e4d2818f7e032263249c0bcfae89d903f1e5b9e7564262c"
+    },
+    {
+      "path": "apps/mobile/src/lib/api.ts",
+      "sha256": "9f8c9d1384d3e65c1b3f8359fc970f73b6a10da3d07a3b8d3cb71c830f29af73"
+    },
+    {
+      "path": "apps/mobile/src/lib/reservation-attempt.ts",
+      "sha256": "3389274f56ffc7da6ad1a216404245e6cfbafb6784224addd50f23e022836fd3"
+    },
+    {
+      "path": "apps/mobile/src/lib/reservation-policy.ts",
+      "sha256": "b173a0177ab272733f1fa737b0270c44765d28176df0745f55b00197b50c2532"
+    },
+    {
+      "path": "apps/mobile/src/lib/slot-time.ts",
+      "sha256": "19dc4ee729c9b53f9da56c7d45b649af82754733dd92c76350e6ae0e888de9c3"
+    },
+    {
+      "path": "apps/mobile/tests/mobile-presentation.test.cjs",
+      "sha256": "8e61dcf76438282292d1fbfa4c066ac9d52ebf17dc64900dc1978c3d42008cd8"
+    },
+    {
+      "path": "apps/mobile/tests/reservation-attempt.test.cjs",
+      "sha256": "0d813e522fe7497b5d79494a72e4d3968049efee6ca23551564c362ad3bbe601"
+    },
+    {
+      "path": "apps/mobile/tests/reservation-policy.test.cjs",
+      "sha256": "2f63179de18fecaa8635c8af238b44100b6fd51bbee3b9cac50da1d62bcea68a"
+    },
+    {
+      "path": "apps/mobile/tests/slot-time.test.cjs",
+      "sha256": "54921796ea86bf8c37da3d2c7f3aafaec9f90967ef9ad5d7e220ceb4315e6adf"
+    },
+    {
+      "path": "apps/web/package.json",
+      "sha256": "c887e8234cf5799d0ca5679d207d0f5de45db556b32bf3b62b16566164762713"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/ai/page.tsx",
+      "sha256": "047e751a6d0186c88a95ab17da0efee15d4492bbbb782720508456bca81b77b1"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/audit/page.tsx",
+      "sha256": "a86086df9435f20302989e0cffbbe5b2405dcdc8ab87e67885d7c541a4c2a0cf"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/cash-closings/page.tsx",
+      "sha256": "a572b4232a165960affc5935a09339cfb3bce6981bd7aa67ab975dc4d5fd85bd"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/clients/page.tsx",
+      "sha256": "9c138b40157d0830138c00337dacca90f3af4fb99a1a1586455a87056fb89ba5"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/menu/page.tsx",
+      "sha256": "9177df03b890e1943ef200ffac9276fc3b37cb9415a446953307660de37603a5"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/page.tsx",
+      "sha256": "bb7ff9d953202f9d25f7ef9b0384d4b031f42003a5c138851bee16b46894dc41"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/payment-attempts/[accountId]/page.tsx",
+      "sha256": "882b6c62dda96e564e6ddebf8a937d1b0e3134848ef5523e5f2b409e4a10c751"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/payment-attempts/page.tsx",
+      "sha256": "498074ea7c91a1dcde8a320f04249c3f2e06d5ce13c975094b9e5aaecc9503f0"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/reports/page.tsx",
+      "sha256": "de952c72d30795586806cc523ec08a91f3487b8c021b7d740dfcee10037cf820"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/roles/page.tsx",
+      "sha256": "547e001e5fdf8244ef7914f002562b8535e86ec466320f1bb09e95ccdb252dd9"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/settings/page.tsx",
+      "sha256": "ace4d9bbe101ccc28c538516d7cb30aa9d2f54778c28c9300c537833b7de095c"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/users/page.tsx",
+      "sha256": "de95cb4654800664f33402dd224933d161c1121025ed10cbab1593c9133492c6"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(admin)/admin/vision/page.tsx",
+      "sha256": "cfe63deb8ec6063f1417c1f6bd8936f343442a0b0ce1543189d48cf8d99951af"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(client)/client/menu/[productId]/page.tsx",
+      "sha256": "eb1d6734e3f09ba65edafa1bf3e81376e8c6492b4bf415ed0faa4d00284d851f"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(client)/client/menu/page.tsx",
+      "sha256": "a8f8d8023f0aaa20eb67690334033700336ded089b541a9bcbbe17b095ac6ff6"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(client)/client/orders/[orderId]/page.tsx",
+      "sha256": "89feada4038ff61dd8bdd5e566984a430dd9a09321dfc328f9a2dbb532e24ecd"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(client)/client/orders/page.tsx",
+      "sha256": "74db40db2f3bdc3b786688d7b9af9545b131b83f23c22fb45ed615717e780dcc"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(client)/client/profile/page.tsx",
+      "sha256": "6a109e5ceff6b0580f7e9c57276aceb2b32140fb315008df51ed94bfe57f315a"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/cash/page.tsx",
+      "sha256": "b33f05fdf1387db869ebffcc38473c153b808bd97237962db8e81b7e329e7ae2"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/kitchen/page.tsx",
+      "sha256": "650c8c6ae384f0a3517af813a30e7ae7af0febbf51d80f0462ee549e72806d0b"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/layout.tsx",
+      "sha256": "b5b27a27abcc6650d9b424499ed736dc8e28c528e4922f64001cff05908be981"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/online-requests/page.tsx",
+      "sha256": "7a21ac9e7606266f0462d974cdad3725b96a0cd7e9d2fc1c958b0f2dbe772a1d"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/orders/[orderId]/page.tsx",
+      "sha256": "344cbeddb21e6d64b6c1f98956df55754dd9116214caf17238620ec627445249"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/orders/new/page.tsx",
+      "sha256": "9a26a855b9b19966ad20687983f6b36abb0514a2e06398e06ab7f8a5ff9ac7d2"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/orders/page.tsx",
+      "sha256": "ab845cf09903bb3e2703ee783ae5fc73795d69bc0ac3044023c41a22c28f86ff"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/payments/[recordId]/page.tsx",
+      "sha256": "353919f2410bc2b14ebdd1d04abb929f0fcfb8c948b1586aa36871a9fef7850e"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/payments/[recordId]/prebill/page.tsx",
+      "sha256": "28a8efd49893e517cf27947d4dcae5b32d4cb6a213079ccf57f827c286c96d6c"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/payments/page.tsx",
+      "sha256": "9da6f5c82a3c4b568eb26f5c83ba947174fb630705ba80728f7e575e04e57fc3"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/production/[batchId]/page.tsx",
+      "sha256": "6dd737cbb803c0f4180a784250f8b82ce652842c7d9c84093b86bb3cf23e5133"
+    },
+    {
+      "path": "apps/web/src/app/(private)/(operational)/operation/production/page.tsx",
+      "sha256": "dd715cd6eb9dab68816e8f6c120162852b2fe8d5e99c2301fb18e003ba79505d"
+    },
+    {
+      "path": "apps/web/src/app/(public)/location/page.tsx",
+      "sha256": "ddb40f02e1f2352a644d9476459f9780b81613976865136eef8303dc503e6c0d"
+    },
+    {
+      "path": "apps/web/src/app/bff/admin/service-capabilities/[code]/route.test.ts",
+      "sha256": "b7976be873e1e24473773e5754dfe8464b6b88dcce9b8c106bc156e370700446"
+    },
+    {
+      "path": "apps/web/src/app/bff/admin/service-capabilities/[code]/route.ts",
+      "sha256": "7a21017b4deb51ab2129db2a9b088f1d00c5f7d029c38308aedc86c5e6b8446c"
+    },
+    {
+      "path": "apps/web/src/app/bff/admin/service-capabilities/route.test.ts",
+      "sha256": "4958868daf7eafe5d04ba25b41397af79d2847a916d13f49a754145706a33708"
+    },
+    {
+      "path": "apps/web/src/app/bff/admin/service-capabilities/route.ts",
+      "sha256": "e67af88f763b6f159be51c61d815ab893ce4d28f8b834e70be3a1cd69ea36ffb"
+    },
+    {
+      "path": "apps/web/src/app/bff/admin/users/[userId]/roles/[roleCode]/route.ts",
+      "sha256": "03bc7c4df45d5ea3456552aaa37da2d12bcaa8f71b7ffb888f5412952f354c41"
+    },
+    {
+      "path": "apps/web/src/app/bff/admin/users/route.ts",
+      "sha256": "5475bbc490ab7aadff320a29584df600227e7ab0643535f8ac20a9a9a4a104c2"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/addresses/[addressId]/route.ts",
+      "sha256": "833412a648c9a44b56b68ea0f40dcb777cc9e4a79da7774c6d71289e2f629d35"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/addresses/route.ts",
+      "sha256": "e932f57bc84dae0c24026e49813bd04b8bfc9c62f4d83984a19c8fb6ee7e186b"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/profile-resources.test.ts",
+      "sha256": "10f6bffeecda3140616e352abd415047154a1eea24f02b2d90ad1cc38475ed4b"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/sessions/[sessionId]/route.ts",
+      "sha256": "0bb76f10b9006c28142c364c3fff23f312040184820dfc6e2b26c61c00a532b9"
+    },
+    {
+      "path": "apps/web/src/app/bff/client/sessions/route.ts",
+      "sha256": "68e1ec5ebc3d140e102ca42f86ae398ff7d8889aed01bb6e0cae85872a4df4a1"
+    },
+    {
+      "path": "apps/web/src/app/bff/delivery-requests/[requestId]/route.ts",
+      "sha256": "b4bcfb42460cb57738513921554d6182e4da65316f18610ef1f6659c983fee79"
+    },
+    {
+      "path": "apps/web/src/app/bff/delivery-requests/route.ts",
+      "sha256": "78266974fa1d007ac3f589fea9898a01104388e1fb9e092c9d98e28b89d23511"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payment-attempts/[attemptId]/capture/route.ts",
+      "sha256": "52c651e39643963ddfc6f0921644972711ac972efed02126acb437584ea82dd4"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payment-attempts/[attemptId]/replacement/route.ts",
+      "sha256": "56d00493c9a67b5251df0ad976dcd129b80dd0b1124882485230ef640a402a26"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payment-attempts/[attemptId]/resolution/route.ts",
+      "sha256": "50f854e1c03e324fd5dfe4b615e3499ed80175150c38e36f400a517c07bb1c3c"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payment-attempts/[attemptId]/retire/route.ts",
+      "sha256": "b3d3fc980300a9a36cb2637d7063ca9ee5a1c9e8091f0e83d115ec8804e51839"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payment-attempts/[attemptId]/route.ts",
+      "sha256": "25c250d36be8d1693eea0c9dd0650b19e472c4a571c725c7e86a664508a1c273"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payment-attempts/by-legacy-key/[key]/route.ts",
+      "sha256": "3b1b49374f7f20f6e29bd7e957fd2ddd3f1d109f3e308f36758952bda107b05d"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payment-attempts/context/route.ts",
+      "sha256": "67130a25c912b9bc85ece63e0a3e8ff17968fefea9259a71ba23257e1ea8773b"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payment-attempts/route.ts",
+      "sha256": "ef908a93298a84497a73b227525ce1a3c9d01e85ecb3171aa405c0dc23d10c6b"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payments/by-idempotency-key/[key]/route.ts",
+      "sha256": "ee41b738ceccb252c8f32f53285a4a8c3e79b919bcfc7455e4188a7f9f05d0f8"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/payments/route.ts",
+      "sha256": "74a4ec21a6841f276c627fd04fcb640e26b5e8861fd721dc683ceaf49a810ec2"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/[accountId]/route.ts",
+      "sha256": "851909742dbca2fe2fb1d80bbdc2d17b2e940f5064336015cda0c484cc931b3b"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/accounts/route.ts",
+      "sha256": "e19c57c62c19a3ec6eb7cd0da18fd691e1ef6105b6e3c542497bc53d295ffb7e"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/cash-sessions/[sessionId]/close/route.ts",
+      "sha256": "c9f034cec7cf80fd445f9511b1423310d65b193c6140748e5a29dd9daef3abee"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/cash-sessions/[sessionId]/movements/route.ts",
+      "sha256": "ce50bd34e847407b197c75363fc6aad608b06259dc366d7994b712eff4b55e2b"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/cash-sessions/[sessionId]/route.ts",
+      "sha256": "c463d5a83a3958a23204bad08ce244a96b37abcd90b0a753e2b7e3e5260ef65c"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/cash-sessions/current/route.ts",
+      "sha256": "c6f5c9a6664c6f52bcef8350d44a43737920f28d35249093f41254669a350ffa"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/cash-sessions/route.ts",
+      "sha256": "906b0bd8dc5e13d085f6d0cf3c34a258ee7f39cc3e7ce59783304b745d0e85d9"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/dashboard.test.ts",
+      "sha256": "d827df2027a3721dfb0f9688f01db6b479c56b8b4d1fe54a4e6e73e02ae9c06b"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/financial.test.ts",
+      "sha256": "2bd865c37cfe0aa2ceb4dec668a07551ccc2f7925fdad0c16ce5de4b1903ce9e"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/inventory/[itemId]/movements/route.ts",
+      "sha256": "629f0ad1690dce7bdcd3ad2815b3e6a6d0732d935e63c5b67a70a3b90a81e251"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/inventory/[itemId]/recipe/route.ts",
+      "sha256": "8b0b0e0a3db023747e295783b35ef79b832e800b154fe7461155208129a6483c"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/inventory/[itemId]/route.ts",
+      "sha256": "5ffa5cb635a8b4703ff657ea608d9e9817a4bf8716b42b9ddde3d4e7a5315f9a"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/inventory/route.test.ts",
+      "sha256": "a6bbfdaa744f750056616ec2e00e74621865fa65c19f172e8bb0ee76e7266a79"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/inventory/route.ts",
+      "sha256": "5a5b6367c98fd6a4401cc3ac1489d9d59b59bec96eb0ea1a4b53963fa9ce168b"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/kitchen/load/route.ts",
+      "sha256": "873e89a3d769a900ecc1aa507b49d52351471c2e0e0b9292ea573f4c490c523a"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/kitchen/tickets/[ticketId]/claim/route.ts",
+      "sha256": "1aa46c9b5469f59254d49133c20ff95cd506c9292924155f2d5586386351c0bc"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/kitchen/tickets/[ticketId]/status/route.ts",
+      "sha256": "2cf98598ef748b74c90234c84b1c74734df854d4e8dce82d8d6595f657877af4"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/kitchen/tickets/operational-kitchen.test.ts",
+      "sha256": "a488f751d374e94cbb9df75e971f2fc6c27f349a33f8f926e981d565f20af80b"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/kitchen/tickets/route.ts",
+      "sha256": "10cf03ecf0f6b1e18615b627d5cd33a4e464d009344f1fdcf6e0ef91cb2788d5"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/order-requests/[requestId]/decision/route.ts",
+      "sha256": "b6fb64cc44adf552d15052fde0a2f529b4d50f03d456d4f0844d35290eb3e4a5"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/order-requests/operational-order-requests.test.ts",
+      "sha256": "a9660978e701518770c678585ab98728abd76547fb93811b02169840163f00f7"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/order-requests/route.ts",
+      "sha256": "49bdc3aca80b36efd2915e0f8960911f8e35925ece21c99900e0fbcf192af681"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/orders/[orderId]/items/route.ts",
+      "sha256": "7591f13d682d2331e90cda7e014ca3de8e49b21290072bdc56d3d74c8566c67e"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/orders/[orderId]/route.ts",
+      "sha256": "67de9eb536aa3290c7c8f8a97423ef7e1d7e5088bf594ce6011fdcc252e51f32"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/orders/[orderId]/status/route.ts",
+      "sha256": "344ab04169d1e3847646c0df8129d2ec55acb61d196bcdf396a63c68349a08f2"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/orders/operational-orders.test.ts",
+      "sha256": "612244ad8b10f0b69cfcbde610fbbdcaec890db691c0e189856f1093f3b01a56"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/orders/route.ts",
+      "sha256": "5446670468685859b8d15ad1f10600e5bc18aebb2196523ce84c337234673c15"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/payment-attempt-resolutions/route.ts",
+      "sha256": "4c02b79fcd1693252a4286423a5a87cbd92a697d1c957ce0db130ecdc057a7e5"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/payment-attempts/route.ts",
+      "sha256": "df106d7596afc8018ff1ed63d3ba66bc48918fb82ef4ff6497b1865980a685df"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/production/[batchId]/route.ts",
+      "sha256": "364769a69c697f18ae37b4ca15711212a7d571ca6005a663a632fcf74e4d7494"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/production/route.test.ts",
+      "sha256": "86757f5340c4d949a351e0dae5bd941418d6224ab661c8cfadc368cf28101b15"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/production/route.ts",
+      "sha256": "ead3abe08b2d3cb13bfd30132324cc417ecace0ba6fc64dca1696a40643ed8a6"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/reservations/operational-reservations.test.ts",
+      "sha256": "018c3ed81a0dd87268b232d80366d91f4f08e489fc079c8117d03041b512c84f"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/reservations/pending/route.ts",
+      "sha256": "99b7c5d82b45d471fb23110a586429013248532a37f414e9321193b887f99d5e"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/tables/operational-tables.test.ts",
+      "sha256": "0d1dd6adcb13fe148833fe01fd7d67795c2f65505fd78049d20089a90e40d490"
+    },
+    {
+      "path": "apps/web/src/app/bff/operational/tables/route.ts",
+      "sha256": "99189e5fe12d7e6a6b9fb82e8707aca8aef8302a243af6dd968ec2aa46f66257"
+    },
+    {
+      "path": "apps/web/src/app/bff/order-requests/[requestId]/route.ts",
+      "sha256": "e2f4d75e219155b4b4e447490eb736e0c23f34998710ea99da055649d2bd88e9"
+    },
+    {
+      "path": "apps/web/src/app/bff/order-requests/history.test.ts",
+      "sha256": "74f54d0b17e0541734745126ea0efc96ae61f75fc2896a8cc8cd827ca5cd4744"
+    },
+    {
+      "path": "apps/web/src/app/bff/order-requests/route.test.ts",
+      "sha256": "878a4c4cf85eca2e8f3ef84ade358910b52f9ec0786ed5f85238a99452054367"
+    },
+    {
+      "path": "apps/web/src/app/bff/order-requests/route.ts",
+      "sha256": "8eb82b1eacb33a08cb7a4a5b063b1911e91ffc32cbc50deffe8e8d66db2d6aad"
+    },
+    {
+      "path": "apps/web/src/app/bff/profile/route.ts",
+      "sha256": "b09ceac44b19de2a60eb7faa740f8b5cd65d5c1a45cc9eb5d6ca45048c6aaaeb"
+    },
+    {
+      "path": "apps/web/src/app/bff/reservations/[reservationId]/route.ts",
+      "sha256": "3ce35dcfc0938e9d2599f0c5f00efd1a52025bbb212bbd559308cff9948ce74a"
+    },
+    {
+      "path": "apps/web/src/app/bff/reservations/route.ts",
+      "sha256": "f54c6f6474a457ee66ba0585c573ad9810064f8ffbf45be1f71831400a7f9103"
+    },
+    {
+      "path": "apps/web/src/app/bff/service-capabilities/route.ts",
+      "sha256": "ed0b28196ad7b1136af59376326f5e2b9698576498e681577ba5f2a31d05d8b9"
+    },
+    {
+      "path": "apps/web/src/app/globals.css",
+      "sha256": "9434ee966a578eb08fb2b527583661acb6a9d20c0fcfdf102dea224bcc875cb0"
+    },
+    {
+      "path": "apps/web/src/config/navigation.ts",
+      "sha256": "744aca44d1541ea408fa8f6ccb0c3eb91966adc0e37eedb34db7df8ecf92df41"
+    },
+    {
+      "path": "apps/web/src/modules/cart/components/cart-view.test.tsx",
+      "sha256": "ad38fb2f3ee5a122ed4a5e1e390e3011ece44d6cb325621a6fea8b5d22e57093"
+    },
+    {
+      "path": "apps/web/src/modules/cart/components/cart-view.tsx",
+      "sha256": "7529b0b78114acf0d9b23111502799866ed49e89a78d7b4eec3e317207c15770"
+    },
+    {
+      "path": "apps/web/src/modules/cart/components/live-cart-view.test.tsx",
+      "sha256": "2848d2637910ba42d127d030b9f886e6ffa2ea2383ced23919179954ff910365"
+    },
+    {
+      "path": "apps/web/src/modules/cart/components/live-cart-view.tsx",
+      "sha256": "7e67bdc29b00d2eec45a0327961efc8c2f62a2efa6dcd9351581ec0fbd8f53e4"
+    },
+    {
+      "path": "apps/web/src/modules/cart/components/pending-request-view.tsx",
+      "sha256": "5bcd114663da3cc5642253bb4748cbd49d7018be310bcddc5515b4a0e188d94e"
+    },
+    {
+      "path": "apps/web/src/modules/cart/live-cart-provider.tsx",
+      "sha256": "f05c31b025f9cc673bdb5a84b19ca3a50a29031313ac3d1cef5fff117f5cbd7f"
+    },
+    {
+      "path": "apps/web/src/modules/cart/live-cart-storage.test.ts",
+      "sha256": "d1cffef8f34148cad73d351351f6e9032c42529504de1f2d10f65707a8570123"
+    },
+    {
+      "path": "apps/web/src/modules/cart/live-cart-storage.ts",
+      "sha256": "42cd7931ea6b2094104e2bbe29309dc5af7e00cd0eef6093845ad017f717141a"
+    },
+    {
+      "path": "apps/web/src/modules/cash/components/cash-view.test.tsx",
+      "sha256": "032c6ad9b423114be5b5e413d654177f50791039e1e59a8f9c35f666d6ceac9a"
+    },
+    {
+      "path": "apps/web/src/modules/cash/components/cash-view.tsx",
+      "sha256": "f9c5e5bc8732de72ffaa6670eb2603e36f90894b3bfead97cee0bdae2880293f"
+    },
+    {
+      "path": "apps/web/src/modules/cash/live-contract.test.ts",
+      "sha256": "0e411390a8bf067bafc5d77e80bade83e93140e16d49a1cbd3eae4285a5209c6"
+    },
+    {
+      "path": "apps/web/src/modules/cash/live-contract.ts",
+      "sha256": "c92c64e90365db7b06d1e83398770562bd72934f997b758c2c40876c2b417d95"
+    },
+    {
+      "path": "apps/web/src/modules/cash/use-live-cash-session.test.tsx",
+      "sha256": "3e4451b05f7a7788b67dbe55a7ee4bb75dc2261c586212f8e660a156ead75ac3"
+    },
+    {
+      "path": "apps/web/src/modules/cash/use-live-cash-session.ts",
+      "sha256": "8e55912e04ae6d0049c240d358930cf53f0f0e0e587d0214eef4785f367432b9"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/components/checkout.module.css",
+      "sha256": "708caa7625b619e0e9e9d403fc9ee99e99efa1bae36fbe4290fb2fda1221efc0"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/components/client-checkout.tsx",
+      "sha256": "8c01a12b1ea9fa48ef9db598fd673209d5a207e1bdf95edb00a5d599534c12a2"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/components/pickup-checkout.test.tsx",
+      "sha256": "96cee9e10d45317084fcaceca36d35eb34832632405626c52641bd617c740f59"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/components/pickup-checkout.tsx",
+      "sha256": "85eb622765cea5fccd88a87643ec5ad283f5bc16d90e513d1aeeffb42e2f78cb"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/pickup-attempt.ts",
+      "sha256": "8c7d486bbb6cc90d652827e76a0baf123f18e3deeb7fe7b72043591171830a74"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/pickup-contract.test.ts",
+      "sha256": "569ea17fb815ec1eaf2c57cc6bc4fda1253292346308a902d6a7f6c955c6c8f4"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/pickup-contract.ts",
+      "sha256": "864a84e89a993ed160f5f81067c115aac3ccff2fc26ebe43261142920f2f5968"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/pickup-window.test.ts",
+      "sha256": "b23649df245504c8c7773f1903905886f4ff2643bbd0006515cbe7a2c6ddc93a"
+    },
+    {
+      "path": "apps/web/src/modules/checkout/pickup-window.ts",
+      "sha256": "9f573fef6503f19066cf8c15ce13c43f4975d2c817924319c87a14c9b09b50da"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/audit-resource.test.tsx",
+      "sha256": "e38d40c3dc86e85aa0f59d0ccbb7a00045ec529882543328d82473936f5d7dcd"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/components/client-order-list-view.test.tsx",
+      "sha256": "9c5a34469ec19514a8cc8160d048c907a9ac9661c3c7d9b2c15616813eb0475c"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/components/client-order-list-view.tsx",
+      "sha256": "69a0483b7472aae967609e51a668b8ecbc66ac2c01d025935d88cb4754e0206f"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/components/pickup-history.tsx",
+      "sha256": "ddbfa7c9ea884aa0f36768acae556ac4b64b57dad00b80dbdcae9df5c81da6ab"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/components/pickup-request-detail.tsx",
+      "sha256": "e6245561395828bd06026cab1dd37e6086608e54de0bfb3054f417dbd6d4ac52"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/components/pickup-requests.test.tsx",
+      "sha256": "89595268d0c9983b248c4c630c55c5be9724a4463e41957cabad9fd97c606af6"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/pickup-details.ts",
+      "sha256": "08d856de0531c0a16a0185ccd7896205d36c2c4ab152d6982a8821c1a36df189"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/use-client-pickup-resource.test.tsx",
+      "sha256": "8d736bfd4c05407a89b733a6308cfbb62da3f525d99612dbe95ffeb35f12d325"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/use-client-pickup-resource.ts",
+      "sha256": "841d29ce34a7a73083cf9522822e51a42410d0e7ce0ca7e53f9e1421a5b1c334"
+    },
+    {
+      "path": "apps/web/src/modules/client-order-tracking/use-pickup-resource.ts",
+      "sha256": "a59dcda86d05a1ec1fca525ea966556fb65a74f0f91bc2301ddcda22353cfd08"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/attempt-store.ts",
+      "sha256": "38e1597b3fd8f3d00668179d7e97a7954424967dc5669971ba89038218f66223"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/live-workflows.test.tsx",
+      "sha256": "b07466cc29130d40a279d5b6345f42e824a3ee3e44d8bc9445a5c8cfb525af9d"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/server/client-principal.test.ts",
+      "sha256": "4c3ef94d214f226398493d481a7ef502481f639a1b5e965e5ffbbcc2d28ade25"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/server/endpoint.test.ts",
+      "sha256": "a37b834e6108fd1e5d940fd6d3acd5c94cd1f2f14130e1420a36b1f31571a439"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/server/endpoint.ts",
+      "sha256": "7b68a8c16322e8070eff3da8ee58cbbe287db5fecc4ad352a740667d681ed964"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/use-automatic-refresh.test.tsx",
+      "sha256": "c93f04ef4ba9ea34280acc6e4c811dde3ff7907066aa2fbffa7d7541d7566af0"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/use-automatic-refresh.ts",
+      "sha256": "ab83c588d8ed0b4352b05061e4cecd6a77a6f29411d4d466ac0b92aaaed99009"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/use-submission.test.tsx",
+      "sha256": "8960fc823598d945bf2155a5d916e22b205b8c26050673e78f12e8a62a4a1c02"
+    },
+    {
+      "path": "apps/web/src/modules/client-workflows/use-submission.ts",
+      "sha256": "9fb750f986c1c7d0789a227f65775950e1641299d4cdb7b4c2722252a7f46458"
+    },
+    {
+      "path": "apps/web/src/modules/clients/audit-profile-contract.test.ts",
+      "sha256": "3002e83aef9a0be209edbe25d3512338c322572d3e7be9f6ccf66fe0392fb4ea"
+    },
+    {
+      "path": "apps/web/src/modules/clients/client-identity-store.test.ts",
+      "sha256": "06c2b2be43557905f6fe741a71285f08f53f1524a49a2b1d3c77aecd579e2ebd"
+    },
+    {
+      "path": "apps/web/src/modules/clients/client-identity-store.ts",
+      "sha256": "f882b7681dc6a2ba80be69a1d26ddf460c5b238bacf1c0acd5e0be330fcf2af2"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/client-home.module.css",
+      "sha256": "e90d986fb43791a2cb6a16258f46c47251002cbb62ddf4034c221e03b3cc5171"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/client-home.test.tsx",
+      "sha256": "1de20c00b30b9a2fabba20a31647bf7fda74d3fe20cdd8e2cc1c1918fb14c168"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/client-home.tsx",
+      "sha256": "451ffed42476b1dfec27280ea5666ed5a01cce3ab4e52bd2693b680c5062c5bf"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/live-profile.test.tsx",
+      "sha256": "27d2a33bd0d93f0af1443b103c234bd99f763e05d5c3d9242eec73c9b10f8bd6"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/live-profile.tsx",
+      "sha256": "3010a82e4696f3967d3dea8b842fce63dd82d0599783c3cf501ab6256ed9d013"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/live-service-summary.test.tsx",
+      "sha256": "601c6d0a539af65a3625a137596d1c4a5812bc8382e2d568e5142c48f3da5a1b"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/live-service-summary.tsx",
+      "sha256": "25cdb49beed31bf76e9ca3cd849f9c4985f9019575c1764114c592131da405df"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/profile-resources.test.tsx",
+      "sha256": "1ddd3d60bc3091ab3e142fcca2cf73a690ab77b9eac62f5c5143540f58b99d22"
+    },
+    {
+      "path": "apps/web/src/modules/clients/components/profile-resources.tsx",
+      "sha256": "0ab45b29da9dfe059433d6b4a211375bfdf94786b131a8124dc3672aff024b76"
+    },
+    {
+      "path": "apps/web/src/modules/clients/profile-contract.ts",
+      "sha256": "8db4f690a9f2d76144264b3957cac0fc3165331c660c9dc73ba9ea29094a8ca8"
+    },
+    {
+      "path": "apps/web/src/modules/clients/server/expected-client-principal.ts",
+      "sha256": "f3d56c9f14ec4aaff60819494c09dab29e4b79526038b7b46ea6866fdb2d2cc8"
+    },
+    {
+      "path": "apps/web/src/modules/clients/service-contract.ts",
+      "sha256": "f361b07b4c4cbc052f1af26d24c6e1af6e7d5e34e23852a79cd4b8b4268f0e03"
+    },
+    {
+      "path": "apps/web/src/modules/clients/use-client-identity.test.tsx",
+      "sha256": "3e06abf95d2049aa492963efee96a0df35bacd5972a469e3e9e21096dd7b1bb1"
+    },
+    {
+      "path": "apps/web/src/modules/clients/use-client-identity.ts",
+      "sha256": "9bf2745cc42d6f03df9f088ceaa0672bb375ddf38c9040bc3a990c8846db3504"
+    },
+    {
+      "path": "apps/web/src/modules/delivery/components/client-delivery-history.tsx",
+      "sha256": "0924f91ef804b58c204e0033d2cba6c9afefa5879c195bbfa380d824b4286ffe"
+    },
+    {
+      "path": "apps/web/src/modules/delivery/components/delivery-checkout.test.tsx",
+      "sha256": "d115e3e4e4aeb66e42214091aefef6359275e8c9b816133dba2b885d681b1ec2"
+    },
+    {
+      "path": "apps/web/src/modules/delivery/components/delivery-checkout.tsx",
+      "sha256": "2911f5b7d5b5b8479fef778990a809148fbadf992cd3b6f904c9c35e577ea285"
+    },
+    {
+      "path": "apps/web/src/modules/delivery/delivery-window.ts",
+      "sha256": "baa803f3532dd7548c3b9b43061408efd8c52f840a0e765fede496a5c1ca76a6"
+    },
+    {
+      "path": "apps/web/src/modules/inventory/components/inventory-detail-view.tsx",
+      "sha256": "97b3e92d592e4df64b91dfe1b438c9f546ec07f041a7a66dda7498639421b238"
+    },
+    {
+      "path": "apps/web/src/modules/inventory/components/inventory-list-view.tsx",
+      "sha256": "3ef6613a0b40b0ff5f2917b99a8f2f581de851bf27074dcaede499f8239e300b"
+    },
+    {
+      "path": "apps/web/src/modules/inventory/components/inventory-views.test.tsx",
+      "sha256": "e1939e29daa07edc34a3faa472d9ea1157f8c30e423e02bce473b85a0ddef634"
+    },
+    {
+      "path": "apps/web/src/modules/inventory/inventory-session-provider.test.tsx",
+      "sha256": "446cdc1a2888c9d20b9a8000d697f065d20b6df5097f87d7061e75044bd26b09"
+    },
+    {
+      "path": "apps/web/src/modules/inventory/inventory-session-provider.tsx",
+      "sha256": "116a4db4ac9cc369b0043956b72372dd03ed4c1b95d3e45f86f62ebb78fdc4af"
+    },
+    {
+      "path": "apps/web/src/modules/inventory/live-contract.ts",
+      "sha256": "c29bcbb6859ef5bd60da62759b5e7c5de8295052358bc01649342d23775f9a02"
+    },
+    {
+      "path": "apps/web/src/modules/kitchen/components/kitchen-board.module.css",
+      "sha256": "357a13ee60c90148587cb4baaad76100fbf92e23c5c4a0436133ddc9adc0db47"
+    },
+    {
+      "path": "apps/web/src/modules/kitchen/components/operational-kitchen-view.tsx",
+      "sha256": "1c086d2166cf5cb6d8c9ae0521dfaa1822d7ff9cba4c7e49970a18f919a75f2b"
+    },
+    {
+      "path": "apps/web/src/modules/kitchen/index.ts",
+      "sha256": "c135de629c0e9c471f8c7622549edf4b40332d985dfa8f1b143df70b43508777"
+    },
+    {
+      "path": "apps/web/src/modules/kitchen/live-contract.test.ts",
+      "sha256": "06a7252b3f40c858752120562426f7ca2cb5d817b60e84644de4fde073bb62e2"
+    },
+    {
+      "path": "apps/web/src/modules/kitchen/live-contract.ts",
+      "sha256": "a5d3e101ddb02374521b66408c9b814b8274dc6332d12c8a1ad3a828318d64cb"
+    },
+    {
+      "path": "apps/web/src/modules/menu/components/live-catalog-management.tsx",
+      "sha256": "39a41d1d77fc484213ec7013efabdc4cbb533b7439b079f7984ff253c7910765"
+    },
+    {
+      "path": "apps/web/src/modules/menu/components/live-menu-catalog.test.tsx",
+      "sha256": "a82108c79d01ad3b9fce59d89846db0043c9fe39b87b462a8ccb09ff4ab3746c"
+    },
+    {
+      "path": "apps/web/src/modules/menu/components/live-menu-catalog.tsx",
+      "sha256": "3ef6462d1eff69f0039d61d35c242f0f53395fa335075e11834bc0fc303ad841"
+    },
+    {
+      "path": "apps/web/src/modules/menu/components/live-product-detail.tsx",
+      "sha256": "a48b1187522f594326f90da29940634662552a5a41551988397a4bf63761cbd9"
+    },
+    {
+      "path": "apps/web/src/modules/messaging/components/live-messaging.tsx",
+      "sha256": "f31226dd1e6e4f58cf6cb45cadc29b26a890bd6df42e79bb470bd01ec52ef8ed"
+    },
+    {
+      "path": "apps/web/src/modules/messaging/server/live-endpoint.ts",
+      "sha256": "e129896686b2a15cfa3f449f5b73117b476c3d4677f68300d0de13dfaa8644e5"
+    },
+    {
+      "path": "apps/web/src/modules/operation/components/operational-dashboard-view.tsx",
+      "sha256": "5163a31c48504b9f198f6e20f1c5497906095806837953af03548ff8c7e8cac3"
+    },
+    {
+      "path": "apps/web/src/modules/operation/components/operational-dashboard.test.tsx",
+      "sha256": "dfd23be9a0c4b9ff308f5000ccc0f75a9212d00dc5f1d153cf4ba2d6dfaf8003"
+    },
+    {
+      "path": "apps/web/src/modules/operation/dashboard-contract.ts",
+      "sha256": "7983626ef07c8d254d639ee7671c02487ea499c13d5aecb19c930c4c566ee59b"
+    },
+    {
+      "path": "apps/web/src/modules/orders/components/audit-requests.test.tsx",
+      "sha256": "f1971a43f6d762389a1f58c163c13fa30b8d90cf61dff71db040b980303441b6"
+    },
+    {
+      "path": "apps/web/src/modules/orders/components/operational-order-builder.test.tsx",
+      "sha256": "29d1412094bcd3c6d751ee5a0bed2ab467a83fb7c807c862ccb4bce702635cd5"
+    },
+    {
+      "path": "apps/web/src/modules/orders/components/operational-order-builder.tsx",
+      "sha256": "27595d315018e87fff9258694bf9f40a5ebd81f602c99e328dcd65fec726a97b"
+    },
+    {
+      "path": "apps/web/src/modules/orders/components/operational-order-detail-view.test.tsx",
+      "sha256": "f5336bf24baf9ee8ae4b76f56b2bba33b9d315549aae6b2019636d2cf5142a7f"
+    },
+    {
+      "path": "apps/web/src/modules/orders/components/operational-order-detail-view.tsx",
+      "sha256": "629edb2447f0083451a19db83961606e8f6d14d5abaeb28a6b0f82a1480fc2bc"
+    },
+    {
+      "path": "apps/web/src/modules/orders/components/operational-order-list-view.tsx",
+      "sha256": "a926a8d30000f632324fa663e71efdaae779d7204f4a9eb4b6b454cc21da0bca"
+    },
+    {
+      "path": "apps/web/src/modules/orders/components/operational-order-requests-view.tsx",
+      "sha256": "fef65ffd34819820e0775b4aea15c7cdc1fb5e4d15e7af22457c9b634d9655ed"
+    },
+    {
+      "path": "apps/web/src/modules/orders/components/operational-order-requests.module.css",
+      "sha256": "1f55f54c10fd5a098001a013fe7891b0563eed79545d90ad117bb30e862e949b"
+    },
+    {
+      "path": "apps/web/src/modules/orders/index.ts",
+      "sha256": "e5b6e6c4938f8b131b7851ed69bfea9ff20d32ab3625b97ee003ef63edfb58d3"
+    },
+    {
+      "path": "apps/web/src/modules/orders/live-contract.test.ts",
+      "sha256": "e2b67bc6388ede1be47789724a9b149de7d40de6da034e8fcd6ddb3c3df5eb7b"
+    },
+    {
+      "path": "apps/web/src/modules/orders/live-contract.ts",
+      "sha256": "1444685363fb2d6baf2281fd06506815c2c334f416f8dfeeb089b251a2fb0b81"
+    },
+    {
+      "path": "apps/web/src/modules/orders/order-attempt-store.test.ts",
+      "sha256": "cc396e355bebdeba66d20cd1e8cf29dd6e401e0eb5857e7fc054940212ecb9e7"
+    },
+    {
+      "path": "apps/web/src/modules/orders/order-attempt-store.ts",
+      "sha256": "7f723c38eb934fbe67af0dcd92cbc02708c8d3f972118d48414317bab00614d2"
+    },
+    {
+      "path": "apps/web/src/modules/orders/order-request-contract-regression.test.ts",
+      "sha256": "5e15c3641d7e297fb2b052704f869f74031b1e7b69b4608d0b69defa4e0ce9a8"
+    },
+    {
+      "path": "apps/web/src/modules/orders/order-request-contract.test.ts",
+      "sha256": "42a34ba1ce226219f9df35746922fd1066e0a0da6422b630d317c333a5c28c59"
+    },
+    {
+      "path": "apps/web/src/modules/orders/order-request-contract.ts",
+      "sha256": "4c9e38a609e73be45ae9fa61c57f7d8aa2f98ad5d983684eea9c673c188d850d"
+    },
+    {
+      "path": "apps/web/src/modules/payments/attempt-contract.test.ts",
+      "sha256": "0928ed2ace1a1e7404f203ea329802e52fa97fb96b933d5e80ce92fdeae7869a"
+    },
+    {
+      "path": "apps/web/src/modules/payments/attempt-contract.ts",
+      "sha256": "cf101c2c96a2b42c05a0698653a6ae0d2153aae1d8fa3266f5a9187e595f8e9d"
+    },
+    {
+      "path": "apps/web/src/modules/payments/components/payment-detail-view.tsx",
+      "sha256": "b8354394746f83c309a0c2e21e93e34c223db6e4cb104b85e1b326493117fb81"
+    },
+    {
+      "path": "apps/web/src/modules/payments/components/payments-list-view.tsx",
+      "sha256": "72d93f6e18416786c75b31942bd4dafe4255f43edb3db5d90d7224e74c525581"
+    },
+    {
+      "path": "apps/web/src/modules/payments/components/payments-views.test.tsx",
+      "sha256": "9ade18f2fe690c6fdc539b2d6fb6eb8352a56e30171c332f5b7d4f85a4eb8faa"
+    },
+    {
+      "path": "apps/web/src/modules/payments/components/prebill-view.tsx",
+      "sha256": "cb3a82b3c80394f7a3bde20d0ebe3967fd1701fafd0fd29c44fbd4138a07817c"
+    },
+    {
+      "path": "apps/web/src/modules/payments/financial-attempt-provider.test.tsx",
+      "sha256": "cf43ab3ffd4a9cbbac991473d9c23ca365bb75ed8dcf97696faf975ae48fbce2"
+    },
+    {
+      "path": "apps/web/src/modules/payments/financial-attempt-provider.tsx",
+      "sha256": "e603666b5fe8e27c17d7db6f9f3e51bce80bad149b16f688874eae84c31feb64"
+    },
+    {
+      "path": "apps/web/src/modules/payments/live-contract.test.ts",
+      "sha256": "69abd8da1d948d4f80bd2939e623ba03f9c72fcc3dda0dfcdf018ac78e6d7f2f"
+    },
+    {
+      "path": "apps/web/src/modules/payments/live-contract.ts",
+      "sha256": "41190b2d2cfb13a65bcceb49cac6456d0f2f8a3c8b2b3655eeef2731515f2600"
+    },
+    {
+      "path": "apps/web/src/modules/payments/server/attempt-endpoint.test.ts",
+      "sha256": "f80c385c158ca71621b6d6711bc42b0a9da93915777c91340566aae05f917157"
+    },
+    {
+      "path": "apps/web/src/modules/payments/server/attempt-endpoint.ts",
+      "sha256": "663e1a4a0a4560b199095c664169a8283a2cb6e140751332eedec07564d9c552"
+    },
+    {
+      "path": "apps/web/src/modules/payments/use-account-finance.test.tsx",
+      "sha256": "1704b579af1b69fa61837ab7c1d85641aa74314099d83e92bf7a5c620de01040"
+    },
+    {
+      "path": "apps/web/src/modules/payments/use-account-finance.ts",
+      "sha256": "905c28f48f547085f4397100ef72a13415c669c6b6ab29fe97ee6dd834e86796"
+    },
+    {
+      "path": "apps/web/src/modules/production/components/live-production-detail-view.tsx",
+      "sha256": "7d631751c49965c5a25f250022160e39091977891adee26cc0d6f9e00de4e6f2"
+    },
+    {
+      "path": "apps/web/src/modules/production/components/live-production-list-view.test.tsx",
+      "sha256": "11a4b04cbe5f2cbd33d67d2d310dbbddc3879d8c82e67f605d26e3984957aee0"
+    },
+    {
+      "path": "apps/web/src/modules/production/components/live-production-list-view.tsx",
+      "sha256": "01c43d4dba73252f294bf1e1a3f4346cb9e029dc625188d4a4b5339e6bd38532"
+    },
+    {
+      "path": "apps/web/src/modules/production/index.ts",
+      "sha256": "d36aacf62d198a96a96e75d93e79ae22e029c1ff262540249db06ca0cd7b566b"
+    },
+    {
+      "path": "apps/web/src/modules/production/live-contract.ts",
+      "sha256": "704485b0582b883d0cf1012ccafdf5bc3caded94b7e3de7800728f451a3351ba"
+    },
+    {
+      "path": "apps/web/src/modules/profile/address-contract.ts",
+      "sha256": "3393f3432b3ecf311295ddd0ca8f434ca2647864ec15ff889424d10e9e74021e"
+    },
+    {
+      "path": "apps/web/src/modules/profile/session-contract.ts",
+      "sha256": "b96406c59722af774863a2895843ed97818040d162b882ba8561add9112b2251"
+    },
+    {
+      "path": "apps/web/src/modules/reservations/components/client-reservation.test.tsx",
+      "sha256": "53ddd928269122c633c4ae9df42b3e3e858f3adc35a61504556960aec41ae508"
+    },
+    {
+      "path": "apps/web/src/modules/reservations/components/live-reservations.tsx",
+      "sha256": "325141a4052b3d6922ce79a6161750df4462f0cdbd713dbdc88403b5259073ba"
+    },
+    {
+      "path": "apps/web/src/modules/reservations/components/operational-reservation-queue.test.tsx",
+      "sha256": "fc4e6b783f861920add33a934311ba6d145dc1c77f4a78dc87629d72064a03b5"
+    },
+    {
+      "path": "apps/web/src/modules/reservations/components/operational-reservation-queue.tsx",
+      "sha256": "908f805dedc981b8ad724a190fada41a92643d3a909d4b7e935047bc97a09642"
+    },
+    {
+      "path": "apps/web/src/modules/reservations/components/reservation-form-view.tsx",
+      "sha256": "2be0315799e5f13311fe15e73e352c8e5bc963cd47bdf3ac13246186f6ab892c"
+    },
+    {
+      "path": "apps/web/src/modules/reservations/components/reservation-views.test.tsx",
+      "sha256": "a0f43bad1d0e22b844385ae6fe04ca53e852ab5af042e332c86d2865d8f0a5f5"
+    },
+    {
+      "path": "apps/web/src/modules/reservations/reservation-window.test.ts",
+      "sha256": "735b4e3b17c4f0fa611ffb48ba4ccb6b5a409237c77c54aca5629f7bf1374418"
+    },
+    {
+      "path": "apps/web/src/modules/reservations/reservation-window.ts",
+      "sha256": "5c196218282cf7e8ad794b2919b7484dcbe7de9c442c244bf313a9d424238047"
+    },
+    {
+      "path": "apps/web/src/modules/service-capabilities/admin-capability-contract.ts",
+      "sha256": "9c17becb7e4991eed8a51191b5e51662575bc9d2491c4f3b48371ede9b3b8265"
+    },
+    {
+      "path": "apps/web/src/modules/service-capabilities/components/service-capabilities-view.test.tsx",
+      "sha256": "00bbb6ac02dd97da259ab952251f22ecdb3ca7f49aab8c6ce79902302cabfd09"
+    },
+    {
+      "path": "apps/web/src/modules/service-capabilities/components/service-capabilities-view.tsx",
+      "sha256": "ca37350ed64a12c60aaee6a96f56a3e362f3aedc15d734dcbf057cd3a5085795"
+    },
+    {
+      "path": "apps/web/src/modules/service-capabilities/index.ts",
+      "sha256": "7244aa81e957ae660c30f17977d89be78d80ca7c9fa0ef0b649d0c413d83db5f"
+    },
+    {
+      "path": "apps/web/src/modules/tables/components/operational-table-detail-view.test.tsx",
+      "sha256": "37a2df23d256df89f4f6c8ef4f1b68a93bd525ca00207083ac37290cead00f88"
+    },
+    {
+      "path": "apps/web/src/modules/tables/components/operational-table-detail-view.tsx",
+      "sha256": "c01047570514fd7cbd644f2b3b8503eacdd692b0cc149f856c807eb6fd65a3e1"
+    },
+    {
+      "path": "apps/web/src/modules/tables/components/operational-table-recovery.test.tsx",
+      "sha256": "ff08814c3446e58deec91a4a8fabc0e8b01eace5bbd618c05bcb9c31f8036cc0"
+    },
+    {
+      "path": "apps/web/src/modules/tables/components/operational-tables-view.test.tsx",
+      "sha256": "b9b87a1ceacf1bfd1b39aebd325b12d9671a8013f2af9bd0d414959a9dff91f3"
+    },
+    {
+      "path": "apps/web/src/modules/tables/components/operational-tables-view.tsx",
+      "sha256": "e76db56806b80e0092791d60e56f3bc60c9a7effe49908bec38bc0d9dbd14a4c"
+    },
+    {
+      "path": "apps/web/src/modules/tables/components/operational-tables.module.css",
+      "sha256": "b0edddaddbcc195690477b9c47141cd1f475b8005546bbb82451d204dac091b9"
+    },
+    {
+      "path": "apps/web/src/modules/tables/live-contract.test.ts",
+      "sha256": "5412edab20611b46c04a1ac6159c201bf1848229842e73d2e5f338702522bae0"
+    },
+    {
+      "path": "apps/web/src/modules/tables/live-contract.ts",
+      "sha256": "0dc22cf13e76d5f272d7b9e6e1962e9730e23bbfba0dce1deed7cb69a11e8c9c"
+    },
+    {
+      "path": "apps/web/src/modules/tables/presentation.ts",
+      "sha256": "5b0549641033d469f405717f53dfbf639850271a4c9e4db0267e377265fc8762"
+    },
+    {
+      "path": "apps/web/src/modules/users/components/live-user-management.test.tsx",
+      "sha256": "1e2f70bb04ec7f109484550407465dc392d6247959ab2c09c835f0882ad432f1"
+    },
+    {
+      "path": "apps/web/src/modules/users/components/live-user-management.tsx",
+      "sha256": "668ed4d7d92f45fb8c8af9bd0916d7df7fd945703fb8fd629a5764db5a0c4553"
+    },
+    {
+      "path": "apps/web/src/modules/users/components/user-management.module.css",
+      "sha256": "144d96f45b69c670c8f63b6829ac3c8a4301143030660652366941db9b80d693"
+    },
+    {
+      "path": "apps/web/src/modules/users/components/user-management.test.tsx",
+      "sha256": "76505a8b1512ffb80fc3b1a28d2fe4c9b8d1ff8c85f4dd5274b8f1e6504d350e"
+    },
+    {
+      "path": "apps/web/src/modules/users/live-contract.ts",
+      "sha256": "f258d55cb724c3afd595b99c62f679c95e9e4e95762fb182c980bd5601ca161e"
+    },
+    {
+      "path": "apps/web/src/shared/components/app-shell.test.tsx",
+      "sha256": "24f182b2ce318e18b7465d170e44ec4858266010c741890c0d9687a27c3590c8"
+    },
+    {
+      "path": "apps/web/src/shared/components/app-shell.tsx",
+      "sha256": "17548bf117150d54a0c978224eaa8a251f7ac01bd05536c7bc7ca3d4a21050a6"
+    },
+    {
+      "path": "apps/web/src/shared/components/backend-unavailable.test.tsx",
+      "sha256": "8c6378c6cc5569d0424b7dfd890ec0bc3d6e58992e0b0a0f9506df94866f146d"
+    },
+    {
+      "path": "apps/web/src/shared/components/backend-unavailable.tsx",
+      "sha256": "867ab2fdd36babe64a96cb0f7f053a7a99975681040a0bc13a6db296b6881814"
+    },
+    {
+      "path": "apps/web/src/shared/lib/permissions.test.ts",
+      "sha256": "7aef2ec784d9633dd1d3cae75a30ec00e7cba121643a334f8d7ebcd4ae3d3920"
+    },
+    {
+      "path": "apps/web/src/shared/lib/permissions.ts",
+      "sha256": "f7feb3256da2ab1ea328e38dd0f3343afa9dd61797196823d3dfbd47b9e98085"
+    },
+    {
+      "path": "apps/web/src/test/private-session-fixture.ts",
+      "sha256": "f4e83c4ea13297e26c6281e6f35b188307358759fa2549c5329a7b58e19d12c5"
+    },
+    {
+      "path": "database/migrations/V26__presential_payment_attempts.sql",
+      "sha256": "b69072f7c054fd388707a7ea2908295f519ebe608dd46cf2e1cf8bc47b3824cf"
+    },
+    {
+      "path": "database/migrations/V27__presential_payment_attempt_resolution.sql",
+      "sha256": "39472e5e19d2e3cf691adce72b7863c2b126598ea0f28b4f8a41545786168f40"
+    },
+    {
+      "path": "database/tests/migration-history-inventory.sql",
+      "sha256": "ed33ab5fa10d09e3f38199c847882934f9ad73f56f766bd0a9b8dc4eb341ad0d"
+    },
+    {
+      "path": "database/tests/smoke_pickup_window.sql",
+      "sha256": "6f54dd6736d20c97fdd644dba5dde04e4d007e5f44184ab43f2d170c3d6288e4"
+    },
+    {
+      "path": "docs/delivery/COMPATIBILITY_CHECK.md",
+      "sha256": "1913cd9225bfd74c2ae4153966e50e0b573ec75327380555e5acd5aba089a3b9"
+    },
+    {
+      "path": "docs/delivery/PR_PROPOSAL.md",
+      "sha256": "284437574cab75e70f94a00eaa5351365f9f3226dce61beb6dcdaedc0c7d9da6"
+    },
+    {
+      "path": "docs/delivery/RUNBOOK.md",
+      "sha256": "b2048f7f930ce58bf2c9637be3bd61a4a4db550cdc01d015e830914232cab53c"
+    },
+    {
+      "path": "docs/delivery/STAGING_MANIFEST.md",
+      "sha256": "e235f33ac4b9754233c2c3f7eb577c1f472ba745c42a4b3734af8e2dc7bce0dd"
+    },
+    {
+      "path": "docs/delivery/WEB_INTEGRATED_HANDOFF.md",
+      "sha256": "f37f344192d9ebeffe380914e9d51dd232dd8b8cd9dcb9347ff4fad9a4daff04"
+    },
+    {
+      "path": "docs/frontend/PLAN_CONEXIONES_PENDIENTES.md",
+      "sha256": "f45fea7adbd7028a9bdd4f8f02e00b95ddd8d05c356ac89627de774993c7a36a"
+    },
+    {
+      "path": "docs/integration/CANDIDATE_FILES.json",
+      "sha256": "0818e57cfd145bb8a1a6eae2e28abc515da19688e61e95a42894c6448040d108"
+    },
+    {
+      "path": "docs/integration/CANDIDATE_STATUS.md",
+      "sha256": "6b0e07fdf7def32275cbddd9829e6b499e81d7e43762f74d93a926374fbedc13"
+    },
+    {
+      "path": "docs/integration/CANONICAL_BUSINESS_POLICY.md",
+      "sha256": "ff01c51b8c0c39f130b07eb93838f4c322d85a4e13ae4f4894047e0c24b22e66"
+    },
+    {
+      "path": "docs/integration/COMBINED_CANDIDATE_STATUS.md",
+      "sha256": "994340df9c0202a5a0bc4bb6728bfba07b4e79b72cd118847cf8232277346847"
+    },
+    {
+      "path": "docs/integration/COMBINED_TEST_RESULTS.json",
+      "sha256": "cb076c70707550106eff73e2b32a724d36587b9f384ce69e325d770de77d36d4"
+    },
+    {
+      "path": "docs/integration/CURRENT_PR_INTEGRATION_PLAN.md",
+      "sha256": "06ffd9e132e353c4e0315b8cb1fb89f76ab6f753f7504db9e786ca7043907c91"
+    },
+    {
+      "path": "docs/integration/DEPLOYMENT_PREFLIGHT.md",
+      "sha256": "5fc1b6c59f2b6e3c1f917270add86e56a2b8f05a83bf10b55c86aab74e921a55"
+    },
+    {
+      "path": "docs/integration/PR32-40_COORDINATION.md",
+      "sha256": "d7cfe3a7858788779eea44f0d4fc28d09a50462162adecfb30038c10d6824868"
+    },
+    {
+      "path": "docs/integration/PR_LOCAL_COMPARISON.md",
+      "sha256": "5dc7c8067af8d46ac1368c106dd89de5d80cdb1299f57b722df63385552bc96d"
+    },
+    {
+      "path": "docs/integration/TEST_RESULTS.json",
+      "sha256": "faaa7817448f7b7c74945ed2bf02c10d93ead5025427a341705d34528fcab83f"
+    },
+    {
+      "path": "docs/integration/evidence/CURRENT_MERGE_TREE_REVIEW.json",
+      "sha256": "e1a141d1aa037a637e563d577c5975f026916c0b91ee30e5cacb49b01289cbc0"
+    },
+    {
+      "path": "docs/integration/evidence/LOCAL_FLYWAY_HISTORY.json",
+      "sha256": "0af9c191ba72d24c655579a88f1b07af8df9e331ad8af13333e16ab189f57b83"
+    },
+    {
+      "path": "docs/integration/evidence/MIGRATION_CHECKSUM_COMPARISON.json",
+      "sha256": "b7d8ca0f0f55e5751e0e534c979121cd20a8c1141bdedd76774ecab22f9b78c4"
+    },
+    {
+      "path": "docs/integration/evidence/RECENT_PR_HEADS.json",
+      "sha256": "80c93943c6e01ff117d659c8e2be216babdbbacbf9ec433375017397bacb95a5"
+    },
+    {
+      "path": "docs/integration/evidence/npm-audit-production.json",
+      "sha256": "346f82a4695713208786b29bd4739dfffcc80ff61544009484b680939c7439ff"
+    },
+    {
+      "path": "docs/integration/evidence/npm-audit-web-production.json",
+      "sha256": "fde53d713a15f38d6257959481ccdc07f50bc8ba939dd8f2199655eb6f40d48a"
+    },
+    {
+      "path": "docs/integration/proposals/cash-movement-traceability-check.sql",
+      "sha256": "1feae1c16ab6dfac3b69a624c983de77927988480e5f71b1715971f32673020c"
+    },
+    {
+      "path": "docs/integration/proposals/cash-movement-traceability.sql",
+      "sha256": "35d8a6265d7d67ae14947832fc63b804e3f2d4e5be6a339493758a1fa3949414"
+    },
+    {
+      "path": "docs/progress/ADMIN.md",
+      "sha256": "4be99628b4c242d4f44f64a23195b18d14bc4fe981ec23cc584fc27d0ab72fd9"
+    },
+    {
+      "path": "docs/progress/BACKEND.md",
+      "sha256": "2cfeb7184fa9f5611dcbeb691092fb24c8eb2eb2e889a7b3cf03d7113139df6d"
+    },
+    {
+      "path": "docs/progress/CLIENT.md",
+      "sha256": "9bcbc92979a43a244376992c3765c26560e5460eb9c5acd00d15d0ede2387131"
+    },
+    {
+      "path": "docs/progress/MOBILE.md",
+      "sha256": "7c0e69df558679f074a4a031035785153904b9d1452092de5b1ca8f0b17a7654"
+    },
+    {
+      "path": "docs/progress/OPERATIONAL.md",
+      "sha256": "7694b79f014a3406859be2d5a41739c78b4c7127014bd30dc492eb3e58ae3e2f"
+    },
+    {
+      "path": "docs/progress/WEB_INTEGRATED_DELIVERY.md",
+      "sha256": "56a67e25738f6731c8b0552f982fb45c1757ed9d81825ac041384fd7ad59006f"
+    },
+    {
+      "path": "docs/progress/WEB_INTEGRATED_F1_F6.md",
+      "sha256": "8c772f1e27bf6342f7c27846e8d08d06a16b69291db413ecaa1dfac00216741b"
+    },
+    {
+      "path": "docs/project/BARRERA_PROPUESTA_CUENTAS_PEDIDOS.md",
+      "sha256": "5a8c9bcce7146c4ab901105906ca330d94c9b2c61c9df7e0862b3c39d468e70d"
+    },
+    {
+      "path": "docs/project/CURRENT_STATE.md",
+      "sha256": "da92b15b4ddc2983f1df9cbbd31fef3851d70eb8bef7f0c97e841e0d8f474b6a"
+    },
+    {
+      "path": "docs/project/PLAN_TRABAJO_SEIS_INTEGRANTES.md",
+      "sha256": "c38644f22c67ebe3013abbb691665ec1a183ab1d0ee74675ad5332cdaba931b0"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "f243004709569a9889f14368dc646c080d7a8a11d7e61d06561b040b663ee740"
+    },
+    {
+      "path": "package.json",
+      "sha256": "6993014e31ce82a8c53c558d3a48ee9d424f7bf0201a27db00f790c6e9053bc2"
+    }
+  ]
+}

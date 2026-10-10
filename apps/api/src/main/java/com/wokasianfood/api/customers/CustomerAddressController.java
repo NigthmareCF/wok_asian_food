@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
@@ -53,11 +54,13 @@ public class CustomerAddressController {
         if (labelExists(userId, input.label(), null))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una dirección con ese nombre.");
         if (input.isDefault()) jdbc.update("UPDATE wok.customer_addresses SET is_default = false, updated_at = now(), row_version = row_version + 1 WHERE customer_user_id = ? AND is_default", userId);
-        return jdbc.query("""
+        CustomerAddress created = jdbc.query("""
             INSERT INTO wok.customer_addresses(customer_user_id, label, address, reference, contact_phone, is_default)
             VALUES (?, ?, ?, ?, ?, ?) RETURNING id, label, address, reference, contact_phone, is_default, row_version
             """, ADDRESS_MAPPER, userId, input.label().trim(), input.address().trim(), normalize(input.reference()),
                 input.contactPhone().trim(), input.isDefault()).getFirst();
+        audit(userId, "CUSTOMER_ADDRESS_CREATED", created.addressId(), null, created.version());
+        return created;
     }
 
     @PutMapping("/{addressId}")
@@ -76,22 +79,36 @@ public class CustomerAddressController {
         if (labelExists(userId, input.label(), addressId))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Ya existe una dirección con ese nombre.");
         if (input.isDefault()) jdbc.update("UPDATE wok.customer_addresses SET is_default = false, updated_at = now(), row_version = row_version + 1 WHERE customer_user_id = ? AND is_default AND id <> ?", userId, addressId);
-        return jdbc.query("""
+        CustomerAddress updated = jdbc.query("""
             UPDATE wok.customer_addresses
             SET label = ?, address = ?, reference = ?, contact_phone = ?, is_default = ?, updated_at = now(), row_version = row_version + 1
             WHERE id = ? AND customer_user_id = ? AND row_version = ?
             RETURNING id, label, address, reference, contact_phone, is_default, row_version
             """, ADDRESS_MAPPER, input.label().trim(), input.address().trim(), normalize(input.reference()),
                 input.contactPhone().trim(), input.isDefault(), addressId, userId, input.expectedVersion()).getFirst();
+        audit(userId, "CUSTOMER_ADDRESS_UPDATED", addressId, input.expectedVersion(), updated.version());
+        return updated;
     }
 
     @DeleteMapping("/{addressId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
     public void delete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID addressId) {
         UUID userId = userId(jwt);
         lockCustomer(userId);
         int deleted = jdbc.update("DELETE FROM wok.customer_addresses WHERE id = ? AND customer_user_id = ?", addressId, userId);
         if (deleted == 0) throw notFound();
+        audit(userId, "CUSTOMER_ADDRESS_DELETED", addressId, null, null);
+    }
+
+    private void audit(UUID actor, String action, UUID addressId, Integer beforeVersion, Integer afterVersion) {
+        // Record actor/operation/time atomically without duplicating address or phone PII in the audit log.
+        jdbc.update("""
+            INSERT INTO wok.audit_logs
+                (actor_user_id, action, entity_type, entity_id, before_data, after_data, result)
+            VALUES (?, ?, 'CUSTOMER_ADDRESS', ?, jsonb_build_object('version', ?::integer),
+                    jsonb_build_object('version', ?::integer), 'SUCCESS')
+            """, actor, action, addressId, beforeVersion, afterVersion);
     }
 
     private boolean labelExists(UUID userId, String label, UUID excludedId) {

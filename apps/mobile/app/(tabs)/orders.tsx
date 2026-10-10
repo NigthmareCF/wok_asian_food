@@ -12,7 +12,11 @@ import {
   StatusChip,
   useUiTheme,
 } from "@/components/ui";
-import { PickupRequestDetails, PickupRequestState } from "@/lib/api";
+import {
+  PickupRequestDetails,
+  PickupRequestState,
+  PickupTracking,
+} from "@/lib/api";
 import { useSession } from "@/providers/session-provider";
 
 const statusLabels: Record<PickupRequestState["status"], string> = {
@@ -42,6 +46,15 @@ function formatMoney(amount: number, currency: string) {
 }
 
 export default function PickupRequestsScreen() {
+  const { session } = useSession();
+  return (
+    <PickupRequestsForm
+      key={`${session?.email.trim().toLowerCase() ?? "guest"}:${session?.version ?? "signed-out"}`}
+    />
+  );
+}
+
+function PickupRequestsForm() {
   const { colors, ui } = useUiTheme();
   const { session, request } = useSession();
   const [requests, setRequests] = useState<PickupRequestState[]>([]);
@@ -52,6 +65,7 @@ export default function PickupRequestsScreen() {
   const [details, setDetails] = useState<Record<string, PickupRequestDetails>>(
     {},
   );
+  const [tracking, setTracking] = useState<Record<string, PickupTracking>>({});
   const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -117,9 +131,15 @@ export default function PickupRequestsScreen() {
     setLoadingDetails(requestId);
     setError("");
     try {
-      const result = await request<PickupRequestDetails>(
-        `/api/v1/client/order-requests/${requestId}`,
-      );
+      const [result, progress] = await Promise.all([
+        request<PickupRequestDetails>(
+          `/api/v1/client/order-requests/${requestId}`,
+        ),
+        request<PickupTracking>(
+          `/api/v1/client/order-requests/${requestId}/tracking`,
+        ),
+      ]);
+      setTracking((current) => ({ ...current, [requestId]: progress }));
       setDetails((current) => ({ ...current, [requestId]: result }));
     } catch (cause) {
       setError(
@@ -234,6 +254,13 @@ export default function PickupRequestsScreen() {
                   busy={loadingDetails === item.requestId}
                   onPress={() => void toggleDetails(item.requestId)}
                 />
+                {tracking[item.requestId]?.estimatedReadyAt ? (
+                  <Text style={ui.body}>
+                    Preparación estimada:{" "}
+                    {formatDate(tracking[item.requestId].estimatedReadyAt!)}.
+                    Sujeta a actualización del restaurante.
+                  </Text>
+                ) : null}
                 {details[item.requestId] ? (
                   <View style={ui.section}>
                     {details[item.requestId].customerNote ? (

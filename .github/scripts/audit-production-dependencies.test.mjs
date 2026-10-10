@@ -17,6 +17,22 @@ const allowedNodeForge = {
   ],
 };
 
+test("la excepcion expira y bloquea tambien dependencias transitivas", () => {
+  const vulnerabilities = {
+    "node-forge": allowedNodeForge,
+    expo: { severity: "high", via: ["node-forge"] },
+  };
+  assert.equal(isAllowedVulnerability("expo", vulnerabilities, new Set(), "2026-11-02"), true);
+  assert.equal(isAllowedVulnerability("expo", vulnerabilities, new Set(), "2026-11-03"), false);
+});
+
+test("un aviso critico no hereda una excepcion de severidad alta", () => {
+  const vulnerabilities = {
+    "node-forge": { ...allowedNodeForge, severity: "critical" },
+  };
+  assert.equal(isAllowedVulnerability("node-forge", vulnerabilities), false);
+});
+
 test("permite solamente el aviso documentado de node-forge", () => {
   const vulnerabilities = { "node-forge": allowedNodeForge };
 

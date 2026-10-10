@@ -14,10 +14,28 @@ class OperationalCapacityServiceTest {
         return LocalDateTime.of(2026, 9, 26, hour, minute).atZone(ZONE).toInstant();
     }
 
-    @Test void rejectsLessThanThreeHoursForTableRequests() {
-        var assessment = service.assessTable(2, at(18, 0), at(15, 1), false);
+    @Test void rejectsLessThanConfiguredTwoHoursForTableRequests() {
+        var assessment = service.assessTable(2, at(18, 0), at(16, 1), false);
         assertEquals(OperationalCapacityService.Decision.REJECT, assessment.decision());
-        assertTrue(assessment.reasonCodes().contains("MINIMUM_NOTICE_3_HOURS"));
+        assertTrue(assessment.reasonCodes().contains("MINIMUM_NOTICE"));
+    }
+
+    @Test void acceptsExactMinimumAndAddsNoticeForSameDayGroups() {
+        assertNotEquals(OperationalCapacityService.Decision.REJECT,
+                service.assessTable(4, at(18, 0), at(16, 0), false).decision());
+        assertEquals(OperationalCapacityService.Decision.REJECT,
+                service.assessTable(6, at(18, 0), at(16, 0), false).decision());
+        assertNotEquals(OperationalCapacityService.Decision.REJECT,
+                service.assessTable(6, at(18, 0), at(15, 45), false).decision());
+    }
+
+    @Test void usesConfiguredNoticeAndAdmissionWindow() {
+        var configured = new OperationalCapacityService(new OccupancyEstimator(), "America/Guatemala",
+                60, 10, "15:00", "20:00", "19:00");
+        assertNotEquals(OperationalCapacityService.Decision.REJECT,
+                configured.assessTable(2, at(18, 0), at(17, 0), true).decision());
+        assertEquals(OperationalCapacityService.Decision.SUGGEST_OTHER_TIME,
+                configured.assessTable(2, at(21, 0), at(17, 0), true).decision());
     }
 
     @Test void largeGroupAtLastAdmissionRequiresHumanApproval() {
@@ -38,7 +56,9 @@ class OperationalCapacityServiceTest {
         Instant after = Instant.now();
 
         assertEquals("America/Guatemala", policy.timeZone());
-        assertEquals(3, policy.minimumNoticeHours());
+        assertEquals(2, policy.minimumNoticeHours());
+        assertEquals(120, policy.minimumNoticeMinutes());
+        assertEquals(15, policy.additionalPairMinutes());
         assertEquals(LocalTime.of(14, 0), policy.firstRequestTime());
         assertEquals(LocalTime.of(21, 15), policy.lastRequestTime());
         assertEquals(LocalTime.of(20, 30), policy.preorderRecommendedAfter());

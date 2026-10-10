@@ -102,7 +102,7 @@ describe("Client cart", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ver menú" })).toHaveAttribute(
       "href",
-      "/menu",
+      "/client/menu",
     );
   });
 

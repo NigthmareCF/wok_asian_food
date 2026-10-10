@@ -1,6 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import {
+  useRef,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
 import { Button } from "@/shared/components/ui/button";
 import { FormField } from "@/shared/components/ui/form-field";
 import { useLiveCart } from "@/modules/cart/live-cart-provider";
@@ -10,7 +16,18 @@ import {
   type PickupAttempt,
 } from "../pickup-attempt";
 import { isPickupReceipt, parsePickupRequest } from "../pickup-contract";
+import {
+  isWithinPickupWindow,
+  nextPickupWindow,
+  pickupInputToInstant,
+} from "../pickup-window";
 import styles from "./checkout.module.css";
+import {
+  clientIdentityStore,
+  createClientOperation,
+  type ClientIdentity,
+} from "@/modules/clients/client-identity-store";
+import { useClientIdentity } from "@/modules/clients/use-client-identity";
 
 const statusLabels: Record<string, string> = {
   PENDING_REVIEW: "Pendiente de revisión",
@@ -25,6 +42,36 @@ const money = (amount: number, currency: string) =>
   );
 
 export function PickupCheckout({ userId }: { userId: string }) {
+  const { identity, verified, refresh } = useClientIdentity(userId);
+  if (!verified)
+    return (
+      <section>
+        <h1>Solicitud para recoger</h1>
+        <p role="status">Verifica tu sesión para continuar.</p>
+        <Button onClick={() => void refresh()}>Verificar sesión</Button>
+        <Link href="/login?next=%2Fclient%2Fcheckout">Iniciar sesión</Link>
+      </section>
+    );
+  return (
+    <VerifiedPickupCheckout
+      key={`${identity.ownerId}:${identity.generation}`}
+      scope={identity}
+    />
+  );
+}
+
+function VerifiedPickupCheckout({ scope }: { scope: ClientIdentity }) {
+  const userId = scope.ownerId!;
+  const operations = useRef(
+    new Set<ReturnType<typeof createClientOperation>>(),
+  );
+  useEffect(() => {
+    const active = operations.current;
+    return () => {
+      active.forEach((operation) => operation.dispose());
+      active.clear();
+    };
+  }, []);
   const { items, complete } = useLiveCart();
   const { menu, error: menuError, reload } = usePublicMenu();
   const [store] = useState(() => createPickupAttemptStore(userId));
@@ -38,6 +85,7 @@ export function PickupCheckout({ userId }: { userId: string }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [needsLogin, setNeedsLogin] = useState(false);
+  const [needsUpdate, setNeedsUpdate] = useState(false);
   const sending = useRef(false);
   const products = menu?.categories.flatMap((category) => category.items) ?? [];
   const rows = items.map((item) => ({
@@ -63,22 +111,32 @@ export function PickupCheckout({ userId }: { userId: string }) {
         cents + Math.round((row.product?.price ?? 0) * 100) * row.quantity,
       0,
     ) / 100;
+  const pickupWindow = nextPickupWindow(preparation);
+  const effectiveRequestedFor =
+    requestedFor || pickupWindow?.defaultValue || "";
 
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (sending.current || attempt?.receipt) return;
+    if (
+      sending.current ||
+      needsUpdate ||
+      attempt?.receipt ||
+      !clientIdentityStore.matches(scope)
+    )
+      return;
     let current: PickupAttempt | null = attempt;
     setError("");
     setNeedsLogin(false);
     if (!current) {
-      const date = new Date(requestedFor);
+      const date = pickupInputToInstant(effectiveRequestedFor);
       if (
         !ready ||
-        !Number.isFinite(date.getTime()) ||
-        date.getTime() <= Date.now() + preparation * 1000
+        !date ||
+        !pickupWindow ||
+        !isWithinPickupWindow(effectiveRequestedFor, pickupWindow)
       ) {
         setError(
-          "Revisa el carrito y elige un horario posterior al tiempo de preparación.",
+          "Elige un horario disponible dentro de las próximas 3 horas y del servicio de 14:00 a 22:00.",
         );
         return;
       }
@@ -96,7 +154,7 @@ export function PickupCheckout({ userId }: { userId: string }) {
         );
         return;
       }
-      current = { key: crypto.randomUUID(), payload };
+      current = { key: crypto.randomUUID(), payload, mayHaveBeenSent: false };
       try {
         store.save(current);
       } catch {
@@ -108,19 +166,62 @@ export function PickupCheckout({ userId }: { userId: string }) {
     }
     sending.current = true;
     setBusy(true);
+    const operation = createClientOperation(scope);
+    operations.current.add(operation);
     try {
+      if (!(await operation.confirm()) || !operation.valid()) return;
+      // Sin marca (intento legacy), no podemos descartar un envio anterior.
+      const canDiscardOnRejection = current.mayHaveBeenSent === false;
+      if (canDiscardOnRejection) {
+        current = { ...current, mayHaveBeenSent: true };
+        store.save(current);
+      }
       const response = await fetch("/bff/order-requests", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": current.key,
+          "X-Wok-Expected-Principal": scope.ownerId!,
         },
         body: JSON.stringify(current.payload),
-        signal: AbortSignal.timeout(15_000),
+        signal: operation.signal,
       });
+      if (!operation.valid()) return;
       const data: unknown = await response.json();
+      if (!operation.valid()) return;
+      if (response.status === 401) {
+        clientIdentityStore.invalidate();
+        return;
+      }
+      if (
+        data &&
+        typeof data === "object" &&
+        "code" in data &&
+        ((response.status === 409 &&
+          data.code === "CLIENT_PRINCIPAL_CHANGED") ||
+          (response.status === 503 &&
+            data.code === "CLIENT_PRINCIPAL_UNVERIFIED"))
+      ) {
+        clientIdentityStore.invalidate();
+        return;
+      }
+      if (!(await operation.confirm()) || !operation.valid()) return;
       if (!response.ok) {
-        if ([400, 422].includes(response.status)) store.save(null);
+        if (
+          response.status === 409 &&
+          data &&
+          typeof data === "object" &&
+          "code" in data &&
+          data.code === "CLIENT_UPDATE_REQUIRED"
+        ) {
+          setNeedsUpdate(true);
+          setError(
+            "Actualiza esta pestaña para continuar. No cierres la pestaña ni borres sus datos. Después, reintenta la misma solicitud.",
+          );
+          return;
+        }
+        if (canDiscardOnRejection && [400, 422].includes(response.status))
+          store.save(null);
         setNeedsLogin(response.status === 401);
         const message =
           data &&
@@ -136,12 +237,17 @@ export function PickupCheckout({ userId }: { userId: string }) {
       store.save({ ...current, receipt: data });
       complete(current.payload.items);
     } catch {
+      if (!(await operation.confirm()) || !operation.valid()) return;
       setError(
         "No pudimos confirmar el resultado. Conservamos tu solicitud: reintenta para recuperar el comprobante sin duplicarla.",
       );
     } finally {
-      sending.current = false;
-      setBusy(false);
+      if (operation.valid()) {
+        sending.current = false;
+        setBusy(false);
+      }
+      operation.dispose();
+      operations.current.delete(operation);
     }
   }
 
@@ -181,6 +287,7 @@ export function PickupCheckout({ userId }: { userId: string }) {
           </p>
           <Button
             onClick={() => {
+              if (!clientIdentityStore.matches(scope)) return;
               try {
                 store.save(null);
                 setError("");
@@ -191,7 +298,7 @@ export function PickupCheckout({ userId }: { userId: string }) {
           >
             Preparar otra solicitud
           </Button>
-          <Link href="/menu">Volver al menú</Link>
+          <Link href="/client/menu">Volver al menú</Link>
         </section>
       ) : (
         <>
@@ -221,7 +328,8 @@ export function PickupCheckout({ userId }: { userId: string }) {
             </section>
           ) : !items.length ? (
             <p>
-              Tu carrito está vacío. <Link href="/menu">Agregar productos</Link>
+              Tu carrito está vacío.{" "}
+              <Link href="/client/menu">Agregar productos</Link>
             </p>
           ) : (
             <section className={styles.summary}>
@@ -263,10 +371,17 @@ export function PickupCheckout({ userId }: { userId: string }) {
                   <FormField
                     id="pickup-time"
                     label="Fecha y hora para recoger"
-                    help="Se usa la zona horaria de tu dispositivo. Elige una hora que permita preparar todos los productos."
+                    help={
+                      pickupWindow
+                        ? "Horario de Guatemala. Incluye preparación y margen de revisión; puedes programar dentro de las próximas 3 horas, entre 14:00 y 22:00."
+                        : "No hay horarios disponibles durante las próximas 3 horas."
+                    }
                     type="datetime-local"
                     required
-                    value={requestedFor}
+                    min={pickupWindow?.min}
+                    max={pickupWindow?.max}
+                    disabled={!pickupWindow}
+                    value={effectiveRequestedFor}
                     onChange={(event) => setRequestedFor(event.target.value)}
                   />
                   <FormField
@@ -285,7 +400,7 @@ export function PickupCheckout({ userId }: { userId: string }) {
               <Button
                 fullWidth
                 type="submit"
-                disabled={busy || (!attempt && !ready)}
+                disabled={busy || needsUpdate || (!attempt && !ready)}
               >
                 {busy
                   ? "Enviando solicitud…"
@@ -298,6 +413,11 @@ export function PickupCheckout({ userId }: { userId: string }) {
         </>
       )}
       {error && <p role="alert">{error}</p>}
+      {needsUpdate && (
+        <Button variant="secondary" onClick={() => window.location.reload()}>
+          Actualizar esta pestaña
+        </Button>
+      )}
       {needsLogin && (
         <Link href="/login?next=%2Fclient%2Fcheckout">
           Iniciar sesión y recuperar la solicitud

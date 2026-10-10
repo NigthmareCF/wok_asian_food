@@ -30,9 +30,11 @@ class RoleAuthorizationIntegrationTest extends PostgresIntegrationTest {
         Instant after = Instant.now();
         assertThat(response.statusCode()).isEqualTo(200);
         var policy = JsonMapper.builder().build().readTree(response.body());
-        assertThat(policy.size()).isEqualTo(7);
+        assertThat(policy.size()).isEqualTo(9);
+        assertThat(policy.path("minimumNoticeMinutes").asInt()).isEqualTo(120);
+        assertThat(policy.path("additionalPairMinutes").asInt()).isEqualTo(15);
         assertThat(policy.path("timeZone").asString()).isEqualTo("America/Guatemala");
-        assertThat(policy.path("minimumNoticeHours").asInt()).isEqualTo(3);
+        assertThat(policy.path("minimumNoticeHours").asInt()).isEqualTo(2);
         assertThat(LocalTime.parse(policy.path("firstRequestTime").asString())).isEqualTo(LocalTime.of(14, 0));
         assertThat(LocalTime.parse(policy.path("lastRequestTime").asString())).isEqualTo(LocalTime.of(21, 15));
         assertThat(LocalTime.parse(policy.path("preorderRecommendedAfter").asString())).isEqualTo(LocalTime.of(20, 30));
