@@ -522,8 +522,9 @@ test("actual reservation retry preserves its stored instant, serialized body and
           typeof value === "function" ? value() : value,
           () => {},
         ],
-        useRef: () => ({ current: pending }),
+        useRef: (value) => ({ current: value === null ? pending : value }),
         useEffect() {},
+        useLayoutEffect() {},
         useCallback: (fn) => fn,
       },
       "react-native": {
@@ -561,7 +562,8 @@ test("actual reservation retry preserves its stored instant, serialized body and
       },
     },
   );
-  const tree = elements(ReservationsScreen());
+  const screen = ReservationsScreen();
+  const tree = elements(screen.type(screen.props));
   assert.equal(
     tree.some((item) => item.props.accessibilityRole === "adjustable"),
     false,

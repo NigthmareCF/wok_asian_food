@@ -273,3 +273,16 @@ SecureStore nativo y memoria Web por cuenta/conversación; aviso explícito de p
 - Perfil, direcciones y pantalla histórica de entrega conservan normalización Guatemala: ocho dígitos agrupados y prefijo +502 opcional. Delivery/direcciones siguen fuera de esta entrega y sus rutas no se habilitan en el BFF.
 - Corrección documental: Core actual acepta hasta20 platillos distintos por solicitud, no100. Se conserva el guard de20 líneas del carrito por autorización explícita, sin ampliar límites API. Precio, capacidad, inventario y aceptación siguen siendo decisiones del servidor.
   Se reutilizaron dependencias instaladas; no se modificó el lockfile ni se instalaron paquetes. Los exports históricos Android/Web no son APK ni prueba física.
+
+## 2026-10-09 — Reservas aisladas por cuenta y sesión
+
+- Formulario, historial y avisos se reinician al cambiar de cuenta, iniciar una nueva sesión o cerrarla.
+- Las respuestas anteriores no modifican la sesión actual; las operaciones del borrador local permanecen ordenadas entre sesiones.
+- Se conservan la selección según política, la hora de Guatemala y la cancelación de solicitudes pendientes.
+
+- Verificación observada: 80/80 pruebas móviles, 10/10 de ciclo de reservas y 14/14 de presentación.
+- Lint, typecheck y comprobación del diff pasaron después de la normalización acotada.
+- Versiones de dependencias y lockfile sin cambios; se reutilizó la instalación existente.
+
+- Pendiente: completar las protecciones del reintento y la validación del resultado de la solicitud.
+- No se realizaron aún pruebas en dispositivos, builds nativos ni comprobación de compatibilidad de dependencias para este cambio.

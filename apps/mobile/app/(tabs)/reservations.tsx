@@ -1,6 +1,12 @@
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -32,8 +38,26 @@ import {
 } from "@/lib/slot-time";
 
 export default function ReservationsScreen() {
+  const { session } = useSession();
+  const owner = session?.email.trim().toLowerCase() ?? "";
+  return (
+    <ReservationForm
+      key={`${owner}:${session?.version ?? "signed-out"}`}
+      owner={owner}
+    />
+  );
+}
+
+function ReservationForm({ owner }: { owner: string }) {
   const { colors, ui } = useUiTheme();
   const { session, request } = useSession();
+  const mounted = useRef(true);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [guests, setGuests] = useState("2");
   const [requestedAt, setRequestedAt] = useState("");
   const [notes, setNotes] = useState("");
@@ -60,8 +84,7 @@ export default function ReservationsScreen() {
   } | null>(null);
   const [policyError, setPolicyError] = useState("");
   const [policyRefresh, setPolicyRefresh] = useState(0);
-  const currentPolicy =
-    policy?.owner === session?.email ? policy?.value : undefined;
+  const currentPolicy = policy?.owner === owner ? policy?.value : undefined;
 
   useEffect(() => {
     let active = true;
@@ -69,13 +92,13 @@ export default function ReservationsScreen() {
     void request<unknown>("/api/v1/client/reservations/policy")
       .then((result) => {
         const value = reservationPolicySchema.parse(result);
-        if (active) {
-          setPolicy({ owner: session.email, value });
+        if (active && mounted.current) {
+          setPolicy({ owner, value });
           setPolicyError("");
         }
       })
       .catch(() => {
-        if (active)
+        if (active && mounted.current)
           setPolicyError(
             "No pudimos consultar la política de solicitudes. Actualiza antes de enviar.",
           );
@@ -83,84 +106,101 @@ export default function ReservationsScreen() {
     return () => {
       active = false;
     };
-  }, [request, session, policyRefresh]);
+  }, [request, session, owner, policyRefresh]);
 
   useEffect(() => {
     let active = true;
-    if (!session?.email)
+    if (!owner)
       return () => {
         active = false;
       };
-    void Promise.resolve()
-      .then(async () => {
-        if (Platform.OS !== "web") {
-          const raw = await SecureStore.getItemAsync(reservationDraftKey);
-          if (raw) {
-            const draft = parseReservationDraft(raw);
-            if (
-              draft &&
-              draft.ownerEmail === session.email &&
-              Date.now() - draft.savedAt < reservationDraftLifetimeMs
-            ) {
-              if (active) {
-                setGuests(draft.guests);
-                setRequestedAt(draft.requestedAt);
-                setNotes(draft.notes);
-                setPreorder(draft.preorder);
-                setDraftRestored(true);
-              }
-            } else if (
-              draft &&
-              Date.now() - draft.savedAt >= reservationDraftLifetimeMs
-            ) {
-              await SecureStore.deleteItemAsync(reservationDraftKey);
-            } else if (!draft) {
-              await SecureStore.deleteItemAsync(reservationDraftKey);
+    void queueReservationDraftOperation(async () => {
+      if (!active || !mounted.current) return;
+      if (Platform.OS !== "web") {
+        const raw = await SecureStore.getItemAsync(reservationDraftKey);
+        if (!active || !mounted.current) return;
+        if (raw) {
+          const draft = parseReservationDraft(raw);
+          if (
+            draft &&
+            draft.ownerEmail.trim().toLowerCase() === owner &&
+            Date.now() - draft.savedAt < reservationDraftLifetimeMs
+          ) {
+            if (active) {
+              setGuests(draft.guests);
+              setRequestedAt(draft.requestedAt);
+              setNotes(draft.notes);
+              setPreorder(draft.preorder);
+              setDraftRestored(true);
             }
+          } else if (
+            draft &&
+            Date.now() - draft.savedAt >= reservationDraftLifetimeMs
+          ) {
+            await SecureStore.deleteItemAsync(reservationDraftKey);
+          } else if (!draft) {
+            await SecureStore.deleteItemAsync(reservationDraftKey);
           }
         }
-      })
+      }
+    })
       .catch(() => {
-        if (active)
+        if (active && mounted.current)
           setDraftError(
             "No se pudo leer el borrador guardado en este dispositivo.",
           );
       })
       .finally(() => {
-        if (active) setDraftReady(true);
+        if (active && mounted.current) setDraftReady(true);
       });
     return () => {
       active = false;
     };
-  }, [session?.email]);
+  }, [owner]);
 
   useEffect(() => {
     if (
-      !session?.email ||
+      !owner ||
       !draftReady ||
       Platform.OS === "web" ||
       !hasReservationDraft(guests, requestedAt, notes, preorder)
     )
       return;
     const draft: ReservationDraft = {
-      ownerEmail: session.email,
+      ownerEmail: owner,
       guests,
       requestedAt,
       notes,
       preorder,
       savedAt: Date.now(),
     };
+    let active = true;
     const timer = setTimeout(() => {
-      void SecureStore.setItemAsync(reservationDraftKey, JSON.stringify(draft))
-        .then(() => setDraftError(""))
-        .catch(() =>
-          setDraftError("No se pudo guardar el borrador en este dispositivo."),
-        );
+      void queueReservationDraftOperation(async () => {
+        if (active && mounted.current)
+          await SecureStore.setItemAsync(
+            reservationDraftKey,
+            JSON.stringify(draft),
+          );
+      })
+        .then(() => {
+          if (active && mounted.current) setDraftError("");
+        })
+        .catch(() => {
+          if (active && mounted.current)
+            setDraftError(
+              "No se pudo guardar el borrador en este dispositivo.",
+            );
+        });
     }, 350);
-    return () => clearTimeout(timer);
-  }, [session?.email, draftReady, guests, requestedAt, notes, preorder]);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [owner, draftReady, guests, requestedAt, notes, preorder]);
 
   const refreshHistory = useCallback(async () => {
+    if (!mounted.current) return;
     if (!session) {
       setHistory([]);
       return;
@@ -168,15 +208,17 @@ export default function ReservationsScreen() {
     setHistoryLoading(true);
     setHistoryError("");
     try {
-      setHistory(
-        await request<ReservationHistoryItem[]>("/api/v1/client/reservations"),
+      const result = await request<ReservationHistoryItem[]>(
+        "/api/v1/client/reservations",
       );
+      if (mounted.current) setHistory(result);
     } catch (e) {
-      setHistoryError(
-        e instanceof Error ? e.message : "No se pudo cargar tu historial.",
-      );
+      if (mounted.current)
+        setHistoryError(
+          e instanceof Error ? e.message : "No se pudo cargar tu historial.",
+        );
     } finally {
-      setHistoryLoading(false);
+      if (mounted.current) setHistoryLoading(false);
     }
   }, [request, session]);
 
@@ -185,6 +227,7 @@ export default function ReservationsScreen() {
   }, [refreshHistory]);
 
   async function submit() {
+    if (!mounted.current) return;
     setError("");
     setMessage("");
     if (!session) {
@@ -232,16 +275,22 @@ export default function ReservationsScreen() {
           body,
         },
       );
+      if (!mounted.current) return;
       pendingRequest.current = null;
       if (Platform.OS !== "web") {
         try {
-          await SecureStore.deleteItemAsync(reservationDraftKey);
+          await queueReservationDraftOperation(async () => {
+            if (mounted.current)
+              await SecureStore.deleteItemAsync(reservationDraftKey);
+          });
         } catch {
-          setDraftError(
-            "La solicitud se envió, pero no pudimos borrar el borrador local.",
-          );
+          if (mounted.current)
+            setDraftError(
+              "La solicitud se envió, pero no pudimos borrar el borrador local.",
+            );
         }
       }
+      if (!mounted.current) return;
       setDraftRestored(false);
       setGuests("2");
       setRequestedAt("");
@@ -256,15 +305,17 @@ export default function ReservationsScreen() {
       );
       void refreshHistory();
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "No se pudo enviar la solicitud.",
-      );
+      if (mounted.current)
+        setError(
+          e instanceof Error ? e.message : "No se pudo enviar la solicitud.",
+        );
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
 
   async function cancelRequest(reservationId: string) {
+    if (!mounted.current) return;
     setCancellingReservationId(reservationId);
     setCancellationError("");
     setCancellationNotice("");
@@ -273,16 +324,18 @@ export default function ReservationsScreen() {
         `/api/v1/client/reservations/${reservationId}`,
         { method: "DELETE" },
       );
+      if (!mounted.current) return;
       setCancellationNotice("Cancelamos tu solicitud pendiente.");
       await refreshHistory();
     } catch (cause) {
-      setCancellationError(
-        cause instanceof Error
-          ? cause.message
-          : "No pudimos cancelar la solicitud.",
-      );
+      if (mounted.current)
+        setCancellationError(
+          cause instanceof Error
+            ? cause.message
+            : "No pudimos cancelar la solicitud.",
+        );
     } finally {
-      setCancellingReservationId(null);
+      if (mounted.current) setCancellingReservationId(null);
     }
   }
 
@@ -533,6 +586,15 @@ type ReservationDraft = {
 
 const reservationDraftKey = "wok.client.reservation-draft.v1";
 const reservationDraftLifetimeMs = 30 * 24 * 60 * 60 * 1000;
+
+// A native operation already in flight cannot be cancelled. Keep reads/writes/
+// deletes ordered across session remounts so old I/O cannot overtake new drafts.
+let reservationDraftOperations: Promise<unknown> = Promise.resolve();
+function queueReservationDraftOperation<T>(operation: () => Promise<T>) {
+  const next = reservationDraftOperations.then(operation);
+  reservationDraftOperations = next.catch(() => undefined);
+  return next;
+}
 
 function parseReservationDraft(raw: string): ReservationDraft | null {
   if (raw.length > 1800) return null;
