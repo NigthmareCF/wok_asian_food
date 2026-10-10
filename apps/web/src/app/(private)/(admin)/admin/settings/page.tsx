@@ -1,4 +1,9 @@
-import { RestaurantSettingsView } from "@/modules/settings";
+import { BackendUnavailable } from "@/shared/components/backend-unavailable";
 export default function Page() {
-  return <RestaurantSettingsView />;
+  return (
+    <BackendUnavailable
+      title="Configuración del restaurante"
+      contract="Faltan contratos de consulta y actualización de ubicación, horarios, límites, propina, tolerancia y políticas del restaurante."
+    />
+  );
 }

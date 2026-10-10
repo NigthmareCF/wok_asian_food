@@ -55,3 +55,7 @@ Los controles principales deben medir al menos 44 px y mantenerse accesibles con
 ## Entrega del canal
 
 Cada PR debe limitarse a vistas asignadas, identificar permisos simulados y documentar qué requiere backend o realtime. Adjuntar capturas de los estados normal, vacío y crítico, además de móvil y escritorio.
+
+## Etapa 10 — contratos reales (2026-10-09)
+
+La [matriz de auditoría final](../STAGE_10_AUDIT.md) registra las rutas activas, DTO, conexiones y contratos ausentes. Para el alcance de esta etapa, sustituye las indicaciones históricas de usar fixtures: sólo se conectan endpoints existentes y las funciones sin contrato muestran estado bloqueado.

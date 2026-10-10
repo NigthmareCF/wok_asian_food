@@ -60,3 +60,7 @@ Las tablas incluyen búsqueda, filtros, orden y paginación cuando el volumen lo
 ## Entrega del canal
 
 El PR debe indicar los permisos representados, acciones sensibles, datos simulados y decisiones pendientes. Para Roles y permisos se usa el mockup identificado como referencia visual, pero el catálogo real de permisos debe confirmarse con backend antes de declararlo definitivo.
+
+## Etapa 10 — contratos reales (2026-10-09)
+
+La [matriz de auditoría final](../STAGE_10_AUDIT.md) registra las rutas activas, DTO, conexiones y contratos ausentes. Para el alcance de esta etapa, sustituye las indicaciones históricas de usar fixtures: sólo se conectan endpoints existentes y las funciones sin contrato muestran estado bloqueado.

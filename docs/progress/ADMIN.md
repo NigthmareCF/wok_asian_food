@@ -98,3 +98,12 @@ Agregar aquí los avances más recientes siguiendo la plantilla de [README.md](R
 - Se agregó `GET/PUT /api/v1/client/profile`, protegido con rol `CLIENT` y sujeto tomado del JWT. La edición actualiza `users` y `customer_profiles` en una transacción, controla `expectedVersion` y audita los campos sin guardar el teléfono en el evento.
 - La prueba verifica rechazo por versión obsoleta sin escrituras y persistencia coordinada de ambas representaciones; la edición no permite cambiar correo ni acceder a otro perfil.
 - Validación en composición temporal con foundation + auth: Maven pasó 7/7 pruebas unitarias. El smoke HTTP/DB también pasó en PostgreSQL 18 temporal: login CLIENT, perfil GET/PUT, conflicto de versión, validación de teléfono y 403 para ADMIN; DB confirmó sincronización/auditoría. Falta integrar las ramas oficialmente y repetirlo en CI.
+
+## 2026-10-09 — Etapa 10: cierre de auditoría e integración posible
+
+- Rama: `feature/chan-reports-audit-contracts`.
+- Resultado: A-01, A-10, A-11, A-12, A-13, A-14, A-15 y A-16 auditadas. Las rutas activas ahora muestran bloqueo explícito y contrato ausente; no montan métricas, exportaciones o mutaciones de demostración. No existen contratos suficientes de reportes, consulta de auditoría, clientes administrativos, ubicación/horarios, IA ni cámaras. La API de usuarios y la sesión de caja por ID no sustituyen esos contratos.
+- Contratos, pantallas y tabla final: [Etapa 10](../frontend/STAGE_10_AUDIT.md).
+- Pruebas: BFF de dashboard y servicios públicos, UI operativa/servicios, regresión de mesas e inicio Cliente y rutas administrativas bloqueadas.
+- Verificaciones: 34 pruebas enfocadas aprobadas en 6 archivos; `npm run lint`, `npm run typecheck`, `npm run build:web` y `git diff --check` aprobados. Typecheck inicial encontró referencias obsoletas en `.next`; pasó tras regenerarlas con build. La prueba adicional de rutas bloqueadas tuvo timeout al iniciar un worker durante el build y pasó al repetirse con `--maxWorkers=1`.
+- Límites: sin smoke HTTP contra backend desplegado ni validación visual en navegador; respuestas controladas en pruebas. Sin APIs de negocio, migraciones, dependencias ni integraciones externas nuevas. Sin commit ni push.
