@@ -239,12 +239,15 @@ class OrderRequestDecisionService {
             return new DecisionResult(orderRequestId, "REJECTED", null, false);
         }
 
-        if (!"PICKUP".equals(current.fulfillmentType()))
-            throw new AuthException(422, "La aceptación de solicitudes delivery aún no está habilitada.");
+        if ("DELIVERY".equals(current.fulfillmentType())) ensureDeliveryEnabled();
+        else if (!"PICKUP".equals(current.fulfillmentType()))
+            throw new AuthException(422, "El tipo de solicitud no se puede aceptar.");
 
         revalidate(current);
         List<OperationalOrderController.OrderLineRequest> lines = requestedLines(orderRequestId);
-        UUID orderId = orders.createPickupOrder(actor, correlationId, "Pickup " + orderRequestId, lines);
+        UUID orderId = "DELIVERY".equals(current.fulfillmentType())
+                ? orders.createDeliveryOrder(actor, correlationId, "Delivery " + orderRequestId, lines)
+                : orders.createPickupOrder(actor, correlationId, "Pickup " + orderRequestId, lines);
         jdbc.update("""
             UPDATE wok.order_requests
             SET status = 'ACCEPTED', decided_by = ?, decided_at = now(), decision_reason = 'ACCEPTED',
@@ -257,6 +260,17 @@ class OrderRequestDecisionService {
             """, orderRequestId, actor);
         audit(actor, correlationId, orderRequestId, "ORDER_REQUEST_ACCEPTED", "ACCEPTED", null);
         return new DecisionResult(orderRequestId, "ACCEPTED", orderId, false);
+    }
+
+    private void ensureDeliveryEnabled() {
+        List<String> statuses = jdbc.query("""
+            SELECT status FROM wok.service_capabilities
+            WHERE code = 'DELIVERY' AND effective_from <= now()
+              AND (effective_until IS NULL OR effective_until > now())
+            ORDER BY effective_from DESC, id DESC LIMIT 1
+            """, (rs, row) -> rs.getString("status"));
+        if (statuses.isEmpty() || !"ENABLED".equals(statuses.getFirst()))
+            throw new AuthException(503, "La aceptación de delivery está temporalmente indisponible.");
     }
 
     private void revalidate(Locked request) {

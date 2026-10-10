@@ -129,27 +129,60 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void keepsDeliveryRequestPendingUntilItsOperationalFlowExists() {
+    void keepsDeliveryRequestPendingWhenDeliveryCapacityIsNotEnabled() {
         UUID menuItemId = seedMenuItem("Wok Delivery", "18.00", "WOK_DELIVERY_DECISION", 60);
-        UUID requestId = UUID.fromString(submit(tokenForRole("CLIENT"), menuItemId, 1,
-                Instant.now().plusSeconds(600).toString()).path("requestId").asText());
-        jdbc.update("""
-                UPDATE wok.order_requests
-                SET fulfillment_type = 'DELIVERY', delivery_address = 'Zona 1, Ciudad de Guatemala',
-                    contact_phone = '+502 5555-0101', payment_preference = 'CASH_ON_DELIVERY'
-                WHERE id = ?
-                """, requestId);
+        UUID requestId = submitDelivery(tokenForRole("CLIENT"), menuItemId);
+        setDeliveryStatus("MANUAL_APPROVAL");
 
         var response = post("/api/v1/operational/order-requests/" + requestId + "/decision",
                 tokenForRole("OPERATIONAL"), """
                 {"action":"ACCEPT"}
                 """);
 
-        assertThat(response.statusCode()).isEqualTo(422);
+        assertThat(response.statusCode()).isEqualTo(503);
         assertThat(jdbc.queryForObject("SELECT status FROM wok.order_requests WHERE id = ?", String.class, requestId))
                 .isEqualTo("PENDING_REVIEW");
         assertThat(jdbc.queryForObject("SELECT order_id FROM wok.order_requests WHERE id = ?", UUID.class, requestId))
                 .isNull();
+    }
+
+    @Test
+    void acceptsDeliveryCreatingSentOrderAndReplaysDecisionWhenEnabled() {
+        UUID menuItemId = seedMenuItem("Wok Delivery Accepted", "18.00", "WOK_DELIVERY_ACCEPT", 60);
+        UUID requestId = submitDelivery(tokenForRole("CLIENT"), menuItemId);
+        enableDelivery();
+        String operator = tokenForRole("OPERATIONAL");
+
+        JsonNode decision = body(post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
+                """
+                {"action":"ACCEPT"}
+                """));
+        UUID orderId = UUID.fromString(decision.path("orderId").asText());
+        assertThat(decision.path("status").asText()).isEqualTo("ACCEPTED");
+        assertThat(decision.path("idempotentReplay").asBoolean()).isFalse();
+
+        var order = jdbc.queryForMap("""
+                SELECT o.channel, o.status, o.dining_table_id, a.status AS account_status,
+                       (SELECT count(*) FROM wok.order_items i WHERE i.order_id = o.id) AS items,
+                       (SELECT count(*) FROM wok.kitchen_tickets k WHERE k.order_id = o.id) AS tickets
+                FROM wok.orders o JOIN wok.order_accounts a ON a.id = o.account_id WHERE o.id = ?
+                """, orderId);
+        assertThat(order).containsEntry("channel", "DELIVERY").containsEntry("status", "SENT")
+                .containsEntry("dining_table_id", null).containsEntry("account_status", "OPEN");
+        assertThat(((Number) order.get("items")).intValue()).isEqualTo(1);
+        assertThat(((Number) order.get("tickets")).intValue()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT fulfillment FROM wok.order_items WHERE order_id = ?", String.class,
+                orderId)).isEqualTo("TAKEAWAY");
+
+        JsonNode replay = body(post("/api/v1/operational/order-requests/" + requestId + "/decision", operator,
+                """
+                {"action":"ACCEPT"}
+                """));
+        assertThat(replay.path("idempotentReplay").asBoolean()).isTrue();
+        assertThat(replay.path("orderId").asText()).isEqualTo(orderId.toString());
+        assertThat(count("SELECT count(*) FROM wok.orders WHERE id = ?", orderId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM wok.order_request_events WHERE order_request_id = ? AND event_type = 'ACCEPTED'",
+                requestId)).isEqualTo(1);
     }
 
     @Test
@@ -163,6 +196,7 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
 
         UUID requestId = submitDelivery(client, menuItemId);
         UUID otherRequestId = submitDelivery(otherClient, menuItemId);
+        setDeliveryStatus("MANUAL_APPROVAL");
         String decisionPath = "/api/v1/operational/order-requests/" + requestId + "/decision";
         var pending = jdbc.queryForMap("SELECT * FROM wok.order_requests WHERE id = ?", requestId);
         var submittedEvents = jdbc.queryForList("""
@@ -174,7 +208,7 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         var blocked = post(decisionPath, operator, """
                 {"action":"ACCEPT"}
                 """);
-        assertThat(blocked.statusCode()).as(blocked.body()).isEqualTo(422);
+        assertThat(blocked.statusCode()).as(blocked.body()).isEqualTo(503);
         assertThat(jdbc.queryForMap("SELECT * FROM wok.order_requests WHERE id = ?", requestId)).isEqualTo(pending);
         assertThat(jdbc.queryForList("""
                 SELECT * FROM wok.order_request_events WHERE order_request_id = ? ORDER BY id
@@ -385,6 +419,18 @@ class OrderRequestDecisionIntegrationTest extends PostgresIntegrationTest {
         assertThat(submitted.path("status").asText()).isEqualTo("PENDING_REVIEW");
         assertThat(submitted.hasNonNull("orderId")).isFalse();
         return UUID.fromString(submitted.path("requestId").asText());
+    }
+
+    private void enableDelivery() {
+        setDeliveryStatus("ENABLED");
+    }
+
+    private void setDeliveryStatus(String status) {
+        jdbc.update("""
+                UPDATE wok.service_capabilities
+                SET status = ?, effective_from = now(), effective_until = NULL
+                WHERE code = 'DELIVERY'
+                """, status);
     }
 
     private JsonNode body(HttpResponse<String> response) {

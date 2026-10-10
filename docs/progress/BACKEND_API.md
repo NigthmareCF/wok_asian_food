@@ -1,5 +1,12 @@
 # Progreso de API backend
 
+## 2026-10-09 — PR38-R1: aceptación delivery sobre bandeja unificada
+
+- `OrderRequestDecisionService` acepta `DELIVERY` únicamente con capacidad vigente `ENABLED`; la ausencia de capacidad o estados `MANUAL_APPROVAL`, `PAUSED` y `DISABLED` responden 503 sin mutar la solicitud.
+- `OrderService` comparte la creación transaccional de pickup para producir pedidos `DELIVERY/SENT`, cuenta `OPEN` sin mesa, líneas `TAKEAWAY`, reserva de inventario, recálculo de totales, comandas, eventos y auditoría. Se conservan el bloqueo de fila, replay y rollback.
+- La bandeja U2 (`OrderRequestSummary`, filtros y detalle) permanece intacta. No se introduce un límite fijo de tres horas: la aceptación conserva únicamente la revalidación por tiempo de preparación.
+- La anotación `@NotNull` en los elementos de la solicitud delivery devuelve 400 para elementos nulos antes de la lógica productiva.
+
 ## 2026-10-09 — PR35-U2: consolidación de bandeja operativa con contrato canónico de PR39
 
 - `OperationalOrderRequestController.java` y `OperationalOrderRequestQuery`: unificación del DTO en la estructura canónica `OrderRequestSummary` (`requestId`, `status`, `fulfillmentType`, `requestedFor`, `submittedAt`, `customerName`, `customerEmail`, `customerNote`, `subtotal`, `currency`, `orderId`, `orderStatus`, e `items` snapshot). Eliminados los DTOs redundantes (`Summary`, `Details`, `Line`) y campos no expuestos por el contrato canónico.
